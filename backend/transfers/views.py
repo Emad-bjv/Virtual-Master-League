@@ -1,0 +1,124 @@
+from decimal import Decimal
+from rest_framework import generics, status, views
+from rest_framework.response import Response
+from .models import TransferListing, TransferHistory
+from .serializers import TransferListingSerializer, TransferHistorySerializer
+from .services import (
+    list_player_for_sale,
+    buy_player_direct,
+    place_bid,
+    finalize_auction,
+    auto_release_overflow_players
+)
+
+
+class TransferMarketListView(generics.ListAPIView):
+    """
+    Returns active listings in the transfer market.
+    Can be filtered by position or min/max price via query params.
+    """
+    serializer_class = TransferListingSerializer
+
+    def get_queryset(self):
+        queryset = TransferListing.objects.filter(status='ACTIVE')
+        position = self.request.query_params.get('position')
+        min_price = self.request.query_params.get('min_price')
+        max_price = self.request.query_params.get('max_price')
+
+        if position:
+            queryset = queryset.filter(player__position=position)
+        if min_price:
+            queryset = queryset.filter(price_usd__gte=min_price)
+        if max_price:
+            queryset = queryset.filter(price_usd__lte=max_price)
+
+        return queryset
+
+
+class CreateListingView(views.APIView):
+    """
+    Lists a player for sale (fixed price or auction).
+    """
+    def post(self, request):
+        team_id = request.data.get('team_id')
+        player_id = request.data.get('player_id')
+        price_usd = request.data.get('price_usd')
+        listing_type = request.data.get('listing_type', 'FIXED_PRICE')
+
+        if not team_id or not player_id or not price_usd:
+            return Response({'error': 'team_id, player_id, and price_usd are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        result = list_player_for_sale(
+            team_id=int(team_id),
+            player_id=int(player_id),
+            price_usd=Decimal(str(price_usd)),
+            listing_type=listing_type
+        )
+
+        if result['success']:
+            return Response(result, status=status.HTTP_201_CREATED)
+        else:
+            return Response({'error': result['error']}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class BuyPlayerDirectView(views.APIView):
+    """
+    Buys a fixed-price player directly.
+    """
+    def post(self, request):
+        buyer_team_id = request.data.get('buyer_team_id')
+        listing_id = request.data.get('listing_id')
+
+        if not buyer_team_id or not listing_id:
+            return Response({'error': 'buyer_team_id and listing_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        result = buy_player_direct(buyer_team_id=int(buyer_team_id), listing_id=int(listing_id))
+
+        if result['success']:
+            return Response(result, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': result['error']}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PlaceBidView(views.APIView):
+    """
+    Places a bid on an auction listing.
+    """
+    def post(self, request):
+        bidder_team_id = request.data.get('bidder_team_id')
+        listing_id = request.data.get('listing_id')
+        bid_amount = request.data.get('bid_amount')
+
+        if not bidder_team_id or not listing_id or not bid_amount:
+            return Response({'error': 'bidder_team_id, listing_id, and bid_amount are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        result = place_bid(
+            bidder_team_id=int(bidder_team_id),
+            listing_id=int(listing_id),
+            bid_amount=Decimal(str(bid_amount))
+        )
+
+        if result['success']:
+            return Response(result, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': result['error']}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AutoReleaseOverflowView(views.APIView):
+    """
+    Releases excess players if a team exceeds 25 players.
+    """
+    def post(self, request, team_id):
+        result = auto_release_overflow_players(team_id=team_id)
+        if result['success']:
+            return Response(result, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': result['error']}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TransferHistoryListView(generics.ListAPIView):
+    """
+    Returns global transfer history.
+    """
+    queryset = TransferHistory.objects.all()
+    serializer_class = TransferHistorySerializer

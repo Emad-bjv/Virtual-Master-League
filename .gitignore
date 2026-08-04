@@ -1,0 +1,30 @@
+/gemini-code-1785504060357.md
+/review_results.md
+/سیاست ترک مربی وسط فصل — تیم و بودجه چه می_شود؟_س.md
+
+# Virtual Environments
+venv/
+backend/venv/
+.venv/
+ENV/
+env/
+*.pyc
+__pycache__/
+
+# Node Dependencies & Builds
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+.eslintcache
+
+# Databases & Environment
+*.sqlite3
+*.db
+.env
+.env.local
+.env.*.local
+
+# System Files
+.DS_Store
+Thumbs.db
