@@ -40,13 +40,15 @@ class CreateListingView(views.APIView):
     Lists a player for sale (fixed price or auction).
     """
     def post(self, request):
-        team_id = request.data.get('team_id')
+        # Frontend sends `seller_team_id`; backend API contract historically used `team_id`.
+        # Accept both so the market UI and API clients stay compatible.
+        team_id = request.data.get('seller_team_id') or request.data.get('team_id')
         player_id = request.data.get('player_id')
         price_usd = request.data.get('price_usd')
         listing_type = request.data.get('listing_type', 'FIXED_PRICE')
 
         if not team_id or not player_id or not price_usd:
-            return Response({'error': 'team_id, player_id, and price_usd are required.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'seller_team_id, player_id, and price_usd are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         result = list_player_for_sale(
             team_id=int(team_id),
@@ -87,7 +89,9 @@ class PlaceBidView(views.APIView):
     def post(self, request):
         bidder_team_id = request.data.get('bidder_team_id')
         listing_id = request.data.get('listing_id')
-        bid_amount = request.data.get('bid_amount')
+        # Frontend sends `amount_usd`; e2e/API clients historically send `bid_amount`.
+        # Accept both so the market UI and API clients stay compatible.
+        bid_amount = request.data.get('bid_amount') or request.data.get('amount_usd')
 
         if not bidder_team_id or not listing_id or not bid_amount:
             return Response({'error': 'bidder_team_id, listing_id, and bid_amount are required.'}, status=status.HTTP_400_BAD_REQUEST)

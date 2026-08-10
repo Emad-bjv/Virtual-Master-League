@@ -7,27 +7,34 @@ from teams.models import Team
 from .models import Transaction, StorePackage
 
 
-def process_atomic_wallet_update(team_id: int, amount_usd: Decimal, transaction_type: str, description: str = "") -> dict:
+def process_atomic_wallet_update(team_id: int, amount: Decimal, currency: str, transaction_type: str, description: str = "") -> dict:
     """
-    Atomically updates a team's budget to prevent race conditions.
+    Atomically updates a team's budget or gems to prevent race conditions.
     """
     with transaction.atomic():
         try:
             # select_for_update locks the row until the transaction completes
             team = Team.objects.select_for_update().get(id=team_id)
             
+            # Identify which field we are modifying
+            field = 'budget' if currency == 'BUDGET' else 'gems'
+            current_balance = getattr(team, field)
+            
             # Check for sufficient funds if it's a withdrawal
-            if amount_usd < 0 and team.budget + amount_usd < 0:
-                return {'success': False, 'error': 'موجودی کافی نیست.'}
+            if amount < 0 and current_balance + amount < 0:
+                error_msg = 'موجودی کافی نیست.' if currency == 'BUDGET' else 'جم کافی نیست.'
+                return {'success': False, 'error': error_msg}
                 
-            # Update budget
-            team.budget += amount_usd
-            team.save(update_fields=['budget'])
+            # Update balance
+            new_balance = current_balance + amount
+            setattr(team, field, new_balance)
+            team.save(update_fields=[field])
             
             # Record transaction
             txn = Transaction.objects.create(
                 team=team,
-                amount_usd=amount_usd,
+                currency=currency,
+                amount=amount,
                 transaction_type=transaction_type,
                 status='SUCCESS',
                 description=description
@@ -35,13 +42,41 @@ def process_atomic_wallet_update(team_id: int, amount_usd: Decimal, transaction_
             
             return {
                 'success': True,
-                'new_budget': team.budget,
+                'new_balance': getattr(team, field),
                 'transaction_id': txn.id
             }
         except Team.DoesNotExist:
             return {'success': False, 'error': 'تیم یافت نشد.'}
         except Exception as e:
             return {'success': False, 'error': str(e)}
+
+def distribute_match_rewards(match) -> dict:
+    from django.utils import timezone
+    from datetime import timedelta
+    from .formulas import calculate_match_reward, apply_weekly_soft_cap
+
+    week_start = timezone.now() - timedelta(days=timezone.now().weekday())
+    results = []
+
+    for team, opponent_score, own_score in [
+        (match.home_team, match.away_score, match.home_score),
+        (match.away_team, match.home_score, match.away_score),
+    ]:
+        if not team:
+            continue
+        result = 'WIN' if own_score > opponent_score else ('DRAW' if own_score == opponent_score else 'LOSS')
+        clean_sheet = opponent_score == 0
+        raw = calculate_match_reward(team, result, own_score, clean_sheet)
+        capped = apply_weekly_soft_cap(team, raw, week_start)
+
+        process_atomic_wallet_update(
+            team_id=team.id, amount=capped, currency='BUDGET',
+            transaction_type='MATCH_REWARD',
+            description=f"پاداش بازی {match} — نتیجه: {result}"
+        )
+        results.append({'team': team.name, 'raw': float(raw), 'capped': float(capped)})
+
+    return {'match_id': match.id, 'rewards': results}
 
 
 # ──────────────────────────────────────────────
@@ -66,9 +101,10 @@ def request_zarinpal_payment(team: Team, package: StorePackage, callback_url: st
     # Create PENDING transaction
     txn = Transaction.objects.create(
         team=team,
-        amount_usd=package.usd_amount,
+        currency='GEMS',
+        amount=package.usd_amount,  # Now represents gems amount
         amount_irr=package.price_irr,
-        transaction_type='DEPOSIT',
+        transaction_type='STORE_PURCHASE',
         status='PENDING',
         description=f"خرید بسته {package.name}"
     )
@@ -142,8 +178,8 @@ def verify_zarinpal_payment(authority: str, txn_id: int) -> dict:
             # Payment successful, update atomically
             with transaction.atomic():
                 team = Team.objects.select_for_update().get(id=txn.team_id)
-                team.budget += txn.amount_usd
-                team.save(update_fields=['budget'])
+                team.gems += txn.amount
+                team.save(update_fields=['gems'])
                 
                 txn.status = 'SUCCESS'
                 txn.zarinpal_ref_id = str(ref_id)
@@ -152,7 +188,7 @@ def verify_zarinpal_payment(authority: str, txn_id: int) -> dict:
             return {
                 'success': True,
                 'ref_id': ref_id,
-                'new_budget': team.budget
+                'new_gems': team.gems
             }
         else:
             txn.status = 'FAILED'

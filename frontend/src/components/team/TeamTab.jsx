@@ -3,7 +3,7 @@ import SubNav from '../common/SubNav';
 import EFootballGamePlan from './EFootballGamePlan';
 import { Search, CheckCircle, AlertTriangle, XCircle, Save, Sliders, Calendar, Info, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { teamApi } from '../../services/api';
+import { teamApi, matchApi } from '../../services/api';
 import CustomSelect from '../common/CustomSelect';
 import Toast from '../common/Toast';
 
@@ -14,34 +14,8 @@ const TEAM_SUBNAV = [
   { id: 'table', label: 'جدول لیگ' },
 ];
 
-const FORMATIONS = {
-  '4-2-1-3': [
-    { id: '1', name: 'Alisson', position: 'GK', overall: 87, x_coord: 50, y_coord: 88, is_starting: true, stamina: 100, status: 'سالم', trend: '▲▲', age: 31, consecutive_games: 4, base_stamina: 75, position_group: 'GK' },
-    { id: '2', name: 'Andrew Robertson', position: 'LB', overall: 84, x_coord: 15, y_coord: 68, is_starting: true, stamina: 95, status: 'سالم', trend: '▲▼', age: 30, consecutive_games: 6, base_stamina: 82, position_group: 'FB' },
-    { id: '3', name: 'Ibrahima Konaté', position: 'CB', overall: 85, x_coord: 35, y_coord: 72, is_starting: true, stamina: 88, status: 'سالم', trend: '▲', age: 28, consecutive_games: 3, base_stamina: 80, position_group: 'CB' },
-    { id: '4', name: 'Virgil van Dijk', position: 'CB', overall: 86, isCaptain: true, x_coord: 62, y_coord: 72, is_starting: true, stamina: 42, status: 'خسته', trend: '▼', age: 33, consecutive_games: 8, base_stamina: 84, position_group: 'CB' },
-    { id: '5', name: 'Jeremie Frimpong', position: 'RB', overall: 83, x_coord: 85, y_coord: 68, is_starting: true, stamina: 90, status: 'سالم', trend: '▲▲', age: 24, consecutive_games: 2, base_stamina: 85, position_group: 'FB' },
-    { id: '6', name: 'Ryan Gravenberch', position: 'DMF', overall: 85, x_coord: 34, y_coord: 54, is_starting: true, stamina: 25, status: 'مصدوم', trend: '▼▼', age: 22, consecutive_games: 10, base_stamina: 78, position_group: 'DMF' },
-    { id: '7', name: 'Alexis Mac Allister', position: 'CMF', overall: 85, x_coord: 66, y_coord: 54, is_starting: true, stamina: 92, status: 'سالم', trend: '▲▲', age: 25, consecutive_games: 5, base_stamina: 88, position_group: 'CMF' },
-    { id: '8', name: 'Dominik Szoboszlai', position: 'AMF', overall: 87, x_coord: 50, y_coord: 36, is_starting: true, stamina: 98, status: 'سالم', trend: '▲▲', age: 23, consecutive_games: 4, base_stamina: 86, position_group: 'AMF' },
-    { id: '9', name: 'Cody Gakpo', position: 'LWF', overall: 86, x_coord: 18, y_coord: 22, is_starting: true, stamina: 94, status: 'سالم', trend: '▲▲', age: 25, consecutive_games: 7, base_stamina: 89, position_group: 'LWF' },
-    { id: '10', name: 'Mohamed Salah', position: 'RWF', overall: 87, x_coord: 82, y_coord: 22, is_starting: true, stamina: 86, status: 'سالم', trend: '▲', age: 32, consecutive_games: 3, base_stamina: 87, position_group: 'RWF' },
-    { id: '11', name: 'Alexander Isak', position: 'CF', overall: 86, x_coord: 50, y_coord: 10, is_starting: true, stamina: 92, status: 'سالم', trend: '▲', age: 24, consecutive_games: 5, base_stamina: 83, position_group: 'CF' },
-  ],
-};
-
-const LEAGUE_TABLE = [
-  { rank: 1, name: 'تراکتور', p: 20, w: 15, d: 3, l: 2, gf: 42, ga: 14, gd: '+28', pts: 48 },
-  { rank: 2, name: 'سپاهان', p: 20, w: 14, d: 3, l: 3, gf: 38, ga: 16, gd: '+22', pts: 45 },
-  { rank: 3, name: 'باشگاه البرز (تیم شما)', p: 20, w: 13, d: 3, l: 4, gf: 39, ga: 18, gd: '+21', pts: 42, isUser: true },
-  { rank: 4, name: 'استقلال', p: 20, w: 12, d: 4, l: 4, gf: 34, ga: 17, gd: '+17', pts: 40 },
-  { rank: 5, name: 'پرسپولیس', p: 20, w: 11, d: 5, l: 4, gf: 31, ga: 19, gd: '+12', pts: 38 },
-  { rank: 6, name: 'گل‌گهر سیرجان', p: 20, w: 9, d: 6, l: 5, gf: 27, ga: 20, gd: '+7', pts: 33 },
-  { rank: 7, name: 'فولاد خوزستان', p: 20, w: 8, d: 5, l: 7, gf: 24, ga: 23, gd: '+1', pts: 29 },
-  { rank: 8, name: 'ذوب‌آهن', p: 20, w: 7, d: 6, l: 7, gf: 21, ga: 22, gd: '-1', pts: 27 },
-  { rank: 9, name: 'ملوان انزلی', p: 20, w: 6, d: 7, l: 7, gf: 19, ga: 21, gd: '-2', pts: 25 },
-  { rank: 10, name: 'آلومینیوم اراک', p: 20, w: 6, d: 5, l: 9, gf: 18, ga: 24, gd: '-6', pts: 23 },
-];
+const FORMATIONS = {};
+const LEAGUE_TABLE = [];
 
 // Tactical Guides Dictionary matching exact specs from user file
 const TACTICAL_GUIDES = {
@@ -105,9 +79,12 @@ export default function TeamTab({
   initialSub = 'lineup', 
   initialPlayers = [], 
   isLineupSubmitted = false,
-  onSaveLineup 
+  onSaveLineup,
+  teamData
 }) {
   const [activeSub, setActiveSub] = useState(initialSub);
+  // Use the manager's real team when available
+  const teamId = teamData?.id;
   const [selectedFormation, setSelectedFormation] = useState('4-3-3 (4-2-1-3)');
   const [tacticTab, setTacticTab] = useState('attack'); // 'attack' | 'defense' | 'advanced'
 
@@ -136,11 +113,72 @@ export default function TeamTab({
   const [searchTerm, setSearchTerm] = useState('');
   const [positionFilter, setPositionFilter] = useState('ALL');
 
+  // Live data: league standings + fixtures
+  const [leagueTable, setLeagueTable] = useState([]);
+  const [upcomingMatches, setUpcomingMatches] = useState([]);
+  const [matchHistory, setMatchHistory] = useState([]);
+
+  useEffect(() => {
+    if (activeSub !== 'matches' && activeSub !== 'table') return;
+    matchApi
+      .getLeagueStandings()
+      .then((res) => {
+        if (res.data && res.data.length > 0) {
+          setLeagueTable(
+            res.data.map((row) => ({
+              rank: row.rank,
+              name: row.name + (teamId && row.team_id === teamId ? ' (تیم شما)' : ''),
+              p: row.played,
+              w: row.won,
+              d: row.drawn,
+              l: row.lost,
+              gf: row.gf,
+              ga: row.ga,
+              gd: (row.gd >= 0 ? '+' : '') + row.gd,
+              pts: row.points,
+              isUser: teamId ? row.team_id === teamId : false,
+            }))
+          );
+        } else {
+          setLeagueTable([]);
+        }
+      })
+      .catch(() => setLeagueTable([]));
+  }, [activeSub, teamId]);
+
+  useEffect(() => {
+    if (activeSub !== 'matches') return;
+    matchApi
+      .getUpcomingMatches()
+      .then((res) => {
+        if (res.data && res.data.length > 0) {
+          setUpcomingMatches(res.data);
+        }
+      })
+      .catch(() => {});
+      
+    const historyPromise = teamId 
+      ? matchApi.getTeamMatchHistory(teamId) 
+      : matchApi.getMatchHistory();
+      
+    historyPromise
+      .then((res) => {
+        if (res.data && res.data.length > 0) {
+          setMatchHistory(res.data);
+        }
+      })
+      .catch(() => {});
+  }, [activeSub, teamId]);
+
   const handleFullSubmit = async () => {
+    if (!teamId) {
+      setSaveMessage('تیمی برای شما یافت نشد.');
+      return;
+    }
     setSaving(true);
     setSaveMessage('');
     try {
-      await teamApi.submitGameplan(1, {
+      await teamApi.submitGameplan(teamId, {
         tactics: {
           formation: selectedFormation,
           ...tactics,
@@ -166,7 +204,7 @@ export default function TeamTab({
   // Formula Inspector Modal State
   const [selectedPlayerForFormula, setSelectedPlayerForFormula] = useState(null);
 
-  const [players, setPlayers] = useState(FORMATIONS['4-2-1-3']);
+  const [players, setPlayers] = useState(initialPlayers || []);
 
   useEffect(() => {
     if (initialPlayers && initialPlayers.length > 0) {
@@ -187,6 +225,10 @@ export default function TeamTab({
   }, [initialPlayers]);
 
   const handleSaveGameplan = async () => {
+    if (!teamId) {
+      setSaveMessage('تیمی برای شما یافت نشد.');
+      return;
+    }
     setSaving(true);
     setSaveMessage('');
     try {
@@ -197,7 +239,7 @@ export default function TeamTab({
         position: p.position,
         is_starting: p.is_starting ?? true,
       }));
-      await teamApi.updateGameplan(1, payload);
+      await teamApi.updateGameplan(teamId, payload);
       setSaveMessage('ترکیب و تاکتیک‌ها در دیتابیس سرور ذخیره شد!');
     } catch (_err) {
       setSaveMessage('ترکیب به صورت محلی به‌روزرسانی شد.');
@@ -837,33 +879,78 @@ export default function TeamTab({
           </div>
 
           <div className="glass-panel p-3 rounded-2xl border border-slate-800 space-y-2 text-xs">
-            <div className="flex justify-between items-center p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/30">
-              <div>
-                <span className="font-bold text-white block">هفته ۱۰ — vs الاهلی</span>
-                <span className="text-[10px] text-slate-400">۱۲ مرداد ۱۴۰۳</span>
-              </div>
-              <span className="text-emerald-400 font-bold text-xs bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-500/40">
-                ۲ : ۱ برد
-              </span>
-            </div>
+            {upcomingMatches.length > 0 ? (
+              upcomingMatches.slice(0, 3).map((m, idx) => (
+                <div
+                  key={m.id || idx}
+                  className="flex justify-between items-center p-2.5 rounded-xl bg-purple-950/40 border border-purple-500/40 shadow-lg shadow-purple-950/30"
+                >
+                  <div>
+                    <span className="font-bold text-cyan-300 block">
+                      {m.round_name || 'بازی بعدی'} — {m.home_team_name} vs {m.away_team_name}
+                    </span>
+                    <span className="text-[10px] text-purple-300">
+                      {m.date ? new Date(m.date).toLocaleString('fa-IR') : 'زمان دقیق به‌زودی اعلام می‌شود'}
+                    </span>
+                  </div>
+                  <span className="text-cyan-400 font-bold text-xs bg-cyan-950/80 px-2.5 py-1 rounded-lg border border-cyan-500/40">
+                    پیش‌رو
+                  </span>
+                </div>
+              ))
+            ) : (
+              <>
+                <div className="flex justify-between items-center p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/30">
+                  <div>
+                    <span className="font-bold text-white block">هفته ۱۰ — vs الاهلی</span>
+                    <span className="text-[10px] text-slate-400">۱۲ مرداد ۱۴۰۳</span>
+                  </div>
+                  <span className="text-emerald-400 font-bold text-xs bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-500/40">
+                    ۲ : ۱ برد
+                  </span>
+                </div>
 
-            <div className="flex justify-between items-center p-2.5 rounded-xl bg-purple-950/40 border border-purple-500/40 shadow-lg shadow-purple-950/30">
-              <div>
-                <span className="font-bold text-cyan-300 block">هفته ۱۱ (بازی بعدی) — vs سپاهان</span>
-                <span className="text-[10px] text-purple-300">جمعه ۱۹ مرداد — ساعت ۱۸:۰۰</span>
-              </div>
-              <span className="text-cyan-400 font-bold text-xs bg-cyan-950/80 px-2.5 py-1 rounded-lg border border-cyan-500/40">
-                پیش‌رو
-              </span>
-            </div>
+                <div className="flex justify-between items-center p-2.5 rounded-xl bg-purple-950/40 border border-purple-500/40 shadow-lg shadow-purple-950/30">
+                  <div>
+                    <span className="font-bold text-cyan-300 block">هفته ۱۱ (بازی بعدی) — vs سپاهان</span>
+                    <span className="text-[10px] text-purple-300">جمعه ۱۹ مرداد — ساعت ۱۸:۰۰</span>
+                  </div>
+                  <span className="text-cyan-400 font-bold text-xs bg-cyan-950/80 px-2.5 py-1 rounded-lg border border-cyan-500/40">
+                    پیش‌رو
+                  </span>
+                </div>
 
-            <div className="flex justify-between items-center p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-              <div>
-                <span className="font-bold text-slate-200 block">هفته ۱۲ — vs الهلال</span>
-                <span className="text-[10px] text-slate-400">۲۶ مرداد — ساعت ۲۰:۳۰</span>
+                <div className="flex justify-between items-center p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+                  <div>
+                    <span className="font-bold text-slate-200 block">هفته ۱۲ — vs الهلال</span>
+                    <span className="text-[10px] text-slate-400">۲۶ مرداد — ساعت ۲۰:۳۰</span>
+                  </div>
+                  <span className="text-slate-400 font-medium text-xs">برنامه‌ریزی‌شده</span>
+                </div>
+              </>
+            )}
+
+            {matchHistory.length > 0 && (
+              <div className="pt-2 border-t border-slate-800">
+                <span className="text-[10.5px] text-slate-400 block mb-1.5">نتایج اخیر:</span>
+                {matchHistory.slice(0, 3).map((m, idx) => (
+                  <div
+                    key={m.id || `h-${idx}`}
+                    className="flex justify-between items-center p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 mb-1.5"
+                  >
+                    <div>
+                      <span className="font-bold text-slate-200 block">
+                        {m.home_team_name} {m.home_score} - {m.away_score} {m.away_team_name}
+                      </span>
+                      <span className="text-[10px] text-slate-400">{m.round_name || ''}</span>
+                    </div>
+                    <span className="text-emerald-400 font-bold text-xs bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-500/40">
+                      پایان یافته
+                    </span>
+                  </div>
+                ))}
               </div>
-              <span className="text-slate-400 font-medium text-xs">برنامه‌ریزی‌شده</span>
-            </div>
+            )}
           </div>
         </motion.div>
       )}
@@ -886,7 +973,7 @@ export default function TeamTab({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {LEAGUE_TABLE.map((row) => (
+                {leagueTable.map((row) => (
                   <tr
                     key={row.rank}
                     className={`transition-colors ${

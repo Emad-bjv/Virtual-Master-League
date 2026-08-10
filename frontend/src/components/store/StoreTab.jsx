@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import SubNav from '../common/SubNav';
 import { Gift, Coins, Award, Check, Sparkles, Crown, Zap, CreditCard, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { economyApi, gachaApi } from '../../services/api';
+import { economyApi, gachaApi, seasonPassApi } from '../../services/api';
 import Toast from '../common/Toast';
 
 const STORE_SUBNAV = [
@@ -12,14 +12,21 @@ const STORE_SUBNAV = [
   { id: 'pass', label: 'پاس فصلی (VIP)' },
 ];
 
-export default function StoreTab() {
+export default function StoreTab({ teamData }) {
   const [activeSub, setActiveSub] = useState('offers');
+  // Use the manager's real team when available
+  const teamId = teamData?.id;
   const [storePackages, setStorePackages] = useState([]);
   const [gachaPacks, setGachaPacks] = useState([]);
 
   // Pack opening animation state
   const [isOpeningPack, setIsOpeningPack] = useState(false);
   const [gachaResult, setGachaResult] = useState(null);
+
+  // Season Pass state
+  const [seasonPassData, setSeasonPassData] = useState(null);
+  const [weeklyTasks, setWeeklyTasks] = useState([]);
+  const [seasonPassLevels, setSeasonPassLevels] = useState([]);
 
   // Daily rewards state
   const [dailyClaimed, setDailyClaimed] = useState(false);
@@ -46,16 +53,28 @@ export default function StoreTab() {
         }
       })
       .catch((_err) => console.log('Gacha packs fallback'));
-  }, []);
+      
+    if (teamId) {
+      seasonPassApi.getStatus().then((res) => {
+        setSeasonPassData(res.data.season_pass);
+        setWeeklyTasks(res.data.weekly_tasks);
+        setSeasonPassLevels(res.data.levels);
+      }).catch(err => console.log('Season pass data fetch failed', err));
+    }
+  }, [teamId]);
 
   const handleOpenGacha = async (packId) => {
+    if (!teamId) {
+      alert('تیمی برای شما یافت نشد.');
+      return;
+    }
     setIsOpeningPack(true);
     setGachaResult(null);
 
     // Simulate pack opening glow delay for high quality game feel
     setTimeout(async () => {
       try {
-        const res = await gachaApi.openPack({ pack_id: packId, team_id: 1 });
+        const res = await gachaApi.openPack({ pack_id: packId, team_id: teamId });
         setGachaResult(res.data);
       } catch (_err) {
         setGachaResult({
@@ -76,14 +95,54 @@ export default function StoreTab() {
   };
 
   const handleBuyCoins = async (pkg) => {
+    if (!teamId) {
+      alert('تیمی برای شما یافت نشد.');
+      return;
+    }
     try {
-      await economyApi.requestPayment({ package_id: pkg.id, team_id: 1 });
+      await economyApi.requestPayment({ package_id: pkg.id, team_id: teamId });
       setToastMessage(`تراکنش برای ${pkg.name} ایجاد شد.`);
     } catch (_err) {
       setToastMessage(`خرید ${pkg.name || 'سکه'} با موفقیت انجام شد (دمو).`);
     } finally {
       setSelectedCoinPkg(null);
       setTimeout(() => setToastMessage(''), 3500);
+    }
+  };
+
+  const handleClaimTask = async (taskId) => {
+    try {
+      const res = await seasonPassApi.claimTask(taskId);
+      setToastMessage('امتیاز تسک دریافت شد!');
+      
+      // Update local state
+      setSeasonPassData(prev => ({...prev, current_xp: res.data.new_xp, current_level: res.data.new_level}));
+      setWeeklyTasks(prev => prev.map(t => t.id === taskId ? {...t, is_claimed: true} : t));
+    } catch (err) {
+      alert(err.response?.data?.error || 'خطا در دریافت تسک');
+    }
+  };
+
+  const handleClaimLevel = async (level) => {
+    try {
+      const res = await seasonPassApi.claimLevel(level);
+      setToastMessage(`پاداش سطح ${level} دریافت شد!`);
+      
+      if (res.data.legendary_player) {
+         setGachaResult({
+            player_name: res.data.legendary_player,
+            rarity_drawn: 'LEGENDARY',
+            ovr: '؟',
+         });
+      }
+      
+      // Update local state
+      setSeasonPassData(prev => ({
+        ...prev, 
+        claimed_levels: [...prev.claimed_levels, level]
+      }));
+    } catch (err) {
+      alert(err.response?.data?.error || 'خطا در دریافت پاداش سطح');
     }
   };
 
@@ -283,43 +342,83 @@ export default function StoreTab() {
 
       {/* Subtab 4: Season Pass (VIP) */}
       {activeSub === 'pass' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="glass-panel p-4 rounded-2xl border border-purple-500/40 space-y-3 text-xs">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-2">
-              <Crown size={18} className="text-amber-400" />
-              <span className="font-bold text-white text-sm">پاس فصلی (Season Pass)</span>
-            </div>
-            <span className="text-[10px] text-cyan-400 bg-cyan-950/60 border border-cyan-500/30 px-2.5 py-0.5 rounded-full dir-ltr font-bold">
-              سطح ۸ از ۵۰
-            </span>
-          </div>
-
-          {/* Season Pass Progress Bar */}
-          <div className="w-full h-3 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5">
-            <div className="h-full bg-gradient-to-r from-purple-600 via-indigo-500 to-cyan-400 rounded-full w-[16%]"></div>
-          </div>
-
-          <div className="space-y-2 pt-1">
-            <div className="flex justify-between items-center p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-              <span>سطح ۸ (مسیر رایگان): ۵۰۰ سکه</span>
-              <span className="text-emerald-400 font-bold flex items-center gap-1"><Check size={14} /> دریافت شد</span>
-            </div>
-
-            <div className="flex justify-between items-center p-2.5 rounded-xl bg-purple-950/40 border border-purple-500/40 shadow-lg shadow-purple-950/30">
-              <div>
-                <span className="font-bold text-white block">سطح ۸ (مسیر VIP): کارت بازیکن طلایی</span>
-                <span className="text-[10px] text-purple-300">نیازمند فعال‌سازی پاس ویژه</span>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+          <div className="glass-panel p-4 rounded-2xl border border-purple-500/40 space-y-3 text-xs">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Crown size={18} className="text-amber-400" />
+                <span className="font-bold text-white text-sm">پاس فصلی (Season Pass)</span>
               </div>
-              <button
-                onClick={() => {
-                  setToastMessage('پاس فصلی VIP با موفقیت فعال شد!');
-                  setTimeout(() => setToastMessage(''), 3500);
-                }}
-                className="bg-gradient-to-r from-amber-500 to-purple-600 text-slate-950 font-black px-3 py-1.5 rounded-xl shadow-md transition-all"
-              >
-                فعال‌سازی VIP
-              </button>
+              <span className="text-[10px] text-cyan-400 bg-cyan-950/60 border border-cyan-500/30 px-2.5 py-0.5 rounded-full dir-ltr font-bold">
+                سطح {seasonPassData?.current_level || 1} از {seasonPassLevels.length || 50}
+              </span>
             </div>
+
+            {/* Season Pass Progress Bar */}
+            <div className="w-full h-3 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5">
+              <div 
+                className="h-full bg-gradient-to-r from-purple-600 via-indigo-500 to-cyan-400 rounded-full"
+                style={{ width: `${Math.min(100, ((seasonPassData?.current_xp || 0) / (seasonPassLevels.find(l => l.level === (seasonPassData?.current_level || 1))?.xp_required || 100)) * 100)}%` }}
+              ></div>
+            </div>
+            
+            <p className="text-slate-400 text-center text-[10px]">{seasonPassData?.current_xp || 0} XP دریافت شده</p>
+          </div>
+
+          {/* Weekly Tasks List */}
+          <div className="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3">
+             <h3 className="font-bold text-white mb-2 border-b border-slate-800 pb-2">تسک‌های هفتگی</h3>
+             {weeklyTasks.map(task => (
+                <div key={task.id} className="flex justify-between items-center p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+                   <div>
+                      <span className="font-bold text-slate-200 block">{task.task?.title}</span>
+                      <span className="text-[10px] text-slate-400">{task.current_value} / {task.task?.target_value} انجام شده</span>
+                   </div>
+                   
+                   {task.is_claimed ? (
+                      <span className="text-emerald-400 font-bold flex items-center gap-1"><Check size={14} /> دریافت شد</span>
+                   ) : task.is_completed ? (
+                      <button 
+                         onClick={() => handleClaimTask(task.id)}
+                         className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-xl transition-all text-[10px]"
+                      >
+                         دریافت +{task.task?.reward_xp} XP
+                      </button>
+                   ) : (
+                      <span className="text-slate-500 font-bold px-3 py-1.5 border border-slate-700 rounded-xl bg-slate-800 text-[10px]">ناتمام</span>
+                   )}
+                </div>
+             ))}
+             {weeklyTasks.length === 0 && <p className="text-slate-500 text-xs text-center py-2">تسکی برای این هفته وجود ندارد.</p>}
+          </div>
+
+          {/* Levels List */}
+          <div className="space-y-2">
+             <h3 className="font-bold text-white px-2">جوایز سطوح</h3>
+             {seasonPassLevels.map(lvl => (
+                <div key={lvl.level} className={`p-3 rounded-xl border ${seasonPassData?.current_level >= lvl.level ? 'border-purple-500/40 bg-purple-950/20' : 'border-slate-800 bg-slate-900/40'} flex justify-between items-center text-xs`}>
+                   <div>
+                      <span className="font-bold text-white block">سطح {lvl.level} <span className="text-slate-400 font-normal text-[10px]">({lvl.xp_required} XP)</span></span>
+                      <div className="text-[10px] mt-1 space-y-1">
+                         <div className="text-cyan-300">رایگان: {lvl.free_reward_gems} جم</div>
+                         <div className="text-amber-400">ویژه (VIP): {lvl.vip_reward_player_rarity ? `بازیکن ${lvl.vip_reward_player_rarity}` : `${lvl.vip_reward_gems} جم`}</div>
+                      </div>
+                   </div>
+                   
+                   {seasonPassData?.claimed_levels?.includes(lvl.level) ? (
+                      <span className="text-emerald-400 font-bold flex items-center gap-1"><Check size={14} /> کامل</span>
+                   ) : seasonPassData?.current_level >= lvl.level ? (
+                      <button 
+                         onClick={() => handleClaimLevel(lvl.level)}
+                         className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold px-3 py-1.5 rounded-xl shadow-md"
+                      >
+                         دریافت
+                      </button>
+                   ) : (
+                      <span className="text-slate-600 font-bold">قفل</span>
+                   )}
+                </div>
+             ))}
           </div>
         </motion.div>
       )}

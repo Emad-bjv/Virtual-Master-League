@@ -12,10 +12,11 @@ class TeamGamePlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = TeamGamePlan
         fields = '__all__'
+        read_only_fields = ['id', 'team', 'is_submitted', 'submitted_at']
 
 
 class PlayerSerializer(serializers.ModelSerializer):
-    stamina_status = serializers.CharField(source='stamina_status', read_only=True)
+    stamina_status = serializers.CharField(read_only=True)
     is_stamina_locked = serializers.BooleanField(read_only=True)
 
     class Meta:

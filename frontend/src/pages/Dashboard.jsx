@@ -8,12 +8,10 @@ export default function Dashboard() {
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // In a real app, this ID comes from auth context. Hardcoded for MVP UI demo.
+  // Fetch team data from API
   const TEAM_ID = 1; 
 
   useEffect(() => {
-    // Fetch team data (mock for now, or connect to API if populated)
-    // To make UI demoable without DB seed, we'll initialize dummy data if API fails.
     axios.get(`http://127.0.0.1:9000/api/teams/${TEAM_ID}/`)
       .then(res => {
         setTeam(res.data);
@@ -21,22 +19,15 @@ export default function Dashboard() {
         setLoading(false);
       })
       .catch(err => {
-        console.log("API not seeded yet. Using dummy data for demo.");
-        setTeam({ name: 'استقلال', budget: '12000.00' });
-        setPlayers([
-          { id: 1, name: 'H. Hosseini', position: 'GK', overall: 75, x_coord: 5, y_coord: 50, is_starting: true },
-          { id: 2, name: 'R. Cheshmi', position: 'CB', overall: 74, x_coord: 20, y_coord: 50, is_starting: true },
-          { id: 3, name: 'A. Jalali', position: 'LB', overall: 73, x_coord: 25, y_coord: 20, is_starting: true },
-          { id: 4, name: 'S. Hardani', position: 'RB', overall: 72, x_coord: 25, y_coord: 80, is_starting: true },
-          { id: 5, name: 'G. Blanco', position: 'CF', overall: 76, x_coord: 85, y_coord: 50, is_starting: true },
-          { id: 6, name: 'J. Masharipov', position: 'AMF', overall: 77, x_coord: 70, y_coord: 30, is_starting: true },
-        ]);
+        console.error("Failed to load team data:", err);
+        setTeam(null);
+        setPlayers([]);
         setLoading(false);
       });
   }, []);
 
   const handlePlayerMove = (playerId, deltaX, deltaY) => {
-    // Convert pixel delta to percentage delta (approximate for demo)
+    // Convert pixel delta to percentage delta
     const pitchWidth = document.querySelector('.absolute.inset-0').offsetWidth;
     const pitchHeight = document.querySelector('.absolute.inset-0').offsetHeight;
     
@@ -62,7 +53,7 @@ export default function Dashboard() {
       await axios.post(`http://127.0.0.1:9000/api/teams/${TEAM_ID}/update_gameplan/`, players);
       alert('ترکیب با موفقیت ذخیره شد.');
     } catch (error) {
-      alert('ذخیره ترکیب فعلاً در حالت دمو (بدون دیتابیس کامل) غیرفعال است.');
+      alert('خطا در ذخیره ترکیب تیمی.');
     }
   };
 

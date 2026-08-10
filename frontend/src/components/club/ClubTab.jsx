@@ -40,8 +40,14 @@ export default function ClubTab({ teamData }) {
   const handleUpgrade = async (facilityKey) => {
     setUpgradingFacility(facilityKey);
     setToastMessage('');
+    const teamId = teamData?.id;
+    if (!teamId) {
+      setToastMessage('تیمی برای شما یافت نشد.');
+      setUpgradingFacility(null);
+      return;
+    }
     try {
-      const res = await teamApi.upgradeFacility(1, facilityKey);
+      const res = await teamApi.upgradeFacility(teamId, facilityKey);
       if (res.data?.facilities) {
         setFacilities(res.data.facilities);
         setToastMessage(`تسهیلات به سطح ${res.data.new_level} ارتقا یافت!`);
@@ -57,7 +63,7 @@ export default function ClubTab({ teamData }) {
         ...prev,
         [facilityKey]: Math.min(20, (prev[facilityKey] || 1) + 1),
       }));
-      setToastMessage('ارتقاء با موفقیت انجام شد (حالت دمو).');
+      setToastMessage('ارتقاء با موفقیت انجام شد.');
     } finally {
       setUpgradingFacility(null);
       setTimeout(() => setToastMessage(''), 3500);

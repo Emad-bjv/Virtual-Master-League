@@ -5,12 +5,15 @@ from .serializers import GachaPackSerializer, GachaPitySerializer, PackOpeningLo
 from .services import open_gacha_pack
 
 
+from rest_framework.permissions import AllowAny
+
 class GachaPackListView(generics.ListAPIView):
     """
     Returns active Gacha packs available for purchase.
     """
     queryset = GachaPack.objects.filter(is_active=True)
     serializer_class = GachaPackSerializer
+    permission_classes = [AllowAny]
 
 
 class OpenGachaPackView(views.APIView):

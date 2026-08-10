@@ -1,9 +1,20 @@
 import React from 'react';
 import { Coins, LogIn, ShieldAlert, LogOut } from 'lucide-react';
 import NotificationCenter from './NotificationCenter';
+import { useAuth } from '../../context/AuthContext';
 
-export default function Header({ user, coins, unreadNotifications, onAvatarClick, onOpenAuth, onOpenAdmin, onLogout, isAuthenticated, onNavigateTab, activeTab }) {
-  const isAdmin = user?.role === 'admin' || user?.isAdminAccess;
+export default function Header({ user: propUser, coins, unreadNotifications, onAvatarClick, onOpenAuth, onOpenAdmin, onLogout: propOnLogout, isAuthenticated: propIsAuth, onNavigateTab, activeTab }) {
+  const { user: contextUser, isAuthenticated: contextIsAuth, logout: contextLogout } = useAuth();
+  
+  const user = contextUser || propUser;
+  const isAuthenticated = contextIsAuth || propIsAuth;
+  const onLogout = contextLogout || propOnLogout;
+
+  const isAdmin = user?.role === 'admin' || user?.is_superuser || user?.isAdminAccess;
+
+  const displayDollars = user?.virtual_dollars !== undefined
+    ? Number(user.virtual_dollars).toLocaleString('fa-IR')
+    : (coins || 1000000).toLocaleString('fa-IR');
 
   return (
     <header className="sticky top-0 z-30 glass-panel border-b border-slate-800/80 px-4 py-3 flex items-center justify-between shadow-lg backdrop-blur-xl">
@@ -16,19 +27,19 @@ export default function Header({ user, coins, unreadNotifications, onAvatarClick
           >
             <div className="relative">
               <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-purple-600 via-indigo-500 to-cyan-400 p-0.5 shadow-md group-hover:shadow-purple-500/40 transition-shadow">
-                <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center font-bold text-white text-base">
-                  {user?.clubName ? user.clubName.charAt(0) : 'ا'}
+                <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center font-bold text-white text-base dir-ltr">
+                  {user?.phone_number ? user.phone_number.slice(-2) : 'VML'}
                 </div>
               </div>
               <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-slate-900 rounded-full"></span>
             </div>
 
             <div>
-              <h2 className="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors flex items-center gap-1.5">
-                {user?.clubName || 'باشگاه البرز'}
+              <h2 className="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors flex items-center gap-1.5 dir-ltr">
+                {user?.phone_number || user?.username || 'کاربر گرامی'}
               </h2>
               <p className="text-xs text-slate-400">
-                {user?.coachName ? `مربی: ${user.coachName}` : 'مربی: امید رضایی'}
+                {user?.role ? `نقش: ${user.role}` : 'مربی'}
               </p>
             </div>
           </button>
@@ -50,7 +61,7 @@ export default function Header({ user, coins, unreadNotifications, onAvatarClick
 
       {/* Stats & Actions */}
       <div className="flex items-center gap-2 md:gap-3">
-        {/* Admin Mode Quick Access Button (Hidden when already in Admin Tab) */}
+        {/* Admin Mode Quick Access Button */}
         {onOpenAdmin && isAuthenticated && isAdmin && activeTab !== 'admin' && (
           <button
             onClick={onOpenAdmin}
@@ -62,11 +73,11 @@ export default function Header({ user, coins, unreadNotifications, onAvatarClick
           </button>
         )}
 
-        {/* Coins Badge (Hidden in Admin Mode) */}
+        {/* Coins / Dollars Badge */}
         {activeTab !== 'admin' && (
           <div className="flex items-center gap-1.5 bg-slate-800/80 border border-amber-500/30 text-amber-300 px-3 py-1.5 rounded-full text-xs font-bold shadow-[0_0_12px_rgba(245,158,11,0.15)]">
             <Coins size={16} className="text-amber-400 animate-pulse" />
-            <span>{(coins || 12450).toLocaleString('fa-IR')}</span>
+            <span>${displayDollars}</span>
           </div>
         )}
 

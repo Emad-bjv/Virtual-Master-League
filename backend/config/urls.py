@@ -19,9 +19,13 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/core/', include('core.urls')),
+    path('api/users/', include('users.urls')),
     path('api/', include('teams.urls')),
     path('api/', include('matches.urls')),
     path('api/economy/', include('economy.urls')),
     path('api/', include('gacha.urls')),
     path('api/', include('transfers.urls')),
+    path('api/', include('notifications.urls')),
+    path('api/season-pass/', include('season_pass.urls')),
 ]

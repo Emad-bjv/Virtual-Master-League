@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, Calendar, Mail, CheckCircle2, Circle, Trophy, Flame, ChevronLeft, AlertTriangle, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-export default function HomeTab({ onNavigateTab, isLineupSubmitted = false }) {
+export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, teamData }) {
   // Live Timer for Special Offer
   const [timeLeft, setTimeLeft] = useState({ hours: 23, minutes: 59, seconds: 12 });
+
+  const teamName = teamData?.name || 'تیم شما';
+  const teamShort = teamName.slice(0, 4);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -112,22 +115,22 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false }) {
         <div className="flex items-center justify-between py-2 px-2 bg-slate-900/60 rounded-xl border border-slate-800/60">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center font-bold text-cyan-400 text-xs">
-              البرز
+              {teamShort}
             </div>
-            <span className="text-xs font-bold text-white">باشگاه البرز</span>
+            <span className="text-xs font-bold text-white">{teamName}</span>
           </div>
 
           <div className="text-center">
             <span className="text-sm font-black text-cyan-400 px-3 py-1 bg-slate-950 rounded-lg border border-cyan-500/30 shadow-[0_0_10px_rgba(0,243,255,0.2)]">
               VS
             </span>
-            <span className="text-[10.5px] text-slate-400 block mt-1">امروز، ساعت ۱۸:۰۰ (۴۵ دقیقه مانده)</span>
+            <span className="text-[10.5px] text-slate-400 block mt-1">بازی رسمی بعدی</span>
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-white">سپاهان</span>
+            <span className="text-xs font-bold text-white">حریف مسابقه</span>
             <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center font-bold text-amber-400 text-xs">
-              سپاه
+              VS
             </div>
           </div>
         </div>
@@ -270,22 +273,12 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false }) {
         </div>
 
         <div className="space-y-1.5 text-xs">
-          <div className="flex justify-between items-center px-3 py-2 rounded-xl bg-slate-900/40 text-slate-400">
-            <span>۲ — تراکتور</span>
-            <span className="font-semibold text-slate-300">۴۵ امتیاز</span>
-          </div>
-
           <div className="flex justify-between items-center px-3 py-2 rounded-xl bg-gradient-to-r from-purple-950/80 via-slate-900 to-indigo-950/80 border border-purple-500/50 text-white font-bold shadow-[0_0_12px_rgba(168,85,247,0.2)]">
             <span className="text-cyan-400 flex items-center gap-2">
-              <span>۳ — باشگاه البرز</span>
+              <span>{teamName}</span>
               <span className="text-[9px] bg-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/40">تیم شما</span>
             </span>
-            <span className="text-cyan-300">۴۲ امتیاز</span>
-          </div>
-
-          <div className="flex justify-between items-center px-3 py-2 rounded-xl bg-slate-900/40 text-slate-400">
-            <span>۴ — استقلال</span>
-            <span className="font-semibold text-slate-300">۴۰ امتیاز</span>
+            <span className="text-cyan-300">۰ امتیاز</span>
           </div>
         </div>
       </motion.div>

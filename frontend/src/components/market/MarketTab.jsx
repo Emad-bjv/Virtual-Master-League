@@ -13,9 +13,10 @@ const MARKET_SUBNAV = [
   { id: 'history', label: 'تاریخچه' },
 ];
 
-export default function MarketTab() {
+export default function MarketTab({ teamData }) {
   const [activeSub, setActiveSub] = useState('buy');
   const [marketListings, setMarketListings] = useState([]);
+  const [transferHistory, setTransferHistory] = useState([]);
   const [actionMessage, setActionMessage] = useState('');
 
   // Bid Modal State
@@ -38,17 +39,29 @@ export default function MarketTab() {
           setMarketListings(res.data);
         }
       })
-      .catch((_err) => {
-        console.log('Using default market listings fallback');
+      .catch((err) => {
+        console.error('Failed to load market listings:', err);
+      });
+
+    transferApi
+      .getHistory()
+      .then((res) => {
+        if (res.data && res.data.length > 0) {
+          setTransferHistory(res.data);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load transfer history:', err);
       });
   }, []);
 
   const handleBuyPlayer = async (listingId) => {
+    if (!teamData) return;
     try {
-      await transferApi.buyDirect({ listing_id: listingId, buyer_team_id: 1 });
+      await transferApi.buyDirect({ listing_id: listingId, buyer_team_id: teamData.id });
       setActionMessage('خرید با موفقیت در دیتابیس ثبت شد!');
-    } catch (_err) {
-      setActionMessage('خرید انجام شد (حالت دمو).');
+    } catch (err) {
+      setActionMessage('خطا در خرید بازیکن');
     } finally {
       setTimeout(() => setActionMessage(''), 3000);
     }
@@ -56,16 +69,16 @@ export default function MarketTab() {
 
   const handlePlaceBid = async (e) => {
     e.preventDefault();
-    if (!selectedBidListing || !bidAmount) return;
+    if (!selectedBidListing || !bidAmount || !teamData) return;
     try {
       await transferApi.placeBid({
         listing_id: selectedBidListing.id,
-        bidder_team_id: 1,
+        bidder_team_id: teamData.id,
         amount_usd: parseFloat(bidAmount),
       });
       setActionMessage(`پیشنهاد ${parseInt(bidAmount).toLocaleString('fa-IR')} دلار ثبت شد!`);
-    } catch (_err) {
-      setActionMessage(`پیشنهاد ثبت شد (حالت دمو).`);
+    } catch (err) {
+      setActionMessage(`خطا در ثبت پیشنهاد`);
     } finally {
       setSelectedBidListing(null);
       setBidAmount('');
@@ -75,17 +88,17 @@ export default function MarketTab() {
 
   const handleCreateListing = async (e) => {
     e.preventDefault();
-    if (!selectedPlayerToSell || !sellPrice) return;
+    if (!selectedPlayerToSell || !sellPrice || !teamData) return;
     try {
       await transferApi.createListing({
         player_id: parseInt(selectedPlayerToSell),
-        seller_team_id: 1,
+        seller_team_id: teamData.id,
         price_usd: parseFloat(sellPrice),
         listing_type: listingType,
       });
       setActionMessage('آگهی فروش با موفقیت در بازار ثبت شد!');
-    } catch (_err) {
-      setActionMessage('آگهی فروش در بازار ثبت شد (حالت دمو).');
+    } catch (err) {
+      setActionMessage('خطا در ثبت آگهی فروش');
     } finally {
       setSelectedPlayerToSell('');
       setSellPrice('');
@@ -122,8 +135,8 @@ export default function MarketTab() {
                     </div>
 
                     <div>
-                      <span className="font-bold text-white text-sm block">{item.player_name || 'سجاد حسینی'}</span>
-                      <span className="text-[10.5px] text-slate-400">فروشنده: {item.seller_team_name || 'باشگاه البرز'}</span>
+                      <span className="font-bold text-white text-sm block">{item.player_name || 'نام بازیکن'}</span>
+                      <span className="text-[10.5px] text-slate-400">فروشنده: {item.seller_team_name || 'باشگاه فروشنده'}</span>
                       <div className="flex gap-1.5 mt-1">
                         <span className="text-[9.5px] bg-purple-900/60 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/40">
                           {item.listing_type === 'AUCTION' ? 'مزایده' : 'قیمت مقطوع'}
@@ -157,56 +170,9 @@ export default function MarketTab() {
                 </div>
               ))
             ) : (
-              <>
-                {/* Fallback Cards */}
-                <div className="glass-panel p-3.5 rounded-2xl border border-purple-500/30 bg-gradient-to-r from-purple-950/40 via-slate-900 to-cyan-950/40 flex items-center justify-between text-xs shadow-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-14 rounded-xl bg-gradient-to-tr from-amber-500 via-purple-600 to-cyan-400 p-0.5 shadow-lg flex flex-col items-center justify-center text-center">
-                      <div className="w-full h-full bg-slate-950 rounded-[10px] flex flex-col items-center justify-center p-1">
-                        <span className="text-sm font-black text-amber-400">79</span>
-                        <span className="text-[9px] font-bold text-cyan-300 dir-ltr">CF</span>
-                      </div>
-                    </div>
-                    <div>
-                      <span className="font-bold text-white text-sm block">سجاد حسینی</span>
-                      <span className="text-[10.5px] text-slate-400">فروشنده: باشگاه البرز</span>
-                      <span className="text-[9.5px] bg-purple-900/60 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/40 inline-block mt-0.5">
-                        قیمت مقطوع
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleBuyPlayer(1)}
-                    className="bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold px-3 py-1.5 rounded-xl transition-all shadow-md shadow-cyan-500/30"
-                  >
-                    خرید (۲۰۰,۰۰۰ $)
-                  </button>
-                </div>
-
-                <div className="glass-panel p-3.5 rounded-2xl border border-slate-800 flex items-center justify-between text-xs shadow-lg">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-14 rounded-xl bg-gradient-to-tr from-indigo-500 to-cyan-400 p-0.5 shadow-lg flex flex-col items-center justify-center text-center">
-                      <div className="w-full h-full bg-slate-950 rounded-[10px] flex flex-col items-center justify-center p-1">
-                        <span className="text-sm font-black text-cyan-400">75</span>
-                        <span className="text-[9px] font-bold text-slate-400 dir-ltr">CMF</span>
-                      </div>
-                    </div>
-                    <div>
-                      <span className="font-bold text-white text-sm block">امیر صادقی</span>
-                      <span className="text-[10.5px] text-slate-400">فروشنده: تراکتور</span>
-                      <span className="text-[9.5px] bg-amber-950/60 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/40 inline-block mt-0.5">
-                        مزایده فعال
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setSelectedBidListing({ id: 2, player_name: 'امیر صادقی', price_usd: 150000 })}
-                    className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-3 py-1.5 rounded-xl transition-all shadow-md shadow-purple-600/30"
-                  >
-                    ثبت پیشنهاد
-                  </button>
-                </div>
-              </>
+              <div className="col-span-full py-12 text-center text-slate-400 text-xs bg-slate-900/40 rounded-2xl border border-slate-800">
+                هیچ بازیکنی در حال حاضر برای فروش لیست نشده است.
+              </div>
             )}
           </div>
         </motion.div>
@@ -234,8 +200,10 @@ export default function MarketTab() {
                 colorTheme="cyan"
                 options={[
                   { value: '', label: 'یک بازیکن انتخاب کنید...' },
-                  { value: '8', label: 'سجاد حسینی (CF - OVR 72)' },
-                  { value: '9', label: 'رضا کریمی (CMF - OVR 75)' },
+                  ...(teamData?.players || []).map((p) => ({
+                    value: String(p.id),
+                    label: `${p.name} (${p.position} - OVR ${p.overall})`,
+                  })),
                 ]}
               />
             </div>
@@ -287,31 +255,8 @@ export default function MarketTab() {
             </span>
           </div>
 
-          <div className="flex justify-between items-center p-3 rounded-xl bg-slate-900/60 border border-slate-800">
-            <div>
-              <span className="font-bold text-white block">پیشنهاد خرید تراکتور برای رضا کریمی</span>
-              <span className="text-[10.5px] text-emerald-400 font-bold dir-ltr">مبلغ: ۵۰۰,۰۰۰,۰۰۰ دلار</span>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setActionMessage('پیشنهاد تراکتور تایید شد!');
-                  setTimeout(() => setActionMessage(''), 3000);
-                }}
-                className="p-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 rounded-xl border border-emerald-500/40 font-bold flex items-center gap-1"
-              >
-                <Check size={16} /> تایید
-              </button>
-              <button
-                onClick={() => {
-                  setActionMessage('پیشنهاد تراکتور رد شد.');
-                  setTimeout(() => setActionMessage(''), 3000);
-                }}
-                className="p-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-xl border border-rose-500/40 font-bold flex items-center gap-1"
-              >
-                <X size={16} /> رد
-              </button>
-            </div>
+          <div className="py-12 text-center text-slate-400 text-xs bg-slate-900/40 rounded-2xl border border-slate-800">
+            هیچ پیشنهادی در حال حاضر دریافتی وجود ندارد.
           </div>
         </motion.div>
       )}
@@ -327,21 +272,31 @@ export default function MarketTab() {
           </div>
 
           <div className="space-y-2 pt-1">
-            <div className="flex justify-between items-center p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-              <div>
-                <span className="font-bold text-white block">خرید: سجاد حسینی (از آکادمی)</span>
-                <span className="text-[10px] text-slate-400">تاریخ: ۵ مرداد ۱۴۰۳</span>
+            {transferHistory.length > 0 ? (
+              transferHistory.slice(0, 10).map((item, idx) => (
+                <div
+                  key={item.id || idx}
+                  className="flex justify-between items-center p-2.5 rounded-xl bg-slate-900/60 border border-slate-800"
+                >
+                  <div>
+                    <span className="font-bold text-white block">
+                      {item.player_name || 'بازیکن'} — {item.seller_team_name} ➔ {item.buyer_team_name}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {item.transferred_at ? new Date(item.transferred_at).toLocaleDateString('fa-IR') : ''}
+                      {item.transfer_type ? ` | ${item.transfer_type}` : ''}
+                    </span>
+                  </div>
+                  <span className="text-rose-400 font-bold dir-ltr">
+                    -{Number(item.price_usd || 0).toLocaleString('fa-IR')} $
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="py-12 text-center text-slate-400 text-xs bg-slate-900/40 rounded-2xl border border-slate-800">
+                تاریخچه نقل و انتقالاتی ثبت نشده است.
               </div>
-              <span className="text-rose-400 font-bold dir-ltr">-۲۰۰,۰۰۰ $</span>
-            </div>
-
-            <div className="flex justify-between items-center p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-              <div>
-                <span className="font-bold text-white block">فروش: امیر صادقی (به تراکتور)</span>
-                <span className="text-[10px] text-slate-400">تاریخ: ۱ مرداد ۱۴۰۳</span>
-              </div>
-              <span className="text-emerald-400 font-bold dir-ltr">+۹۰,۰۰۰ $</span>
-            </div>
+            )}
           </div>
         </motion.div>
       )}

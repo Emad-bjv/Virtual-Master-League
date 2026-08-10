@@ -57,6 +57,9 @@ def buy_player_direct(buyer_team_id: int, listing_id: int) -> dict:
         if buyer.id == seller.id:
             return {'success': False, 'error': 'نمی‌توانید بازیکن خودتان را بخرید.'}
 
+        if buyer.manager is None:
+            return {'success': False, 'error': 'تیم بدون مربی (سرپرستی) مجاز به خرید یا خرج بودجه نیست.'}
+
         # Check buyer roster limit (max 25 players)
         if buyer.players.count() >= 25:
             return {
@@ -69,7 +72,8 @@ def buy_player_direct(buyer_team_id: int, listing_id: int) -> dict:
         # Deduct budget from buyer
         deduct_res = process_atomic_wallet_update(
             team_id=buyer.id,
-            amount_usd=-price,
+            amount=-price,
+            currency='BUDGET',
             transaction_type='WITHDRAW',
             description=f"خرید مستقیم بازیکن {listing.player.name}"
         )
@@ -82,7 +86,8 @@ def buy_player_direct(buyer_team_id: int, listing_id: int) -> dict:
 
         process_atomic_wallet_update(
             team_id=seller.id,
-            amount_usd=net_seller_amount,
+            amount=net_seller_amount,
+            currency='BUDGET',
             transaction_type='DEPOSIT',
             description=f"فروش بازیکن {listing.player.name} (با کسر ۵٪ مالیات)"
         )
@@ -134,6 +139,9 @@ def place_bid(bidder_team_id: int, listing_id: int, bid_amount: Decimal) -> dict
 
         if listing.seller_team.id == bidder.id:
             return {'success': False, 'error': 'نمی‌توانید روی بازیکن خودتان پیشنهاد دهید.'}
+
+        if bidder.manager is None:
+            return {'success': False, 'error': 'تیم بدون مربی (سرپرستی) مجاز به پیشنهاد قیمت نیست.'}
 
         if bidder.budget < bid_amount:
             return {'success': False, 'error': 'موجودی شما کمتر از مبلغ پیشنهاد است.'}
@@ -193,7 +201,8 @@ def finalize_auction(listing_id: int) -> dict:
         # Deduct from buyer
         deduct_res = process_atomic_wallet_update(
             team_id=buyer.id,
-            amount_usd=-price,
+            amount=-price,
+            currency='BUDGET',
             transaction_type='WITHDRAW',
             description=f"برنده مزایده بازیکن {listing.player.name}"
         )
@@ -208,7 +217,8 @@ def finalize_auction(listing_id: int) -> dict:
 
         process_atomic_wallet_update(
             team_id=seller.id,
-            amount_usd=net_seller_amount,
+            amount=net_seller_amount,
+            currency='BUDGET',
             transaction_type='DEPOSIT',
             description=f"فروش مزایده‌ای بازیکن {listing.player.name} (با کسر ۵٪ مالیات)"
         )

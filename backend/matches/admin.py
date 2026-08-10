@@ -1,5 +1,6 @@
 from django.contrib import admin, messages
-from .models import Match, MatchEvent, PlayerMatchStat, Tournament, LiveSubstitutionRequest
+from django.utils import timezone
+from .models import Match, MatchEvent, PlayerMatchStat, Tournament, LiveSubstitutionRequest, Season, MatchTeamStat, LeagueStanding
 
 
 class MatchEventInline(admin.TabularInline):
@@ -13,11 +14,40 @@ class PlayerMatchStatInline(admin.TabularInline):
     fields = ('player', 'was_starter', 'minutes_played', 'rating')
 
 
+@admin.register(Season)
+class SeasonAdmin(admin.ModelAdmin):
+    list_display = ('name', 'is_active', 'started_at', 'ended_at')
+    list_filter = ('is_active',)
+
+
 @admin.register(Tournament)
 class TournamentAdmin(admin.ModelAdmin):
-    list_display = ('name', 'tournament_type', 'is_active', 'created_at')
-    list_filter = ('tournament_type', 'is_active')
+    list_display = ('name', 'tournament_type', 'season', 'is_active', 'created_at')
+    list_filter = ('tournament_type', 'season', 'is_active')
     search_fields = ('name',)
+    actions = ['action_generate_fixtures']
+
+    @admin.action(description="تولید برنامه بازی‌ها (فقط برای تورنمنت‌های لیگ)")
+    def action_generate_fixtures(self, request, queryset):
+        from .fixture_engine import generate_league_fixtures
+        
+        for tournament in queryset:
+            if tournament.tournament_type != 'LEAGUE':
+                messages.error(request, f"تورنمنت {tournament.name} از نوع لیگ نیست و فیکسچر آن تولید نمی‌شود.")
+                continue
+                
+            from teams.models import Team
+            teams = Team.objects.all() # Or filter based on league if needed. For now, all teams in the system.
+            if teams.count() < 2:
+                messages.error(request, "حداقل دو تیم برای تشکیل لیگ نیاز است.")
+                continue
+                
+            start_date = timezone.now() # Could also ask for a specific date, but using now for simplicity
+            match_count = generate_league_fixtures(tournament, teams, start_date)
+            if match_count > 0:
+                messages.success(request, f"فیکسچر برای تورنمنت {tournament.name} تولید شد ({match_count} بازی).")
+            else:
+                messages.warning(request, f"خطا در تولید فیکسچر برای تورنمنت {tournament.name}.")
 
 
 @admin.register(Match)
@@ -156,3 +186,18 @@ class LiveSubstitutionRequestAdmin(admin.ModelAdmin):
     def action_mark_rejected(self, request, queryset):
         updated = queryset.update(status='REJECTED')
         messages.success(request, f"{updated} درخواست تعویض رد شد.")
+
+
+@admin.register(MatchTeamStat)
+class MatchTeamStatAdmin(admin.ModelAdmin):
+    list_display = ('match', 'team', 'possession_percent', 'shots', 'shots_on_target', 'corners', 'fouls', 'offsides')
+    list_filter = ('match__tournament',)
+    search_fields = ('team__name',)
+
+
+@admin.register(LeagueStanding)
+class LeagueStandingAdmin(admin.ModelAdmin):
+    list_display = ('tournament', 'team', 'played', 'won', 'drawn', 'lost', 'goals_for', 'goals_against', 'points')
+    list_filter = ('tournament',)
+    search_fields = ('team__name', 'tournament__name')
+    ordering = ('tournament', '-points')

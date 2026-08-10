@@ -1,54 +1,20 @@
 import React, { useState } from 'react';
 import { ArrowLeftRight, CheckCircle2, Shield, UserCheck, AlertCircle, RotateCcw, Plus, Minus, Undo2, Ban } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { matchApi } from '../../services/api';
 
 const INITIAL_TEAM_A = {
-  name: 'باشگاه البرز',
+  name: 'تیم میزبان',
   color: 'from-purple-600 via-indigo-600 to-cyan-500',
-  starters: [
-    { id: 'a1', name: 'آلیسون', position: 'GK', overall: 87, x: 50, y: 92, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'a2', name: 'رابرتسون', position: 'LB', overall: 84, x: 16, y: 77, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'a3', name: 'فن دایک', position: 'CB', overall: 86, x: 38, y: 80, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'a4', name: 'کوناته', position: 'CB', overall: 83, x: 62, y: 80, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'a5', name: 'آرنولد', position: 'RB', overall: 85, x: 84, y: 77, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'a6', name: 'گراونبرخ', position: 'DMF', overall: 85, x: 50, y: 62, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'a7', name: 'امرابط', position: 'CMF', overall: 83, x: 28, y: 46, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'a8', name: 'مک آلیستر', position: 'AMF', overall: 84, x: 72, y: 46, goals: 0, assists: 1, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'a9', name: 'لوئیس دیاز', position: 'LWF', overall: 85, x: 20, y: 24, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'a10', name: 'لواندوفسکی', position: 'CF', overall: 89, x: 50, y: 12, goals: 1, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'a11', name: 'محمد صلاح', position: 'RWF', overall: 87, x: 80, y: 24, goals: 1, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-  ],
-  bench: [
-    { id: 'a12', name: 'عیسی آل کثیر', position: 'CF', overall: 78, hasBeenSubbed: false },
-    { id: 'a13', name: 'امید نورافکن', position: 'LB', overall: 80, hasBeenSubbed: false },
-    { id: 'a14', name: 'احسان حاج‌صفی', position: 'LM', overall: 79, hasBeenSubbed: false },
-    { id: 'a15', name: 'سید جلال حسینی', position: 'CB', overall: 81, hasBeenSubbed: false },
-    { id: 'a16', name: 'ژوتا', position: 'CF', overall: 82, hasBeenSubbed: false },
-  ],
+  starters: [],
+  bench: [],
 };
 
 const INITIAL_TEAM_B = {
-  name: 'سپاهان اصفهان',
+  name: 'تیم میهمان',
   color: 'from-amber-500 via-yellow-500 to-amber-600',
-  starters: [
-    { id: 'b1', name: 'نیازمند', position: 'GK', overall: 81, x: 50, y: 92, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'b2', name: 'زکی‌پور', position: 'LB', overall: 77, x: 16, y: 77, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'b3', name: 'دانشگر', position: 'CB', overall: 79, x: 38, y: 80, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'b4', name: 'یزدانی', position: 'CB', overall: 78, x: 62, y: 80, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'b5', name: 'رضاییان', position: 'RB', overall: 82, x: 84, y: 77, goals: 0, assists: 1, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'b6', name: 'ریگی', position: 'DMF', overall: 77, x: 50, y: 62, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'b7', name: 'کریمی', position: 'CMF', overall: 80, x: 28, y: 46, goals: 0, assists: 0, yellowCards: 1, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'b8', name: 'حزباوی', position: 'CMF', overall: 78, x: 72, y: 46, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'b9', name: 'شکای', position: 'LWF', overall: 78, x: 20, y: 24, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'b10', name: 'مغانلو', position: 'CF', overall: 82, x: 50, y: 12, goals: 1, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-    { id: 'b11', name: 'احمدزاده', position: 'RWF', overall: 78, x: 80, y: 24, goals: 0, assists: 0, yellowCards: 0, isRed: false, isInjured: false, hasBeenSubbed: false },
-  ],
-  bench: [
-    { id: 'b12', name: 'کاوه رضایی', position: 'CF', overall: 77, hasBeenSubbed: false },
-    { id: 'b13', name: 'هادی محمدی', position: 'CB', overall: 76, hasBeenSubbed: false },
-    { id: 'b14', name: 'نیما میرزازاد', position: 'GK', overall: 74, hasBeenSubbed: false },
-    { id: 'b15', name: 'آریا یوسفی', position: 'RB', overall: 75, hasBeenSubbed: false },
-  ],
+  starters: [],
+  bench: [],
 };
 
 export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStatusChange }) {
@@ -59,7 +25,14 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
     teamB: INITIAL_TEAM_B,
   });
 
-  const handleSetMatchState = (newStatus) => {
+  const handleSetMatchState = async (newStatus) => {
+    try {
+      // Optimistic API Call (Assume matchId=1 for demo since it's not passed yet)
+      await matchApi.updateStatus(1, { half_status: newStatus });
+    } catch (err) {
+      console.warn('API Error, proceeding with optimistic UI update', err);
+    }
+
     setMatchStatus(newStatus);
     if (onMatchStatusChange) onMatchStatusChange(newStatus);
 
@@ -140,10 +113,26 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
   };
 
   // Execute Swap between starter & bench player
-  const executeSubstitution = (outPlayer, inPlayer) => {
+  const executeSubstitution = async (outPlayer, inPlayer) => {
     if (outPlayer.isRed) {
       showToast(`بازیکن اخراج شده (${outPlayer.name}) امکان تعویض ندارد! 🚫`);
       return;
+    }
+
+    try {
+      // Assuming matchId=1 and teamId extracted from activeTeamKey for demo
+      const teamId = activeTeamKey === 'teamA' ? 1 : 2; 
+      // Call API
+      await matchApi.applySubstitution(1, {
+        team_id: teamId,
+        player_out: outPlayer.id, // note: in demo these are strings 'a1', backend expects int, but this is a mock integration
+        player_in: inPlayer.id,
+        minute: 60 // hardcoded for demo
+      });
+    } catch (err) {
+      const errMsg = err.response?.data?.detail || 'خطا در ثبت تعویض در سرور';
+      showToast(errMsg + ' ❌');
+      return; // abort optimistic update if failed
     }
 
     const updatedStarters = currentTeam.starters.map((p) => {
@@ -190,9 +179,21 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
   };
 
   // Incremental & Decremental Goals & Assists Control
-  const handleModifyStatCount = (statType, delta) => {
+  const handleModifyStatCount = async (statType, delta) => {
     if (!activePitchPlayerModal) return;
     const targetId = activePitchPlayerModal.id;
+
+    try {
+      if (delta > 0) { // Only record additions to backend for simplicity
+        await matchApi.recordEvent(1, {
+          player: targetId,
+          event_type: statType,
+          minute: 45
+        });
+      }
+    } catch (err) {
+      console.warn('API Error, proceeding with optimistic UI update', err);
+    }
 
     let text = '';
     let icon = '⚽';
@@ -237,9 +238,27 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
   };
 
   // Toggle & Undo Cards / Injury Events
-  const handleToggleCardOrInjury = (actionType) => {
+  const handleToggleCardOrInjury = async (actionType) => {
     if (!activePitchPlayerModal) return;
     const targetId = activePitchPlayerModal.id;
+
+    try {
+      let event_type = null;
+      if (actionType === 'TOGGLE_YELLOW_1' || actionType === 'TOGGLE_YELLOW_2') event_type = 'YELLOW';
+      if (actionType === 'TOGGLE_RED') event_type = 'RED';
+      if (actionType === 'TOGGLE_INJURY') event_type = 'INJURY';
+      
+      if (event_type) {
+        // Optimistic API Call
+        await matchApi.recordEvent(1, {
+          player: targetId,
+          event_type: event_type,
+          minute: 45
+        });
+      }
+    } catch (err) {
+      console.warn('API Error, proceeding with optimistic UI update', err);
+    }
 
     let icon = '🟨';
     let color = 'text-amber-400 border-amber-500/40 bg-amber-950/40';
@@ -381,7 +400,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-purple-400"></span>
-            <span>باشگاه البرز</span>
+            <span>{teamA.name}</span>
           </button>
 
           <button

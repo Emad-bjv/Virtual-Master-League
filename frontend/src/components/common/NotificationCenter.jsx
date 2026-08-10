@@ -1,72 +1,87 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, CheckCheck, Trash2, ChevronLeft, ShieldAlert, Sparkles, Filter } from 'lucide-react';
+import { notificationApi } from '../../services/api';
 
-const DEFAULT_NOTIFICATIONS = [
-  {
-    id: 'n1',
-    category: 'live',
-    title: '⚽ شروع مسابقه حساس بعدی',
-    message: 'بازی مقابل سپاهان اصفهان تا ۳۰ دقیقه دیگر آغاز می‌شود. ترکیب تیمی و تاکتیک‌ها را نهایی کنید!',
-    time: '۱۰ دقیقه پیش',
-    isUnread: true,
-    targetTab: 'live',
-    color: 'border-emerald-500/50 bg-emerald-950/50 text-emerald-200',
-    icon: '⚽',
-  },
-  {
-    id: 'n2',
-    category: 'market',
-    title: '💼 پیشنهاد جدید نقل و انتقالات',
-    message: 'باشگاه پرسپولیس پیشنهادی به ارزش ۱۵۰ میلیارد برای خرید «محمد صلاح» ارسال کرده است.',
-    time: '۴۵ دقیقه پیش',
-    isUnread: true,
-    targetTab: 'market',
-    color: 'border-amber-500/50 bg-amber-950/50 text-amber-200',
-    icon: '💼',
-  },
-  {
-    id: 'n3',
-    category: 'team',
-    title: '🏥 گزارش مصدومیت کادر پزشکی',
-    message: '«رایان گراونبرخ» در تمرین امروز دچار کشیدگی ران شد و ۲ مسابقه بعدی را از دست داد.',
-    time: '۲ ساعت پیش',
-    isUnread: true,
-    targetTab: 'team',
-    color: 'border-rose-500/50 bg-rose-950/50 text-rose-200',
-    icon: '🚑',
-  },
-  {
-    id: 'n4',
-    category: 'finance',
-    title: '💰 واریز سود اسپانسر اصلی',
-    message: 'مبلغ ۵۰ میلیارد تومان درآمد هفتگی اسپانسر پیروز به حساب بودجه باشگاه واریز شد.',
-    time: '۵ ساعت پیش',
-    isUnread: true,
-    targetTab: 'club',
-    color: 'border-purple-500/50 bg-purple-950/50 text-purple-200',
-    icon: '💰',
-  },
-  {
-    id: 'n5',
-    category: 'admin',
-    title: '⚡ بیانیه رسمی سیستم مستر لیگ',
-    message: 'قوانین تعویض در مسابقات زنده به ۵ تعویض مجاز در طول ۹۰ دقیقه مسابقه بروزرسانی شد.',
-    time: 'دیروز',
-    isUnread: false,
-    targetTab: 'home',
-    color: 'border-cyan-500/50 bg-cyan-950/50 text-cyan-200',
-    icon: '⚡',
-  },
-];
+const DEFAULT_NOTIFICATIONS = [];
+
+const CATEGORY_STYLES = {
+  MATCH: { color: 'border-emerald-500/50 bg-emerald-950/50 text-emerald-200', icon: '⚽', targetTab: 'live' },
+  TRANSFER: { color: 'border-amber-500/50 bg-amber-950/50 text-amber-200', icon: '💼', targetTab: 'market' },
+  GACHA: { color: 'border-purple-500/50 bg-purple-950/50 text-purple-200', icon: '🎁', targetTab: 'store' },
+  SYSTEM: { color: 'border-cyan-500/50 bg-cyan-950/50 text-cyan-200', icon: '⚡', targetTab: 'home' },
+};
+
+const formatRelativeTime = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return 'لحظاتی پیش';
+  if (mins < 60) return `${mins} دقیقه پیش`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} ساعت پیش`;
+  return d.toLocaleDateString('fa-IR');
+};
+
+// Backend notification categories → UI filter vocabulary
+const CATEGORY_TO_FILTER = {
+  MATCH: 'live',
+  TRANSFER: 'market',
+  GACHA: 'gacha',
+  SYSTEM: 'system',
+};
+
+const mapApiNotification = (n) => {
+  const style = CATEGORY_STYLES[n.category] || CATEGORY_STYLES.SYSTEM;
+  return {
+    id: n.id,
+    category: CATEGORY_TO_FILTER[n.category] || 'system',
+    title: n.title || 'اعلامیه جدید',
+    message: n.message || '',
+    time: formatRelativeTime(n.created_at),
+    isUnread: !n.is_read,
+    targetTab: style.targetTab,
+    color: style.color,
+    icon: style.icon,
+  };
+};
 
 export default function NotificationCenter({ onNavigateTab }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState(DEFAULT_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState([]);
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'live' | 'market' | 'team' | 'finance'
   const dropdownRef = useRef(null);
 
   const unreadCount = notifications.filter((n) => n.isUnread).length;
+
+  // Load the real inbox from the backend
+  const loadInbox = () => {
+    notificationApi
+      .getInbox()
+      .then((res) => {
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          setNotifications(res.data.map(mapApiNotification));
+        } else {
+          setNotifications([]);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load notifications:', err);
+        setNotifications([]);
+      });
+  };
+
+  useEffect(() => {
+    loadInbox();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Refresh whenever the dropdown is opened
+  useEffect(() => {
+    if (isOpen) loadInbox();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -80,23 +95,34 @@ export default function NotificationCenter({ onNavigateTab }) {
   }, []);
 
   const handleMarkAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, isUnread: false })));
+    setNotifications((prev) => {
+      const unreadIds = prev.filter((n) => n.isUnread).map((n) => n.id);
+      unreadIds.forEach((id) => notificationApi.markAsRead(id).catch(() => {}));
+      return prev.map((n) => ({ ...n, isUnread: false }));
+    });
   };
 
   const handleClearAll = () => {
-    setNotifications([]);
+    setNotifications((prev) => {
+      prev.forEach((n) => notificationApi.markAsRead(n.id).catch(() => {}));
+      return [];
+    });
   };
 
   const handleRemoveItem = (id, e) => {
     e.stopPropagation();
+    notificationApi.markAsRead(id).catch(() => {});
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
   const handleItemClick = (notif) => {
-    // Mark as read
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notif.id ? { ...n, isUnread: false } : n))
-    );
+    // Mark as read on the backend + locally (only if still unread)
+    if (notif.isUnread) {
+      notificationApi.markAsRead(notif.id).catch(() => {});
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notif.id ? { ...n, isUnread: false } : n))
+      );
+    }
 
     // Navigate to section if requested
     if (notif.targetTab && onNavigateTab) {
@@ -234,6 +260,16 @@ export default function NotificationCenter({ onNavigateTab }) {
                   }`}
                 >
                   💰 مالی
+                </button>
+                <button
+                  onClick={() => setActiveFilter('gacha')}
+                  className={`px-2.5 py-1 rounded-xl text-[10px] font-bold shrink-0 transition-all ${
+                    activeFilter === 'gacha'
+                      ? 'bg-purple-900 text-purple-200 border border-purple-500/50'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  🎁 پک و گاشا
                 </button>
               </div>
             )}

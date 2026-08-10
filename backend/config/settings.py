@@ -19,11 +19,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv(BASE_DIR / '.env')
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-uu#!f=3v)e=wo^gl5q!mqhf$)iyj=031#iuvn0t&28(6--)1_+'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-uu#!f=3v)e=wo^gl5q!mqhf$)iyj=031#iuvn0t&28(6--)1_+')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = []
 
@@ -31,6 +36,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -40,16 +46,20 @@ INSTALLED_APPS = [
     
     # Third-party
     'rest_framework',
+    'rest_framework_simplejwt',
     'corsheaders',
     
     # Local
+    'core',
     'users',
     'teams',
     'matches',
     'economy',
     'gacha',
     'transfers',
+    'season_pass',
     'notifications',
+    'realtime',
 ]
 
 AUTH_USER_MODEL = 'users.User'
@@ -83,21 +93,64 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = 'config.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
 
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'vml_db',
-        'USER': 'vml_user',
-        'PASSWORD': 'vml_password',
-        'HOST': '127.0.0.1',
-        'PORT': '5432',
-    }
-}
+# Database
+# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+
+import sys
+import os
+
+IS_TESTING = 'test' in sys.argv
+
+def _get_database_config():
+    if IS_TESTING:
+        return {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
+
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(1.0)
+        s.connect(('127.0.0.1', 5432))
+        s.close()
+        return {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': 'vml_db',
+                'USER': 'vml_user',
+                'PASSWORD': 'vml_password',
+                'HOST': '127.0.0.1',
+                'PORT': '5432',
+                'ATOMIC_REQUESTS': False,
+            }
+        }
+    except Exception:
+        return {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
+
+DATABASES = _get_database_config()
 
 
 # Password validation
@@ -137,6 +190,7 @@ USE_TZ = True
 STATIC_URL = 'static/'
 
 # Celery Configuration Options
+from celery.schedules import crontab
 CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
 CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
@@ -151,45 +205,67 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': 60 * 60 * 24,  # Every 24 hours
         # In production, use crontab: crontab(hour=4, minute=0)
     },
+    'weekly-task-reset': {
+        'task': 'season_pass.reset_weekly_tasks',
+        'schedule': crontab(day_of_week=6, hour=0, minute=0),  # Every Saturday midnight
+    },
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS')
+if cors_origins and not DEBUG:
+    CORS_ALLOWED_ORIGINS = cors_origins.split(',')
+else:
+    # In DEBUG/development: allow all origins (frontend port may vary)
+    CORS_ALLOW_ALL_ORIGINS = True
+from datetime import timedelta
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.BasicAuthentication',
-        # Token authentication will be added in Phase 2
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
-    ]
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '1000/minute',
+        'user': '10000/day'
+    }
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': False,
+    'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
 # ZarinPal Gateway Settings
-ZARINPAL_MERCHANT_ID = '00000000-0000-0000-0000-000000000000' # Test Merchant
+ZARINPAL_MERCHANT_ID = os.environ.get('ZARINPAL_MERCHANT_ID', '00000000-0000-0000-0000-000000000000')
 ZARINPAL_SANDBOX = True # Sandbox mode for testing
 
 
 # Sentry Configuration
-import sentry_sdk
-from sentry_sdk.integrations.django import DjangoIntegration
+try:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
 
-SENTRY_DSN = "https://examplePublicKey@o0.ingest.sentry.io/0" # Dummy DSN for demonstration
+    SENTRY_DSN = "https://examplePublicKey@o0.ingest.sentry.io/0" # Dummy DSN for demonstration
 
-sentry_sdk.init(
-    dsn=SENTRY_DSN,
-    integrations=[DjangoIntegration()],
-    # Set traces_sample_rate to 1.0 to capture 100%
-    # of transactions for performance monitoring.
-    # We recommend adjusting this value in production.
-    traces_sample_rate=1.0,
-    # If you wish to associate users to errors (assuming you are using
-    # django.contrib.auth) you may enable sending PII data.
-    send_default_pii=True
-)
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        traces_sample_rate=1.0,
+        send_default_pii=True
+    )
+except ImportError:
+    pass
 
 # Telegram Bot Settings
-TELEGRAM_BOT_TOKEN = '123456789:ABCDEFGH-IJKLMNOPQRSTUVWXYZ' # Dummy token
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', 'YOUR_TELEGRAM_BOT_TOKEN')
 TELEGRAM_CHAT_ID = '@vml_channel_dummy' # Dummy chat id
-
-

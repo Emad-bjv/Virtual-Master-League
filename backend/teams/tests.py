@@ -1,7 +1,7 @@
 from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
-from teams.models import Team, Player, PlayerAbilities, ClubFacilities, PlayerGrowthLog
+from teams.models import Team, Player, ClubFacilities, PlayerGrowthLog
 from teams.stamina_engine import (
     calculate_fatigue, apply_fatigue, apply_recovery, update_lock_status
 )
@@ -23,7 +23,6 @@ class StaminaEngineTestCase(TestCase):
             virtual_stamina=100.00,
             consecutive_games=0
         )
-        PlayerAbilities.objects.create(player=self.young_player)
         
         self.veteran_player = Player.objects.create(
             team=self.team,
@@ -35,7 +34,6 @@ class StaminaEngineTestCase(TestCase):
             virtual_stamina=100.00,
             consecutive_games=3
         )
-        PlayerAbilities.objects.create(player=self.veteran_player)
 
     def test_fatigue_difference(self):
         young_fatigue = calculate_fatigue(self.young_player, self.team, 90)
@@ -74,7 +72,6 @@ class GrowthEngineTestCase(TestCase):
             team=self.team_a, name="Super Striker", age=24, position="CF",
             overall=80, potential_ovr=90, base_stamina=85, virtual_stamina=100
         )
-        PlayerAbilities.objects.create(player=self.star_striker, finishing=80, offensive_awareness=80)
         
         self.matches = []
         for i in range(3):

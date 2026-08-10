@@ -1,6 +1,14 @@
 """
 Player Growth & Decline Engine — Virtual Master League
 ======================================================
+Growth is computed directly on the Player model (overall / potential_ovr).
+
+The PlayerAbilities model has been removed, so all ability-level growth now
+maps onto the player's overall rating via a persistent fractional
+`growth_buffer` field on Player. Deltas from every position ability (primary
+and secondary) accumulate into that buffer, and each full point flips over
+into a +1/-1 change on `player.overall` — capped at `potential_ovr` and
+floored at MIN_OVR. No PlayerAbilities lookup is performed anywhere.
 """
 
 from decimal import Decimal, ROUND_HALF_UP
@@ -25,6 +33,9 @@ GROWTH_BANDS = [
     (0,  24, -0.20, -0.10),
 ]
 
+# Kept for position-group weighting: every group contributes the same
+# number of abilities (2 primary + 2 secondary), but the bonus/rust-decay
+# logic branches on the specific role (GK vs attacker vs playmaker).
 POSITION_ABILITIES = {
     "GK":  {"primary": ["gk_reflexes", "gk_catching"], "secondary": ["gk_reach", "gk_awareness"]},
     "CB":  {"primary": ["defensive_awareness", "ball_winning"], "secondary": ["aggression", "heading"]},
@@ -32,22 +43,10 @@ POSITION_ABILITIES = {
     "DMF": {"primary": ["ball_winning", "defensive_awareness"], "secondary": ["low_pass", "ball_control"]},
     "CMF": {"primary": ["low_pass", "ball_control"], "secondary": ["lofted_pass", "dribbling"]},
     "AMF": {"primary": ["offensive_awareness", "dribbling"], "secondary": ["low_pass", "finishing"]},
-    "WINGER": {"primary": ["speed", "dribbling"], "secondary": ["offensive_awareness", "curl"]},
+    "WING": {"primary": ["speed", "dribbling"], "secondary": ["offensive_awareness", "curl"]},
     "SS":  {"primary": ["offensive_awareness", "finishing"], "secondary": ["dribbling", "ball_control"]},
     "CF":  {"primary": ["finishing", "offensive_awareness"], "secondary": ["heading", "kicking_power"]},
 }
-
-def growth_room(age: int) -> int:
-    if age <= 21: return 20
-    if age <= 25: return 12
-    if age <= 29: return 5
-    return 0
-
-def get_potential(player, ability_name: str) -> float:
-    if not hasattr(player, 'abilities') or not player.abilities:
-        return 70
-    current = getattr(player.abilities, ability_name, 70)
-    return min(current + growth_room(player.age), player.potential_ovr)
 
 def age_growth_multiplier(age: int) -> float:
     if age <= 21: return 1.5
@@ -62,32 +61,31 @@ def age_decline_multiplier(age: int) -> float:
     if age <= 32: return 1.3
     return 1.6
 
-def _accumulate(player, ability_name: str, delta: float):
-    if not hasattr(player, 'abilities') or not player.abilities:
-        return
-    cap = get_potential(player, ability_name)
-    buffer_field = f"{ability_name}_buffer"
-    
-    current_buffer = getattr(player.abilities, buffer_field, 0.0)
-    buffer = current_buffer + delta
-    
+def _accumulate(player, delta: float):
+    """
+    Accumulates a fractional growth/decline delta directly on the Player.
+
+    The fractional remainder persists in `player.growth_buffer` between
+    evaluation cycles; every full accumulated point moves `overall` by +1
+    (capped at potential_ovr) or -1 (floored at MIN_OVR).
+    """
+    buffer = float(player.growth_buffer) + float(delta)
+
     while buffer >= 1.0:
-        current = getattr(player.abilities, ability_name, 70)
-        if current < cap:
-            setattr(player.abilities, ability_name, current + 1)
+        if player.overall < player.potential_ovr:
+            player.overall = min(player.overall + 1, player.potential_ovr)
         buffer -= 1.0
-        
+
     while buffer <= -1.0:
-        current = getattr(player.abilities, ability_name, 70)
-        setattr(player.abilities, ability_name, max(current - 1, 0))
+        player.overall = max(player.overall - 1, MIN_OVR)
         buffer += 1.0
-        
-    setattr(player.abilities, buffer_field, buffer)
-    player.abilities.save()
+
+    player.growth_buffer = Decimal(str(round(buffer, 4)))
+    player.save(update_fields=['overall', 'growth_buffer'])
 
 def check_extra_stat_bonus(player, match_ids) -> bool:
     pos = player.position_group
-    if pos in ['CF', 'SS', 'WINGER']:
+    if pos in ['CF', 'SS', 'WING']:
         goals = MatchEvent.objects.filter(match_id__in=match_ids, player=player, event_type='GOAL').count()
         return goals >= 4
     elif pos in ['AMF', 'CMF', 'DMF']:
@@ -110,9 +108,11 @@ def apply_growth(player, club, avg_rating: float, extra_stat_bonus_hit: bool, ne
         _, _, primary_delta, secondary_delta = band
 
     abilities = POSITION_ABILITIES.get(player.position_group, POSITION_ABILITIES["CMF"])
-    
+
     from teams.models import ClubFacilities
-    camp_mult = 1.0 + ClubFacilities.scaled_effect(club.facilities.training_camp_level, 0.60) if club and hasattr(club, 'facilities') and club.facilities else 1.0
+    camp_mult = 1.0
+    if club is not None and hasattr(club, 'facilities') and club.facilities:
+        camp_mult = 1.0 + ClubFacilities.scaled_effect(club.facilities.training_camp_level, 0.60)
 
     for ability_name in abilities["primary"]:
         delta = primary_delta
@@ -120,7 +120,7 @@ def apply_growth(player, club, avg_rating: float, extra_stat_bonus_hit: bool, ne
             delta *= age_growth_multiplier(player.age) * camp_mult
         else:
             delta *= age_decline_multiplier(player.age)
-        _accumulate(player, ability_name, delta)
+        _accumulate(player, delta)
 
     for ability_name in abilities["secondary"]:
         delta = secondary_delta
@@ -128,17 +128,16 @@ def apply_growth(player, club, avg_rating: float, extra_stat_bonus_hit: bool, ne
             delta *= age_growth_multiplier(player.age) * camp_mult
         else:
             delta *= age_decline_multiplier(player.age)
-        _accumulate(player, ability_name, delta)
+        _accumulate(player, delta)
 
     if extra_stat_bonus_hit:
-        bonus_ability = abilities["primary"][0]
-        _accumulate(player, bonus_ability, 1.0 * age_growth_multiplier(player.age))
-        
+        _accumulate(player, 1.0 * age_growth_multiplier(player.age))
+
 def apply_rust_decay(player):
     if player.matches_benched_streak >= 5:
         abilities = POSITION_ABILITIES.get(player.position_group, POSITION_ABILITIES["CMF"])
         for ability_name in abilities["primary"]:
-            _accumulate(player, ability_name, -0.03)
+            _accumulate(player, -0.03)
 
 def evaluate_player(player: Player, match_ids: list, period_name: str) -> dict:
     stats = PlayerMatchStat.objects.filter(
@@ -182,35 +181,23 @@ def evaluate_player(player: Player, match_ids: list, period_name: str) -> dict:
     ).count()
 
     bonus_hit = check_extra_stat_bonus(player, match_ids)
+
+    # The neutral (no-change) PI band widens as the club's medical center improves
+    neutral_band_bonus = 0
+    if player.team is not None and hasattr(player.team, 'facilities') and player.team.facilities:
+        from teams.models import ClubFacilities
+        neutral_band_bonus = int(round(ClubFacilities.scaled_effect(player.team.facilities.medical_level, 4.0)))
+
     old_ovr = player.overall
-    
-    old_abilities_sum = 0
-    if hasattr(player, 'abilities') and player.abilities:
-        for grp in POSITION_ABILITIES.values():
-            for ab in grp['primary'] + grp['secondary']:
-                old_abilities_sum += getattr(player.abilities, ab, 70)
-                
+
     with transaction.atomic():
         apply_growth(player, player.team, avg_rating, bonus_hit, neutral_band_bonus)
-        
-        new_abilities_sum = 0
-        if hasattr(player, 'abilities') and player.abilities:
-            for grp in POSITION_ABILITIES.values():
-                for ab in grp['primary'] + grp['secondary']:
-                    new_abilities_sum += getattr(player.abilities, ab, 70)
-        
-        diff = new_abilities_sum - old_abilities_sum
-        delta_ovr = int(diff / 5)
-        
-        new_ovr = max(MIN_OVR, min(MAX_OVR, old_ovr + delta_ovr))
+
+        new_ovr = player.overall
         actual_change = new_ovr - old_ovr
-        
-        if actual_change != 0:
-            player.overall = new_ovr
-            player.save(update_fields=['overall'])
-            
+
         change_type = 'UPGRADE' if actual_change > 0 else ('DOWNGRADE' if actual_change < 0 else 'NO_CHANGE')
-        
+
         log_entry = PlayerGrowthLog.objects.create(
             player=player,
             period_name=period_name,

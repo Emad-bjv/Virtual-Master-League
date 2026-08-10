@@ -1,6 +1,6 @@
 from rest_framework import generics, status, views
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import StorePackage, Transaction
 from .serializers import StorePackageSerializer, TransactionSerializer
 from .services import request_zarinpal_payment, verify_zarinpal_payment
@@ -14,7 +14,7 @@ class StorePackageListView(generics.ListAPIView):
     """
     queryset = StorePackage.objects.filter(is_active=True)
     serializer_class = StorePackageSerializer
-    permission_classes = []  # Can be AllowAny to just show store
+    permission_classes = [AllowAny]
 
 
 class PaymentRequestView(views.APIView):

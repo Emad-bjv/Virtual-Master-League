@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { ArrowRight, Trophy, Award, Shield, Medal, Swords, UserPlus, LogOut } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowRight, Trophy, Award, Medal, LogOut, RefreshCw, UserCheck } from 'lucide-react';
 import SubNav from '../common/SubNav';
 import { motion } from 'framer-motion';
 import Toast from '../common/Toast';
+import { authApi } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 const PROFILE_SUBNAV = [
   { id: 'stats', label: 'آمار من' },
@@ -10,14 +12,32 @@ const PROFILE_SUBNAV = [
   { id: 'rank', label: 'رده‌بندی جهانی' },
 ];
 
-export default function ProfileView({ user, onBack, onLogout }) {
+export default function ProfileView({ user: propUser, onBack, onLogout: propOnLogout }) {
+  const { user: contextUser, updateProfile, logout: contextLogout } = useAuth();
+  const user = contextUser || propUser;
+  const onLogout = propOnLogout || contextLogout;
+
   const [activeSub, setActiveSub] = useState('stats');
   const [challengeMessage, setChallengeMessage] = useState('');
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
 
-  const handleChallengeAction = (msg) => {
-    setChallengeMessage(msg);
-    setTimeout(() => setChallengeMessage(''), 3000);
-  };
+  useEffect(() => {
+    if (activeSub === 'rank') {
+      setLoadingLeaderboard(true);
+      authApi.getLeaderboard()
+        .then((res) => {
+          setLeaderboard(res.data || []);
+        })
+        .catch((err) => {
+          console.error('Failed to fetch leaderboard:', err);
+          setLeaderboard([]);
+        })
+        .finally(() => {
+          setLoadingLeaderboard(false);
+        });
+    }
+  }, [activeSub]);
 
   return (
     <motion.div
@@ -53,17 +73,34 @@ export default function ProfileView({ user, onBack, onLogout }) {
 
         <div className="relative inline-block mb-3">
           <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-purple-600 via-cyan-400 to-emerald-400 p-0.5 shadow-xl shadow-purple-950/60 mx-auto">
-            <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center font-black text-2xl text-white">
-              {user?.clubName ? user.clubName.charAt(0) : 'ا'}
+            <div className="w-full h-full rounded-full bg-slate-900 flex items-center justify-center font-black text-xl text-white">
+              {user?.phone_number ? user.phone_number.slice(-4) : 'مربی'}
             </div>
           </div>
           <span className="absolute bottom-0 right-0 bg-purple-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border border-slate-900 shadow">
-            Lv.12
+            {user?.role === 'admin' ? 'ادمین' : 'مربی'}
           </span>
         </div>
 
-        <h3 className="text-base font-bold text-white">{user?.coachName || 'امید رضایی'}</h3>
-        <p className="text-xs text-purple-300 mt-0.5">{user?.clubName || 'سرمربی باشگاه البرز'}</p>
+        <h3 className="text-base font-bold text-white dir-ltr">{user?.phone_number || '۰۹۱۲۳۴۵۶۷۸۹'}</h3>
+        <p className="text-xs text-purple-300 mt-0.5">
+          موجودی: ${Number(user?.virtual_dollars || 1000000).toLocaleString()}
+        </p>
+
+        <div className="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-800 text-xs">
+          <div>
+            <span className="text-[10px] text-slate-400 block">رتبه جهانی</span>
+            <span className="font-bold text-cyan-400">#{user?.rank || 1}</span>
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-400 block">امتیاز کل</span>
+            <span className="font-bold text-emerald-400">{user?.points || 0}</span>
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-400 block">نقش</span>
+            <span className="font-bold text-purple-300">{user?.role || 'coach'}</span>
+          </div>
+        </div>
       </div>
 
       {/* Subnav Pills */}
@@ -151,41 +188,55 @@ export default function ProfileView({ user, onBack, onLogout }) {
         </div>
       )}
 
-
-
-      {/* Subtab 5: Global Leaderboard */}
+      {/* Subtab 3: Global Leaderboard */}
       {activeSub === 'rank' && (
-        <div className="glass-panel p-4 rounded-2xl border border-slate-800 space-y-2 text-xs">
+        <div className="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3 text-xs">
           <div className="flex justify-between items-center p-2.5 rounded-xl bg-gradient-to-r from-purple-950/80 to-cyan-950/80 border border-purple-500/40">
             <span className="text-cyan-400 font-bold">رتبه جهانی شما:</span>
-            <span className="text-white font-black dir-ltr text-sm">#۱,۲۴۵</span>
+            <span className="text-white font-black dir-ltr text-sm">#{user?.rank || 1}</span>
           </div>
 
-          <div className="space-y-1.5 pt-1">
-            <div className="flex justify-between items-center p-2 rounded-xl bg-amber-950/30 border border-amber-500/30">
-              <div className="flex items-center gap-2">
-                <Trophy size={16} className="text-amber-400" />
-                <span className="font-bold text-white">۱ — کاربر_الف (تراکتور)</span>
-              </div>
-              <span className="text-amber-400 font-bold dir-ltr">۹۸,۰۰۰ امتیاز</span>
+          {loadingLeaderboard ? (
+            <div className="flex items-center justify-center p-8 text-cyan-400 gap-2 font-bold">
+              <RefreshCw className="animate-spin" size={18} />
+              <span>در حال دریافت جدول رده‌بندی...</span>
             </div>
-
-            <div className="flex justify-between items-center p-2 rounded-xl bg-slate-900/60">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-400">۲</span>
-                <span className="font-bold text-white">کاربر_ب (سپاهان)</span>
-              </div>
-              <span className="text-slate-300 font-bold dir-ltr">۹۵,۵۰۰ امتیاز</span>
+          ) : leaderboard.length === 0 ? (
+            <div className="p-6 text-center text-slate-400 border border-slate-800/80 rounded-xl bg-slate-900/40">
+              <p>هیچ رتبه‌بندی موجود نیست.</p>
             </div>
-
-            <div className="flex justify-between items-center p-2 rounded-xl bg-slate-900/60">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-400">۳</span>
-                <span className="font-bold text-white">کاربر_ج (استقلال)</span>
-              </div>
-              <span className="text-slate-300 font-bold dir-ltr">۹۲,۱۰۰ امتیاز</span>
+          ) : (
+            <div className="space-y-1.5">
+              {leaderboard.map((item, index) => (
+                <div
+                  key={item.id || index}
+                  className={`flex justify-between items-center p-2.5 rounded-xl transition-all ${
+                    item.phone_number === user?.phone_number
+                      ? 'bg-purple-950/50 border border-purple-500/50 shadow-md'
+                      : index === 0
+                      ? 'bg-amber-950/30 border border-amber-500/30'
+                      : 'bg-slate-900/60 border border-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {index === 0 ? (
+                      <Trophy size={16} className="text-amber-400 flex-shrink-0" />
+                    ) : (
+                      <span className="font-bold text-slate-400 w-4 text-center">{item.rank || index + 1}</span>
+                    )}
+                    <span className="font-bold text-white dir-ltr">{item.phone_number}</span>
+                    <span className="text-[10px] text-purple-300 bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-800">
+                      {item.role}
+                    </span>
+                  </div>
+                  <div className="text-left">
+                    <span className="text-emerald-400 font-bold block dir-ltr">{item.points} PTS</span>
+                    <span className="text-[10px] text-slate-400 dir-ltr">${Number(item.virtual_dollars).toLocaleString()}</span>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
+          )}
         </div>
       )}
     </motion.div>

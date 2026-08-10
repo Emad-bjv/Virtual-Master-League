@@ -1,4 +1,5 @@
 from decimal import Decimal
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from teams.models import Team, Player
 from transfers.models import TransferListing, TransferBid, TransferHistory
@@ -10,11 +11,17 @@ from transfers.services import (
     auto_release_overflow_players
 )
 
+User = get_user_model()
+
 
 class TransferMarketTestCase(TestCase):
     def setUp(self):
-        self.seller = Team.objects.create(name="Seller FC", budget=Decimal('500.00'))
-        self.buyer = Team.objects.create(name="Buyer FC", budget=Decimal('1000.00'))
+        # Teams get managers: the caretaker policy blocks managerless teams from
+        # spending budget (buying/bidding), matching the e2e Feature 14 rules.
+        self.seller_manager = User.objects.create_user(phone_number="09120000001")
+        self.buyer_manager = User.objects.create_user(phone_number="09120000002")
+        self.seller = Team.objects.create(name="Seller FC", manager=self.seller_manager, budget=Decimal('500.00'))
+        self.buyer = Team.objects.create(name="Buyer FC", manager=self.buyer_manager, budget=Decimal('1000.00'))
         self.player = Player.objects.create(
             team=self.seller,
             name="Star Player",

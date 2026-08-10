@@ -1,8 +1,31 @@
-from rest_framework import viewsets, status
+from decimal import Decimal, InvalidOperation
+from django.conf import settings
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Team, Player, ClubFacilities, TeamGamePlan
 from .serializers import TeamSerializer, PlayerSerializer, GamePlanUpdateSerializer, ClubFacilitiesSerializer, TeamGamePlanSerializer
+
+
+class IsAdminOrDebug(permissions.BasePermission):
+    """
+    Locks down admin-only actions in production.
+
+    While DEBUG is enabled (local development / the E2E test harness) the
+    endpoints stay open for convenience and for the anonymous E2E suite;
+    once DEBUG is off, only authenticated admins (is_staff / is_superuser
+    / role='admin') may call them.
+    """
+
+    def has_permission(self, request, view):
+        if getattr(settings, 'DEBUG', False):
+            return True
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and (user.is_staff or user.is_superuser or getattr(user, 'role', '') == 'admin')
+        )
 
 # Global Live Stream Config Storage (Default to Aparat VML.Emad)
 LIVE_STREAM_CONFIG = {
@@ -28,6 +51,9 @@ class TeamViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def update_gameplan(self, request, pk=None):
         team = self.get_object()
+        if not request.user.is_staff and team.manager != request.user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("شما دسترسی برای تغییر تاکتیک این تیم را ندارید.")
         serializer = GamePlanUpdateSerializer(data=request.data, many=True)
         if serializer.is_valid():
             for item in serializer.validated_data:
@@ -46,25 +72,22 @@ class TeamViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get', 'post'])
     def submit_gameplan(self, request, pk=None):
         team = self.get_object()
+        if not request.user.is_staff and team.manager != request.user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("شما دسترسی برای تغییر تاکتیک این تیم را ندارید.")
         gameplan, _ = TeamGamePlan.objects.get_or_create(team=team)
 
         if request.method == 'POST':
             tactics = request.data.get('tactics', {})
             players_data = request.data.get('players', [])
 
-            if 'formation' in tactics:
-                gameplan.formation = tactics['formation']
-            if 'play_style' in tactics:
-                gameplan.play_style = tactics['play_style']
-            if 'defensive_press' in tactics:
-                gameplan.defensive_press = tactics['defensive_press']
-            if 'attacking_level' in tactics:
-                gameplan.attacking_level = tactics['attacking_level']
-            if 'offside_trap' in tactics:
-                gameplan.offside_trap = tactics['offside_trap']
-            
-            gameplan.is_submitted = True
-            gameplan.save()
+            # Use serializer with partial=True to accept any subset of
+            # TeamGamePlan fields (all 14 tactic fields + formation).
+            # This replaces the old manual field-by-field reading that
+            # referenced non-existent fields (play_style, defensive_press, etc.)
+            serializer = TeamGamePlanSerializer(gameplan, data=tactics, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(is_submitted=True)
 
             if players_data:
                 for item in players_data:
@@ -78,6 +101,12 @@ class TeamViewSet(viewsets.ModelViewSet):
                         player.save()
                     except Player.DoesNotExist:
                         continue
+                        
+            try:
+                from season_pass.services import increment_task_progress
+                increment_task_progress(team, 'SUBMIT_LINEUP', 1)
+            except Exception as e:
+                print("Failed to increment season pass progress:", e)
 
             return Response({
                 'status': 'ترکیب و تاکتیک‌ها با موفقیت در بک‌اند ثبت شد و به پنل ادمین ارسال گردید.',
@@ -123,7 +152,7 @@ class TeamViewSet(viewsets.ModelViewSet):
 
     # === ADMIN MANAGEMENT ACTIONS ===
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrDebug])
     def admin_update_player(self, request):
         player_id = request.data.get('player_id')
         try:
@@ -132,6 +161,8 @@ class TeamViewSet(viewsets.ModelViewSet):
                 player.overall = int(request.data['overall'])
             if 'virtual_stamina' in request.data:
                 player.virtual_stamina = float(request.data['virtual_stamina'])
+                from teams.stamina_engine import update_lock_status
+                update_lock_status(player)
             if 'heal_injury' in request.data and request.data['heal_injury']:
                 player.is_injured = False
                 player.injury_return_date = None
@@ -140,7 +171,7 @@ class TeamViewSet(viewsets.ModelViewSet):
         except Player.DoesNotExist:
             return Response({'error': 'Player not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrDebug])
     def admin_override_facility(self, request):
         team_id = request.data.get('team_id', 1)
         facility_name = request.data.get('facility')
@@ -156,7 +187,7 @@ class TeamViewSet(viewsets.ModelViewSet):
         except Team.DoesNotExist:
             return Response({'error': 'Team not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrDebug])
     def admin_adjust_budget(self, request):
         team_id = request.data.get('team_id', 1)
         amount = float(request.data.get('amount', 0))
@@ -167,6 +198,86 @@ class TeamViewSet(viewsets.ModelViewSet):
             return Response({'status': 'Budget adjusted', 'new_budget': team.budget})
         except Team.DoesNotExist:
             return Response({'error': 'Team not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrDebug])
+    def admin_register_coach(self, request):
+        """
+        Registers a new club (team) from the admin dashboard's "Register Coach" form.
+        Accepts club_name, budget, wage_cap and optionally phone_number to bind a manager.
+        """
+        from users.models import User
+        from users.serializers import normalize_phone_number
+
+        club_name = request.data.get('club_name') or request.data.get('clubName')
+        if not club_name:
+            return Response({'error': 'club_name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if Team.objects.filter(name=club_name).exists():
+            return Response({'error': 'تیمی با این نام قبلاً ثبت شده است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            budget = Decimal(request.data.get('budget', 850000000))
+            wage_cap = Decimal(request.data.get('wage_cap', 10000))
+        except (TypeError, ValueError, InvalidOperation):
+            budget = Decimal('850000000.00')
+            wage_cap = Decimal('10000.00')
+
+        manager = None
+        phone_number = request.data.get('phone_number')
+        if phone_number:
+            normalized = normalize_phone_number(str(phone_number))
+            if not normalized.startswith('09') or len(normalized) != 11:
+                return Response(
+                    {'error': 'شماره موبایل مربی معتبر نیست. شماره باید با 09 شروع شود.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            manager, _ = User.objects.get_or_create(
+                phone_number=normalized,
+                defaults={'role': 'coach', 'virtual_dollars': 1000000.00}
+            )
+            if hasattr(manager, 'team') and manager.team is not None:
+                return Response(
+                    {'error': 'این شماره موبایل قبلاً برای تیم دیگری ثبت شده است.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        team = Team.objects.create(
+            name=club_name,
+            manager=manager,
+            budget=budget,
+            wage_cap=wage_cap,
+        )
+        ClubFacilities.objects.create(team=team)
+        TeamGamePlan.objects.create(team=team)
+
+        return Response(
+            {'status': 'Coach & team registered successfully', 'team': TeamSerializer(team).data},
+            status=status.HTTP_201_CREATED
+        )
+
+    @action(detail=True, methods=['put'], permission_classes=[IsAdminOrDebug])
+    def assign_coach(self, request, pk=None):
+        team = self.get_object()
+        manager_id = request.data.get('manager_id')
+        
+        if manager_id is None:
+            team.manager = None
+            team.save()
+            return Response({'status': 'Coach unassigned successfully.', 'team': TeamSerializer(team).data})
+
+        from users.models import User
+        try:
+            manager = User.objects.get(id=manager_id)
+            if hasattr(manager, 'team') and manager.team is not None and manager.team != team:
+                return Response(
+                    {'error': 'This user is already managing another team.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            team.manager = manager
+            team.save()
+            return Response({'status': 'Coach assigned successfully.', 'team': TeamSerializer(team).data})
+        except User.DoesNotExist:
+            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 class PlayerViewSet(viewsets.ModelViewSet):
     queryset = Player.objects.all()

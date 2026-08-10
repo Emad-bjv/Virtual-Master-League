@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SubNav from '../common/SubNav';
-import { ShieldAlert, Coins, RefreshCw, HeartPulse, Sliders, CheckCircle2, ArrowLeft, UserPlus, Building, Mail, Lock, Unlock, Info, DollarSign, Tv, PlusCircle } from 'lucide-react';
+import { ShieldAlert, Coins, RefreshCw, HeartPulse, Sliders, CheckCircle2, ArrowLeft, UserPlus, UserCheck, Building, Mail, Lock, Unlock, Info, DollarSign, Tv, PlusCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { adminApi, teamApi } from '../../services/api';
 import EFootballGamePlan from '../team/EFootballGamePlan';
@@ -11,29 +11,14 @@ import CustomSelect from '../common/CustomSelect';
 const ADMIN_SUBNAV = [
   { id: 'overview', label: 'داشبورد ادمین' },
   { id: 'live_admin', label: 'مدیریت پخش زنده' },
+  { id: 'match_team_stats', label: 'آمار تیمی بازی' },
+  { id: 'match_player_ratings', label: 'نمرات بازیکنان' },
   { id: 'register_coach', label: 'ثبت مربی جدید' },
 ];
 
-const TODAYS_MATCHES = [
-  { id: 'm1', home: 'باشگاه البرز', away: 'سپاهان', time: '۱۸:۳۰', stadium: 'ورزشگاه آزادی' },
-  { id: 'm2', home: 'استقلال', away: 'پرسپولیس', time: '۲۰:۴۵', stadium: 'ورزشگاه آزادی' },
-  { id: 'm3', home: 'تراکتور', away: 'گل گهر', time: '۲۱:۰۰', stadium: 'ورزشگاه یادگار امام' },
-];
-
-const INITIAL_PLAYERS = [
-  { id: 1, name: 'آلیسون', team: 'باشگاه البرز', position: 'GK', overall: 87, stamina: 100, is_injured: false, rarity: 'EPIC' },
-  { id: 2, name: 'ویرجیل فن دایک', team: 'باشگاه البرز', position: 'CB', overall: 86, stamina: 42, is_injured: false, rarity: 'LEGENDARY' },
-  { id: 3, name: 'رایان گراونبرخ', team: 'باشگاه البرز', position: 'DMF', overall: 85, stamina: 25, is_injured: true, rarity: 'RARE' },
-  { id: 4, name: 'محمد صلاح', team: 'باشگاه البرز', position: 'RWF', overall: 87, stamina: 86, is_injured: false, rarity: 'LEGENDARY' },
-  { id: 5, name: 'سجاد حسینی', team: 'سپاهان', position: 'ST', overall: 79, stamina: 92, is_injured: false, rarity: 'REGULAR' },
-  { id: 6, name: 'رضا کریمی', team: 'استقلال', position: 'CMF', overall: 82, stamina: 78, is_injured: false, rarity: 'RARE' },
-];
-
-const INITIAL_COACHES = [
-  { id: 1, coachName: 'امید رضایی', clubName: 'باشگاه البرز', email: 'omid@masterleague.ir', budget: 850000000 },
-  { id: 2, coachName: 'محمدرضا ساکت', clubName: 'سپاهان', email: 'sepahan@masterleague.ir', budget: 750000000 },
-  { id: 3, coachName: 'جواد نکونام', clubName: 'استقلال', email: 'esteghlal@masterleague.ir', budget: 680000000 },
-];
+const TODAYS_MATCHES = [];
+const INITIAL_PLAYERS = [];
+const INITIAL_COACHES = [];
 
 const TACTICAL_GUIDES = {
   'بازی مالکانه': 'بازيكنان به دنبال حفظ مالکیت در فضاهای كوچک هستند. سپس همه هم تیمی های موجود پشتيبانى لازم را انجام مى دهند.',
@@ -71,11 +56,13 @@ const TACTICAL_GUIDES = {
   'فشار': 'به محض از دست رفتن توپ، کل تیم شدیداً فشار می‌آورد (Gegenpress).',
 };
 
-export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStreamUrl, onPushLiveEvent, currentMatchStatus, onMatchStatusChange }) {
+export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStreamUrl, onPushLiveEvent, currentMatchStatus, onMatchStatusChange, teamData }) {
   const [activeSub, setActiveSub] = useState('overview');
+  // The admin panel manages the logged-in manager's team (home side) when available
+  const teamId = teamData?.id;
   const [playersList, setPlayersList] = useState(INITIAL_PLAYERS);
   const [coachesList, setCoachesList] = useState(INITIAL_COACHES);
-  const [selectedTeam, setSelectedTeam] = useState('باشگاه البرز');
+  const [selectedTeam, setSelectedTeam] = useState(teamData?.name || '');
 
   // Live Match Admin Stream State
   const [streamInput, setStreamInput] = useState(liveStreamUrl || '');
@@ -88,7 +75,7 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
   // Admin Interactive Tactics Control State
   const [adminTacticTab, setAdminTacticTab] = useState('offense');
   const [adminTactics, setAdminTactics] = useState({
-    play_style: 'بازی مالکانه',
+    attacking_style: 'بازی مالکانه',
     build_up: 'پاس کوتاه',
     attacking_area: 'مرکز',
     positioning: 'شناور',
@@ -106,25 +93,47 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
   const [tacticSaveNotice, setTacticSaveNotice] = useState('');
   const [submittedGameplans, setSubmittedGameplans] = useState({
     home: {
-      play_style: 'پاسکاری کوتاه (Possession)',
-      defensive_press: 'پرس از جلو (High Press)',
-      attacking_level: 'کاملاً هجومی +۲',
-      offside_trap: true,
+      formation: '4-2-1-3',
+      attacking_style: 'بازی مالکانه',
+      build_up: 'پاس کوتاه',
+      attacking_area: 'مرکز',
+      positioning: 'حفظ ترکیب',
+      support_range: 7,
+      defensive_style: 'فشار خط مقدم',
+      containment_area: 'میانه',
+      pressing: 'تهاجمی',
+      defensive_line: 6,
+      compactness: 5,
+      adv_offense_1: 'تیکی تاکا',
+      adv_offense_2: 'هیچکدام',
+      adv_defense_1: 'هیچکدام',
+      adv_defense_2: 'هیچکدام',
       is_submitted: true,
     },
     away: {
-      play_style: 'ضد حمله (Counter Attack)',
-      defensive_press: 'دفاع عمیق (Deep Block)',
-      attacking_level: 'متعادل ۰',
-      offside_trap: false,
+      formation: '4-3-3',
+      attacking_style: 'ضد حمله',
+      build_up: 'پاس بلند',
+      attacking_area: 'کناره',
+      positioning: 'شناور',
+      support_range: 5,
+      defensive_style: 'دفاع عمیق',
+      containment_area: 'کناره',
+      pressing: 'محافظه‌کارانه',
+      defensive_line: 4,
+      compactness: 7,
+      adv_offense_1: 'هیچکدام',
+      adv_offense_2: 'هیچکدام',
+      adv_defense_1: 'خط دفاعی عمیق',
+      adv_defense_2: 'هیچکدام',
       is_submitted: true,
     },
   });
 
   useEffect(() => {
-    if (selectedLiveMatch) {
+    if (selectedLiveMatch && teamId) {
       teamApi
-        .getGameplan(1)
+        .getGameplan(teamId)
         .then((res) => {
           if (res.data && res.data.gameplan) {
             setSubmittedGameplans((prev) => ({
@@ -138,7 +147,7 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
         })
         .catch(() => {});
     }
-  }, [selectedLiveMatch]);
+  }, [selectedLiveMatch, teamId]);
 
   // New Coach Registration Form State
   const [newCoach, setNewCoach] = useState({
@@ -146,6 +155,7 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
     clubName: '',
     email: '',
     password: '',
+    phoneNumber: '',
     budget: 850000000,
     wageCap: 10000,
   });
@@ -166,6 +176,71 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
   const showNotification = (msg) => {
     setAdminMessage(msg);
     setTimeout(() => setAdminMessage(''), 3500);
+  };
+
+  // ── TEAM STATS FORM STATE ──────────────────────────────
+  const [statsMatchId, setStatsMatchId] = useState('');
+  const [statsTeamId, setStatsTeamId] = useState('');
+  const [statsForm, setStatsForm] = useState({
+    possession_percent: 50,
+    shots: 0,
+    shots_on_target: 0,
+    corners: 0,
+    fouls: 0,
+    offsides: 0,
+  });
+  const [statsSubmitting, setStatsSubmitting] = useState(false);
+
+  const handleSubmitTeamStats = async (e) => {
+    e.preventDefault();
+    if (!statsMatchId || !statsTeamId) {
+      showNotification('شناسه بازی و تیم الزامی است.');
+      return;
+    }
+    setStatsSubmitting(true);
+    try {
+      const { matchApi } = await import('../../services/api');
+      await matchApi.submitTeamStats(statsMatchId, {
+        team_id: parseInt(statsTeamId),
+        ...statsForm,
+      });
+      showNotification(`آمار تیمی برای بازی #${statsMatchId} با موفقیت ثبت شد.`);
+    } catch (err) {
+      showNotification(`خطا: ${err.response?.data?.error || 'مشکل ارتباط با سرور'}`);
+    } finally {
+      setStatsSubmitting(false);
+    }
+  };
+
+  // ── PLAYER RATINGS FORM STATE ─────────────────────────
+  const [ratingsMatchId, setRatingsMatchId] = useState('');
+  const [ratingsInput, setRatingsInput] = useState(''); // JSON text area
+  const [ratingsSubmitting, setRatingsSubmitting] = useState(false);
+
+  const handleSubmitPlayerRatings = async (e) => {
+    e.preventDefault();
+    if (!ratingsMatchId) {
+      showNotification('شناسه بازی الزامی است.');
+      return;
+    }
+    let players;
+    try {
+      players = JSON.parse(ratingsInput);
+      if (!Array.isArray(players)) throw new Error();
+    } catch {
+      showNotification('فرمت داده‌های بازیکنان نامعتبر است (JSON آرایک).');
+      return;
+    }
+    setRatingsSubmitting(true);
+    try {
+      const { matchApi } = await import('../../services/api');
+      const res = await matchApi.submitPlayerRatings(ratingsMatchId, { players });
+      showNotification(`نمرات ${res.data.length} بازیکن برای بازی #${ratingsMatchId} ثبت شد.`);
+    } catch (err) {
+      showNotification(`خطا: ${err.response?.data?.error || 'مشکل ارتباط با سرور'}`);
+    } finally {
+      setRatingsSubmitting(false);
+    }
   };
 
   const handleUpdateStreamUrl = (e) => {
@@ -192,10 +267,23 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
     setCustomEventText('');
   };
 
-  const handleRegisterCoachSubmit = (e) => {
+  const handleRegisterCoachSubmit = async (e) => {
     e.preventDefault();
     if (!newCoach.coachName || !newCoach.clubName || !newCoach.email) {
       showNotification('لطفاً تمام اطلاعات الزامی مربی را وارد کنید.');
+      return;
+    }
+
+    try {
+      await adminApi.registerCoach({
+        club_name: newCoach.clubName,
+        budget: parseFloat(newCoach.budget) || 850000000,
+        wage_cap: parseFloat(newCoach.wageCap) || 10000,
+        phone_number: newCoach.phoneNumber || '',
+      });
+      showNotification(`مربی ${newCoach.coachName} با موفقیت برای باشگاه «${newCoach.clubName}» در دیتابیس ثبت شد!`);
+    } catch (err) {
+      showNotification(`خطا در ثبت مربی: ${err.response?.data?.error || 'مشکل ارتباط با بک‌اند'}`);
       return;
     }
 
@@ -208,13 +296,13 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
     };
 
     setCoachesList((prev) => [created, ...prev]);
-    showNotification(`مربی ${newCoach.coachName} با موفقیت برای باشگاه «${newCoach.clubName}» در سیستم ثبت شد!`);
 
     setNewCoach({
       coachName: '',
       clubName: '',
       email: '',
       password: '',
+      phoneNumber: '',
       budget: 850000000,
       wageCap: 10000,
     });
@@ -266,8 +354,12 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
   };
 
   const handleOverrideFacilityLevel = async (facKey, level) => {
+    if (!teamId) {
+      showNotification('تیمی یافت نشد. لطفاً ابتدا یک تیم انتخاب کنید.');
+      return;
+    }
     try {
-      await adminApi.overrideFacility({ team_id: 1, facility: facKey, level });
+      await adminApi.overrideFacility({ team_id: teamId, facility: facKey, level });
     } catch (_err) {
       // demo fallback
     }
@@ -594,8 +686,8 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
                         <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5">
                           <label className="font-bold text-rose-300 block">۱. سبک‌های حمله (Attacking Style):</label>
                           <CustomSelect
-                            value={adminTactics.play_style}
-                            onChange={(val) => setAdminTactics({ ...adminTactics, play_style: val })}
+                            value={adminTactics.attacking_style}
+                            onChange={(val) => setAdminTactics({ ...adminTactics, attacking_style: val })}
                             colorTheme="rose"
                             disabled={currentMatchStatus !== 'HALF_TIME'}
                             options={[
@@ -605,7 +697,7 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
                           />
                           <div className="p-2.5 rounded-xl bg-slate-950/80 border border-rose-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
                             <Info size={15} className="text-rose-400 shrink-0 mt-0.5" />
-                            <span>{TACTICAL_GUIDES[adminTactics.play_style]}</span>
+                            <span>{TACTICAL_GUIDES[adminTactics.attacking_style]}</span>
                           </div>
                         </div>
 
@@ -925,7 +1017,7 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
                 <button
                   disabled={currentMatchStatus !== 'HALF_TIME'}
                   onClick={() => {
-                    const text = `تغییرات تاکتیکی ادمین بین دو نیمه برای ${selectedLiveTeamSwitch === 'home' ? selectedLiveMatch.home : selectedLiveMatch.away} ثبت گردید ⚡ (سبک: ${adminTactics.play_style})`;
+                    const text = `تغییرات تاکتیکی ادمین بین دو نیمه برای ${selectedLiveTeamSwitch === 'home' ? selectedLiveMatch.home : selectedLiveMatch.away} ثبت گردید ⚡ (سبک: ${adminTactics.attacking_style})`;
                     if (onPushLiveEvent) {
                       onPushLiveEvent({
                         id: Date.now(),
@@ -950,7 +1042,123 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
         </motion.div>
       )}
 
-      {/* Subtab 3: Register New Coach & Team */}
+      {/* Subtab 3: Match Team Stats (Task C) */}
+      {activeSub === 'match_team_stats' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 text-xs">
+          <div className="glass-panel p-5 rounded-2xl border border-amber-500/40 space-y-4">
+            <h3 className="font-bold text-white border-b border-slate-800 pb-2.5 flex items-center gap-2">
+              <span className="text-amber-400 text-lg">📊</span>
+              <span>ثبت آمار تیمی بازی (Team Stats)</span>
+            </h3>
+            <p className="text-slate-400 text-[11px] leading-relaxed">
+              آمار تیمی هر بازی (تسلط، ضربات، کرنر و ...) را بعد از پایان بازی وارد کنید.
+              هر ثبت جدید داده قبلی را به‌روزرسانی می‌کند.
+            </p>
+            <form onSubmit={handleSubmitTeamStats} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-300 font-medium block mb-1">شناسه بازی (Match ID) *</label>
+                  <input
+                    type="number" min="1" required
+                    value={statsMatchId}
+                    onChange={(e) => setStatsMatchId(e.target.value)}
+                    placeholder="مثال: 42"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-300 font-medium block mb-1">شناسه تیم (Team ID) *</label>
+                  <input
+                    type="number" min="1" required
+                    value={statsTeamId}
+                    onChange={(e) => setStatsTeamId(e.target.value)}
+                    placeholder="مثال: 3"
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {[
+                  { key: 'possession_percent', label: 'تسلط بر توپ (%)', max: 100 },
+                  { key: 'shots', label: 'تعداد ضربات', max: 50 },
+                  { key: 'shots_on_target', label: 'ضربات به هدف', max: 30 },
+                  { key: 'corners', label: 'کرنر', max: 20 },
+                  { key: 'fouls', label: 'خطا', max: 30 },
+                  { key: 'offsides', label: 'آفساید', max: 15 },
+                ].map(({ key, label, max }) => (
+                  <div key={key}>
+                    <label className="text-slate-300 font-medium block mb-1">{label}</label>
+                    <input
+                      type="number" min="0" max={max}
+                      value={statsForm[key]}
+                      onChange={(e) => setStatsForm(f => ({ ...f, [key]: parseInt(e.target.value) || 0 }))}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:border-amber-500 focus:outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+              <button
+                type="submit"
+                disabled={statsSubmitting}
+                className="w-full bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:opacity-50 text-white font-black py-3 rounded-2xl transition-all flex items-center justify-center gap-2"
+              >
+                <span>{statsSubmitting ? 'در حال ثبت...' : '📊 ثبت آمار تیمی بازی'}</span>
+              </button>
+            </form>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Subtab 4: Player Ratings (Task C) */}
+      {activeSub === 'match_player_ratings' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 text-xs">
+          <div className="glass-panel p-5 rounded-2xl border border-cyan-500/40 space-y-4">
+            <h3 className="font-bold text-white border-b border-slate-800 pb-2.5 flex items-center gap-2">
+              <span className="text-cyan-400 text-lg">⭐</span>
+              <span>ثبت نمرات بازیکنان (Player Ratings)</span>
+            </h3>
+            <p className="text-slate-400 text-[11px] leading-relaxed">
+              نمرات و آمار بازیکنان را بعد از پایان بازی وارد کنید. داده باید به فرمت JSON آرایه باشد.
+            </p>
+            <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800 font-mono text-[10px] text-slate-400 leading-relaxed">
+              <span className="text-cyan-400">// نمونه فرمت ورودی:</span><br/>
+              {'[{"player_id":1,"minutes_played":90,"rating":7.5,"was_starter":true},{"player_id":2,"minutes_played":63,"rating":6.0,"was_starter":true}]'}
+            </div>
+            <form onSubmit={handleSubmitPlayerRatings} className="space-y-4">
+              <div>
+                <label className="text-slate-300 font-medium block mb-1">شناسه بازی (Match ID) *</label>
+                <input
+                  type="number" min="1" required
+                  value={ratingsMatchId}
+                  onChange={(e) => setRatingsMatchId(e.target.value)}
+                  placeholder="مثال: 42"
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:border-cyan-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-slate-300 font-medium block mb-1">داده‌های بازیکنان (JSON آرایه) *</label>
+                <textarea
+                  required
+                  rows={8}
+                  value={ratingsInput}
+                  onChange={(e) => setRatingsInput(e.target.value)}
+                  placeholder='[{"player_id":1,"minutes_played":90,"rating":8.5,"was_starter":true}]'
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono text-[10px] focus:border-cyan-500 focus:outline-none resize-none"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={ratingsSubmitting}
+                className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:opacity-50 text-white font-black py-3 rounded-2xl transition-all flex items-center justify-center gap-2"
+              >
+                <span>{ratingsSubmitting ? 'در حال ثبت...' : '⭐ ثبت نمرات بازیکنان'}</span>
+              </button>
+            </form>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Subtab 5: Register New Coach & Team */}
       {activeSub === 'register_coach' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 text-xs">
           <div className="glass-panel p-4 rounded-2xl border border-cyan-500/40 space-y-4">
@@ -1003,6 +1211,21 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
                     value={newCoach.email}
                     onChange={(e) => setNewCoach({ ...newCoach, email: e.target.value })}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-300 font-medium block mb-1 flex items-center gap-1">
+                    <UserCheck size={14} className="text-cyan-400" />
+                    <span>شماره موبایل مربی (اختیاری)</span>
+                  </label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    placeholder="09123456789"
+                    value={newCoach.phoneNumber}
+                    onChange={(e) => setNewCoach({ ...newCoach, phoneNumber: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono"
                   />
                 </div>
 

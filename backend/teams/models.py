@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
+from decimal import Decimal
 
 
 class Team(models.Model):
@@ -9,8 +10,9 @@ class Team(models.Model):
         null=True, blank=True, related_name='team', verbose_name="مربی"
     )
     name = models.CharField(max_length=100, unique=True, verbose_name="نام تیم")
-    logo = models.ImageField(upload_to='teams/logos/', null=True, blank=True, verbose_name="لوگو")
+    logo = models.CharField(max_length=255, null=True, blank=True, verbose_name="لوگو")
     budget = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="بودجه")
+    gems = models.PositiveIntegerField(default=0, verbose_name="جم (ارز ارتقا/گاچا)")
     wage_cap = models.DecimalField(max_digits=15, decimal_places=2, default=10000.00, verbose_name="سقف دستمزد")
     academy_level = models.PositiveIntegerField(default=1, verbose_name="سطح آکادمی")
 
@@ -96,6 +98,11 @@ class Player(models.Model):
     training_points = models.PositiveIntegerField(default=0, verbose_name="امتیاز تمرین")
     wage = models.DecimalField(max_digits=10, decimal_places=2, default=100.0, verbose_name="دستمزد")
     rarity = models.CharField(max_length=20, default='REGULAR', verbose_name="درجه کارت (Rarity)")
+    growth_buffer = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal('0.00'),
+        verbose_name="بافر رشد",
+        help_text="مانده کسری رشد که در هر دوره ارزیابی روی اورال اعمال می‌شود."
+    )
     is_locked = models.BooleanField(default=False, verbose_name="قفل استقامت زیر ۳۰٪")
     x_coord = models.FloatField(default=0.0, verbose_name="مختصات X در ترکیب")
     y_coord = models.FloatField(default=0.0, verbose_name="مختصات Y در ترکیب")
@@ -110,7 +117,7 @@ class Player(models.Model):
 
     @property
     def is_stamina_locked(self) -> bool:
-        return self.virtual_stamina < 30.0
+        return self.is_locked or self.virtual_stamina < 30.0
 
     @property
     def stamina_status(self) -> str:
@@ -176,10 +183,27 @@ class PlayerGrowthLog(models.Model):
 class TeamGamePlan(models.Model):
     team = models.OneToOneField(Team, on_delete=models.CASCADE, related_name='gameplan', verbose_name="تیم")
     formation = models.CharField(max_length=20, default='4-2-1-3', verbose_name="سیستم ترکیب")
-    play_style = models.CharField(max_length=50, default='پاسکاری کوتاه (Possession)', verbose_name="سبک بازی")
-    defensive_press = models.CharField(max_length=50, default='پرس از جلو (High Press)', verbose_name="فشار دفاعی")
-    attacking_level = models.CharField(max_length=30, default='کاملاً هجومی +۲', verbose_name="سطح هجومی")
-    offside_trap = models.BooleanField(default=True, verbose_name="تله آفساید")
+
+    # حمله
+    attacking_style = models.CharField(max_length=50, default='بازی مالکانه')
+    build_up = models.CharField(max_length=50, default='پاس کوتاه')
+    attacking_area = models.CharField(max_length=20, default='مرکز')
+    positioning = models.CharField(max_length=20, default='حفظ ترکیب')
+    support_range = models.PositiveIntegerField(default=7)
+
+    # دفاع
+    defensive_style = models.CharField(max_length=50, default='فشار خط مقدم')
+    containment_area = models.CharField(max_length=20, default='میانه')
+    pressing = models.CharField(max_length=20, default='تهاجمی')
+    defensive_line = models.PositiveIntegerField(default=6)
+    compactness = models.PositiveIntegerField(default=5)
+
+    # پیشرفته
+    adv_offense_1 = models.CharField(max_length=50, default='هیچکدام')
+    adv_offense_2 = models.CharField(max_length=50, default='هیچکدام')
+    adv_defense_1 = models.CharField(max_length=50, default='هیچکدام')
+    adv_defense_2 = models.CharField(max_length=50, default='هیچکدام')
+
     is_submitted = models.BooleanField(default=False, verbose_name="تایید و ارسال شده به ادمین")
     submitted_at = models.DateTimeField(auto_now=True, verbose_name="زمان ثبت و ارسال")
 

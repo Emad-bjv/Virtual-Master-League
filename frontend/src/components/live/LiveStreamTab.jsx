@@ -3,20 +3,14 @@ import { Tv, Radio, Activity, CheckCircle2, Sliders, X, Shield, Clock, Timer } f
 import { motion, AnimatePresence } from 'framer-motion';
 import EFootballGamePlan from '../team/EFootballGamePlan';
 
-const DEFAULT_MATCH_EVENTS = [
-  { id: 1, type: 'GOAL', text: 'گل دوم برای باشگاه البرز توسط محمد صلاح! ⚽', team: 'البرز', icon: '⚽', color: 'text-emerald-400 border-emerald-500/40 bg-emerald-950/40' },
-  { id: 2, type: 'YELLOW_CARD', text: 'کارت زرد برای بازیکن سپاهان (محمد کریمی) 🟨', team: 'سپاهان', icon: '🟨', color: 'text-amber-400 border-amber-500/40 bg-amber-950/40' },
-  { id: 3, type: 'SUB', text: 'تعویض زنده: ورود رضاییان به جای مغانلو 🔄', team: 'سپاهان', icon: '🔄', color: 'text-purple-400 border-purple-500/40 bg-purple-950/40' },
-  { id: 4, type: 'YELLOW_CARD', text: 'کارت زرد برای ویرجیل فن دایک 🟨', team: 'البرز', icon: '🟨', color: 'text-amber-400 border-amber-500/40 bg-amber-950/40' },
-  { id: 5, type: 'GOAL', text: 'گل اول مسابقه برای سپاهان توسط شهریار مغانلو ⚽', team: 'سپاهان', icon: '⚽', color: 'text-rose-400 border-rose-500/40 bg-rose-950/40' },
-];
+const DEFAULT_MATCH_EVENTS = [];
 
 export default function LiveStreamTab({ liveStreamUrl, liveEvents = [], onAddEvent, currentMatchStatus, onMatchStatusChange }) {
-  const [events, setEvents] = useState(liveEvents.length > 0 ? liveEvents : DEFAULT_MATCH_EVENTS);
+  const [events, setEvents] = useState(liveEvents);
   const [gamePlanModalOpen, setGamePlanModalOpen] = useState(false);
   const [matchState, setMatchState] = useState(currentMatchStatus || 'FIRST_HALF'); // 'FIRST_HALF' | 'HALF_TIME' | 'SECOND_HALF' | 'FINISHED'
   const [halfTimeSeconds, setHalfTimeSeconds] = useState(30);
-  const [subsCount, setSubsCount] = useState(1); // 1 sub already done in demo, max 5 allowed
+  const [subsCount, setSubsCount] = useState(0);
   const [saveToast, setSaveToast] = useState('');
 
   // Sync external status change from Admin if provided
@@ -70,7 +64,7 @@ export default function LiveStreamTab({ liveStreamUrl, liveEvents = [], onAddEve
       id: Date.now(),
       type: 'TACTICS',
       text: `بروزرسانی ترکیب/تاکتیک مربی: تغییرات چیدمان (${updatedPlan.currentFormation}) اعمال گردید (تعویض ${newSubsCount} از ۵) ⚡`,
-      team: 'البرز',
+      team: 'تیم شما',
       icon: '⚡',
       color: 'text-cyan-400 border-cyan-500/40 bg-cyan-950/40',
     };
@@ -98,7 +92,7 @@ export default function LiveStreamTab({ liveStreamUrl, liveEvents = [], onAddEve
               <Tv size={14} /> پخش زنده آپارات (LIVE STREAM)
             </span>
             <h2 className="text-sm md:text-base font-black text-white mt-0.5">
-              باشگاه البرز ۲ - ۱ سپاهان اصفهان
+              پخش زنده مسابقات مستر لیگ
             </h2>
           </div>
         </div>
@@ -306,7 +300,7 @@ export default function LiveStreamTab({ liveStreamUrl, liveEvents = [], onAddEve
               {/* Modal Body: EFootballGamePlan Component */}
               <div className="flex-1 overflow-y-auto p-2 sm:p-4 custom-scrollbar bg-slate-950/60">
                 <EFootballGamePlan
-                  teamName="باشگاه البرز (میزبان)"
+                  teamName="تیم شما (میزبان)"
                   isLiveMode={true}
                   matchState={matchState}
                   halfTimeSeconds={halfTimeSeconds}

@@ -2,6 +2,20 @@ from django.db import models
 from teams.models import Team, Player
 
 
+class Season(models.Model):
+    name = models.CharField(max_length=100, verbose_name="نام فصل")
+    is_active = models.BooleanField(default=True, verbose_name="فعال است؟")
+    started_at = models.DateTimeField(null=True, blank=True, verbose_name="تاریخ شروع")
+    ended_at = models.DateTimeField(null=True, blank=True, verbose_name="تاریخ پایان")
+
+    class Meta:
+        verbose_name = "فصل"
+        verbose_name_plural = "فصل‌ها"
+
+    def __str__(self):
+        return self.name
+
+
 class Tournament(models.Model):
     TYPES = [
         ('LEAGUE', 'لیگ'),
@@ -12,6 +26,7 @@ class Tournament(models.Model):
     tournament_type = models.CharField(
         max_length=10, choices=TYPES, default='LEAGUE', verbose_name="نوع مسابقات"
     )
+    season = models.ForeignKey(Season, on_delete=models.SET_NULL, null=True, blank=True, related_name="tournaments", verbose_name="فصل")
     is_active = models.BooleanField(default=True, verbose_name="فعال است؟")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -30,6 +45,14 @@ class Match(models.Model):
         ('LIVE', 'در حال برگزاری'),
         ('FINISHED', 'پایان یافته'),
     ]
+    HALF_STATUS_CHOICES = [
+        ('1ST_HALF', 'نیمه اول'),
+        ('HALF_TIME', 'بین دو نیمه'),
+        ('2ND_HALF', 'نیمه دوم'),
+        ('EXTRA_TIME', 'وقت اضافه'),
+        ('PENALTIES', 'ضربات پنالتی'),
+        ('FINISHED', 'پایان بازی'),
+    ]
 
     home_team = models.ForeignKey(
         Team, on_delete=models.CASCADE, null=True, blank=True,
@@ -46,9 +69,17 @@ class Match(models.Model):
         max_length=15, choices=STATUS_CHOICES,
         default='SCHEDULED', verbose_name="وضعیت بازی"
     )
+    half_status = models.CharField(
+        max_length=15, choices=HALF_STATUS_CHOICES,
+        default='1ST_HALF', verbose_name="وضعیت نیمه"
+    )
     fatigue_applied = models.BooleanField(
         default=False, verbose_name="خستگی اعمال شده؟",
         help_text="آیا فرمول خستگی روی بازیکنان این مسابقه اعمال شده است؟"
+    )
+    standings_processed = models.BooleanField(
+        default=False, verbose_name="جدول پردازش شده؟",
+        help_text="آیا این بازی در جدول رده‌بندی ثبت و محاسبه شده است؟"
     )
 
     # --- Cup / Bracket Fields ---
@@ -195,3 +226,68 @@ class LiveSubstitutionRequest(models.Model):
     def __str__(self):
         return f"[{self.get_status_display()}] {self.team.name}: {self.player_out.name} OUT, {self.player_in.name} IN (Min {self.minute})"
 
+
+class MatchTeamStat(models.Model):
+    """
+    Per-team aggregate stats for a specific match (possession, shots, etc).
+    Recorded by admin after the match finishes.
+    """
+    match = models.ForeignKey(
+        Match, on_delete=models.CASCADE,
+        related_name='team_stats', verbose_name="مسابقه"
+    )
+    team = models.ForeignKey(
+        Team, on_delete=models.CASCADE,
+        related_name='team_match_stats', verbose_name="تیم"
+    )
+    possession_percent = models.PositiveIntegerField(
+        default=50, verbose_name="تسلط بر توپ (%)"
+    )
+    shots = models.PositiveIntegerField(default=0, verbose_name="ضربات")
+    shots_on_target = models.PositiveIntegerField(default=0, verbose_name="ضربات به هدف")
+    corners = models.PositiveIntegerField(default=0, verbose_name="کرنر")
+    fouls = models.PositiveIntegerField(default=0, verbose_name="خطا")
+    offsides = models.PositiveIntegerField(default=0, verbose_name="آفساید")
+
+    class Meta:
+        verbose_name = "آمار تیمی مسابقه"
+        verbose_name_plural = "آمارهای تیمی مسابقات"
+        unique_together = ('match', 'team')
+
+    def __str__(self):
+        return f"{self.team.name} stats in {self.match}"
+
+
+class LeagueStanding(models.Model):
+    """
+    Persisted league standings per tournament, updated by signals.
+    Replaces the old live-calculation approach.
+    """
+    tournament = models.ForeignKey(
+        Tournament, on_delete=models.CASCADE,
+        related_name='standings', verbose_name="تورنمنت"
+    )
+    team = models.ForeignKey(
+        Team, on_delete=models.CASCADE,
+        related_name='league_standings', verbose_name="تیم"
+    )
+    played = models.PositiveIntegerField(default=0, verbose_name="بازی‌کرده")
+    won = models.PositiveIntegerField(default=0, verbose_name="برد")
+    drawn = models.PositiveIntegerField(default=0, verbose_name="مساوی")
+    lost = models.PositiveIntegerField(default=0, verbose_name="باخت")
+    goals_for = models.PositiveIntegerField(default=0, verbose_name="گل زده")
+    goals_against = models.PositiveIntegerField(default=0, verbose_name="گل خورده")
+    points = models.PositiveIntegerField(default=0, verbose_name="امتیاز")
+
+    class Meta:
+        verbose_name = "جدول لیگ"
+        verbose_name_plural = "جداول لیگ"
+        unique_together = ('tournament', 'team')
+        ordering = ['-points', '-goals_for']
+
+    @property
+    def goal_difference(self):
+        return self.goals_for - self.goals_against
+
+    def __str__(self):
+        return f"{self.tournament.name} — {self.team.name}: {self.points}pts"

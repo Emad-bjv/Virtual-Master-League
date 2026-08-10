@@ -228,45 +228,13 @@ export const FORMATION_OPTIONS = Object.keys(FORMATION_PRESETS).map((f) => ({
   label: f,
 }));
 
-// Demo XI starting lineup
-const DEFAULT_STARTING_XI = [
-  { id: '1', name: 'Alisson', position: 'GK', naturalPosition: 'GK', overall: 87, x_coord: 50, y_coord: 90 },
-  { id: '2', name: 'A. Robertson', position: 'LB', naturalPosition: 'LB', overall: 84, x_coord: 15, y_coord: 72 },
-  { id: '3', name: 'I. Konaté', position: 'CB', naturalPosition: 'CB', overall: 85, x_coord: 35, y_coord: 75 },
-  { id: '4', name: 'V. van Dijk', position: 'CB', naturalPosition: 'CB', overall: 86, isCaptain: true, x_coord: 65, y_coord: 75 },
-  { id: '5', name: 'J. Frimpong', position: 'RB', naturalPosition: 'RB', overall: 83, x_coord: 85, y_coord: 72 },
-  { id: '6', name: 'R. Gravenberch', position: 'DMF', naturalPosition: 'DMF', overall: 85, x_coord: 35, y_coord: 56 },
-  { id: '7', name: 'A. Mac Allister', position: 'CMF', naturalPosition: 'CMF', overall: 85, x_coord: 65, y_coord: 56 },
-  { id: '8', name: 'D. Szoboszlai', position: 'AMF', naturalPosition: 'AMF', overall: 87, x_coord: 50, y_coord: 38 },
-  { id: '9', name: 'Cody Gakpo', position: 'LWF', naturalPosition: 'LWF', overall: 86, x_coord: 18, y_coord: 20 },
-  { id: '10', name: 'Mohamed Salah', position: 'RWF', naturalPosition: 'RWF', overall: 87, x_coord: 82, y_coord: 20 },
-  { id: '11', name: 'Alexander Isak', position: 'CF', naturalPosition: 'CF', overall: 86, x_coord: 50, y_coord: 15 },
-];
-
-// Demo bench substitutes (11 players on bench)
-const DEFAULT_SUBSTITUTES = [
-  { id: 'b1', name: 'Mamardashvili', position: 'GK', naturalPosition: 'GK', overall: 84 },
-  { id: 'b3', name: 'Joe Gomez', position: 'CB', naturalPosition: 'CB', overall: 81 },
-  { id: 'b5', name: 'Milos Kerkez', position: 'LB', naturalPosition: 'LB', overall: 81 },
-  { id: 'b6', name: 'Conor Bradley', position: 'RB', naturalPosition: 'RB', overall: 81 },
-  { id: 'b7', name: 'Wataru Endo', position: 'DMF', naturalPosition: 'DMF', overall: 79 },
-  { id: 'b9', name: 'Curtis Jones', position: 'CMF', naturalPosition: 'CMF', overall: 83 },
-  { id: 'b10', name: 'Florian Wirtz', position: 'AMF', naturalPosition: 'AMF', overall: 83 },
-  { id: 'b13', name: 'Harvey Elliott', position: 'AMF', naturalPosition: 'AMF', overall: 81 },
-  { id: 'b11', name: 'Federico Chiesa', position: 'RWF', naturalPosition: 'RWF', overall: 81 },
-  { id: 'b12', name: 'Hugo Ekitiké', position: 'CF', naturalPosition: 'CF', overall: 84 },
-  { id: 'b14', name: 'Kostas Tsimikas', position: 'LB', naturalPosition: 'LB', overall: 80 },
-];
-
-// Demo reserves (out of squad / locker room - 3 players)
-const DEFAULT_RESERVES = [
-  { id: 'b2', name: 'Freddie Wood', position: 'GK', naturalPosition: 'GK', overall: 77 },
-  { id: 'b4', name: 'Rhys Williams', position: 'CB', naturalPosition: 'CB', overall: 74 },
-  { id: 'b8', name: 'Stefan Bajcetic', position: 'DMF', naturalPosition: 'DMF', overall: 77 },
-];
+// Default empty lineups (populated from API)
+const DEFAULT_STARTING_XI = [];
+const DEFAULT_SUBSTITUTES = [];
+const DEFAULT_RESERVES = [];
 
 export default function EFootballGamePlan({
-  teamName = 'LIVERPOOL FC',
+  teamName = 'تیم شما',
   formation: initialFormationProp = '4-3-3 (4-2-1-3)',
   readOnly = false,
   hideReserves = false,
