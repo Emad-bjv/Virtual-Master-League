@@ -83,3 +83,73 @@ def task_run_growth_evaluation(match_ids: list, period_name: str):
     )
 
     return result
+
+
+@shared_task(name='teams.run_academy_graduation')
+def task_run_academy_graduation():
+    """
+    Celery task: Run academy graduation at the end of each season.
+
+    For each team:
+    - If roster is full (>= 25 players), skip graduation.
+    - Otherwise, generate `graduates_count(team)` number of young players
+      with OVR based on the academy facility level.
+
+    Called from: matches/views.py (or admin) when a Season is closed (Season.is_active = False).
+    """
+    from teams.models import Team
+    from teams.growth_engine import generate_academy_prospect, graduates_count
+    from gacha.services import generate_random_player
+
+    results = []
+    teams_processed = 0
+    total_graduated = 0
+
+    for team in Team.objects.select_related('facilities').all():
+        current_count = team.players.count()
+        if current_count >= 25:
+            logger.info(
+                f"[Academy Graduation] Team '{team.name}' skipped: roster full ({current_count}/25)."
+            )
+            continue
+
+        # How many players can we add before hitting 25?
+        available_slots = 25 - current_count
+
+        count = graduates_count(team)
+        count = min(count, available_slots)  # Never exceed 25-player cap
+        target_ovr = generate_academy_prospect(team)
+
+        team_graduates = []
+        for _ in range(count):
+            player = generate_random_player('RARE', team)
+            # Override with academy-specific values
+            player.age = 17
+            player.overall = target_ovr
+            player.rarity = 'REGULAR'  # Academy players are regular cards
+            player.save(update_fields=['age', 'overall', 'rarity'])
+
+            logger.info(
+                f"[Academy Graduation] {team.name}: graduated {player.name} "
+                f"(OVR {target_ovr}, age 17)."
+            )
+            team_graduates.append({'player_id': player.id, 'player_name': player.name, 'ovr': target_ovr})
+
+        results.append({
+            'team': team.name,
+            'team_id': team.id,
+            'graduates': team_graduates,
+            'graduates_count': len(team_graduates),
+        })
+        teams_processed += 1
+        total_graduated += len(team_graduates)
+
+    logger.info(
+        f"[Academy Graduation] Completed: {total_graduated} players graduated across {teams_processed} teams."
+    )
+
+    return {
+        'teams_processed': teams_processed,
+        'total_graduated': total_graduated,
+        'results': results,
+    }

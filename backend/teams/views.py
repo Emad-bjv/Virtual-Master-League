@@ -1,6 +1,6 @@
 from decimal import Decimal, InvalidOperation
 from django.conf import settings
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status, permissions, views
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Team, Player, ClubFacilities, TeamGamePlan
@@ -35,9 +35,27 @@ LIVE_STREAM_CONFIG = {
     'is_live': True,
 }
 
+class PositionChoicesView(views.APIView):
+    """
+    Returns available player positions dynamically.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        return Response(dict(Player.POSITIONS))
+
 class TeamViewSet(viewsets.ModelViewSet):
     queryset = Team.objects.all()
     serializer_class = TeamSerializer
+
+    def get_throttles(self):
+        if self.action in ['admin_adjust_budget', 'admin_override_facility', 'admin_update_player', 'admin_register_coach']:
+            self.throttle_scope = 'admin_action'
+        elif self.action in ['update_gameplan', 'submit_gameplan']:
+            self.throttle_scope = 'substitution'
+        else:
+            self.throttle_scope = None
+        return super().get_throttles()
 
     @action(detail=False, methods=['get', 'post'])
     def live_stream(self, request):
@@ -155,8 +173,15 @@ class TeamViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], permission_classes=[IsAdminOrDebug])
     def admin_update_player(self, request):
         player_id = request.data.get('player_id')
+        reason = request.data.get('reason', '')
         try:
             player = Player.objects.get(id=player_id)
+            before_value = {
+                'overall': int(player.overall),
+                'virtual_stamina': float(player.virtual_stamina),
+                'is_injured': player.is_injured,
+                'injury_return_date': str(player.injury_return_date) if player.injury_return_date else None
+            }
             if 'overall' in request.data:
                 player.overall = int(request.data['overall'])
             if 'virtual_stamina' in request.data:
@@ -167,6 +192,23 @@ class TeamViewSet(viewsets.ModelViewSet):
                 player.is_injured = False
                 player.injury_return_date = None
             player.save()
+            
+            after_value = {
+                'overall': int(player.overall),
+                'virtual_stamina': float(player.virtual_stamina),
+                'is_injured': player.is_injured,
+                'injury_return_date': str(player.injury_return_date) if player.injury_return_date else None
+            }
+            from audit.utils import log_admin_action
+            log_admin_action(
+                admin_user=request.user, 
+                action_type='PLAYER_UPDATE', 
+                target_team=player.team, 
+                target_player=player,
+                before_value=before_value, 
+                after_value=after_value, 
+                reason=reason
+            )
             return Response({'status': 'Player updated by Admin', 'player': PlayerSerializer(player).data})
         except Player.DoesNotExist:
             return Response({'error': 'Player not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -176,13 +218,28 @@ class TeamViewSet(viewsets.ModelViewSet):
         team_id = request.data.get('team_id', 1)
         facility_name = request.data.get('facility')
         new_level = int(request.data.get('level', 1))
+        reason = request.data.get('reason', '')
 
         try:
             team = Team.objects.get(id=team_id)
             facilities, _ = ClubFacilities.objects.get_or_create(team=team)
             field_name = f"{facility_name}_level" if not facility_name.endswith('_level') else facility_name
+            before_val = getattr(facilities, field_name)
+            
             setattr(facilities, field_name, max(1, min(new_level, 20)))
             facilities.save()
+            
+            after_val = getattr(facilities, field_name)
+            
+            from audit.utils import log_admin_action
+            log_admin_action(
+                admin_user=request.user, 
+                action_type='FACILITY_OVERRIDE', 
+                target_team=team,
+                before_value={field_name: before_val}, 
+                after_value={field_name: after_val}, 
+                reason=reason
+            )
             return Response({'status': 'Facility overridden by Admin', 'facilities': ClubFacilitiesSerializer(facilities).data})
         except Team.DoesNotExist:
             return Response({'error': 'Team not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -191,10 +248,22 @@ class TeamViewSet(viewsets.ModelViewSet):
     def admin_adjust_budget(self, request):
         team_id = request.data.get('team_id', 1)
         amount = float(request.data.get('amount', 0))
+        reason = request.data.get('reason', '')
         try:
             team = Team.objects.get(id=team_id)
+            before_budget = float(team.budget)
             team.budget = float(team.budget) + amount
             team.save()
+            
+            from audit.utils import log_admin_action
+            log_admin_action(
+                admin_user=request.user, 
+                action_type='BUDGET_ADJUST', 
+                target_team=team,
+                before_value={'budget': before_budget}, 
+                after_value={'budget': float(team.budget)}, 
+                reason=reason
+            )
             return Response({'status': 'Budget adjusted', 'new_budget': team.budget})
         except Team.DoesNotExist:
             return Response({'error': 'Team not found'}, status=status.HTTP_404_NOT_FOUND)

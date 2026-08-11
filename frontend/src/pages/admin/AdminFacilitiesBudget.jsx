@@ -27,7 +27,7 @@ const AdminFacilitiesBudget = () => {
   const fetchTeams = async () => {
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
-      const res = await axios.get('http://127.0.0.1:8000/api/teams/teams/', { headers });
+      const res = await axios.get('http://127.0.0.1:8000/api/teams/', { headers });
       setTeams(res.data);
       if (res.data.length > 0) {
         setSelectedTeamId(res.data[0].id);
@@ -44,7 +44,7 @@ const AdminFacilitiesBudget = () => {
     e.preventDefault();
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
-      await axios.post('http://127.0.0.1:8000/api/teams/teams/admin_adjust_budget/', {
+      await axios.post('http://127.0.0.1:8000/api/teams/admin_adjust_budget/', {
         team_id: selectedTeamId,
         amount: budgetDelta
       }, { headers });
@@ -60,7 +60,7 @@ const AdminFacilitiesBudget = () => {
     e.preventDefault();
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
-      await axios.post('http://127.0.0.1:8000/api/teams/teams/admin_override_facility/', {
+      await axios.post('http://127.0.0.1:8000/api/teams/admin_override_facility/', {
         team_id: facilityTeamId,
         facility: facilityName,
         level: facilityLevel
@@ -76,7 +76,7 @@ const AdminFacilitiesBudget = () => {
     e.preventDefault();
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
-      await axios.post('http://127.0.0.1:8000/api/teams/teams/admin_register_coach/', newCoachForm, { headers });
+      await axios.post('http://127.0.0.1:8000/api/teams/admin_register_coach/', newCoachForm, { headers });
       alert('تیم و مربی جدید ثبت شد.');
       setNewCoachForm({ club_name: '', phone_number: '', budget: 850000000, wage_cap: 10000 });
       fetchTeams();

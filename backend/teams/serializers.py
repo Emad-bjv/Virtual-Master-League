@@ -43,11 +43,16 @@ class GamePlanUpdateSerializer(serializers.Serializer):
 
     def validate(self, data):
         """
-        Prevent stamina-locked players from being placed in the starting lineup.
+        Prevent stamina-locked, injured, or suspended players from being placed in the starting lineup.
         """
         if data.get('is_starting'):
             try:
                 player = Player.objects.get(id=data['player_id'])
+                if player.suspension_matches > 0:
+                    raise serializers.ValidationError(
+                        f"بازیکن {player.name} به دلیل محرومیت ({player.suspension_matches} بازی باقی‌مانده) "
+                        f"نمی‌تواند در ترکیب اصلی قرار گیرد."
+                    )
                 if player.is_stamina_locked:
                     raise serializers.ValidationError(
                         f"بازیکن {player.name} استقامت زیر 30% دارد "

@@ -183,8 +183,7 @@ class Command(BaseCommand):
                 defaults={
                     'logo': f"Team Logos/{logo_file}" if logo_file else "",
                     'budget': Decimal('500000000.00'),
-                    'wage_cap': Decimal('5000000.00'),
-                    'academy_level': 3
+                    'wage_cap': Decimal('5000000.00')
                 }
             )
             if created:
@@ -212,8 +211,7 @@ class Command(BaseCommand):
                     'name': team.name,
                     'logo': team.logo,
                     'budget': str(team.budget),
-                    'wage_cap': str(team.wage_cap),
-                    'academy_level': team.academy_level
+                    'wage_cap': str(team.wage_cap)
                 }
             })
 

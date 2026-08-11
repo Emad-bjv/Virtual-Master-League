@@ -14,7 +14,6 @@ class Team(models.Model):
     budget = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="بودجه")
     gems = models.PositiveIntegerField(default=0, verbose_name="جم (ارز ارتقا/گاچا)")
     wage_cap = models.DecimalField(max_digits=15, decimal_places=2, default=10000.00, verbose_name="سقف دستمزد")
-    academy_level = models.PositiveIntegerField(default=1, verbose_name="سطح آکادمی")
 
     class Meta:
         verbose_name = "تیم"

@@ -27,7 +27,7 @@ const AdminMatches = () => {
       const url = filter ? `http://127.0.0.1:8000/api/matches/admin-list/?status=${filter}` : 'http://127.0.0.1:8000/api/matches/admin-list/';
       const [matchesRes, teamsRes] = await Promise.all([
         axios.get(url, { headers }),
-        axios.get('http://127.0.0.1:8000/api/teams/teams/', { headers })
+        axios.get('http://127.0.0.1:8000/api/teams/', { headers })
       ]);
       setMatches(matchesRes.data);
       setTeams(teamsRes.data);

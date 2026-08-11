@@ -86,6 +86,8 @@ class PlaceBidView(views.APIView):
     """
     Places a bid on an auction listing.
     """
+    throttle_scope = 'transfer_bid'
+    
     def post(self, request):
         bidder_team_id = request.data.get('bidder_team_id')
         listing_id = request.data.get('listing_id')

@@ -100,6 +100,16 @@ def update_standings_and_rewards(sender, instance, **kwargs):
         except Exception:
             pass # Never block standings
 
+        # Process disciplinary actions (yellow/red card suspensions)
+        try:
+            from matches.tasks import task_process_disciplinary_actions, task_decrement_suspended_players
+            task_process_disciplinary_actions.delay(match.id)
+            task_decrement_suspended_players.delay(match.id)
+        except Exception as e:
+            # Log but never block standings processing
+            import logging
+            logging.getLogger(__name__).error(f"[Signal] Disciplinary task dispatch failed: {e}")
+
         # Mark as processed — prevent duplicate runs
         match.standings_processed = True
         match.save(update_fields=['standings_processed'])

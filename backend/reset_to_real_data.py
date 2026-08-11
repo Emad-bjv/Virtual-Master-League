@@ -63,8 +63,7 @@ def reset_db():
                     defaults={
                         'logo': fields.get('logo', ''),
                         'budget': Decimal(fields.get('budget', '500000000.00')),
-                        'wage_cap': Decimal(fields.get('wage_cap', '5000000.00')),
-                        'academy_level': fields.get('academy_level', 3)
+                        'wage_cap': Decimal(fields.get('wage_cap', '5000000.00'))
                     }
                 )
                 team_id_map[pk] = team_obj

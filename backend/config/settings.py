@@ -11,6 +11,10 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
+import datetime
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,7 +23,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-import os
 from dotenv import load_dotenv
 
 load_dotenv(BASE_DIR / '.env')
@@ -30,7 +33,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-uu#!f=3v)e=wo^
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['testserver', 'localhost', '127.0.0.1']
 
 
 # Application definition
@@ -60,6 +63,7 @@ INSTALLED_APPS = [
     'season_pass',
     'notifications',
     'realtime',
+    'audit',
 ]
 
 AUTH_USER_MODEL = 'users.User'
@@ -104,15 +108,27 @@ CHANNEL_LAYERS = {
     },
 }
 
+# Default primary key field type
+# https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
 
-# Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
+
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        traces_sample_rate=0.2,
+        send_default_pii=False,
+        environment=os.environ.get('DJANGO_ENV', 'development'),
+    )
+
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 import sys
-import os
 
 IS_TESTING = 'test' in sys.argv
 
@@ -229,11 +245,18 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle'
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.ScopedRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
         'anon': '1000/minute',
-        'user': '10000/day'
+        'user': '10000/day',
+        'otp': '3/min',
+        'payment': '10/min',
+        'gacha': '20/min',
+        'transfer_bid': '30/min',
+        'admin_action': '60/min',
+        'substitution': '10/min',
     }
 }
 

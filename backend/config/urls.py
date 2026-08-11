@@ -28,4 +28,5 @@ urlpatterns = [
     path('api/', include('transfers.urls')),
     path('api/', include('notifications.urls')),
     path('api/season-pass/', include('season_pass.urls')),
+    path('api/audit/', include('audit.urls')),
 ]

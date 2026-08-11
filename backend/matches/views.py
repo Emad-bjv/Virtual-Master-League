@@ -202,6 +202,9 @@ class SubmitTeamStatsView(APIView):
 
     def post(self, request, match_id):
         match = get_object_or_404(Match, id=match_id)
+        if match.status != 'FINISHED':
+            return Response({'error': 'امکان ثبت آمار تنها پس از پایان بازی وجود دارد.'}, status=status.HTTP_400_BAD_REQUEST)
+
         team_id = request.data.get('team_id')
         if not team_id:
             return Response({'error': 'team_id الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -241,6 +244,9 @@ class SubmitPlayerRatingsView(APIView):
 
     def post(self, request, match_id):
         match = get_object_or_404(Match, id=match_id)
+        if match.status != 'FINISHED':
+            return Response({'error': 'امکان ثبت آمار تنها پس از پایان بازی وجود دارد.'}, status=status.HTTP_400_BAD_REQUEST)
+
         players_data = request.data.get('players', [])
 
         if not players_data:

@@ -1,0 +1,27 @@
+{
+  "auditLog": {
+    "title": "گزارش تغییرات",
+    "table": {
+      "timestamp": "زمان",
+      "adminPhone": "شماره ادمین",
+      "action": "اکشن",
+      "target": "هدف",
+      "before": "قبل",
+      "after": "بعد",
+      "reason": "دلیل"
+    },
+    "actions": {
+      "BUDGET_ADJUST": "تغییر بودجه",
+      "FACILITY_OVERRIDE": "تغییر تسهیلات",
+      "PLAYER_UPDATE": "ویرایش بازیکن",
+      "COACH_REGISTER": "ثبت مربی"
+    },
+    "filters": {
+      "selectAction": "همه اکشن‌ها",
+      "enterTeamId": "شناسه تیم..."
+    },
+    "noLogs": "لاگی یافت نشد.",
+    "targetTeam": "تیم (شناسه: {{id}})",
+    "targetPlayer": "بازیکن (شناسه: {{id}})"
+  }
+}

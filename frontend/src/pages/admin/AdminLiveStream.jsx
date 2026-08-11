@@ -16,7 +16,7 @@ const AdminLiveStream = () => {
 
   const fetchStreamConfig = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/api/teams/teams/live_stream/');
+      const response = await axios.get('http://127.0.0.1:8000/api/teams/live_stream/');
       setConfig(response.data);
     } catch (error) {
       console.error('Error fetching stream config:', error);
@@ -28,7 +28,7 @@ const AdminLiveStream = () => {
   const handleSave = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://127.0.0.1:8000/api/teams/teams/live_stream/', config);
+      const response = await axios.post('http://127.0.0.1:8000/api/teams/live_stream/', config);
       alert('تنظیمات پخش زنده ذخیره شد.');
       setConfig(response.data.config || config);
     } catch (error) {

@@ -7,6 +7,7 @@ import EFootballGamePlan from '../team/EFootballGamePlan';
 import AdminMatchPitchController from './AdminMatchPitchController';
 import ErrorBoundary from '../common/ErrorBoundary';
 import CustomSelect from '../common/CustomSelect';
+import { useTranslation } from 'react-i18next';
 
 const ADMIN_SUBNAV = [
   { id: 'overview', label: 'داشبورد ادمین' },
@@ -14,6 +15,7 @@ const ADMIN_SUBNAV = [
   { id: 'match_team_stats', label: 'آمار تیمی بازی' },
   { id: 'match_player_ratings', label: 'نمرات بازیکنان' },
   { id: 'register_coach', label: 'ثبت مربی جدید' },
+  { id: 'audit_logs', label: 'گزارش تغییرات' },
 ];
 
 const TODAYS_MATCHES = [];
@@ -57,6 +59,7 @@ const TACTICAL_GUIDES = {
 };
 
 export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStreamUrl, onPushLiveEvent, currentMatchStatus, onMatchStatusChange, teamData }) {
+  const { t } = useTranslation();
   const [activeSub, setActiveSub] = useState('overview');
   // The admin panel manages the logged-in manager's team (home side) when available
   const teamId = teamData?.id;
@@ -159,6 +162,27 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
     budget: 850000000,
     wageCap: 10000,
   });
+
+  // Audit Logs State
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditFilterTeam, setAuditFilterTeam] = useState('');
+  const [auditFilterAction, setAuditFilterAction] = useState('');
+
+  useEffect(() => {
+    if (activeSub === 'audit_logs') {
+      let url = '/api/audit/logs/';
+      const params = new URLSearchParams();
+      if (auditFilterTeam) params.append('target_team', auditFilterTeam);
+      if (auditFilterAction) params.append('action_type', auditFilterAction);
+      if (params.toString()) url += `?${params.toString()}`;
+      
+      adminApi.get(url).then(res => {
+        setAuditLogs(res.data || []);
+      }).catch(err => {
+        console.error("Failed to fetch audit logs", err);
+      });
+    }
+  }, [activeSub, auditFilterTeam, auditFilterAction]);
 
   const [facilityOverride, setFacilityOverride] = useState({
     training_camp_level: 3,
@@ -1287,6 +1311,72 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
                   </span>
                 </div>
               ))}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* 5. AUDIT LOGS */}
+      {activeSub === 'audit_logs' && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-6 max-w-5xl mx-auto"
+        >
+          <div className="glass-panel p-6 rounded-3xl border border-slate-800">
+            <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+              <Info className="text-cyan-400" />
+              {t('auditLog.title')}
+            </h3>
+            
+            <div className="flex gap-4 mb-4">
+              <select 
+                value={auditFilterAction} 
+                onChange={e => setAuditFilterAction(e.target.value)}
+                className="bg-slate-900 border border-slate-700 text-white p-2 rounded-xl"
+              >
+                <option value="">{t('auditLog.filters.selectAction')}</option>
+                <option value="BUDGET_ADJUST">{t('auditLog.actions.BUDGET_ADJUST')}</option>
+                <option value="FACILITY_OVERRIDE">{t('auditLog.actions.FACILITY_OVERRIDE')}</option>
+                <option value="PLAYER_UPDATE">{t('auditLog.actions.PLAYER_UPDATE')}</option>
+              </select>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-sm text-slate-300">
+                <thead className="text-xs uppercase bg-slate-900/80 text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3">{t('auditLog.table.timestamp')}</th>
+                    <th className="px-4 py-3">{t('auditLog.table.adminPhone')}</th>
+                    <th className="px-4 py-3">{t('auditLog.table.action')}</th>
+                    <th className="px-4 py-3">{t('auditLog.table.target')}</th>
+                    <th className="px-4 py-3">{t('auditLog.table.before')}/{t('auditLog.table.after')}</th>
+                    <th className="px-4 py-3">{t('auditLog.table.reason')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLogs.length > 0 ? auditLogs.map(log => (
+                    <tr key={log.id} className="border-b border-slate-800 hover:bg-slate-800/50">
+                      <td className="px-4 py-3" dir="ltr">{new Date(log.created_at).toLocaleString('fa-IR')}</td>
+                      <td className="px-4 py-3 text-cyan-400">{log.admin_user_details?.phone_number || 'نامشخص'}</td>
+                      <td className="px-4 py-3 font-bold text-amber-400">{t(`auditLog.actions.${log.action_type}`) || log.action_type}</td>
+                      <td className="px-4 py-3">
+                        {log.team_name && <div>{t('auditLog.targetTeam', { id: log.team_name })}</div>}
+                        {log.player_name && <div>{t('auditLog.targetPlayer', { id: log.player_name })}</div>}
+                      </td>
+                      <td className="px-4 py-3 text-xs" dir="ltr">
+                        <div className="text-rose-400">Before: {JSON.stringify(log.before_value)}</div>
+                        <div className="text-emerald-400">After: {JSON.stringify(log.after_value)}</div>
+                      </td>
+                      <td className="px-4 py-3">{log.reason || '-'}</td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan="6" className="text-center py-4 text-slate-500">{t('auditLog.noLogs')}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </motion.div>

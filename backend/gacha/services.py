@@ -179,11 +179,23 @@ def open_gacha_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') ->
         unassigned = Player.objects.filter(team=None, rarity=rarity).first()
 
         if unassigned:
-            unassigned.team = team
-            unassigned.save(update_fields=['team'])
-            player = unassigned
+            player_candidate = unassigned
         else:
-            player = generate_random_player(rarity, team)
+            player_candidate = generate_random_player(rarity, None)  # Generate without assigning to team yet
+
+        # Wage cap check — must happen BEFORE assigning player to team
+        from transfers.services import check_wage_cap_compliance
+        wage_check = check_wage_cap_compliance(team, player_candidate)
+        if not wage_check['compliant']:
+            # Rollback: if it was a newly generated player (not from pool), delete it
+            if not unassigned:
+                player_candidate.delete()
+            return {'success': False, 'error': wage_check['error']}
+
+        # Assign player to team
+        player_candidate.team = team
+        player_candidate.save(update_fields=['team'])
+        player = player_candidate
 
         # 6. Log Pack Opening
         log = PackOpeningLog.objects.create(

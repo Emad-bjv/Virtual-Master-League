@@ -18,6 +18,38 @@ class PlayerMatchStatInline(admin.TabularInline):
 class SeasonAdmin(admin.ModelAdmin):
     list_display = ('name', 'is_active', 'started_at', 'ended_at')
     list_filter = ('is_active',)
+    actions = ['close_season_and_graduate']
+
+    @admin.action(description="بستن فصل و اجرای فارغ‌التحصیلی آکادمی")
+    def close_season_and_graduate(self, request, queryset):
+        """
+        Admin action: Closes selected seasons and triggers academy graduation.
+        Called when a season ends — sets is_active=False and fires the graduation task.
+        """
+        from teams.tasks import task_run_academy_graduation
+
+        closed_count = 0
+        for season in queryset:
+            if not season.is_active:
+                messages.warning(request, f"فصل '{season.name}' قبلاً بسته شده است.")
+                continue
+
+            from django.utils import timezone as tz
+            season.is_active = False
+            season.ended_at = tz.now()
+            season.save(update_fields=['is_active', 'ended_at'])
+
+            # Trigger academy graduation asynchronously
+            task_run_academy_graduation.delay()
+
+            messages.success(
+                request,
+                f"فصل '{season.name}' بسته شد. فارغ‌التحصیلی آکادمی در حال اجراست."
+            )
+            closed_count += 1
+
+        if closed_count > 0:
+            messages.info(request, f"در مجموع {closed_count} فصل بسته شد و تسک فارغ‌التحصیلی آكادمی فعال شد.")
 
 
 @admin.register(Tournament)

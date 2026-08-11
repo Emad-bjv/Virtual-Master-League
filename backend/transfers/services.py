@@ -1,9 +1,33 @@
 from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
+from django.db.models import Sum
 from teams.models import Team, Player
 from economy.services import process_atomic_wallet_update
 from .models import TransferListing, TransferBid, TransferHistory
+
+
+def check_wage_cap_compliance(team: Team, incoming_player: Player) -> dict:
+    """
+    Checks if adding an incoming player would exceed the team's wage cap.
+
+    Returns:
+        {'compliant': True} if the addition is allowed.
+        {'compliant': False, 'error': '...'} if it would exceed the cap.
+    """
+    current_total_wage = team.players.aggregate(total=Sum('wage'))['total'] or Decimal('0.00')
+    projected_total = current_total_wage + incoming_player.wage
+    if projected_total > team.wage_cap:
+        return {
+            'compliant': False,
+            'error': (
+                f"افزودن این بازیکن از سقف دستمزد تیم عبور می‌کند. "
+                f"سقف دستمزد: {team.wage_cap}, "
+                f"دستمزد فعلی تیم: {current_total_wage}, "
+                f"دستمزد این بازیکن: {incoming_player.wage}."
+            )
+        }
+    return {'compliant': True}
 
 
 def list_player_for_sale(team_id: int, player_id: int, price_usd: Decimal, listing_type: str = 'FIXED_PRICE') -> dict:
@@ -66,6 +90,11 @@ def buy_player_direct(buyer_team_id: int, listing_id: int) -> dict:
                 'success': False,
                 'error': 'تیم شما حداکثر ظرفیت مجاز (۲۵ بازیکن) را دارد. ابتدا بازیکن آزاد کنید یا بفروشید.'
             }
+
+        # Check wage cap compliance
+        wage_check = check_wage_cap_compliance(buyer, listing.player)
+        if not wage_check['compliant']:
+            return {'success': False, 'error': wage_check['error']}
 
         price = listing.price_usd
 
@@ -195,6 +224,13 @@ def finalize_auction(listing_id: int) -> dict:
             listing.status = 'EXPIRED'
             listing.save(update_fields=['status'])
             return {'success': False, 'error': 'تیم خریدار حد مجاز ۲۵ بازیکن دارد. مزایده لغو شد.'}
+
+        # Check wage cap compliance
+        wage_check = check_wage_cap_compliance(buyer, listing.player)
+        if not wage_check['compliant']:
+            listing.status = 'EXPIRED'
+            listing.save(update_fields=['status'])
+            return {'success': False, 'error': wage_check['error']}
 
         price = listing.highest_bid
 

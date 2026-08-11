@@ -20,6 +20,7 @@ class OpenGachaPackView(views.APIView):
     """
     Executes Gacha pack opening. Accepts team_id and pack_id.
     """
+    throttle_scope = 'gacha'
     def post(self, request):
         team_id = request.data.get('team_id')
         pack_id = request.data.get('pack_id')

@@ -22,6 +22,7 @@ class PaymentRequestView(views.APIView):
     Initiates a payment request. Requires package_id.
     """
     # permission_classes = [IsAuthenticated] # Will be added in Phase 2 auth
+    throttle_scope = 'payment'
 
     def post(self, request):
         package_id = request.data.get('package_id')
@@ -58,6 +59,8 @@ class PaymentVerifyView(views.APIView):
     """
     Verifies a payment request coming back from ZarinPal.
     """
+    throttle_scope = 'payment'
+    
     def get(self, request):
         authority = request.query_params.get('Authority')
         payment_status = request.query_params.get('Status')
