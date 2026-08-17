@@ -1,13 +1,51 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, Calendar, Mail, CheckCircle2, Circle, Trophy, Flame, ChevronLeft, AlertTriangle, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Trophy,
+  Calendar,
+  AlertCircle,
+  Clock,
+  Sparkles,
+  Inbox,
+  Flame,
+  ChevronLeft,
+  CheckCircle,
+  Radio,
+  Zap,
+  Shield,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
+import { matchApi, notificationApi } from '../../services/api';
+import { getTeamLogoUrl } from '../../utils/teamLogos';
+
+function formatMatchDate(dateString) {
+  if (!dateString) return { dateStr: '۳۰ مرداد ۱۴۰۵', timeStr: '۱۴:۰۰' };
+  try {
+    const d = new Date(dateString);
+    return {
+      dateStr: d.toLocaleDateString('fa-IR', { month: 'long', day: 'numeric' }),
+      timeStr: d.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    };
+  } catch (_e) {
+    return { dateStr: dateString, timeStr: '' };
+  }
+}
 
 export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, teamData }) {
   // Live Timer for Special Offer
   const [timeLeft, setTimeLeft] = useState({ hours: 23, minutes: 59, seconds: 12 });
 
+  // Real Next Match State
+  const [nextMatch, setNextMatch] = useState(null);
+  const [recentMatches, setRecentMatches] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [allStandings, setAllStandings] = useState([]);
+  const [_loadingData, setLoadingData] = useState(true);
+
+  const teamId = teamData?.id;
   const teamName = teamData?.name || 'تیم شما';
-  const teamShort = teamName.slice(0, 4);
+
+  // Persistent Lineup Submitted Check: either from prop or from teamData DB record
+  const isLineupSubmittedActual = isLineupSubmitted || Boolean(teamData?.gameplan?.is_submitted);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -21,265 +59,408 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
     return () => clearInterval(timer);
   }, []);
 
-  // Daily Missions State
-  const [missions, setMissions] = useState([
-    { id: 1, text: '۳ بازیکن را تست کن', current: 2, target: 3, reward: '۲۰۰ سکه', claimed: false },
-    { id: 2, text: 'یک بازی دوستانه برنده شو', current: 0, target: 1, reward: '۱ پک برنزی', claimed: false },
-  ]);
+  useEffect(() => {
+    async function loadDashboardData() {
+      setLoadingData(true);
+      try {
+        // 1. Fetch Schedule for Next Match
+        if (teamId) {
+          const schedRes = await matchApi.getTeamSchedule(teamId, { status: 'SCHEDULED' });
+          const upcoming = schedRes.data || [];
+          if (upcoming.length > 0) {
+            setNextMatch(upcoming[0]);
+          } else {
+            setNextMatch(null);
+          }
 
-  const claimMissionReward = (id) => {
-    setMissions((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, claimed: true, current: m.target } : m))
-    );
-  };
+          // 2. Fetch Recent Match History
+          const histRes = await matchApi.getTeamMatchHistory(teamId);
+          setRecentMatches(histRes.data || []);
+        }
+
+        // 3. Fetch Notifications
+        const notifRes = await notificationApi.getInbox();
+        setNotifications(notifRes.data || []);
+
+        // 4. Fetch Full Standings
+        const standRes = await matchApi.getLeagueStandings();
+        setAllStandings(standRes.data || []);
+      } catch (err) {
+        console.error('Failed to load dashboard home data:', err);
+      } finally {
+        setLoadingData(false);
+      }
+    }
+
+    loadDashboardData();
+  }, [teamId]);
+
+  // Compute 3-row mini standings: (Top neighbor, My Team, Bottom neighbor)
+  const miniStandings = useMemo(() => {
+    if (!allStandings || allStandings.length === 0) return [];
+
+    const standingsWithRank = allStandings.map((s, idx) => ({
+      ...s,
+      rank: idx + 1,
+    }));
+
+    if (!teamId) {
+      return standingsWithRank.slice(0, 3);
+    }
+
+    const myIndex = standingsWithRank.findIndex((s) => s.team_id === teamId || s.name === teamName);
+
+    if (myIndex === -1) {
+      return standingsWithRank.slice(0, 3);
+    }
+
+    if (myIndex === 0) {
+      // Leader: show top 3
+      return standingsWithRank.slice(0, Math.min(3, standingsWithRank.length));
+    }
+
+    if (myIndex === standingsWithRank.length - 1) {
+      // Last place: show bottom 3
+      return standingsWithRank.slice(Math.max(0, standingsWithRank.length - 3));
+    }
+
+    // Mid-table: show Above, Current, Below
+    return [
+      standingsWithRank[myIndex - 1],
+      standingsWithRank[myIndex],
+      standingsWithRank[myIndex + 1],
+    ];
+  }, [allStandings, teamId, teamName]);
 
   const formatTime = (val) => String(val).padStart(2, '0');
 
+  const isHome = nextMatch ? nextMatch.home_team === teamId : true;
+  const opponentName = nextMatch ? (isHome ? nextMatch.away_team_name : nextMatch.home_team_name) : 'حریف مسابقه';
+  const { dateStr, timeStr } = formatMatchDate(nextMatch?.date);
+
   return (
-    <div className="space-y-4 pb-20">
-      {/* Special Offer Card */}
+    <div className="space-y-4 pb-20 font-sans dir-rtl">
+      {/* Special Offer Banner (Hyper Violet & Magenta Glow) */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass-panel p-3.5 rounded-2xl border border-purple-500/40 bg-gradient-to-r from-purple-900/40 via-indigo-900/30 to-slate-900 flex items-center justify-between shadow-lg shadow-purple-950/40"
+        className="fc-card-elevated p-3.5 rounded-3xl border border-purple-500/40 bg-gradient-to-r from-purple-950/70 via-indigo-950/60 to-slate-950 flex items-center justify-between shadow-[0_8px_30px_rgba(168,85,247,0.25)] relative overflow-hidden"
       >
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 neon-glow-purple">
-            <Sparkles size={18} className="animate-spin-slow" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full filter blur-2xl pointer-events-none"></div>
+        <div className="flex items-center gap-3 relative z-10">
+          <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-purple-600 to-pink-500 text-white shadow-[0_0_15px_rgba(236,72,153,0.5)]">
+            <Sparkles size={20} className="animate-spin-slow" />
           </div>
           <div>
-            <span className="text-xs font-bold text-white block">آفر ویژه هفته</span>
-            <span className="text-[11px] text-purple-300">۳۰٪ تخفیف خرید سکه با دیزاین اختصاصی</span>
+            <span className="text-xs sm:text-sm font-black text-white block tracking-tight">آفر ویژه پیش‌فصل مستر لیگ</span>
+            <span className="text-[11px] text-purple-300">پک‌های تخفیفی سکه و جم ویژه افتتاحیه مسابقات</span>
           </div>
         </div>
 
         <button
           onClick={() => onNavigateTab?.('store')}
-          className="flex flex-col items-end bg-purple-950/70 border border-purple-500/50 hover:bg-purple-900/80 px-3 py-1.5 rounded-xl transition-all"
+          className="flex flex-col items-end bg-[#05080e]/80 border border-purple-400/40 hover:border-cyan-400 px-3.5 py-1.5 rounded-2xl transition-all shadow-md active:scale-95 z-10"
         >
-          <span className="text-[10px] text-purple-300">مهلت باقی‌مانده:</span>
-          <span className="text-xs font-mono font-bold text-cyan-400 dir-ltr">
+          <span className="text-[9.5px] text-purple-300 font-bold">مهلت باقی‌مانده:</span>
+          <span className="text-xs sm:text-sm font-sport font-black text-cyan-300 dir-ltr tracking-wider">
             {formatTime(timeLeft.hours)}:{formatTime(timeLeft.minutes)}:{formatTime(timeLeft.seconds)}
           </span>
         </button>
       </motion.div>
 
-      {/* Next Match Card - Warning State if Lineup not submitted within 1 Hour */}
+      {/* Next Match & Arena Clash Face-Off Card */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
-        className={`glass-panel p-4 rounded-2xl border transition-all ${
-          !isLineupSubmitted
-            ? 'border-2 border-rose-500 bg-gradient-to-r from-rose-950/80 via-amber-950/60 to-slate-900 shadow-[0_0_20px_rgba(244,63,94,0.35)] animate-pulse'
-            : 'border-slate-800'
+        className={`fc-card-elevated p-4 sm:p-5 rounded-3xl border relative overflow-hidden transition-all ${
+          !isLineupSubmittedActual && nextMatch
+            ? 'border-rose-500/70 bg-gradient-to-b from-rose-950/40 via-slate-900/90 to-[#05080e] shadow-[0_0_30px_rgba(244,63,94,0.3)]'
+            : 'border-cyan-500/30 bg-gradient-to-b from-[#0e172e]/90 via-[#0a0f1d]/90 to-[#05080e] shadow-[0_12px_40px_rgba(0,0,0,0.7)]'
         }`}
       >
-        <div className="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
-            {!isLineupSubmitted ? (
-              <AlertTriangle size={18} className="text-rose-400 animate-bounce" />
+        {/* Stadium Floodlight Top Shimmer */}
+        <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-3/4 h-24 bg-gradient-to-b from-cyan-400/15 via-transparent to-transparent filter blur-xl pointer-events-none"></div>
+
+        <div className="flex items-center justify-between mb-3.5 border-b border-slate-700/50 pb-2.5">
+          <div className="flex items-center gap-2 text-xs font-black text-white">
+            {!isLineupSubmittedActual && nextMatch ? (
+              <AlertCircle size={17} className="text-rose-400 animate-bounce" />
             ) : (
-              <Calendar size={16} className="text-cyan-400" />
+              <Zap size={17} className="text-[#00ff87]" />
             )}
-            <span className={!isLineupSubmitted ? 'text-rose-300 font-black' : ''}>
-              بازی بعدی {!isLineupSubmitted && '(هشدار ترکیب!)'}
+            <span className={!isLineupSubmittedActual && nextMatch ? 'text-rose-300' : 'text-cyan-300 font-sport tracking-wide'}>
+              مسابقه بعدی (MATCHDAY ARENA)
             </span>
           </div>
           <span
-            className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium ${
-              !isLineupSubmitted
-                ? 'bg-rose-950 text-rose-300 border border-rose-500/50 font-bold'
-                : 'text-cyan-400 bg-cyan-950/60 border border-cyan-500/30'
+            className={`text-[11px] px-3 py-1 rounded-full font-sport font-black ${
+              !isLineupSubmittedActual && nextMatch
+                ? 'bg-rose-950/80 text-rose-300 border border-rose-500/50 shadow-[0_0_10px_rgba(244,63,94,0.3)]'
+                : 'text-[#00ff87] bg-emerald-950/80 border border-emerald-500/40 shadow-[0_0_10px_rgba(0,255,135,0.2)]'
             }`}
           >
-            {!isLineupSubmitted ? '⏰ کمتر از ۱ ساعت تا شروع (۴۵ دقیقه)' : 'هفته دوازدهم'}
+            {nextMatch ? `${nextMatch.round_name || 'هفته اول'} • ${dateStr}` : 'مسابقات فصل اول'}
           </span>
         </div>
 
-        {!isLineupSubmitted && (
-          <div className="mb-3 p-2.5 rounded-xl bg-rose-950/90 border border-rose-500/50 text-rose-200 text-xs font-bold flex flex-col sm:flex-row items-center justify-between gap-2 shadow-inner">
+        {/* Warning Banner if Lineup NOT submitted */}
+        {!isLineupSubmittedActual && nextMatch ? (
+          <div className="mb-3.5 p-3 rounded-2xl bg-rose-950/80 border border-rose-500/50 text-rose-200 text-xs font-bold flex flex-col sm:flex-row items-center justify-between gap-2 shadow-inner">
             <div className="flex items-center gap-2">
               <AlertCircle size={18} className="text-rose-400 shrink-0" />
-              <span>هشدار مربی: کمتر از ۱ ساعت تا شروع بازی باقی مانده اما ترکیب تیم ثبت نشده است!</span>
+              <span>هشدار ترکیب: تاکتیک و ترکیب ۱۱ نفره هنوز تایید نهایی نشده است!</span>
             </div>
             <button
               onClick={() => onNavigateTab?.('team', 'lineup')}
-              className="w-full sm:w-auto bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-black px-3 py-1.5 rounded-lg text-[11px] shrink-0 transition-all shadow-md active:scale-95 text-center"
+              className="w-full sm:w-auto bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-black px-4 py-1.5 rounded-xl text-xs shrink-0 transition-all shadow-md active:scale-95 text-center font-sport cursor-pointer"
             >
-              ثبت سریع ترکیب
+              ثبت و تایید ترکیب
             </button>
           </div>
+        ) : isLineupSubmittedActual && nextMatch ? (
+          <div className="mb-3.5 p-2.5 rounded-2xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle size={16} className="text-[#00ff87] shrink-0" />
+              <span>ترکیب و تاکتیک‌های تیم شما تایید و ثبت سرور شده است.</span>
+            </div>
+            <button
+              onClick={() => onNavigateTab?.('team', 'lineup')}
+              className="text-[11px] text-cyan-300 hover:text-cyan-200 underline shrink-0 font-normal"
+            >
+              ویرایش ترکیب
+            </button>
+          </div>
+        ) : null}
+
+        {nextMatch ? (
+          <div className="py-4 px-3 sm:px-5 bg-[#05080e]/80 rounded-2xl border border-slate-700/60 flex items-center justify-between shadow-inner">
+            {/* Home Team */}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl team-crest-badge flex items-center justify-center font-bold text-slate-800 text-sm p-1.5 overflow-hidden shadow-[0_4px_15px_rgba(0,0,0,0.5)] relative shrink-0">
+                {getTeamLogoUrl(teamData || teamName) ? (
+                  <img src={getTeamLogoUrl(teamData || teamName)} alt={teamName} className="w-full h-full object-contain" />
+                ) : (
+                  <span className="font-sport font-black">{teamName.slice(0, 2).toUpperCase()}</span>
+                )}
+              </div>
+              <div>
+                <span className="text-xs sm:text-sm font-black text-white block tracking-tight">{teamName}</span>
+                <span className="text-[10px] text-cyan-300 font-sport">{isHome ? 'میزبان (HOME)' : 'میهمان (AWAY)'}</span>
+              </div>
+            </div>
+
+            {/* Stadium Clash VS Badge */}
+            <div className="flex flex-col items-center px-2">
+              <span className="text-xs font-black text-amber-300 bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 px-3 py-1 rounded-xl border border-amber-400/50 shadow-[0_0_15px_rgba(245,158,11,0.3)] font-sport tracking-widest">
+                VS
+              </span>
+              <span className="text-[10.5px] text-slate-300 mt-1.5 flex items-center gap-1 font-sport font-bold">
+                <Clock size={12} className="text-cyan-400" /> {timeStr || '۱۴:۰۰'}
+              </span>
+            </div>
+
+            {/* Away / Opponent Team */}
+            <div className="flex items-center gap-3 text-left dir-ltr">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl team-crest-badge flex items-center justify-center font-bold text-slate-800 text-sm p-1.5 overflow-hidden shadow-[0_4px_15px_rgba(0,0,0,0.5)] relative shrink-0">
+                {getTeamLogoUrl(nextMatch.opponent_logo || opponentName) ? (
+                  <img src={getTeamLogoUrl(nextMatch.opponent_logo || opponentName)} alt={opponentName} className="w-full h-full object-contain" />
+                ) : (
+                  <span className="font-sport font-black">{opponentName.slice(0, 2).toUpperCase()}</span>
+                )}
+              </div>
+              <div className="text-right">
+                <span className="text-xs sm:text-sm font-black text-white block tracking-tight">{opponentName}</span>
+                <span className="text-[10px] text-amber-300 font-sport">{!isHome ? 'میزبان (HOME)' : 'میهمان (AWAY)'}</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="py-6 text-center text-xs text-slate-400">
+            برنامه مسابقه بعدی شما در حال بارگذاری است. لیگ از ۳۰ مرداد رسماً آغاز می‌شود.
+          </div>
         )}
 
-        <div className="flex items-center justify-between py-2 px-2 bg-slate-900/60 rounded-xl border border-slate-800/60">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center font-bold text-cyan-400 text-xs">
-              {teamShort}
-            </div>
-            <span className="text-xs font-bold text-white">{teamName}</span>
-          </div>
-
-          <div className="text-center">
-            <span className="text-sm font-black text-cyan-400 px-3 py-1 bg-slate-950 rounded-lg border border-cyan-500/30 shadow-[0_0_10px_rgba(0,243,255,0.2)]">
-              VS
-            </span>
-            <span className="text-[10.5px] text-slate-400 block mt-1">بازی رسمی بعدی</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-white">حریف مسابقه</span>
-            <div className="w-8 h-8 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center font-bold text-amber-400 text-xs">
-              VS
-            </div>
-          </div>
+        <div className="mt-3.5 flex items-center justify-between pt-2.5 border-t border-slate-700/50 text-xs">
+          <button
+            onClick={() => onNavigateTab?.('team', 'schedule')}
+            className="text-cyan-300 hover:text-cyan-200 flex items-center gap-1 transition-colors font-bold"
+          >
+            <span>مشاهده تقویم بازی‌های تیم</span>
+            <ChevronLeft size={14} />
+          </button>
+          <button
+            onClick={() => onNavigateTab?.('live')}
+            className="fc-btn-magenta text-white px-3 py-1 rounded-xl flex items-center gap-1.5 transition-all text-xs font-black shadow-md cursor-pointer"
+          >
+            <Radio size={13} className="animate-pulse" />
+            <span>پخش زنده مسابقات</span>
+          </button>
         </div>
-
-        {isLineupSubmitted && (
-          <div className="mt-2.5 p-2 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold flex items-center justify-center gap-2">
-            <CheckCircle2 size={15} className="text-emerald-400" />
-            <span>ترکیب نهایی تیم برای این مسابقه با موفقیت ثبت شد.</span>
-          </div>
-        )}
       </motion.div>
 
-      {/* Inbox & Daily Missions Grid */}
+      {/* Grid for Notifications & Tasks */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Inbox / Messages */}
+        {/* Inbox / Notifications */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="glass-panel p-4 rounded-2xl border border-slate-800"
+          className="fc-card p-4 rounded-3xl border border-slate-700/60"
         >
-          <div className="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
-              <Mail size={16} className="text-purple-400" />
-              <span>صندوق پیام</span>
+          <div className="flex items-center justify-between mb-3 border-b border-slate-700/50 pb-2">
+            <div className="flex items-center gap-2 text-xs font-black text-white">
+              <Inbox size={16} className="text-cyan-400" />
+              <span>صندوق پیام‌ها و اعلانات</span>
             </div>
-            <span className="text-[10px] bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30">
-              ۳ پیام جدید
+            <span className="text-[10px] text-cyan-300 bg-cyan-950/60 border border-cyan-500/30 px-2 py-0.5 rounded-full font-sport font-black">
+              {notifications.length} MSG
             </span>
           </div>
 
-          <div className="space-y-2 text-xs">
-            <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-purple-500/30 transition-colors flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span className="text-slate-200">نتیجه بازی: برد ۲-۱ در مقابل الاهلی</span>
+          <div className="space-y-2 text-xs max-h-36 overflow-y-auto custom-scrollbar pr-1">
+            {notifications.length === 0 ? (
+              <div className="py-6 text-center text-slate-500">
+                پیام جدیدی در صندوق دریافت شما وجود ندارد.
               </div>
-              <span className="text-[10px] text-slate-500">۱۰ دقبقه پیش</span>
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-purple-500/30 transition-colors flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                <span className="text-slate-200">پیشنهاد خرید برای رضا کریمی (۵۰۰ م)</span>
-              </div>
-              <span className="text-[10px] text-slate-500">۱ ساعت پیش</span>
-            </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-purple-500/30 transition-colors flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-slate-600"></span>
-                <span className="text-slate-300">آفر جدید در فروشگاه فصلی فعال شد</span>
-              </div>
-              <span className="text-[10px] text-slate-500">دیروز</span>
-            </div>
+            ) : (
+              notifications.map((n) => (
+                <div key={n.id} className="p-2.5 rounded-2xl bg-[#05080e]/60 border border-slate-700/50 flex items-center justify-between hover:border-cyan-400/40 transition-all">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_6px_#00f3ff]"></div>
+                    <span className="text-slate-200 font-medium">{n.title || n.message}</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-sport">
+                    {n.created_at ? new Date(n.created_at).toLocaleDateString('fa-IR') : 'به‌تازگی'}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </motion.div>
 
-        {/* Daily Missions */}
+        {/* Daily / Season Tasks */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="glass-panel p-4 rounded-2xl border border-slate-800"
+          className="fc-card p-4 rounded-3xl border border-slate-700/60 flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+          <div className="flex items-center justify-between mb-3 border-b border-slate-700/50 pb-2">
+            <div className="flex items-center gap-2 text-xs font-black text-white">
               <Flame size={16} className="text-amber-400" />
-              <span>ماموریت‌های روزانه</span>
+              <span>ماموریت‌های فصلی مربی</span>
             </div>
-            <span className="text-[10px] text-amber-400 bg-amber-950/60 border border-amber-500/30 px-2 py-0.5 rounded-full">
-              ریست: ۱۲ ساعت دیگر
+            <span className="text-[10px] text-amber-300 bg-amber-950/60 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-sport font-black">
+              SEASON 01
             </span>
           </div>
 
-          <div className="space-y-2.5 text-xs">
-            {missions.map((m) => (
-              <div key={m.id} className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {m.current >= m.target ? (
-                      <CheckCircle2 size={15} className="text-emerald-400" />
-                    ) : (
-                      <Circle size={15} className="text-slate-500" />
-                    )}
-                    <span className="text-slate-200 font-medium">{m.text}</span>
-                  </div>
-                  <span className="text-[11px] font-bold text-slate-400">
-                    {m.current}/{m.target}
-                  </span>
-                </div>
-
-                {/* Progress bar */}
-                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 transition-all duration-300"
-                    style={{ width: `${(m.current / m.target) * 100}%` }}
-                  ></div>
-                </div>
-
-                <div className="flex justify-between items-center pt-1">
-                  <span className="text-[10px] text-amber-400">جایزه: {m.reward}</span>
-                  {m.current >= m.target && !m.claimed && (
-                    <button
-                      onClick={() => claimMissionReward(m.id)}
-                      className="text-[10px] bg-emerald-500/20 border border-emerald-500/50 hover:bg-emerald-500/40 text-emerald-300 font-bold px-2 py-0.5 rounded-lg transition-colors"
-                    >
-                      دریافت جایزه
-                    </button>
-                  )}
-                  {m.claimed && (
-                    <span className="text-[10px] text-slate-500">دریافت شد</span>
-                  )}
-                </div>
-              </div>
-            ))}
+          <div className="py-5 px-3 text-center rounded-2xl bg-[#05080e]/60 border border-slate-700/50 text-xs text-slate-300 space-y-1.5 my-auto">
+            <span className="font-black text-amber-300 block font-sport">✨ ACTIVE SEASON PASS MISSIONS</span>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              ماموریت‌های هفتگی و جوایز امتیازی سیزن پس به زودی با آغاز مسابقات فعال خواهند شد.
+            </p>
           </div>
         </motion.div>
       </div>
 
-      {/* League Standings Snippet */}
+      {/* League Standings Summary (Championship Leaderboard Format) */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="glass-panel p-4 rounded-2xl border border-slate-800"
+        className="fc-card p-4 rounded-3xl border border-slate-700/60 space-y-3"
       >
-        <div className="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
+        <div className="flex items-center justify-between border-b border-slate-700/50 pb-2">
+          <div className="flex items-center gap-2 text-xs font-black text-white">
             <Trophy size={16} className="text-amber-400" />
-            <span>وضعیت جدول لیگ برتر</span>
+            <span>وضعیت و جایگاه در جدول لیگ برتر</span>
           </div>
           <button
             onClick={() => onNavigateTab?.('team', 'table')}
-            className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors"
+            className="text-[11px] text-cyan-300 hover:text-cyan-200 flex items-center gap-1 transition-colors font-bold"
           >
-            <span>مشاهده کامل</span>
+            <span>مشاهده جدول کامل (۱۶ تیم)</span>
             <ChevronLeft size={14} />
           </button>
         </div>
 
-        <div className="space-y-1.5 text-xs">
-          <div className="flex justify-between items-center px-3 py-2 rounded-xl bg-gradient-to-r from-purple-950/80 via-slate-900 to-indigo-950/80 border border-purple-500/50 text-white font-bold shadow-[0_0_12px_rgba(168,85,247,0.2)]">
-            <span className="text-cyan-400 flex items-center gap-2">
-              <span>{teamName}</span>
-              <span className="text-[9px] bg-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded border border-purple-500/40">تیم شما</span>
-            </span>
-            <span className="text-cyan-300">۰ امتیاز</span>
-          </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-xs">
+            <thead>
+              <tr className="text-slate-400 border-b border-slate-700/60 text-[10.5px] font-sport">
+                <th className="pb-2 text-center w-12">رتبه</th>
+                <th className="pb-2 pr-2">باشگاه</th>
+                <th className="pb-2 text-center w-12">بازی</th>
+                <th className="pb-2 text-center w-12">تفاضل</th>
+                <th className="pb-2 text-center w-14 font-black">امتیاز</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {miniStandings.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-4 text-center text-slate-500 text-xs">
+                    جدول در حال بارگذاری است...
+                  </td>
+                </tr>
+              ) : (
+                miniStandings.map((row) => {
+                  const isMyTeam = row.team_id === teamId || row.name === teamName;
+                  return (
+                    <tr
+                      key={row.team_id || row.name}
+                      className={`transition-all ${
+                        isMyTeam
+                          ? 'bg-gradient-to-r from-cyan-950/60 to-purple-950/60 text-white font-bold border-l-2 border-cyan-400 shadow-inner'
+                          : 'text-slate-300 hover:bg-slate-900/50'
+                      }`}
+                    >
+                      <td className="py-2.5 text-center font-sport font-black">
+                        <span
+                          className={`inline-flex items-center justify-center w-6 h-6 rounded-lg text-xs ${
+                            row.rank === 1
+                              ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black shadow-[0_0_10px_rgba(245,158,11,0.5)]'
+                              : row.rank <= 4
+                              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                              : 'bg-slate-800/80 text-slate-400'
+                          }`}
+                        >
+                          {row.rank}
+                        </span>
+                      </td>
+                      <td className="py-2.5 pr-2">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-xl team-crest-badge flex items-center justify-center overflow-hidden p-0.5 shrink-0 shadow-sm relative">
+                            {getTeamLogoUrl(row) ? (
+                              <img src={getTeamLogoUrl(row)} alt={row.name} className="w-full h-full object-contain" />
+                            ) : (
+                              <span className="text-[9px] font-black text-slate-800 font-sport">{row.name.slice(0, 2).toUpperCase()}</span>
+                            )}
+                          </div>
+                          <span className="font-bold text-xs truncate max-w-[130px] sm:max-w-[200px]">
+                            {row.name}
+                          </span>
+                          {isMyTeam && (
+                            <span className="text-[9px] bg-cyan-500/25 text-cyan-300 px-1.5 py-0.5 rounded-md border border-cyan-400/40 shrink-0 font-black font-sport">
+                              YOUR CLUB
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2.5 text-center font-sport font-bold text-slate-300">{row.played ?? 0}</td>
+                      <td className="py-2.5 text-center font-sport font-bold text-slate-300">
+                        {row.gd != null ? row.gd : (row.goals_for != null && row.goals_against != null ? row.goals_for - row.goals_against : 0)}
+                      </td>
+                      <td className="py-2.5 text-center font-sport font-black text-amber-300 text-sm">
+                        {row.points ?? row.pts ?? 0}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       </motion.div>
 
@@ -288,30 +469,47 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.25 }}
-        className="glass-panel p-4 rounded-2xl border border-slate-800"
+        className="fc-card p-4 rounded-3xl border border-slate-700/60"
       >
-        <div className="flex items-center justify-between mb-3 border-b border-slate-800/80 pb-2">
-          <span className="text-xs font-bold text-slate-200">فرم بازی‌های اخیر (۵ بازی آخر)</span>
-          <span className="text-[10.5px] text-emerald-400 font-medium">۳ برد، ۱ مساوی، ۱ باخت</span>
+        <div className="flex items-center justify-between mb-3 border-b border-slate-700/50 pb-2">
+          <span className="text-xs font-black text-white">فرم بازی‌های اخیر تیم</span>
+          <span className="text-[10.5px] text-slate-400 font-sport">
+            {recentMatches.length > 0
+              ? `${recentMatches.length} MATCHES RECORDED`
+              : 'مسابقه‌ای در این فصل انجام نشده است'}
+          </span>
         </div>
 
-        <div className="flex items-center gap-2 justify-center py-1">
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 font-bold flex items-center justify-center text-xs shadow-[0_0_10px_rgba(16,185,129,0.3)]">
-            برد
+        {recentMatches.length > 0 ? (
+          <div className="flex items-center gap-2 justify-center py-1">
+            {recentMatches.slice(0, 5).map((m, idx) => {
+              const isH = m.home_team === teamId;
+              const myScore = isH ? m.home_score : m.away_score;
+              const oppScore = isH ? m.away_score : m.home_score;
+              const isWin = myScore > oppScore;
+              const isDraw = myScore === oppScore;
+
+              return (
+                <div
+                  key={m.id || idx}
+                  className={`w-9 h-9 rounded-xl font-black font-sport flex items-center justify-center text-xs shadow-md transition-all ${
+                    isWin
+                      ? 'bg-emerald-500/20 border border-emerald-400/60 text-[#00ff87] shadow-[0_0_12px_rgba(0,255,135,0.3)]'
+                      : isDraw
+                      ? 'bg-slate-800/80 border border-slate-700 text-slate-300'
+                      : 'bg-rose-500/20 border border-rose-500/60 text-rose-400 shadow-[0_0_12px_rgba(244,63,94,0.3)]'
+                  }`}
+                >
+                  {isWin ? 'W' : isDraw ? 'D' : 'L'}
+                </div>
+              );
+            })}
           </div>
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 font-bold flex items-center justify-center text-xs shadow-[0_0_10px_rgba(16,185,129,0.3)]">
-            برد
+        ) : (
+          <div className="py-3 text-center text-xs text-slate-400">
+            هنوز مسابقه‌ای در این فصل برگزار نشده است. اولین مسابقه در ۳۰ مرداد برگزار می‌شود.
           </div>
-          <div className="w-9 h-9 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-400 font-bold flex items-center justify-center text-xs">
-            مساوی
-          </div>
-          <div className="w-9 h-9 rounded-xl bg-rose-500/20 border border-rose-500/50 text-rose-400 font-bold flex items-center justify-center text-xs shadow-[0_0_10px_rgba(244,63,94,0.3)]">
-            باخت
-          </div>
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 font-bold flex items-center justify-center text-xs shadow-[0_0_10px_rgba(16,185,129,0.3)]">
-            برد
-          </div>
-        </div>
+        )}
       </motion.div>
     </div>
   );

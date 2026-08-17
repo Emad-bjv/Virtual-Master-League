@@ -17,7 +17,7 @@ class EconomyServicesTestCase(TestCase):
         )
 
     def test_atomic_wallet_update_deposit(self):
-        result = process_atomic_wallet_update(self.team.id, Decimal('50.00'), 'DEPOSIT', 'Test Deposit')
+        result = process_atomic_wallet_update(self.team.id, Decimal('50.00'), 'BUDGET', 'MATCH_REWARD', 'Test Deposit')
         self.team.refresh_from_db()
         
         self.assertTrue(result['success'])
@@ -25,18 +25,18 @@ class EconomyServicesTestCase(TestCase):
         self.assertEqual(Transaction.objects.count(), 1)
         
         txn = Transaction.objects.first()
-        self.assertEqual(txn.amount_usd, Decimal('50.00'))
-        self.assertEqual(txn.transaction_type, 'DEPOSIT')
+        self.assertEqual(txn.amount, Decimal('50.00'))
+        self.assertEqual(txn.transaction_type, 'MATCH_REWARD')
 
     def test_atomic_wallet_update_withdraw_success(self):
-        result = process_atomic_wallet_update(self.team.id, Decimal('-50.00'), 'WITHDRAW', 'Test Withdraw')
+        result = process_atomic_wallet_update(self.team.id, Decimal('-50.00'), 'BUDGET', 'TRANSFER_BUY', 'Test Withdraw')
         self.team.refresh_from_db()
         
         self.assertTrue(result['success'])
         self.assertEqual(self.team.budget, Decimal('50.00'))
 
     def test_atomic_wallet_update_withdraw_fail_insufficient_funds(self):
-        result = process_atomic_wallet_update(self.team.id, Decimal('-150.00'), 'WITHDRAW', 'Test Withdraw')
+        result = process_atomic_wallet_update(self.team.id, Decimal('-150.00'), 'BUDGET', 'TRANSFER_BUY', 'Test Withdraw')
         self.team.refresh_from_db()
         
         self.assertFalse(result['success'])
@@ -65,9 +65,9 @@ class EconomyServicesTestCase(TestCase):
         # Create pending transaction
         txn = Transaction.objects.create(
             team=self.team,
-            amount_usd=self.package.usd_amount,
+            amount=self.package.usd_amount,
             amount_irr=self.package.price_irr,
-            transaction_type='DEPOSIT',
+            transaction_type='STORE_PURCHASE',
             status='PENDING',
             zarinpal_authority='A1234567890'
         )
@@ -89,3 +89,43 @@ class EconomyServicesTestCase(TestCase):
         txn.refresh_from_db()
         self.assertEqual(txn.status, 'SUCCESS')
         self.assertEqual(txn.zarinpal_ref_id, '987654321')
+
+    def test_gem_wallet_operations(self):
+        # Deposit Gems
+        res = process_atomic_wallet_update(self.team.id, Decimal('50'), 'GEMS', 'MATCH_REWARD', '50 gems won')
+        self.assertTrue(res['success'])
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.gems, 50)
+
+        # Withdraw Gems
+        res2 = process_atomic_wallet_update(self.team.id, Decimal('-20'), 'GEMS', 'STAMINA_RECOVERY', 'stamina recovery')
+        self.assertTrue(res2['success'])
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.gems, 30)
+
+        # Insufficient Gems
+        res3 = process_atomic_wallet_update(self.team.id, Decimal('-100'), 'GEMS', 'FACILITY_UPGRADE', 'facility upgrade')
+        self.assertFalse(res3['success'])
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.gems, 30)
+
+    def test_match_gem_reward_and_underdog_bonus(self):
+        from economy.formulas import calculate_match_gem_reward
+        from teams.models import Player
+
+        opponent = Team.objects.create(name="Strong Opponent", budget=1000)
+        # Create players for underdog test
+        Player.objects.create(team=self.team, name="P1", age=22, position="CF", overall=70, base_stamina=80, is_starting=True)
+        Player.objects.create(team=opponent, name="P2", age=25, position="CF", overall=85, base_stamina=80, is_starting=True)
+
+        # Normal win (not underdog)
+        normal_res = calculate_match_gem_reward(self.team, self.team, 'WIN')
+        self.assertEqual(normal_res['base_gems'], 10)
+        self.assertFalse(normal_res['is_underdog'])
+
+        # Underdog win
+        underdog_res = calculate_match_gem_reward(self.team, opponent, 'WIN')
+        self.assertEqual(underdog_res['base_gems'], 10)
+        self.assertEqual(underdog_res['underdog_gems'], 15)
+        self.assertEqual(underdog_res['total_gems'], 25)
+        self.assertTrue(underdog_res['is_underdog'])

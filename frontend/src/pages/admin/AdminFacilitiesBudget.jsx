@@ -15,7 +15,7 @@ const AdminFacilitiesBudget = () => {
 
   const [newCoachForm, setNewCoachForm] = useState({
     club_name: '',
-    phone_number: '',
+    username: '',
     budget: 850000000,
     wage_cap: 10000
   });
@@ -78,7 +78,7 @@ const AdminFacilitiesBudget = () => {
       const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
       await axios.post('http://127.0.0.1:8000/api/teams/admin_register_coach/', newCoachForm, { headers });
       alert('تیم و مربی جدید ثبت شد.');
-      setNewCoachForm({ club_name: '', phone_number: '', budget: 850000000, wage_cap: 10000 });
+      setNewCoachForm({ club_name: '', username: '', budget: 850000000, wage_cap: 10000 });
       fetchTeams();
     } catch (error) {
       console.error('Error registering coach:', error);
@@ -204,13 +204,13 @@ const AdminFacilitiesBudget = () => {
           </div>
 
           <div>
-            <label className="block text-gray-400 text-sm mb-1">شماره موبایل مربی (اختیاری)</label>
+            <label className="block text-gray-400 text-sm mb-1">نام کاربری مربی (اختیاری)</label>
             <input
               type="text"
-              placeholder="09123456789"
+              placeholder="coach_arsenal"
               className="w-full bg-gray-800 text-white rounded-lg p-2.5 border border-gray-700"
-              value={newCoachForm.phone_number}
-              onChange={(e) => setNewCoachForm({ ...newCoachForm, phone_number: e.target.value })}
+              value={newCoachForm.username}
+              onChange={(e) => setNewCoachForm({ ...newCoachForm, username: e.target.value })}
             />
           </div>
 

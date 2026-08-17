@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.jsx'
 import './i18n'
 import { AuthProvider } from './context/AuthContext'
+import { TeamProvider } from './context/TeamContext'
 import * as Sentry from '@sentry/react'
 
 Sentry.init({
@@ -21,7 +22,10 @@ Sentry.init({
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <AuthProvider>
-      <App />
+      <TeamProvider>
+        <App />
+      </TeamProvider>
     </AuthProvider>
   </StrictMode>,
 )
+

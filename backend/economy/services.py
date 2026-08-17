@@ -16,19 +16,22 @@ def process_atomic_wallet_update(team_id: int, amount: Decimal, currency: str, t
             # select_for_update locks the row until the transaction completes
             team = Team.objects.select_for_update().get(id=team_id)
             
-            # Identify which field we are modifying
-            field = 'budget' if currency == 'BUDGET' else 'gems'
-            current_balance = getattr(team, field)
-            
-            # Check for sufficient funds if it's a withdrawal
-            if amount < 0 and current_balance + amount < 0:
-                error_msg = 'موجودی کافی نیست.' if currency == 'BUDGET' else 'جم کافی نیست.'
-                return {'success': False, 'error': error_msg}
-                
-            # Update balance
-            new_balance = current_balance + amount
-            setattr(team, field, new_balance)
-            team.save(update_fields=[field])
+            if currency == 'GEMS':
+                current_balance = int(team.gems or 0)
+                int_amount = int(amount)
+                if int_amount < 0 and current_balance + int_amount < 0:
+                    return {'success': False, 'error': 'جم کافی نیست.'}
+                team.gems = current_balance + int_amount
+                team.save(update_fields=['gems'])
+                new_balance = team.gems
+            else:
+                current_balance = Decimal(str(team.budget or '0.00'))
+                dec_amount = Decimal(str(amount))
+                if dec_amount < 0 and current_balance + dec_amount < 0:
+                    return {'success': False, 'error': 'موجودی کافی نیست.'}
+                team.budget = current_balance + dec_amount
+                team.save(update_fields=['budget'])
+                new_balance = team.budget
             
             # Record transaction
             txn = Transaction.objects.create(
@@ -42,7 +45,7 @@ def process_atomic_wallet_update(team_id: int, amount: Decimal, currency: str, t
             
             return {
                 'success': True,
-                'new_balance': getattr(team, field),
+                'new_balance': new_balance,
                 'transaction_id': txn.id
             }
         except Team.DoesNotExist:
@@ -53,14 +56,14 @@ def process_atomic_wallet_update(team_id: int, amount: Decimal, currency: str, t
 def distribute_match_rewards(match) -> dict:
     from django.utils import timezone
     from datetime import timedelta
-    from .formulas import calculate_match_reward, apply_weekly_soft_cap
+    from .formulas import calculate_match_reward, apply_weekly_soft_cap, calculate_match_gem_reward
 
     week_start = timezone.now() - timedelta(days=timezone.now().weekday())
     results = []
 
-    for team, opponent_score, own_score in [
-        (match.home_team, match.away_score, match.home_score),
-        (match.away_team, match.home_score, match.away_score),
+    for team, opponent_team, opponent_score, own_score in [
+        (match.home_team, match.away_team, match.away_score, match.home_score),
+        (match.away_team, match.home_team, match.home_score, match.away_score),
     ]:
         if not team:
             continue
@@ -69,12 +72,32 @@ def distribute_match_rewards(match) -> dict:
         raw = calculate_match_reward(team, result, own_score, clean_sheet)
         capped = apply_weekly_soft_cap(team, raw, week_start)
 
+        # Dollar reward
         process_atomic_wallet_update(
             team_id=team.id, amount=capped, currency='BUDGET',
             transaction_type='MATCH_REWARD',
             description=f"پاداش بازی {match} — نتیجه: {result}"
         )
-        results.append({'team': team.name, 'raw': float(raw), 'capped': float(capped)})
+
+        # Gem reward (Win & Underdog)
+        gem_data = calculate_match_gem_reward(team, opponent_team, result)
+        if gem_data['total_gems'] > 0:
+            desc = f"پاداش جم برد بازی {match}"
+            if gem_data['is_underdog']:
+                desc += f" (شامل {gem_data['underdog_gems']} جم پاداش شگفتی‌سازی مقابل تیم قدرتمند)"
+            process_atomic_wallet_update(
+                team_id=team.id, amount=Decimal(str(gem_data['total_gems'])), currency='GEMS',
+                transaction_type='UNDERDOG_BONUS' if gem_data['is_underdog'] else 'MATCH_REWARD',
+                description=desc
+            )
+
+        results.append({
+            'team': team.name,
+            'raw': float(raw),
+            'capped': float(capped),
+            'gems_earned': gem_data['total_gems'],
+            'is_underdog': gem_data['is_underdog']
+        })
 
     return {'match_id': match.id, 'rewards': results}
 
@@ -98,11 +121,12 @@ def request_zarinpal_payment(team: Team, package: StorePackage, callback_url: st
     """
     Initiate a payment request to ZarinPal.
     """
-    # Create PENDING transaction
+    curr_type = package.currency_type
+    reward_amt = package.reward_amount or package.usd_amount
     txn = Transaction.objects.create(
         team=team,
-        currency='GEMS',
-        amount=package.usd_amount,  # Now represents gems amount
+        currency=curr_type,
+        amount=reward_amt,
         amount_irr=package.price_irr,
         transaction_type='STORE_PURCHASE',
         status='PENDING',
@@ -178,8 +202,12 @@ def verify_zarinpal_payment(authority: str, txn_id: int) -> dict:
             # Payment successful, update atomically
             with transaction.atomic():
                 team = Team.objects.select_for_update().get(id=txn.team_id)
-                team.gems += txn.amount
-                team.save(update_fields=['gems'])
+                if txn.currency == 'GEMS':
+                    team.gems += int(txn.amount)
+                    team.save(update_fields=['gems'])
+                else:
+                    team.budget += Decimal(str(txn.amount))
+                    team.save(update_fields=['budget'])
                 
                 txn.status = 'SUCCESS'
                 txn.zarinpal_ref_id = str(ref_id)
@@ -188,6 +216,7 @@ def verify_zarinpal_payment(authority: str, txn_id: int) -> dict:
             return {
                 'success': True,
                 'ref_id': ref_id,
+                'new_budget': team.budget,
                 'new_gems': team.gems
             }
         else:

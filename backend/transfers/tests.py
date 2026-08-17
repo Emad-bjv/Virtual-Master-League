@@ -18,8 +18,8 @@ class TransferMarketTestCase(TestCase):
     def setUp(self):
         # Teams get managers: the caretaker policy blocks managerless teams from
         # spending budget (buying/bidding), matching the e2e Feature 14 rules.
-        self.seller_manager = User.objects.create_user(phone_number="09120000001")
-        self.buyer_manager = User.objects.create_user(phone_number="09120000002")
+        self.seller_manager = User.objects.create_user(username="seller_coach")
+        self.buyer_manager = User.objects.create_user(username="buyer_coach")
         self.seller = Team.objects.create(name="Seller FC", manager=self.seller_manager, budget=Decimal('500.00'))
         self.buyer = Team.objects.create(name="Buyer FC", manager=self.buyer_manager, budget=Decimal('1000.00'))
         self.player = Player.objects.create(

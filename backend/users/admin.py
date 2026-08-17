@@ -4,15 +4,15 @@ from .models import User
 
 
 class UserAdmin(BaseUserAdmin):
-    list_display = ('phone_number', 'virtual_dollars', 'is_staff', 'is_active')
-    list_filter = ('is_staff', 'is_active')
-    search_fields = ('phone_number',)
-    ordering = ('phone_number',)
+    list_display = ('username', 'first_name', 'last_name', 'virtual_dollars', 'is_staff', 'is_active')
+    list_filter = ('is_staff', 'is_active', 'role')
+    search_fields = ('username', 'first_name', 'last_name')
+    ordering = ('username',)
     
     fieldsets = (
-        (None, {'fields': ('phone_number', 'password')}),
+        (None, {'fields': ('username', 'password')}),
         ('اطلاعات شخصی', {'fields': ('first_name', 'last_name', 'email')}),
-        ('اقتصاد', {'fields': ('virtual_dollars',)}),
+        ('اقتصاد و نقش', {'fields': ('role', 'virtual_dollars', 'points', 'rank', 'avatar')}),
         ('دسترسی‌ها', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('تاریخ‌ها', {'fields': ('last_login', 'date_joined')}),
     )
@@ -20,7 +20,7 @@ class UserAdmin(BaseUserAdmin):
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('phone_number', 'password1', 'password2'),
+            'fields': ('username', 'password1', 'password2'),
         }),
     )
 

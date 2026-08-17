@@ -1,9 +1,14 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Award, Activity, BarChart2, Shield } from 'lucide-react';
 import { matchApi } from '../../services/api';
+import useBodyScrollLock from '../../hooks/useBodyScrollLock';
+import { getTeamLogoUrl } from '../../utils/teamLogos';
 
 export default function MatchDetailModal({ matchId, onClose }) {
+  useBodyScrollLock(true);
+
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
@@ -27,14 +32,14 @@ export default function MatchDetailModal({ matchId, onClose }) {
 
   if (!matchId) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+      <div className="fixed inset-0 w-screen h-screen z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="glass-panel w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-3xl border border-cyan-500/40 p-6 text-white text-right space-y-6 shadow-2xl relative"
+          className="glass-panel w-full max-w-2xl max-h-[85vh] overflow-y-auto custom-scrollbar rounded-3xl border border-cyan-500/40 p-6 text-white text-right space-y-6 shadow-2xl relative my-auto"
         >
           {/* Close button */}
           <button
@@ -63,21 +68,44 @@ export default function MatchDetailModal({ matchId, onClose }) {
 
           {!loading && !error && detail && (
             <div className="space-y-6">
-              {/* Scoreboard Banner */}
+              {/* Scoreboard Banner with Official Crests */}
               <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 text-center space-y-2">
                 <div className="text-[11px] text-slate-400 font-medium">
                   {detail.round_name || 'مسابقه لیگ'}
                 </div>
-                <div className="flex items-center justify-center gap-6 my-2">
-                  <span className="font-black text-lg text-white w-2/5 text-left">
-                    {detail.home_team_name}
-                  </span>
-                  <div className="bg-slate-950 px-4 py-1.5 rounded-xl border border-cyan-500/40 text-cyan-400 font-mono font-black text-xl shadow-lg">
+                <div className="flex items-center justify-between gap-3 my-2 max-w-lg mx-auto">
+                  {/* Home Team */}
+                  <div className="flex items-center gap-2.5 w-2/5 justify-start">
+                    <div className="w-10 h-10 rounded-2xl team-crest-badge p-1 flex items-center justify-center shrink-0 shadow-md">
+                      {getTeamLogoUrl(detail.home_team_logo || detail.home_team_name) ? (
+                        <img src={getTeamLogoUrl(detail.home_team_logo || detail.home_team_name)} alt={detail.home_team_name} className="w-full h-full object-contain" />
+                      ) : (
+                        <span className="font-bold text-slate-800 text-xs">{detail.home_team_name?.slice(0, 2).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <span className="font-black text-sm text-white truncate text-right">
+                      {detail.home_team_name}
+                    </span>
+                  </div>
+
+                  {/* Score Badge */}
+                  <div className="bg-slate-950 px-4 py-1.5 rounded-xl border border-cyan-500/40 text-cyan-400 font-mono font-black text-xl shadow-lg shrink-0">
                     {detail.home_score} - {detail.away_score}
                   </div>
-                  <span className="font-black text-lg text-white w-2/5 text-right">
-                    {detail.away_team_name}
-                  </span>
+
+                  {/* Away Team */}
+                  <div className="flex items-center gap-2.5 w-2/5 justify-end">
+                    <span className="font-black text-sm text-white truncate text-left">
+                      {detail.away_team_name}
+                    </span>
+                    <div className="w-10 h-10 rounded-2xl team-crest-badge p-1 flex items-center justify-center shrink-0 shadow-md">
+                      {getTeamLogoUrl(detail.away_team_logo || detail.away_team_name) ? (
+                        <img src={getTeamLogoUrl(detail.away_team_logo || detail.away_team_name)} alt={detail.away_team_name} className="w-full h-full object-contain" />
+                      ) : (
+                        <span className="font-bold text-slate-800 text-xs">{detail.away_team_name?.slice(0, 2).toUpperCase()}</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
                 <span className="inline-block text-[10px] text-emerald-400 font-bold bg-emerald-950/80 border border-emerald-500/30 px-3 py-0.5 rounded-full">
                   {detail.status === 'FINISHED' ? 'پایان یافته' : detail.status}
@@ -172,6 +200,7 @@ export default function MatchDetailModal({ matchId, onClose }) {
           )}
         </motion.div>
       </div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

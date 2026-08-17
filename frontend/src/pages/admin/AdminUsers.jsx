@@ -35,7 +35,7 @@ const AdminUsers = () => {
           <h3 className="text-lg font-bold text-blue-300">راهنمای کاربران و سطح دسترسی‌ها</h3>
         </div>
         <p className="text-sm leading-relaxed text-gray-300">
-          در این جدول تمام شماره‌های موبایل ثبت‌نام‌شده با نقش‌های coach (مربی) یا admin (مدیر) نمایش داده شده‌اند. مربیان می‌توانند از طریق صفحه «تیم‌ها» به باشگاه‌های مختلف اختصاص یابند.
+          در این جدول تمام کاربران با نام‌های کاربری و نقش‌های coach (مربی) یا admin (مدیر) نمایش داده شده‌اند.
         </p>
       </div>
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
@@ -43,7 +43,7 @@ const AdminUsers = () => {
           <thead className="bg-gray-800 text-gray-400">
             <tr>
               <th className="px-6 py-4 font-medium">شناسه</th>
-              <th className="px-6 py-4 font-medium">شماره موبایل</th>
+              <th className="px-6 py-4 font-medium">نام کاربری (Username)</th>
               <th className="px-6 py-4 font-medium">نقش</th>
               <th className="px-6 py-4 font-medium">تاریخ عضویت</th>
             </tr>
@@ -52,7 +52,7 @@ const AdminUsers = () => {
             {users.map(user => (
               <tr key={user.id} className="hover:bg-gray-800/50 transition-colors">
                 <td className="px-6 py-4">{user.id}</td>
-                <td className="px-6 py-4">{user.phone_number}</td>
+                <td className="px-6 py-4 font-bold text-white dir-ltr text-right">{user.username}</td>
                 <td className="px-6 py-4">
                   <span className={`px-2 py-1 text-xs rounded-full ${
                     user.role === 'admin' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'

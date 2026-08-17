@@ -89,7 +89,7 @@ const AdminTeams = () => {
                     <option value="">بدون مربی</option>
                     {users.map(user => (
                       <option key={user.id} value={user.id}>
-                        {user.phone_number} (ID: {user.id})
+                        {user.username} (ID: {user.id})
                       </option>
                     ))}
                   </select>

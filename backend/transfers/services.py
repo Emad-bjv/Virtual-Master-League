@@ -16,8 +16,11 @@ def check_wage_cap_compliance(team: Team, incoming_player: Player) -> dict:
         {'compliant': False, 'error': '...'} if it would exceed the cap.
     """
     current_total_wage = team.players.aggregate(total=Sum('wage'))['total'] or Decimal('0.00')
-    projected_total = current_total_wage + incoming_player.wage
-    if projected_total > team.wage_cap:
+    current_total_wage = Decimal(str(current_total_wage))
+    player_wage = Decimal(str(incoming_player.wage or '0.00'))
+    projected_total = current_total_wage + player_wage
+    wage_cap = Decimal(str(team.wage_cap or '10000.00'))
+    if projected_total > wage_cap:
         return {
             'compliant': False,
             'error': (

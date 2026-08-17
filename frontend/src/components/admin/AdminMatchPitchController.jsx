@@ -17,18 +17,23 @@ const INITIAL_TEAM_B = {
   bench: [],
 };
 
-export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStatusChange }) {
+export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStatusChange, matchId = 1 }) {
+
   const [activeTeamKey, setActiveTeamKey] = useState('teamA');
-  const [matchStatus, setMatchStatus] = useState('FIRST_HALF'); // 'FIRST_HALF', 'HALF_TIME', 'SECOND_HALF', 'FINISHED'
+  const [matchStatus, setMatchStatus] = useState('FIRST_HALF'); // 'SCHEDULED', 'FIRST_HALF', 'HALF_TIME', 'SECOND_HALF', 'FINISHED'
   const [teams, setTeams] = useState({
     teamA: INITIAL_TEAM_A,
     teamB: INITIAL_TEAM_B,
   });
 
   const handleSetMatchState = async (newStatus) => {
+    let action = 'START_MATCH';
+    if (newStatus === 'HALF_TIME') action = 'TRIGGER_HALF_TIME';
+    else if (newStatus === 'SECOND_HALF') action = 'START_SECOND_HALF';
+    else if (newStatus === 'FINISHED') action = 'CONCLUDE_FULL_TIME';
+
     try {
-      // Optimistic API Call (Assume matchId=1 for demo since it's not passed yet)
-      await matchApi.updateStatus(1, { half_status: newStatus });
+      await matchApi.controlMatch(matchId, { action });
     } catch (err) {
       console.warn('API Error, proceeding with optimistic UI update', err);
     }
@@ -40,7 +45,11 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
     let icon = '📢';
     let color = 'text-cyan-400 border-cyan-500/40 bg-cyan-950/40';
 
-    if (newStatus === 'HALF_TIME') {
+    if (newStatus === 'FIRST_HALF') {
+      text = 'مسابقه رسماً با سوت داور آغاز شد! ⚽';
+      icon = '⚽';
+      color = 'text-emerald-400 border-emerald-500/40 bg-emerald-950/40';
+    } else if (newStatus === 'HALF_TIME') {
       text = 'سوت پایان نیمه اول توسط داور به صدا درآمد! ⏸️ استراحت ۳۰ ثانیه‌ای بین دو نیمه برای مربیان آغاز شد.';
       icon = '⏸️';
       color = 'text-amber-400 border-amber-500/40 bg-amber-950/40';
@@ -49,7 +58,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
       icon = '▶️';
       color = 'text-emerald-400 border-emerald-500/40 bg-emerald-950/40';
     } else if (newStatus === 'FINISHED') {
-      text = 'سوت پایان بازی توسط داور زده شد! ⏹️ مسابقه با نتیجه ۲ - ۱ به پایان رسید.';
+      text = 'سوت پایان بازی توسط داور زده شد! ⏹️ مسابقه به پایان رسید.';
       icon = '⏹️';
       color = 'text-rose-400 border-rose-500/40 bg-rose-950/40';
     }
@@ -354,6 +363,14 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           <button
+            onClick={() => handleSetMatchState('FIRST_HALF')}
+            disabled={matchStatus === 'FIRST_HALF'}
+            className="flex-1 md:flex-none bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-1.5 text-xs"
+          >
+            <span>⚽ شروع بازی (نیمه اول)</span>
+          </button>
+
+          <button
             onClick={() => handleSetMatchState('HALF_TIME')}
             disabled={matchStatus === 'HALF_TIME' || matchStatus === 'FINISHED'}
             className="flex-1 md:flex-none bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-1.5 text-xs"
@@ -567,7 +584,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
 
       {/* ADVANCED FAST EVENT MODAL WITH RED CARD SUBSTITUTION PROTECTION */}
       {activePitchPlayerModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+        <div className="fixed top-0 left-0 w-screen h-screen z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
           <div className="w-full max-w-md glass-panel p-5 rounded-3xl border border-cyan-500/50 space-y-4 text-xs">
             <div className="border-b border-slate-800 pb-2.5 flex justify-between items-center">
               <div>

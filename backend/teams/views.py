@@ -44,9 +44,12 @@ class PositionChoicesView(views.APIView):
     def get(self, request):
         return Response(dict(Player.POSITIONS))
 
+from .permissions import IsManagerOrAdminOrReadOnly
+
 class TeamViewSet(viewsets.ModelViewSet):
     queryset = Team.objects.all()
     serializer_class = TeamSerializer
+    permission_classes = [permissions.IsAuthenticated, IsManagerOrAdminOrReadOnly]
 
     def get_throttles(self):
         if self.action in ['admin_adjust_budget', 'admin_override_facility', 'admin_update_player', 'admin_register_coach']:
@@ -140,6 +143,10 @@ class TeamViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def upgrade_facility(self, request, pk=None):
         team = self.get_object()
+        if not request.user.is_staff and team.manager != request.user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("شما دسترسی برای ارتقای تسهیلات این تیم را ندارید.")
+
         facility_name = request.data.get('facility')
         
         facilities, _ = ClubFacilities.objects.get_or_create(team=team)
@@ -158,13 +165,35 @@ class TeamViewSet(viewsets.ModelViewSet):
         if current_level >= 20:
             return Response({'error': 'تسهیلات به حداکثر سطح (۲۰) رسیده است.'}, status=status.HTTP_400_BAD_REQUEST)
         
+        # Gem cost escalates with current level: e.g. lvl 0->1: 15, lvl 1->2: 30, lvl 10->11: 165
+        gem_cost = 15 + (current_level * 15)
+        
+        from economy.services import process_atomic_wallet_update
+        wallet_res = process_atomic_wallet_update(
+            team_id=team.id,
+            amount=-gem_cost,
+            currency='GEMS',
+            transaction_type='FACILITY_UPGRADE',
+            description=f"ارتقای {field_name} به سطح {current_level + 1}"
+        )
+        
+        if not wallet_res.get('success'):
+            return Response({
+                'error': f"جم کافی نیست. هزینه ارتقا: {gem_cost} جم. (موجودی فعلی: {team.gems} جم)",
+                'required_gems': gem_cost,
+                'current_gems': team.gems
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
         setattr(facilities, field_name, current_level + 1)
         facilities.save()
+        team.refresh_from_db(fields=['gems'])
         
         return Response({
             'status': 'ارتقاء با موفقیت انجام شد',
             'facility': field_name,
             'new_level': current_level + 1,
+            'gem_cost': gem_cost,
+            'remaining_gems': team.gems,
             'facilities': ClubFacilitiesSerializer(facilities).data
         })
 
@@ -275,7 +304,6 @@ class TeamViewSet(viewsets.ModelViewSet):
         Accepts club_name, budget, wage_cap and optionally phone_number to bind a manager.
         """
         from users.models import User
-        from users.serializers import normalize_phone_number
 
         club_name = request.data.get('club_name') or request.data.get('clubName')
         if not club_name:
@@ -292,21 +320,16 @@ class TeamViewSet(viewsets.ModelViewSet):
             wage_cap = Decimal('10000.00')
 
         manager = None
-        phone_number = request.data.get('phone_number')
-        if phone_number:
-            normalized = normalize_phone_number(str(phone_number))
-            if not normalized.startswith('09') or len(normalized) != 11:
-                return Response(
-                    {'error': 'شماره موبایل مربی معتبر نیست. شماره باید با 09 شروع شود.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        username = request.data.get('username') or request.data.get('coach_username')
+        if username:
+            username = str(username).strip()
             manager, _ = User.objects.get_or_create(
-                phone_number=normalized,
+                username=username,
                 defaults={'role': 'coach', 'virtual_dollars': 1000000.00}
             )
             if hasattr(manager, 'team') and manager.team is not None:
                 return Response(
-                    {'error': 'این شماره موبایل قبلاً برای تیم دیگری ثبت شده است.'},
+                    {'error': 'این نام کاربری قبلاً برای تیم دیگری ثبت شده است.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
@@ -351,3 +374,90 @@ class TeamViewSet(viewsets.ModelViewSet):
 class PlayerViewSet(viewsets.ModelViewSet):
     queryset = Player.objects.all()
     serializer_class = PlayerSerializer
+    permission_classes = [permissions.IsAuthenticated, IsManagerOrAdminOrReadOnly]
+
+    @action(detail=True, methods=['post'])
+    def recover_stamina(self, request, pk=None):
+        player = self.get_object()
+        if not player.team:
+            return Response({'error': 'بازیکن در تیمی عضو نیست.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if not request.user.is_staff and player.team.manager != request.user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("شما دسترسی برای مدیریت این بازیکن را ندارید.")
+            
+        current_stamina = float(player.virtual_stamina)
+        if current_stamina >= 100.0 and not player.is_locked:
+            return Response({'error': 'استقامت بازیکن در حداکثر توان (۱۰۰٪) است.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        STAMINA_RECOVERY_COST = 10
+        from economy.services import process_atomic_wallet_update
+        wallet_res = process_atomic_wallet_update(
+            team_id=player.team.id,
+            amount=-STAMINA_RECOVERY_COST,
+            currency='GEMS',
+            transaction_type='STAMINA_RECOVERY',
+            description=f"شارژ فوری استقامت بازیکن {player.name} (+۵۰٪)"
+        )
+        if not wallet_res.get('success'):
+            return Response({
+                'error': f"جم کافی نیست. هزینه شارژ استقامت: {STAMINA_RECOVERY_COST} جم. (موجودی فعلی: {player.team.gems} جم)",
+                'required_gems': STAMINA_RECOVERY_COST,
+                'current_gems': player.team.gems
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        new_stamina = min(100.0, current_stamina + 50.0)
+        player.virtual_stamina = Decimal(str(new_stamina))
+        if new_stamina >= 30.0:
+            player.is_locked = False
+        player.save(update_fields=['virtual_stamina', 'is_locked'])
+        player.team.refresh_from_db(fields=['gems'])
+        
+        return Response({
+            'status': f'استقامت {player.name} ۵۰٪ شارژ شد.',
+            'new_stamina': float(player.virtual_stamina),
+            'gem_cost': STAMINA_RECOVERY_COST,
+            'remaining_gems': player.team.gems,
+            'player': PlayerSerializer(player).data
+        })
+
+    @action(detail=True, methods=['post'])
+    def heal_injury(self, request, pk=None):
+        player = self.get_object()
+        if not player.team:
+            return Response({'error': 'بازیکن در تیمی عضو نیست.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if not request.user.is_staff and player.team.manager != request.user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("شما دسترسی برای مدیریت این بازیکن را ندارید.")
+            
+        if not player.is_injured and not player.injury_return_date:
+            return Response({'error': 'این بازیکن در حال حاضر مصدوم نیست.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        INJURY_HEAL_COST = 25
+        from economy.services import process_atomic_wallet_update
+        wallet_res = process_atomic_wallet_update(
+            team_id=player.team.id,
+            amount=-INJURY_HEAL_COST,
+            currency='GEMS',
+            transaction_type='INJURY_HEAL',
+            description=f"درمان فوری مصدومیت بازیکن {player.name}"
+        )
+        if not wallet_res.get('success'):
+            return Response({
+                'error': f"جم کافی نیست. هزینه درمان فوری: {INJURY_HEAL_COST} جم. (موجودی فعلی: {player.team.gems} جم)",
+                'required_gems': INJURY_HEAL_COST,
+                'current_gems': player.team.gems
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+        player.is_injured = False
+        player.injury_return_date = None
+        player.save(update_fields=['is_injured', 'injury_return_date'])
+        player.team.refresh_from_db(fields=['gems'])
+        
+        return Response({
+            'status': f'مصدومیت {player.name} با موفقیت درمان شد.',
+            'gem_cost': INJURY_HEAL_COST,
+            'remaining_gems': player.team.gems,
+            'player': PlayerSerializer(player).data
+        })

@@ -34,7 +34,7 @@ class GachaEngineTestCase(TestCase):
         self.assertIn('موجودی کافی نیست', res['error'])
 
     def test_pity_counter_trigger(self):
-        pity = GachaPity.objects.create(team=self.team, counter=9) # 9 consecutive non-legendary
+        pity = GachaPity.objects.create(team=self.team, counter_direct=7, counter_gems=12)
 
         res = open_gacha_pack(self.team.id, self.pack.id)
         self.assertTrue(res['success'])
@@ -42,7 +42,7 @@ class GachaEngineTestCase(TestCase):
         self.assertEqual(res['rarity'], 'LEGENDARY')
 
         pity.refresh_from_db()
-        self.assertEqual(pity.counter, 0) # Counter reset after Legendary
+        self.assertEqual(pity.counter_gems, 0)
 
     def test_max_roster_cap(self):
         # Create 25 players

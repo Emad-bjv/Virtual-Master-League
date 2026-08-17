@@ -6,22 +6,22 @@ from django.core.management.base import BaseCommand
 from teams.models import Team, Player, ClubFacilities
 
 LOGO_MAP = {
-    'AC Milan': 'italy_milan_3000x3000.football-logos.cc.png',
-    'Arsenal': 'england_arsenal_3000x3000.football-logos.cc.png',
-    'Atlético Madrid': 'spain_atletico-madrid_3000x3000.football-logos.cc.png',
-    'BVB Borussia Dortmund': 'germany_borussia-dortmund_3000x3000.football-logos.cc.png',
-    'Chelsea': 'england_chelsea_3000x3000.football-logos.cc.png',
-    'FC Barcelona': 'spain_barcelona_3000x3000.football-logos.cc.png',
-    'FC Bayern München': 'germany_bayern-munchen_3000x3000.football-logos.cc.png',
-    'Inter': 'italy_inter_3000x3000.football-logos.cc.png',
-    'Juventus': 'italy_juventus_3000x3000.football-logos.cc.png',
-    'Liverpool': 'england_liverpool_3000x3000.football-logos.cc.png',
-    'Manchester City': 'england_manchester-city_3000x3000.football-logos.cc.png',
-    'Manchester United': 'england_manchester-united_3000x3000.football-logos.cc.png',
-    'Newcastle United': 'england_newcastle_3000x3000.football-logos.cc.png',
-    'Paris Saint-Germain': 'france_paris-saint-germain_3000x3000.football-logos.cc.png',
-    'Real Madrid': 'spain_real-madrid_3000x3000.football-logos.cc.png',
-    'Tottenham Hotspur': 'england_tottenham_3000x3000.football-logos.cc.png',
+    'AC Milan': '/assets/logos/ac-milan.webp',
+    'Arsenal': '/assets/logos/arsenal.webp',
+    'Atlético Madrid': '/assets/logos/atletico-madrid.webp',
+    'BVB Borussia Dortmund': '/assets/logos/borussia-dortmund.webp',
+    'Chelsea': '/assets/logos/chelsea.webp',
+    'FC Barcelona': '/assets/logos/barcelona.webp',
+    'FC Bayern München': '/assets/logos/bayern-munchen.webp',
+    'Inter': '/assets/logos/inter.webp',
+    'Juventus': '/assets/logos/juventus.webp',
+    'Liverpool': '/assets/logos/liverpool.webp',
+    'Manchester City': '/assets/logos/manchester-city.webp',
+    'Manchester United': '/assets/logos/manchester-united.webp',
+    'Newcastle United': '/assets/logos/newcastle.webp',
+    'Paris Saint-Germain': '/assets/logos/psg.webp',
+    'Real Madrid': '/assets/logos/real-madrid.webp',
+    'Tottenham Hotspur': '/assets/logos/tottenham.webp',
 }
 
 POS_MAP = {

@@ -26,7 +26,7 @@ class FullMatchCycleIntegrationTest(TransactionTestCase):
         self.client = APIClient()
         
         # Admin user
-        self.admin = User.objects.create_superuser(phone_number='09999999999', password='admin')
+        self.admin = User.objects.create_superuser(username='admin_test', password='admin')
         
         # Season and Tournament
         self.season = Season.objects.create(name='Season 1', is_active=True)
@@ -119,6 +119,10 @@ class FullMatchCycleIntegrationTest(TransactionTestCase):
         expected_home_budget = Decimal('1000.0') + Decimal('14000.0')
         self.assertEqual(self.home_team.budget, expected_home_budget)
         
-        home_transaction = Transaction.objects.filter(team=self.home_team, transaction_type='MATCH_REWARD').first()
+        home_transaction = Transaction.objects.filter(team=self.home_team, currency='BUDGET', transaction_type='MATCH_REWARD').first()
         self.assertIsNotNone(home_transaction)
         self.assertEqual(home_transaction.amount, Decimal('14000.0'))
+
+        home_gem_transaction = Transaction.objects.filter(team=self.home_team, currency='GEMS', transaction_type='MATCH_REWARD').first()
+        self.assertIsNotNone(home_gem_transaction)
+        self.assertEqual(home_gem_transaction.amount, Decimal('10.0'))

@@ -22,11 +22,13 @@ class OpenGachaPackView(views.APIView):
     """
     throttle_scope = 'gacha'
     def post(self, request):
-        team_id = request.data.get('team_id')
+        if not hasattr(request.user, 'team') or request.user.team is None:
+            return Response({'error': 'You must have a team to open packs.'}, status=status.HTTP_403_FORBIDDEN)
+        team_id = request.user.team.id
         pack_id = request.data.get('pack_id')
 
-        if not team_id or not pack_id:
-            return Response({'error': 'team_id and pack_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not pack_id:
+            return Response({'error': 'pack_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         result = open_gacha_pack(team_id=int(team_id), pack_id=int(pack_id))
 

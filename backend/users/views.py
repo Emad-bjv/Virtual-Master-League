@@ -1,148 +1,44 @@
-import random
-import secrets
-from datetime import timedelta
-from django.utils import timezone
 from django.conf import settings
-from rest_framework import status, permissions
+from django.contrib.auth import authenticate
+from rest_framework import status, permissions, generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from django.core.cache import cache
-
-from .models import User, OTPRecord
+from .models import User
 from .serializers import (
-    OTPRequestSerializer,
-    OTPVerifySerializer,
     UserSerializer,
     LeaderboardUserSerializer,
 )
 
 
-class OTPRequestView(APIView):
+class CoachPasswordLoginView(APIView):
+    """
+    Direct username + password authentication for coaches and admins.
+    """
     permission_classes = [permissions.AllowAny]
-    throttle_scope = 'otp'
 
     def post(self, request):
-        serializer = OTPRequestSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        username = request.data.get('username')
+        password = request.data.get('password')
 
-        phone_number = serializer.validated_data['phone_number']
+        if not username or not password:
+            return Response({'error': 'نام کاربری و رمز عبور الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        cooldown_key = f"otp_cooldown:{phone_number}"
-        if cache.get(cooldown_key):
-            return Response(
-                {"detail": "لطفاً پیش از درخواست مجدد ۶۰ ثانیه صبر کنید."},
-                status=status.HTTP_429_TOO_MANY_REQUESTS
-            )
+        username = str(username).strip()
 
-        # Cryptographic 6-digit random OTP generation for all requests
-        code = "".join(secrets.choice("0123456789") for _ in range(6))
+        # Check if user exists by username
+        try:
+            user = User.objects.get(username__iexact=username)
+        except User.DoesNotExist:
+            return Response({'error': 'نام کاربری یا رمز عبور اشتباه است.'}, status=status.HTTP_401_UNAUTHORIZED)
 
-        # Cache storage: code (300s TTL), cooldown (60s TTL), attempts reset to 0
-        cache.set(f"otp_code:{phone_number}", code, 300)
-        cache.set(cooldown_key, True, 60)
-        cache.set(f"otp_attempts:{phone_number}", 0, 300)
+        # Check password strictly
+        if not user.check_password(password):
+            return Response({'error': 'نام کاربری یا رمز عبور اشتباه است.'}, status=status.HTTP_401_UNAUTHORIZED)
 
-        now = timezone.now()
-        OTPRecord.objects.create(
-            phone_number=phone_number,
-            code=code,
-            expires_at=now + timedelta(seconds=300),
-        )
-
-        response_data = {
-            "message": "کد تایید با موفقیت ارسال شد."
-        }
-        if getattr(settings, 'DEBUG', True):
-            response_data["otp_code"] = code
-
-        return Response(response_data, status=status.HTTP_200_OK)
-
-
-class OTPVerifyView(APIView):
-    permission_classes = [permissions.AllowAny]
-    throttle_scope = 'otp'
-
-    def post(self, request):
-        serializer = OTPVerifySerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        phone_number = serializer.validated_data['phone_number']
-        code = serializer.validated_data['code']
-
-        code_key = f"otp_code:{phone_number}"
-        attempts_key = f"otp_attempts:{phone_number}"
-        cooldown_key = f"otp_cooldown:{phone_number}"
-
-        # Fetch latest unused OTPRecord from database
-        otp_record = OTPRecord.objects.filter(
-            phone_number=phone_number,
-            is_used=False
-        ).order_by('-created_at').first()
-
-        cached_code = cache.get(code_key)
-
-        if not otp_record and not cached_code:
-            return Response(
-                {"detail": "کد تایید یافت نشد یا منقضی شده است."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if otp_record and otp_record.is_expired():
-            return Response(
-                {"detail": "کد تایید یافت نشد یا منقضی شده است."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        attempts = cache.get(attempts_key, 0)
-        if attempts >= 5:
-            cache.delete(code_key)
-            return Response(
-                {"detail": "تعداد تلاش‌های ناموفق بیش از حد مجاز است. لطفاً مجدداً کد دریافت کنید."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Strictly validate code against DB OTPRecord (or cache fallback)
-        expected_code = otp_record.code if otp_record else cached_code
-        if expected_code != code:
-            attempts += 1
-            cache.set(attempts_key, attempts, 300)
-            if attempts >= 5:
-                cache.delete(code_key)
-                return Response(
-                    {"detail": "تعداد تلاش‌های ناموفق بیش از حد مجاز است. لطفاً مجدداً کد دریافت کنید."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            return Response(
-                {"detail": "کد تایید وارد شده اشتباه است."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # OTP verified successfully -> clear cache keys
-        cache.delete(code_key)
-        cache.delete(attempts_key)
-        cache.delete(cooldown_key)
-
-        # Mark DB OTPRecord as used
-        if otp_record:
-            otp_record.is_used = True
-            otp_record.save(update_fields=['is_used'])
-
-        user, created = User.objects.get_or_create(
-            phone_number=phone_number,
-            defaults={
-                'virtual_dollars': 1000000.00,
-                'role': 'coach',
-            }
-        )
-
-        # First login / fresh account: automatically create the manager's club
-        # so the frontend (which relies on user.team_id) has a real team to bind to.
-        if not hasattr(user, 'team') or user.team is None:
-            _ensure_user_team(user)
+        if not user.is_active:
+            return Response({'error': 'حساب کاربری شما غیرفعال شده است. لطفاً با ادمین تماس بگیرید.'}, status=status.HTTP_403_FORBIDDEN)
 
         refresh = RefreshToken.for_user(user)
 
@@ -156,37 +52,53 @@ class OTPVerifyView(APIView):
         )
 
 
-def _ensure_user_team(user):
+class QuickLoginView(APIView):
     """
-    Creates a default club (team + facilities + gameplan) for a user without one.
-    Returns the created Team (or the existing one).
+    Fast 1-click JWT authentication for development / testing.
     """
-    from teams.models import Team, ClubFacilities, TeamGamePlan
+    permission_classes = [permissions.AllowAny]
 
-    if hasattr(user, 'team') and user.team is not None:
-        return user.team
+    def post(self, request):
+        from django.http import Http404
+        if not settings.DEBUG:
+            raise Http404("Quick login is not available in production.")
 
-    # Derive a unique club name from the phone number (e.g. باشگاه 5678)
-    suffix = user.phone_number[-4:] if user.phone_number else '0000'
-    name = f"باشگاه {suffix}"
-    base_name = name
-    counter = 2
-    while Team.objects.filter(name=name).exists():
-        name = f"{base_name}-{counter}"
-        counter += 1
+        role = request.data.get('role', 'coach')
+        is_admin = (role == 'admin')
 
-    team = Team.objects.create(
-        manager=user,
-        name=name,
-        budget=1000000.00,
-        wage_cap=10000.00,
-    )
-    ClubFacilities.objects.create(team=team)
-    TeamGamePlan.objects.create(team=team)
-    return team
+        target_username = 'admin' if is_admin else 'coach_test'
+
+        user, created = User.objects.get_or_create(
+            username=target_username,
+            defaults={
+                'virtual_dollars': 1000000.00,
+                'role': role,
+                'is_staff': is_admin,
+                'is_superuser': is_admin,
+            }
+        )
+
+        user.role = role
+        user.is_staff = is_admin
+        user.is_superuser = is_admin
+        user.save(update_fields=['role', 'is_staff', 'is_superuser'])
+
+        refresh = RefreshToken.for_user(user)
+
+        return Response(
+            {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "user": UserSerializer(user).data
+            },
+            status=status.HTTP_200_OK
+        )
 
 
 class UserProfileView(APIView):
+    """
+    Retrieves or updates the current authenticated user's profile.
+    """
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
@@ -201,54 +113,15 @@ class UserProfileView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class QuickLoginView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    def post(self, request):
-        role = request.data.get('role', 'coach')
-        is_admin = (role == 'admin')
-
-        # Each role gets its own dedicated test account
-        phone_number = '09000000001' if is_admin else '09000000002'
-
-        user, created = User.objects.get_or_create(
-            phone_number=phone_number,
-            defaults={
-                'virtual_dollars': 1000000.00,
-                'role': role,
-                'is_staff': is_admin,
-                'is_superuser': is_admin,
-            }
-        )
-
-        # Always sync role fields — avoids stale role from a previous login
-        user.role = role
-        user.is_staff = is_admin
-        user.is_superuser = is_admin
-        user.save(update_fields=['role', 'is_staff', 'is_superuser'])
-
-        if not hasattr(user, 'team') or user.team is None:
-            _ensure_user_team(user)
-
-        refresh = RefreshToken.for_user(user)
-
-        return Response(
-            {
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
-                "user": UserSerializer(user).data
-            },
-            status=status.HTTP_200_OK
-        )
-
-
 class LeaderboardView(APIView):
+    """
+    Returns global leaderboard ranked by points and virtual wealth.
+    """
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
         users = User.objects.all().order_by('-points', '-virtual_dollars', 'id')[:100]
         
-        # Calculate dynamic ranks for presentation
         results = []
         for idx, u in enumerate(users, start=1):
             data = LeaderboardUserSerializer(u).data
@@ -257,11 +130,14 @@ class LeaderboardView(APIView):
 
         return Response(results, status=status.HTTP_200_OK)
 
+
 class AdminUserListView(APIView):
+    """
+    Returns full list of users for Admin Dashboard.
+    """
     permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
 
     def get(self, request):
         users = User.objects.all().order_by('-date_joined')
         serializer = UserSerializer(users, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-

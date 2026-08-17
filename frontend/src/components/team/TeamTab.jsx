@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import SubNav from '../common/SubNav';
 import EFootballGamePlan from './EFootballGamePlan';
-import { Search, CheckCircle, AlertTriangle, XCircle, Save, Sliders, Calendar, Info, X } from 'lucide-react';
+import LeagueStandingsTable from './LeagueStandingsTable';
+import TeamScheduleView from './TeamScheduleView';
+import { Search, CheckCircle, AlertTriangle, XCircle, Save, Sliders, Calendar, Info, X, User, Zap, HeartPulse, Gem } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { teamApi, matchApi } from '../../services/api';
+import { teamApi, matchApi, playerApi } from '../../services/api';
+import { useTeam } from '../../context/TeamContext';
 import CustomSelect from '../common/CustomSelect';
 import Toast from '../common/Toast';
 
@@ -18,7 +21,7 @@ const FORMATIONS = {};
 const LEAGUE_TABLE = [];
 
 // Tactical Guides Dictionary matching exact specs from user file
-const TACTICAL_GUIDES = {
+export const TACTICAL_GUIDES = {
   // Attacking Style
   'بازی مالکانه': 'بازيكنان به دنبال حفظ مالکیت در فضاهای كوچک هستند. سپس همه هم تیمی های موجود پشتيبانى لازم را انجام مى دهند.',
   'ضد حمله': 'وقتى صاحب توپ هستند، بازيكنان به جلو مى روند تاخود را به مناطق تهديدآميز برسانند.',
@@ -82,10 +85,12 @@ export default function TeamTab({
   onSaveLineup,
   teamData
 }) {
+  const { team, updateTeamGems, updatePlayerState } = useTeam();
   const [activeSub, setActiveSub] = useState(initialSub);
   // Use the manager's real team when available
-  const teamId = teamData?.id;
-  const [selectedFormation, setSelectedFormation] = useState('4-3-3 (4-2-1-3)');
+  const teamId = teamData?.id || team?.id;
+  const initialFormation = teamData?.default_formation || team?.default_formation || '4-3-3';
+  const [selectedFormation, setSelectedFormation] = useState(initialFormation);
   const [tacticTab, setTacticTab] = useState('attack'); // 'attack' | 'defense' | 'advanced'
 
   // Tactics State synced with backend
@@ -112,11 +117,52 @@ export default function TeamTab({
   const [saveMessage, setSaveMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [positionFilter, setPositionFilter] = useState('ALL');
+  const [actionLoading, setActionLoading] = useState(null);
 
   // Live data: league standings + fixtures
   const [leagueTable, setLeagueTable] = useState([]);
   const [upcomingMatches, setUpcomingMatches] = useState([]);
   const [matchHistory, setMatchHistory] = useState([]);
+
+  const currentGems = team?.gems ?? teamData?.gems ?? 0;
+
+  const handleRecoverStamina = async (playerId, playerName) => {
+    setActionLoading(playerId);
+    try {
+      const res = await playerApi.recoverStamina(playerId);
+      if (res.data.remaining_gems !== undefined) {
+        updateTeamGems(res.data.remaining_gems);
+      }
+      if (res.data.player) {
+        updatePlayerState(res.data.player);
+      }
+      setSaveMessage(`استقامت ${playerName} با موفقیت ۵۰٪ شارژ شد! (۱۰ جم کسر شد)`);
+    } catch (err) {
+      setSaveMessage(err.response?.data?.error || 'خطا در شارژ استقامت');
+    } finally {
+      setActionLoading(null);
+      setTimeout(() => setSaveMessage(''), 3500);
+    }
+  };
+
+  const handleHealInjury = async (playerId, playerName) => {
+    setActionLoading(playerId);
+    try {
+      const res = await playerApi.healInjury(playerId);
+      if (res.data.remaining_gems !== undefined) {
+        updateTeamGems(res.data.remaining_gems);
+      }
+      if (res.data.player) {
+        updatePlayerState(res.data.player);
+      }
+      setSaveMessage(`مصدومیت ${playerName} با موفقیت درمان شد! (۲۵ جم کسر شد)`);
+    } catch (err) {
+      setSaveMessage(err.response?.data?.error || 'خطا در درمان مصدومیت');
+    } finally {
+      setActionLoading(null);
+      setTimeout(() => setSaveMessage(''), 3500);
+    }
+  };
 
   useEffect(() => {
     if (activeSub !== 'matches' && activeSub !== 'table') return;
@@ -209,14 +255,18 @@ export default function TeamTab({
   useEffect(() => {
     if (initialPlayers && initialPlayers.length > 0) {
       setPlayers(
-        initialPlayers.map((p) => ({
+        initialPlayers.map((p, idx) => ({
           ...p,
           id: p.id.toString(),
-          stamina: p.virtual_stamina || 90,
-          status: p.is_injured ? 'مصدوم' : (p.virtual_stamina || 90) < 50 ? 'خسته' : 'سالم',
+          naturalPosition: p.naturalPosition || p.position,
+          shirt_number: p.shirt_number || (idx + 1),
+          is_starting: Boolean(p.is_starting),
+          stamina: Number(p.virtual_stamina) || 90,
+          virtual_stamina: Number(p.virtual_stamina) || 90,
+          status: p.is_injured ? 'مصدوم' : (Number(p.virtual_stamina) || 90) < 50 ? 'خسته' : 'سالم',
           trend: '▲',
           age: p.age || 26,
-          consecutive_games: p.consecutive_games || 3,
+          consecutive_games: p.consecutive_games || 0,
           base_stamina: p.base_stamina || 80,
           position_group: p.position_group || 'CMF',
         }))
@@ -260,6 +310,7 @@ export default function TeamTab({
   });
 
   const getStaminaFormulaPreview = (player) => {
+
     const baseDrain = 25.0;
     const posMult = player.position_group === 'GK' ? 0.5 : ['LWF', 'RWF', 'LMF', 'RMF'].includes(player.position_group) ? 1.2 : 1.1;
     const ageMult = player.age <= 22 ? 0.9 : player.age <= 29 ? 1.0 : player.age <= 32 ? 1.1 : 1.25;
@@ -269,6 +320,8 @@ export default function TeamTab({
     return { posMult, ageMult, gymRed, consecPenalty, estimatedDrain };
   };
 
+  const isSubmittedActual = isLineupSubmitted || Boolean(teamData?.gameplan?.is_submitted);
+
   return (
     <div className="space-y-4 pb-20">
       <Toast message={saveMessage} isVisible={!!saveMessage} type="success" />
@@ -277,7 +330,7 @@ export default function TeamTab({
       {/* Subtab 1: Lineup & Tactics (GamePlan) */}
       {activeSub === 'lineup' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-          {!isLineupSubmitted ? (
+          {!isSubmittedActual ? (
             <div className="glass-panel p-3.5 rounded-2xl border-2 border-rose-500/80 bg-gradient-to-r from-rose-950/80 via-amber-950/60 to-slate-900 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-[0_0_20px_rgba(244,63,94,0.35)]">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40">
@@ -294,18 +347,41 @@ export default function TeamTab({
               </div>
             </div>
           ) : (
-            <div className="p-3 rounded-2xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold flex items-center justify-between gap-2 shadow-lg">
+            <div className="p-3.5 rounded-2xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold flex items-center justify-between gap-2 shadow-lg">
               <div className="flex items-center gap-2">
                 <CheckCircle size={18} className="text-emerald-400" />
                 <span>ترکیب و تاکتیک‌های تیم برای مسابقه بعدی با موفقیت ثبت و تایید گردید.</span>
               </div>
-              <span className="text-[10.5px] bg-emerald-900 px-2.5 py-0.5 rounded-full border border-emerald-500/40">
-                ثبت‌شده
+              <span className="text-[10.5px] bg-emerald-900 px-3 py-1 rounded-full border border-emerald-500/40 font-black">
+                تایید شده ✓
               </span>
             </div>
           )}
 
-          <EFootballGamePlan teamName="LIVERPOOL FC" formation={selectedFormation} onFormationChange={setSelectedFormation} />
+          {(() => {
+            const starters = players.filter((p) => p.is_starting);
+            const nonStarting = players.filter((p) => !p.is_starting);
+            return (
+              <EFootballGamePlan 
+                key={`gameplan-${teamId}-${players.length}`}
+                teamName={teamData?.name || "بدون تیم"} 
+                formation={selectedFormation} 
+                onFormationChange={setSelectedFormation}
+                onLineupChange={({ startingXi: newXi, substitutes: newSubs, reserves: newRes, formation: newForm }) => {
+                  if (newForm) setSelectedFormation(newForm);
+                  const updatedPlayers = [
+                    ...newXi.map((p) => ({ ...p, is_starting: true })),
+                    ...newSubs.map((p) => ({ ...p, is_starting: false })),
+                    ...newRes.map((p) => ({ ...p, is_starting: false })),
+                  ];
+                  setPlayers(updatedPlayers);
+                }}
+                initialStartingXi={starters}
+                initialSubstitutes={nonStarting.slice(0, 11)}
+                initialReserves={nonStarting.slice(11)}
+              />
+            );
+          })()}
 
           {/* Interactive Tactics Config Merged with 3 Sub-Tabs */}
           <div className="glass-panel p-5 rounded-3xl border border-rose-500/40 space-y-4 text-xs mt-4">
@@ -678,13 +754,13 @@ export default function TeamTab({
             {/* Prominent Submit Button */}
             <motion.button
               whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.96 }}
               onClick={handleFullSubmit}
               disabled={saving}
-              className="w-full mt-6 bg-gradient-to-r from-rose-600 via-purple-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white font-black py-4 px-4 rounded-2xl shadow-[0_0_25px_rgba(244,63,94,0.4)] transition-all flex items-center justify-center gap-3 text-sm md:text-base border-2 border-rose-400/50 animate-[pulse_2s_ease-in-out_infinite]"
+              className="w-full mt-6 fc-btn-volt py-4 px-4 rounded-2xl shadow-[0_0_30px_rgba(0,255,135,0.4)] transition-all flex items-center justify-center gap-3 text-sm md:text-base cursor-pointer"
             >
-              <CheckCircle size={22} />
-              <span>{saving ? 'در حال ارسال به بک‌اند...' : 'ثبت نهایی ترکیب و تاکتیک‌ها'}</span>
+              <CheckCircle size={22} className="text-slate-950" />
+              <span className="font-black text-slate-950">{saving ? 'در حال ارسال به سرور مستر لیگ...' : 'ثبت نهایی ترکیب و تاکتیک‌ها'}</span>
             </motion.button>
           </div>
         </motion.div>
@@ -700,19 +776,19 @@ export default function TeamTab({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="جستجوی نام بازیکن..."
-                className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl pr-9 pl-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                className="w-full bg-[#080c14]/90 border border-slate-700/70 rounded-xl pr-9 pl-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 shadow-inner"
               />
-              <Search size={15} className="absolute right-3 top-2.5 text-slate-500" />
+              <Search size={15} className="absolute right-3 top-3 text-slate-400" />
             </div>
 
             {/* Position Filter Pills */}
-            <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-800 text-[10.5px]">
+            <div className="flex items-center gap-1 bg-[#080c14]/90 p-1 rounded-xl border border-slate-700/60 text-[10.5px]">
               {['ALL', 'GK', 'DEF', 'MID', 'FWD'].map((pos) => (
                 <button
                   key={pos}
                   onClick={() => setPositionFilter(pos)}
-                  className={`px-2 py-1 rounded-lg transition-colors ${
-                    positionFilter === pos ? 'bg-purple-600 text-white font-bold' : 'text-slate-400 hover:text-slate-200'
+                  className={`px-2.5 py-1 rounded-lg transition-all font-sport font-black ${
+                    positionFilter === pos ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-[0_0_10px_rgba(0,243,255,0.4)]' : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
                   {pos}
@@ -721,83 +797,151 @@ export default function TeamTab({
             </div>
           </div>
 
-          <div className="glass-panel p-3 rounded-2xl border border-slate-800 space-y-2">
-            {filteredPlayers.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-center justify-between p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 text-xs"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-600 to-cyan-500 flex items-center justify-center font-bold text-white text-xs shadow-md">
-                    {p.overall}
-                  </div>
+          <div className="space-y-2.5">
+            {filteredPlayers.map((p) => {
+              const staminaVal = Math.max(5, Math.min(100, Math.round(Number(p.stamina ?? p.virtual_stamina ?? 90))));
+              const photoUrl = p.photo_url || p.image || p.avatar || null;
 
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-white text-xs">{p.name}</span>
-                      <span className="text-[10px] bg-slate-800 text-cyan-300 font-mono px-1.5 py-0.5 rounded border border-slate-700">
-                        {p.position}
-                      </span>
-                      <span className="text-[10px] text-amber-400 dir-ltr">{p.trend}</span>
-                    </div>
-
-                    {/* Stamina & Status Indicator */}
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${
-                            p.stamina >= 80
-                              ? 'bg-emerald-400'
-                              : p.stamina >= 50
-                              ? 'bg-cyan-400'
-                              : p.stamina >= 30
-                              ? 'bg-amber-400'
-                              : 'bg-rose-500'
-                          }`}
-                          style={{ width: `${p.stamina}%` }}
-                        ></div>
+              return (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between p-3 sm:p-3.5 rounded-2xl fut-card border border-slate-700/60 text-xs"
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Portrait Photo Card Frame + OVR Badge */}
+                    <div className="relative shrink-0">
+                      <div className="w-12 h-14 rounded-2xl overflow-hidden border-2 border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e] shadow-md flex items-center justify-center relative">
+                        {photoUrl ? (
+                          <img
+                            src={photoUrl}
+                            alt={p.name}
+                            className="w-full h-full object-cover object-top"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <User size={26} className="text-slate-400 opacity-80" />
+                        )}
+                        {p.shirt_number != null && (
+                          <span className="absolute bottom-0 right-0 bg-[#05080e]/95 text-cyan-300 text-[8px] font-sport font-black px-1 rounded-tl border-t border-l border-cyan-500/30">
+                            #{p.shirt_number}
+                          </span>
+                        )}
                       </div>
-                      <span className="text-[10px] text-slate-400 dir-ltr">{p.stamina}%</span>
 
-                      {p.status === 'سالم' && (
-                        <span className="text-[10px] text-emerald-400 flex items-center gap-0.5">
-                          <CheckCircle size={11} /> سالم
+                      {/* Championship Gold OVR Badge */}
+                      <span className="absolute -top-1.5 -left-1.5 bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-200 text-slate-950 font-black text-[10.5px] px-1.5 py-0.2 rounded-lg shadow font-sport border border-amber-300">
+                        {p.overall}
+                      </span>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-white text-xs sm:text-sm tracking-tight">{p.name}</span>
+                        <span className="text-[10px] bg-cyan-950/80 text-cyan-300 font-sport font-black px-2 py-0.5 rounded-md border border-cyan-500/30">
+                          {p.position}
                         </span>
-                      )}
-                      {p.status === 'خسته' && (
-                        <span className="text-[10px] text-amber-400 flex items-center gap-0.5">
-                          <AlertTriangle size={11} /> خسته
-                        </span>
-                      )}
-                      {p.status === 'مصدوم' && (
-                        <span className="text-[10px] text-rose-400 flex items-center gap-0.5">
-                          <XCircle size={11} /> مصدوم
-                        </span>
-                      )}
+                        <span className="text-[10px] text-amber-400 dir-ltr font-bold font-sport">{p.trend || '▲'}</span>
+                      </div>
+
+                      {/* Stamina & Status Indicator with Electric Volt & Cyan Accents */}
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <div className="w-24 h-2 bg-slate-950 rounded-full overflow-hidden border border-white/10 p-0.5">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              staminaVal >= 80
+                                ? 'bg-[#00ff87] shadow-[0_0_8px_#00ff87]'
+                                : staminaVal >= 50
+                                ? 'bg-cyan-400 shadow-[0_0_8px_#00f3ff]'
+                                : staminaVal >= 30
+                                ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'
+                                : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'
+                            }`}
+                            style={{ width: `${staminaVal}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-[10.5px] text-slate-300 font-sport font-bold dir-ltr">{staminaVal}%</span>
+
+                        {p.status === 'سالم' && (
+                          <span className="text-[10px] text-[#00ff87] flex items-center gap-1 font-bold">
+                            <CheckCircle size={12} /> سالم
+                          </span>
+                        )}
+                        {p.status === 'خسته' && (
+                          <span className="text-[10px] text-amber-400 flex items-center gap-1 font-bold">
+                            <AlertTriangle size={12} /> خسته
+                          </span>
+                        )}
+                        {p.status === 'مصدوم' && (
+                          <span className="text-[10px] text-rose-400 flex items-center gap-1 font-bold">
+                            <XCircle size={12} /> مصدوم
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  {/* Action buttons for Stamina / Injury */}
+                  {p.is_injured ? (
+                    <button
+                      onClick={() => handleHealInjury(p.id, p.name)}
+                      disabled={actionLoading === p.id || currentGems < 25}
+                      className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all active:scale-95 cursor-pointer ${
+                        currentGems >= 25
+                          ? 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white shadow-[0_0_10px_rgba(244,63,94,0.4)]'
+                          : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                      }`}
+                      title={currentGems < 25 ? 'نیاز به ۲۵ جم دارید' : 'درمان فوری مصدومیت با ۲۵ جم'}
+                    >
+                      <HeartPulse size={12} className={actionLoading === p.id ? 'animate-spin' : ''} />
+                      <span className="hidden xs:inline">درمان</span>
+                      <span className="font-sport font-bold dir-ltr">25💎</span>
+                    </button>
+                  ) : staminaVal < 100 ? (
+                    <button
+                      onClick={() => handleRecoverStamina(p.id, p.name)}
+                      disabled={actionLoading === p.id || currentGems < 10}
+                      className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all active:scale-95 cursor-pointer ${
+                        currentGems >= 10
+                          ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-[0_0_10px_rgba(0,243,255,0.35)]'
+                          : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                      }`}
+                      title={currentGems < 10 ? 'نیاز به ۱۰ جم دارید' : 'شارژ ۵۰٪ استقامت با ۱۰ جم'}
+                    >
+                      <Zap size={12} className={actionLoading === p.id ? 'animate-spin text-yellow-300' : 'text-yellow-300'} />
+                      <span className="hidden xs:inline">شارژ</span>
+                      <span className="font-sport font-bold dir-ltr">10💎</span>
+                    </button>
+                  ) : null}
+
                   <button
                     onClick={() => setSelectedPlayerForFormula(p)}
-                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-400 rounded-lg border border-slate-700"
+                    className="p-1.5 sm:p-2 bg-slate-800/80 hover:bg-cyan-950/80 text-cyan-400 hover:text-cyan-300 rounded-xl border border-slate-700 hover:border-cyan-400/40 transition-all shadow-sm"
                     title="آنالیز فرمول استقامت و رشد"
                   >
                     <Info size={14} />
                   </button>
-                  <span className="text-[11px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-lg dir-ltr">
-                    فیکس
+                  <span
+                    className={`text-[10px] sm:text-[11px] font-black px-2 sm:px-2.5 py-1 rounded-xl dir-ltr font-sport ${
+                      p.is_starting
+                        ? 'text-[#00ff87] bg-emerald-950/70 border border-emerald-500/40 shadow-[0_0_10px_rgba(0,255,135,0.2)]'
+                        : 'text-purple-300 bg-purple-950/70 border border-purple-500/40'
+                    }`}
+                  >
+                    {p.is_starting ? 'XI' : 'BENCH'}
                   </span>
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
+        </div>
 
           {/* Formula Inspector Modal Overlay */}
           <AnimatePresence>
             {selectedPlayerForFormula && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+              <div className="fixed top-0 left-0 w-screen h-screen z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -870,141 +1014,12 @@ export default function TeamTab({
 
       {/* Subtab 3: Schedule & Fixtures */}
       {activeSub === 'matches' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-          <div className="flex items-center justify-between text-xs text-slate-400 px-1">
-            <span className="flex items-center gap-1.5 text-white font-bold">
-              <Calendar size={15} className="text-cyan-400" /> تقویم بازی‌های فصل
-            </span>
-            <span>۲۰ مسابقه انجام شده از ۳۰</span>
-          </div>
-
-          <div className="glass-panel p-3 rounded-2xl border border-slate-800 space-y-2 text-xs">
-            {upcomingMatches.length > 0 ? (
-              upcomingMatches.slice(0, 3).map((m, idx) => (
-                <div
-                  key={m.id || idx}
-                  className="flex justify-between items-center p-2.5 rounded-xl bg-purple-950/40 border border-purple-500/40 shadow-lg shadow-purple-950/30"
-                >
-                  <div>
-                    <span className="font-bold text-cyan-300 block">
-                      {m.round_name || 'بازی بعدی'} — {m.home_team_name} vs {m.away_team_name}
-                    </span>
-                    <span className="text-[10px] text-purple-300">
-                      {m.date ? new Date(m.date).toLocaleString('fa-IR') : 'زمان دقیق به‌زودی اعلام می‌شود'}
-                    </span>
-                  </div>
-                  <span className="text-cyan-400 font-bold text-xs bg-cyan-950/80 px-2.5 py-1 rounded-lg border border-cyan-500/40">
-                    پیش‌رو
-                  </span>
-                </div>
-              ))
-            ) : (
-              <>
-                <div className="flex justify-between items-center p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-500/30">
-                  <div>
-                    <span className="font-bold text-white block">هفته ۱۰ — vs الاهلی</span>
-                    <span className="text-[10px] text-slate-400">۱۲ مرداد ۱۴۰۳</span>
-                  </div>
-                  <span className="text-emerald-400 font-bold text-xs bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-500/40">
-                    ۲ : ۱ برد
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center p-2.5 rounded-xl bg-purple-950/40 border border-purple-500/40 shadow-lg shadow-purple-950/30">
-                  <div>
-                    <span className="font-bold text-cyan-300 block">هفته ۱۱ (بازی بعدی) — vs سپاهان</span>
-                    <span className="text-[10px] text-purple-300">جمعه ۱۹ مرداد — ساعت ۱۸:۰۰</span>
-                  </div>
-                  <span className="text-cyan-400 font-bold text-xs bg-cyan-950/80 px-2.5 py-1 rounded-lg border border-cyan-500/40">
-                    پیش‌رو
-                  </span>
-                </div>
-
-                <div className="flex justify-between items-center p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
-                  <div>
-                    <span className="font-bold text-slate-200 block">هفته ۱۲ — vs الهلال</span>
-                    <span className="text-[10px] text-slate-400">۲۶ مرداد — ساعت ۲۰:۳۰</span>
-                  </div>
-                  <span className="text-slate-400 font-medium text-xs">برنامه‌ریزی‌شده</span>
-                </div>
-              </>
-            )}
-
-            {matchHistory.length > 0 && (
-              <div className="pt-2 border-t border-slate-800">
-                <span className="text-[10.5px] text-slate-400 block mb-1.5">نتایج اخیر:</span>
-                {matchHistory.slice(0, 3).map((m, idx) => (
-                  <div
-                    key={m.id || `h-${idx}`}
-                    className="flex justify-between items-center p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 mb-1.5"
-                  >
-                    <div>
-                      <span className="font-bold text-slate-200 block">
-                        {m.home_team_name} {m.home_score} - {m.away_score} {m.away_team_name}
-                      </span>
-                      <span className="text-[10px] text-slate-400">{m.round_name || ''}</span>
-                    </div>
-                    <span className="text-emerald-400 font-bold text-xs bg-emerald-950/80 px-2.5 py-1 rounded-lg border border-emerald-500/40">
-                      پایان یافته
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </motion.div>
+        <TeamScheduleView teamId={teamId} teamName={teamData?.name} />
       )}
 
       {/* Subtab 4: League Table */}
       {activeSub === 'table' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-          <div className="glass-panel p-3 rounded-2xl border border-slate-800 overflow-x-auto text-xs">
-            <table className="w-full text-right border-collapse">
-              <thead>
-                <tr className="border-b border-slate-800 text-[10.5px] text-slate-400">
-                  <th className="py-2 px-1">#</th>
-                  <th className="py-2 px-2">تیم</th>
-                  <th className="py-2 px-1 text-center">بازی</th>
-                  <th className="py-2 px-1 text-center">برد</th>
-                  <th className="py-2 px-1 text-center">مساوی</th>
-                  <th className="py-2 px-1 text-center">باخت</th>
-                  <th className="py-2 px-1 text-center dir-ltr">تفاضل</th>
-                  <th className="py-2 px-2 text-center text-cyan-400">امتیاز</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60">
-                {leagueTable.map((row) => (
-                  <tr
-                    key={row.rank}
-                    className={`transition-colors ${
-                      row.isUser
-                        ? 'bg-gradient-to-r from-purple-950/80 via-slate-900 to-indigo-950/80 text-white font-bold border-y border-purple-500/50 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
-                        : 'hover:bg-slate-900/40 text-slate-300'
-                    }`}
-                  >
-                    <td className="py-2.5 px-1 font-bold">{row.rank}</td>
-                    <td className="py-2.5 px-2 font-bold text-white flex items-center gap-1.5">
-                      <span>{row.name}</span>
-                      {row.isUser && (
-                        <span className="text-[9px] bg-purple-500/30 text-purple-300 px-1 py-0.5 rounded border border-purple-500/40">
-                          شما
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-1 text-center dir-ltr">{row.p}</td>
-                    <td className="py-2.5 px-1 text-center text-emerald-400 dir-ltr">{row.w}</td>
-                    <td className="py-2.5 px-1 text-center text-slate-400 dir-ltr">{row.d}</td>
-                    <td className="py-2.5 px-1 text-center text-rose-400 dir-ltr">{row.l}</td>
-                    <td className="py-2.5 px-1 text-center dir-ltr font-mono text-[11px]">{row.gd}</td>
-                    <td className="py-2.5 px-2 text-center font-black text-cyan-400 dir-ltr text-sm">
-                      {row.pts}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
+        <LeagueStandingsTable userTeamId={teamId} />
       )}
     </div>
   );

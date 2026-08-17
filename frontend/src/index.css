@@ -1,16 +1,36 @@
-@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,500;0,700;1,700&family=Rajdhani:wght@500;600;700;800&family=Vazirmatn:wght@100..900&display=swap');
 @import "tailwindcss";
 
 @layer base {
   :root {
-    --bg-dark: #080b14;
-    --surface-glass: rgba(15, 23, 42, 0.75);
-    --surface-glass-border: rgba(51, 65, 85, 0.5);
+    /* FC 2026 Base Surfaces */
+    --fc-obsidian: #05080e;
+    --fc-carbon: #080c14;
+    --fc-slate: #0f172a;
+    --fc-surface-card: rgba(15, 23, 42, 0.82);
+    --fc-surface-card-hover: rgba(22, 33, 62, 0.92);
+    --fc-surface-glass-border: rgba(255, 255, 255, 0.1);
+
+    /* Electric Accents */
+    --fc-volt: #00ff87;
+    --fc-lime: #84cc16;
+    --fc-cyan: #00f3ff;
+    --fc-blue: #3b82f6;
+    --fc-violet: #a855f7;
+    --fc-magenta: #ec4899;
+    --fc-gold-1: #fbbf24;
+    --fc-gold-2: #d97706;
+    --fc-danger: #ef4444;
+
+    /* Legacy compatibility tokens */
+    --bg-dark: #05080e;
+    --surface-glass: rgba(15, 23, 42, 0.82);
+    --surface-glass-border: rgba(255, 255, 255, 0.1);
     --neon-cyan: #00f3ff;
     --neon-purple: #a855f7;
-    --neon-green: #10b981;
+    --neon-green: #00ff87;
     --neon-gold: #f59e0b;
-    --neon-rose: #f43f5e;
+    --neon-rose: #ec4899;
   }
 
   * {
@@ -18,67 +38,150 @@
   }
 
   body {
-    background-color: var(--bg-dark);
+    background-color: var(--fc-obsidian);
     color: #f8fafc;
     font-family: 'Vazirmatn', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     direction: rtl;
     overflow-x: hidden;
     min-height: 100vh;
+    letter-spacing: -0.01em;
   }
 
-  /* Custom Neon Scrollbar */
+  /* Custom FC Neon Scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
 
   ::-webkit-scrollbar-track {
-    background: rgba(15, 23, 42, 0.6);
+    background: rgba(8, 12, 20, 0.8);
     border-radius: 999px;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(168, 85, 247, 0.4);
+    background: linear-gradient(180deg, rgba(0, 243, 255, 0.5), rgba(168, 85, 247, 0.5));
     border-radius: 999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 243, 255, 0.7);
+    background: linear-gradient(180deg, #00f3ff, #a855f7);
+    box-shadow: 0 0 10px rgba(0, 243, 255, 0.8);
   }
 }
 
-/* Glassmorphism & Neon Utility Classes */
-.glass-panel {
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+/* =========================================================
+   FC 2026 Sports Typography Utilities
+   ========================================================= */
+.font-sport {
+  font-family: 'Rajdhani', 'Vazirmatn', sans-serif;
+  letter-spacing: 0.04em;
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
 }
 
-.glass-panel-interactive {
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: all 0.25s ease-in-out;
+.font-telemetry {
+  font-family: 'Chakra Petch', 'Rajdhani', 'Vazirmatn', sans-serif;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
-.glass-panel-interactive:hover {
-  border-color: rgba(168, 85, 247, 0.4);
-  box-shadow: 0 0 20px rgba(168, 85, 247, 0.2);
+.tracking-athletic {
+  letter-spacing: 0.08em;
 }
 
-.neon-glow-cyan {
-  box-shadow: 0 0 15px rgba(0, 243, 255, 0.35);
+/* =========================================================
+   FC 2026 Glassmorphism & Core Card Systems
+   ========================================================= */
+.glass-panel, .fc-card {
+  background: rgba(12, 18, 34, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 36px 0 rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.neon-glow-purple {
-  box-shadow: 0 0 15px rgba(168, 85, 247, 0.35);
+.fc-card-elevated {
+  background: linear-gradient(145deg, rgba(20, 29, 56, 0.88) 0%, rgba(10, 15, 28, 0.92) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.15);
 }
 
-.neon-glow-gold {
-  box-shadow: 0 0 15px rgba(245, 158, 11, 0.35);
+.glass-panel-interactive, .fc-card-interactive {
+  background: rgba(12, 18, 34, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-panel-interactive:hover, .fc-card-interactive:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 243, 255, 0.45);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6), 0 0 25px rgba(0, 243, 255, 0.2);
+}
+
+/* =========================================================
+   Championship Gold & Special Metallic Badges (FUT Style)
+   ========================================================= */
+.fc-gold-gradient {
+  background: linear-gradient(135deg, #fef08a 0%, #fbbf24 35%, #d97706 70%, #92400e 100%);
+}
+
+.fc-gold-text {
+  background: linear-gradient(135deg, #fffbeb 0%, #fde047 35%, #f59e0b 70%, #d97706 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 2px 8px rgba(245, 158, 11, 0.4));
+}
+
+.fc-gold-shield {
+  background: linear-gradient(145deg, #2a1e05 0%, #0d0a02 100%);
+  border: 1.5px solid #fbbf24;
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.35), inset 0 1px 2px rgba(254, 240, 138, 0.5);
+}
+
+.fc-volt-text {
+  color: #00ff87;
+  text-shadow: 0 0 12px rgba(0, 255, 135, 0.55);
+}
+
+.fc-cyan-text {
+  color: #00f3ff;
+  text-shadow: 0 0 12px rgba(0, 243, 255, 0.55);
+}
+
+.fc-magenta-text {
+  color: #f43f5e;
+  text-shadow: 0 0 12px rgba(244, 63, 94, 0.55);
+}
+
+/* High-Contrast Team Crest Badge Container (Universal Visibility for Dark & Light Logos) */
+.team-crest-badge {
+  background: linear-gradient(145deg, #ffffff 0%, #f1f5f9 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+}
+
+/* =========================================================
+   Electric Glow Utilities
+   ========================================================= */
+.neon-glow-cyan, .fc-glow-cyan {
+  box-shadow: 0 0 20px rgba(0, 243, 255, 0.35);
+}
+
+.neon-glow-purple, .fc-glow-purple {
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.35);
+}
+
+.neon-glow-gold, .fc-glow-gold {
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+}
+
+.neon-glow-volt, .fc-glow-volt {
+  box-shadow: 0 0 20px rgba(0, 255, 135, 0.4);
 }
 
 .neon-text-cyan {
@@ -96,10 +199,156 @@
   text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
 }
 
-/* Cyberpunk background grid pattern */
+/* =========================================================
+   FC 2026 Buttons with Micro-Animations & Glow-On-Hover
+   ========================================================= */
+.fc-btn-volt {
+  background: linear-gradient(135deg, #00ff87 0%, #10b981 100%);
+  color: #05080e;
+  font-weight: 800;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 4px 15px rgba(0, 255, 135, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fc-btn-volt:hover {
+  transform: translateY(-1.5px) scale(1.02);
+  box-shadow: 0 0 25px rgba(0, 255, 135, 0.6);
+  background: linear-gradient(135deg, #34d399 0%, #00ff87 100%);
+}
+
+.fc-btn-volt:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.fc-btn-cyan {
+  background: linear-gradient(135deg, #00f3ff 0%, #0284c7 100%);
+  color: #05080e;
+  font-weight: 800;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 4px 15px rgba(0, 243, 255, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fc-btn-cyan:hover {
+  transform: translateY(-1.5px) scale(1.02);
+  box-shadow: 0 0 25px rgba(0, 243, 255, 0.6);
+  background: linear-gradient(135deg, #38bdf8 0%, #00f3ff 100%);
+}
+
+.fc-btn-cyan:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.fc-btn-magenta {
+  background: linear-gradient(135deg, #ec4899 0%, #a855f7 100%);
+  color: #ffffff;
+  font-weight: 800;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 15px rgba(236, 72, 153, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fc-btn-magenta:hover {
+  transform: translateY(-1.5px) scale(1.02);
+  box-shadow: 0 0 25px rgba(236, 72, 153, 0.6);
+}
+
+.fc-btn-magenta:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.fc-btn-gold {
+  background: linear-gradient(135deg, #fbbf24 0%, #d97706 100%);
+  color: #05080e;
+  font-weight: 800;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.35);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fc-btn-gold:hover {
+  transform: translateY(-1.5px) scale(1.02);
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.6);
+  background: linear-gradient(135deg, #fde047 0%, #fbbf24 100%);
+}
+
+/* =========================================================
+   Dynamic Geometric Background Patterns & Textures
+   ========================================================= */
 .cyber-grid {
   background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(to right, rgba(0, 243, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 243, 255, 0.04) 1px, transparent 1px);
   background-size: 32px 32px;
+}
+
+.carbon-mesh {
+  background-image: 
+    radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 0),
+    radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 0);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
+}
+
+.fc-polygon-mesh {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cpolygon points='0,0 40,0 80,40 40,80 0,80 0,0' fill='none' stroke='rgba(0,243,255,0.025)' stroke-width='1'/%3E%3Cpolygon points='40,0 80,0 80,80 40,40' fill='none' stroke='rgba(168,85,247,0.025)' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+/* =========================================================
+   Next-Gen Stadium Pitch Texture & Field Styling
+   ========================================================= */
+.fc-pitch-turf {
+  background: radial-gradient(ellipse at center, #0a2d1d 0%, #051a10 60%, #03100a 100%);
+  position: relative;
+}
+
+.fc-pitch-mow-stripes {
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(0, 255, 135, 0.025) 0px,
+    rgba(0, 255, 135, 0.025) 48px,
+    rgba(0, 0, 0, 0.04) 48px,
+    rgba(0, 0, 0, 0.04) 96px
+  );
+}
+
+.fc-pitch-neon-pink {
+  border-color: rgba(230, 0, 126, 0.75);
+  box-shadow: 0 0 25px rgba(230, 0, 126, 0.35), inset 0 0 25px rgba(230, 0, 126, 0.2);
+}
+
+.fc-pitch-neon-cyan {
+  border-color: rgba(0, 243, 255, 0.75);
+  box-shadow: 0 0 25px rgba(0, 243, 255, 0.35), inset 0 0 25px rgba(0, 243, 255, 0.2);
+}
+
+/* =========================================================
+   Trading Card (FUT Style) Styling
+   ========================================================= */
+.fut-card {
+  position: relative;
+  background: linear-gradient(165deg, rgba(26, 36, 64, 0.95) 0%, rgba(8, 12, 22, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fut-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  border-color: rgba(0, 243, 255, 0.5);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.7), 0 0 25px rgba(0, 243, 255, 0.25);
+}
+
+.fut-card-gold {
+  background: linear-gradient(165deg, rgba(66, 46, 10, 0.95) 0%, rgba(18, 13, 3, 0.98) 100%);
+  border: 1.5px solid rgba(251, 191, 36, 0.6);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(245, 158, 11, 0.25);
+}
+
+.fut-card-gold:hover {
+  border-color: #fbbf24;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 35px rgba(245, 158, 11, 0.45);
 }

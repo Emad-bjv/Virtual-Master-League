@@ -38,10 +38,12 @@ def _serialize_value(val):
 def _serialize_instance(obj):
     data = {}
     for field in obj._meta.fields:
-        val = getattr(obj, field.name)
-        if field.is_relation and field.many_to_one:
-            data[field.name] = str(val) if val else None
-            data[f"{field.name}_id"] = getattr(obj, f"{field.name}_id", None)
+        val = getattr(obj, field.name, None)
+        if field.is_relation:
+            data[field.name] = str(val) if val is not None else None
+            fk_id = getattr(obj, f"{field.name}_id", None)
+            if fk_id is not None or hasattr(obj, f"{field.name}_id"):
+                data[f"{field.name}_id"] = fk_id
         else:
             data[field.name] = _serialize_value(val)
     return data
@@ -59,7 +61,6 @@ class AdminDatabaseSummaryView(views.APIView):
 
         MODEL_TRANSLATIONS = {
             'users.User': 'کاربران',
-            'users.OTPRecord': 'کدهای OTP',
             'teams.Team': 'تیم‌ها',
             'teams.Player': 'بازیکنان',
             'teams.ClubFacilities': 'تسهیلات باشگاه‌ها',
@@ -246,7 +247,7 @@ class AdminDatabaseTableView(views.APIView):
             for f in model._meta.fields:
                 if f.name == 'id' or not f.editable:
                     continue
-                if f.is_relation and f.many_to_one:
+                if f.is_relation:
                     fk_val = field_data.get(f"{f.name}_id") or field_data.get(f.name)
                     if fk_val is not None and fk_val != '':
                         create_kwargs[f"{f.name}_id"] = int(fk_val)
@@ -272,7 +273,7 @@ class AdminDatabaseTableView(views.APIView):
             for f in model._meta.fields:
                 if f.name == 'id' or not f.editable:
                     continue
-                if f.is_relation and f.many_to_one:
+                if f.is_relation:
                     fk_key = f"{f.name}_id"
                     fk_val = field_data.get(fk_key) if fk_key in field_data else field_data.get(f.name)
                     if fk_val is not None:

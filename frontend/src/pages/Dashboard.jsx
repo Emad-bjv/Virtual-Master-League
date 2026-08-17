@@ -1,21 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import GamePlanPitch from '../components/GamePlanPitch';
 import { Settings, Save, Users, Trophy } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { teamApi } from '../services/api';
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [team, setTeam] = useState(null);
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch team data from API
-  const TEAM_ID = 1; 
+  const teamId = user?.team_id; 
 
   useEffect(() => {
-    axios.get(`http://127.0.0.1:9000/api/teams/${TEAM_ID}/`)
+    if (!teamId) {
+      setTeam(null);
+      setPlayers([]);
+      setLoading(false);
+      return;
+    }
+    teamApi.getTeam(teamId)
       .then(res => {
         setTeam(res.data);
-        setPlayers(res.data.players || []);
+        setPlayers(res.data?.players || []);
         setLoading(false);
       })
       .catch(err => {
@@ -24,7 +31,7 @@ export default function Dashboard() {
         setPlayers([]);
         setLoading(false);
       });
-  }, []);
+  }, [teamId]);
 
   const handlePlayerMove = (playerId, deltaX, deltaY) => {
     // Convert pixel delta to percentage delta
@@ -49,8 +56,9 @@ export default function Dashboard() {
   };
 
   const saveGamePlan = async () => {
+    if (!teamId) return;
     try {
-      await axios.post(`http://127.0.0.1:9000/api/teams/${TEAM_ID}/update_gameplan/`, players);
+      await teamApi.updateGameplan(teamId, players);
       alert('ترکیب با موفقیت ذخیره شد.');
     } catch (error) {
       alert('خطا در ذخیره ترکیب تیمی.');
@@ -63,8 +71,8 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-900 text-white p-4 md:p-8">
       <header className="flex justify-between items-center mb-8 bg-slate-800 p-4 rounded-xl border border-slate-700">
         <div>
-          <h1 className="text-2xl font-bold text-accent">{team.name}</h1>
-          <p className="text-sm text-slate-400 mt-1">بودجه: {team.budget} دلار مجازی</p>
+          <h1 className="text-2xl font-bold text-accent">{team?.name || 'تیم من'}</h1>
+          <p className="text-sm text-slate-400 mt-1">بودجه: {team?.budget || 0} دلار مجازی</p>
         </div>
         <div className="flex gap-4">
           <button className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg transition-colors">

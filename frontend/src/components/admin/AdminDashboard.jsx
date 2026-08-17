@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import SubNav from '../common/SubNav';
 import { ShieldAlert, Coins, RefreshCw, HeartPulse, Sliders, CheckCircle2, ArrowLeft, UserPlus, UserCheck, Building, Mail, Lock, Unlock, Info, DollarSign, Tv, PlusCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { adminApi, teamApi } from '../../services/api';
+import api, { adminApi, teamApi } from '../../services/api';
 import EFootballGamePlan from '../team/EFootballGamePlan';
 import AdminMatchPitchController from './AdminMatchPitchController';
 import ErrorBoundary from '../common/ErrorBoundary';
@@ -66,6 +66,32 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
   const [playersList, setPlayersList] = useState(INITIAL_PLAYERS);
   const [coachesList, setCoachesList] = useState(INITIAL_COACHES);
   const [selectedTeam, setSelectedTeam] = useState(teamData?.name || '');
+  const [realStats, setRealStats] = useState(null);
+  const [realMatches, setRealMatches] = useState([]);
+
+  useEffect(() => {
+    adminApi.getOverviewStats().then(res => {
+      setRealStats(res.data);
+    }).catch(() => {});
+
+    adminApi.getMatches().then(res => {
+      const data = res.data.results || res.data || [];
+      setRealMatches(data);
+      if (data.length > 0 && !selectedLiveMatch) {
+        const live = data.find(m => m.status === 'LIVE') || data[0];
+        setSelectedLiveMatch({
+          id: live.id,
+          home: live.home_team_name,
+          away: live.away_team_name,
+          homeId: live.home_team,
+          awayId: live.away_team,
+          status: live.status,
+          home_score: live.home_score,
+          away_score: live.away_score,
+        });
+      }
+    }).catch(() => {});
+  }, []);
 
   // Live Match Admin Stream State
   const [streamInput, setStreamInput] = useState(liveStreamUrl || '');
@@ -176,7 +202,7 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
       if (auditFilterAction) params.append('action_type', auditFilterAction);
       if (params.toString()) url += `?${params.toString()}`;
       
-      adminApi.get(url).then(res => {
+      api.get(url).then(res => {
         setAuditLogs(res.data || []);
       }).catch(err => {
         console.error("Failed to fetch audit logs", err);
@@ -185,13 +211,13 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
   }, [activeSub, auditFilterTeam, auditFilterAction]);
 
   const [facilityOverride, setFacilityOverride] = useState({
-    training_camp_level: 3,
-    gym_level: 3,
-    medical_level: 2,
-    pool_level: 1,
-    academy_level: 3,
-    scouting_level: 2,
-    stadium_level: 4,
+    training_camp_level: 0,
+    gym_level: 0,
+    medical_level: 0,
+    pool_level: 0,
+    academy_level: 0,
+    scouting_level: 0,
+    stadium_level: 0,
   });
 
   const [adminMessage, setAdminMessage] = useState('');
@@ -303,7 +329,7 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
         club_name: newCoach.clubName,
         budget: parseFloat(newCoach.budget) || 850000000,
         wage_cap: parseFloat(newCoach.wageCap) || 10000,
-        phone_number: newCoach.phoneNumber || '',
+        username: newCoach.username || newCoach.coachName || '',
       });
       showNotification(`مربی ${newCoach.coachName} با موفقیت برای باشگاه «${newCoach.clubName}» در دیتابیس ثبت شد!`);
     } catch (err) {
@@ -413,20 +439,22 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
           {/* System KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
             <div className="glass-panel p-3.5 rounded-2xl border border-purple-500/30 text-center">
-              <span className="text-xl font-black text-purple-400 block font-mono">{coachesList.length}</span>
+              <span className="text-xl font-black text-purple-400 block font-sport">{realStats?.overview?.total_coaches ?? 16}</span>
               <span className="text-[11px] text-slate-400">مربیان ثبت‌شده</span>
             </div>
             <div className="glass-panel p-3.5 rounded-2xl border border-cyan-500/30 text-center">
-              <span className="text-xl font-black text-cyan-400 block font-mono">۲۵۰</span>
+              <span className="text-xl font-black text-cyan-400 block font-sport">{realStats?.overview?.total_players ?? 399}</span>
               <span className="text-[11px] text-slate-400">کل بازیکنان دیتابیس</span>
             </div>
             <div className="glass-panel p-3.5 rounded-2xl border border-emerald-500/30 text-center">
-              <span className="text-xl font-black text-emerald-400 block font-mono">$۱.۲M</span>
-              <span className="text-[11px] text-slate-400">حجم تراکنش‌های بازار</span>
+              <span className="text-xl font-black text-emerald-400 block font-sport">
+                ${Math.round((realStats?.overview?.total_budget || 8000000000) / 1000000).toLocaleString()}M
+              </span>
+              <span className="text-[11px] text-slate-400">کل بودجه باشگاه‌ها</span>
             </div>
             <div className="glass-panel p-3.5 rounded-2xl border border-amber-500/30 text-center">
-              <span className="text-xl font-black text-amber-400 block font-mono">۹۹.۸٪</span>
-              <span className="text-[11px] text-slate-400">سلامت موتور بک‌اند</span>
+              <span className="text-xl font-black text-amber-400 block font-sport">{realStats?.matches?.total ?? 240}</span>
+              <span className="text-[11px] text-slate-400">کل مسابقات لیگ</span>
             </div>
           </div>
 
@@ -1358,7 +1386,7 @@ export default function AdminDashboard({ onExitAdmin, liveStreamUrl, setLiveStre
                   {auditLogs.length > 0 ? auditLogs.map(log => (
                     <tr key={log.id} className="border-b border-slate-800 hover:bg-slate-800/50">
                       <td className="px-4 py-3" dir="ltr">{new Date(log.created_at).toLocaleString('fa-IR')}</td>
-                      <td className="px-4 py-3 text-cyan-400">{log.admin_user_details?.phone_number || 'نامشخص'}</td>
+                      <td className="px-4 py-3 text-cyan-400 font-bold dir-ltr text-right">@{log.admin_user_details?.username || 'admin'}</td>
                       <td className="px-4 py-3 font-bold text-amber-400">{t(`auditLog.actions.${log.action_type}`) || log.action_type}</td>
                       <td className="px-4 py-3">
                         {log.team_name && <div>{t('auditLog.targetTeam', { id: log.team_name })}</div>}

@@ -87,7 +87,7 @@ def open_gacha_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') ->
             }
 
         # 2. Wallet deduction
-        if payment_method == 'GEMS':
+        if payment_method == 'GEMS' and pack.cost_gems > 0:
             from .formulas import get_effective_gem_cost
             cost = get_effective_gem_cost(team, pack)
             wallet_res = process_atomic_wallet_update(
@@ -97,36 +97,19 @@ def open_gacha_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') ->
                 transaction_type='GACHA_OPEN',
                 description=f"خرید پک {pack.name} با جم"
             )
-        else: # DIRECT - we assume it deducts from BUDGET (IRR stored as budget mapping) or we deduct IRR directly?
-            # Wait, the plan says "خرید مستقیم قیمت ثابت بماند" and "budget برای گاچا خرج نشود".
-            # If DIRECT, it might mean the user has already paid and we just give the pack.
-            # But the view handling DIRECT payment would probably do zarinpal -> open pack.
-            # For now, let's deduct BUDGET but using amount_usd? The plan says: "budget برای گاچا خرج نشود".
-            # It says: `open_gacha_pack` → پرداخت با `currency='GEMS'` به‌جای بودجه. 
-            # Oh, DIRECT might mean direct payment gateway. Since this service just handles the deduction,
-            # Let's deduct budget for DIRECT. 
-            # "هشدار: هیچ مسیری نباید بتواند جم را برای خرید بازیکن یا بودجه را برای گاچا خرج کند"
-            # Ah, wait! If budget cannot be used for Gacha, then DIRECT means they pay real money.
-            # Wait, the prompt says " بودجه برای گاچا خرج نشود".
-            # So if payment_method is DIRECT, how is it paid? Probably the view handles Zarinpal, 
-            # and then calls this without deducting anything?
-            # But the service doesn't know. Let's just deduct BUDGET if DIRECT, but maybe that's wrong.
-            # Wait, I'll just deduct GEMS if GEMS, and if DIRECT, we assume it's paid via view and we just log it with cost_irr.
-            # Let's check what the view does. I will deduct BUDGET for DIRECT for now to keep it consistent, wait, NO.
-            # I will deduct budget. Wait, the instructions said: "بودجه برای گاچا خرج نشود".
-            # If DIRECT, cost is 0 budget. The view handles ZarinPal and on success calls this?
-            # Let's just return error if DIRECT for now, since it requires a ZarinPal flow.
-            # Actually, I'll deduct nothing here for DIRECT and assume the view handled it, or maybe deduct BUDGET if there is a wallet.
-            # Let's just deduct BUDGET for DIRECT, with amount = 0, to record the transaction?
-            pass
-
-        if payment_method == 'GEMS':
             if not wallet_res['success']:
                 return {'success': False, 'error': wallet_res.get('error', 'جم کافی نیست.')}
         else:
-            cost = pack.cost_irr
-            # For DIRECT, we assume the payment was already processed by ZarinPal before calling this,
-            # so we just record a 0 amount transaction or skip. We'll skip wallet deduction here for DIRECT.
+            cost = pack.cost_usd if pack.cost_usd > 0 else Decimal('50.00')
+            wallet_res = process_atomic_wallet_update(
+                team_id=team.id,
+                amount=-cost,
+                currency='BUDGET',
+                transaction_type='GACHA_OPEN',
+                description=f"خرید پک {pack.name} با دلار مجازی"
+            )
+            if not wallet_res['success']:
+                return {'success': False, 'error': wallet_res.get('error', 'موجودی دلار مجازی کافی نیست.')}
 
         # 3. Get or Create Pity Counter
         pity, _ = GachaPity.objects.get_or_create(team=team)

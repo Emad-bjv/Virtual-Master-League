@@ -5,7 +5,13 @@ from .views import (
     BuyPlayerDirectView,
     PlaceBidView,
     AutoReleaseOverflowView,
-    TransferHistoryListView
+    TransferHistoryListView,
+    LeagueDirectoryAPIView,
+    TransferOfferCreateView,
+    TransferInboxAPIView,
+    TransferOfferActionView,
+    PlayerReleaseAPIView,
+    TransferLogListView
 )
 
 urlpatterns = [
@@ -15,4 +21,12 @@ urlpatterns = [
     path('transfers/bid/', PlaceBidView.as_view(), name='transfer-place-bid'),
     path('transfers/release-overflow/<int:team_id>/', AutoReleaseOverflowView.as_view(), name='transfer-release-overflow'),
     path('transfers/history/', TransferHistoryListView.as_view(), name='transfer-history'),
+    
+    # New Negotiation Hub Routes
+    path('transfers/league-teams/', LeagueDirectoryAPIView.as_view(), name='league-teams'),
+    path('transfers/offers/', TransferOfferCreateView.as_view(), name='create-offer'),
+    path('transfers/inbox/', TransferInboxAPIView.as_view(), name='inbox'),
+    path('transfers/offers/<int:pk>/<str:action>/', TransferOfferActionView.as_view(), name='offer-action'),
+    path('transfers/players/<int:pk>/release/', PlayerReleaseAPIView.as_view(), name='player-release'),
+    path('transfers/logs/', TransferLogListView.as_view(), name='transfer-logs'),
 ]

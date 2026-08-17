@@ -3,7 +3,7 @@
     "title": "گزارش تغییرات",
     "table": {
       "timestamp": "زمان",
-      "adminPhone": "شماره ادمین",
+      "adminPhone": "نام کاربری ادمین",
       "action": "اکشن",
       "target": "هدف",
       "before": "قبل",

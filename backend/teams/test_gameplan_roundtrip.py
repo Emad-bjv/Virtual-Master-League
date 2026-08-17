@@ -14,7 +14,7 @@ class GameplanRoundtripTest(TestCase):
     """Verify that all 14 tactic fields survive a POST → GET round-trip."""
 
     def setUp(self):
-        self.user = User.objects.create_user(phone_number='09121234567')
+        self.user = User.objects.create_user(username='coach_roundtrip')
         self.team = Team.objects.create(name='Test FC', manager=self.user)
         ClubFacilities.objects.create(team=self.team)
         self.client = APIClient()

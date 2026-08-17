@@ -108,6 +108,17 @@ class Match(models.Model):
         default=1.0, verbose_name="ضریب اهمیت بازی",
         help_text="ضریب اهمیت مسابقه (دربی، فینال و غیره)"
     )
+    stoppage_time = models.PositiveIntegerField(
+        default=0, verbose_name="وقت اضافه نیمه (دقیقه)"
+    )
+    current_minute = models.PositiveIntegerField(
+        default=0, verbose_name="دقیقه فعلی بازی"
+    )
+    stream_url = models.URLField(
+        max_length=500, blank=True, default='',
+        verbose_name="لینک استریم زنده",
+        help_text="لینک پخش زنده آپارات یا یوتیوب"
+    )
 
     class Meta:
         verbose_name = "مسابقه"
@@ -123,11 +134,16 @@ class MatchEvent(models.Model):
     EVENT_TYPES = [
         ('GOAL', 'گل'),
         ('ASSIST', 'پاس گل'),
+        ('OWN_GOAL', 'گل به خودی'),
+        ('PENALTY_SCORED', 'گل از روی نقطه پنالتی'),
+        ('PENALTY_MISSED', 'پنالتی از دست رفته'),
         ('YELLOW', 'کارت زرد'),
-        ('RED', 'کارت قرمز'),
+        ('SECOND_YELLOW', 'کارت زرد دوم -> قرمز'),
+        ('RED', 'کارت قرمز مستقیم'),
         ('SUB_IN', 'تعویض (ورود)'),
         ('SUB_OUT', 'تعویض (خروج)'),
         ('INJURY', 'مصدومیت'),
+        ('VAR', 'بررسی VAR'),
     ]
 
     match = models.ForeignKey(
@@ -138,10 +154,24 @@ class MatchEvent(models.Model):
         Player, on_delete=models.CASCADE,
         related_name='match_events', verbose_name="بازیکن"
     )
+    assist_player = models.ForeignKey(
+        Player, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='assisted_events', verbose_name="بازیکن پاسور"
+    )
+    team = models.ForeignKey(
+        Team, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='match_events', verbose_name="تیم"
+    )
     event_type = models.CharField(
-        max_length=10, choices=EVENT_TYPES, verbose_name="نوع اتفاق"
+        max_length=20, choices=EVENT_TYPES, verbose_name="نوع اتفاق"
     )
     minute = models.PositiveIntegerField(verbose_name="دقیقه")
+    detail = models.CharField(
+        max_length=255, blank=True, default='', verbose_name="توضیحات تکمیلی رویداد"
+    )
+    is_undone = models.BooleanField(
+        default=False, verbose_name="باطل شده (Undo)"
+    )
 
     class Meta:
         verbose_name = "اتفاق بازی"
@@ -248,6 +278,7 @@ class MatchTeamStat(models.Model):
     corners = models.PositiveIntegerField(default=0, verbose_name="کرنر")
     fouls = models.PositiveIntegerField(default=0, verbose_name="خطا")
     offsides = models.PositiveIntegerField(default=0, verbose_name="آفساید")
+    saves = models.PositiveIntegerField(default=0, verbose_name="مهارها (سیو دروازه‌بان)")
 
     class Meta:
         verbose_name = "آمار تیمی مسابقه"

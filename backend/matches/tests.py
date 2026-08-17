@@ -183,3 +183,65 @@ class LiveSubstitutionTestCase(TestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn("این تیم در مسابقه حضور ندارد.", str(serializer.errors))
 
+
+class LiveMatchControlRoomTestCase(TestCase):
+    def setUp(self):
+        from django.utils import timezone
+        import datetime
+        self.team1 = Team.objects.create(name="Arsenal Test", budget=1000)
+        self.team2 = Team.objects.create(name="Chelsea Test", budget=1000)
+        self.player1 = self.team1.players.create(name="Saka Test", age=23, overall=88, base_stamina=90, position='RWF')
+        self.match = Match.objects.create(
+            home_team=self.team1,
+            away_team=self.team2,
+            status='SCHEDULED',
+            half_status='1ST_HALF',
+            date=timezone.now() + datetime.timedelta(minutes=10)
+        )
+
+    def test_live_match_context_t15_reminder(self):
+        from rest_framework.test import APIClient
+        client = APIClient()
+        response = client.get('/api/matches/live-context/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data['has_active_match'])
+        self.assertIsNotNone(data['next_match'])
+        self.assertTrue(data['is_within_reminder_window'])
+        self.assertLessEqual(data['time_to_kickoff_seconds'], 900)
+
+    def test_admin_control_start_and_events(self):
+        from rest_framework.test import APIClient
+        client = APIClient()
+
+        # Start match
+        res_start = client.post(f'/api/matches/{self.match.id}/control/', {'action': 'START_MATCH'}, format='json')
+        self.assertEqual(res_start.status_code, 200)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, 'LIVE')
+
+        # Log goal event
+        res_goal = client.post(f'/api/matches/{self.match.id}/control/', {
+            'action': 'RECORD_EVENT',
+            'event_type': 'GOAL',
+            'player_id': self.player1.id,
+            'minute': 23,
+            'text': 'گل اول بازی'
+        }, format='json')
+        self.assertEqual(res_goal.status_code, 201)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.home_score, 1)
+
+        # Trigger half time
+        res_ht = client.post(f'/api/matches/{self.match.id}/control/', {'action': 'TRIGGER_HALF_TIME'}, format='json')
+        self.assertEqual(res_ht.status_code, 200)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.half_status, 'HALF_TIME')
+
+        # Conclude full time
+        res_ft = client.post(f'/api/matches/{self.match.id}/control/', {'action': 'CONCLUDE_FULL_TIME'}, format='json')
+        self.assertEqual(res_ft.status_code, 200)
+        self.match.refresh_from_db()
+        self.assertEqual(self.match.status, 'FINISHED')
+
+

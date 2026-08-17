@@ -2,8 +2,11 @@ import React, { useState } from 'react';
 import { X, LogIn, ShieldCheck, UserCheck, ShieldAlert, Sparkles, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../context/AuthContext';
+import useBodyScrollLock from '../../hooks/useBodyScrollLock';
 
 export default function AuthModal({ isOpen, onClose, onLoginSuccess, isRequired = false }) {
+  useBodyScrollLock(true);
+
   const { quickLogin } = useAuth();
   
   const [selectedRole, setSelectedRole] = useState('coach'); // 'coach' | 'admin'
@@ -35,7 +38,7 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess, isRequired 
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg font-sans dir-rtl">
+      <div className="fixed top-0 left-0 w-screen h-screen z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-lg font-sans dir-rtl">
         <motion.div
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}

@@ -107,3 +107,59 @@ class GrowthEngineTestCase(TestCase):
         match_ids = [m.id for m in self.matches]
         res = evaluate_player(self.star_striker, match_ids, "Week 6")
         self.assertEqual(res['status'], 'SKIPPED')
+
+
+from rest_framework.test import APITestCase
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
+class PlayerAndFacilityActionsTestCase(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="coach_user", password="password123")
+        self.team = Team.objects.create(name="FC Test", manager=self.user, budget=1000, gems=50)
+        self.facility = ClubFacilities.objects.create(team=self.team, gym_level=0)
+        self.player = Player.objects.create(
+            team=self.team, name="Injured Tired Player", age=25, position="CMF",
+            overall=82, base_stamina=80, virtual_stamina=20.0, is_locked=True,
+            is_injured=True, injury_return_date=timezone.now().date()
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_recover_stamina_success(self):
+        url = f"/api/players/{self.player.id}/recover_stamina/"
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        self.player.refresh_from_db()
+        self.team.refresh_from_db()
+        self.assertEqual(float(self.player.virtual_stamina), 70.0)
+        self.assertFalse(self.player.is_locked)
+        self.assertEqual(self.team.gems, 40) # 50 - 10
+
+    def test_recover_stamina_insufficient_gems(self):
+        self.team.gems = 5
+        self.team.save()
+        url = f"/api/players/{self.player.id}/recover_stamina/"
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('جم کافی نیست', response.data['error'])
+
+    def test_heal_injury_success(self):
+        url = f"/api/players/{self.player.id}/heal_injury/"
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        self.player.refresh_from_db()
+        self.team.refresh_from_db()
+        self.assertFalse(self.player.is_injured)
+        self.assertIsNone(self.player.injury_return_date)
+        self.assertEqual(self.team.gems, 25) # 50 - 25
+
+    def test_facility_upgrade_with_gems(self):
+        url = f"/api/teams/{self.team.id}/upgrade_facility/"
+        response = self.client.post(url, {'facility': 'gym_level'})
+        self.assertEqual(response.status_code, 200)
+        self.facility.refresh_from_db()
+        self.team.refresh_from_db()
+        self.assertEqual(self.facility.gym_level, 1)
+        self.assertEqual(self.team.gems, 35) # lvl 0 cost = 15 -> 50 - 15 = 35
+

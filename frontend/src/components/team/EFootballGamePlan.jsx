@@ -2,22 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { Shield, Users, AlertCircle, ArrowLeftRight, User, Sliders } from 'lucide-react';
 import { motion } from 'framer-motion';
 import CustomSelect from '../common/CustomSelect';
+import { getTeamLogoUrl } from '../../utils/teamLogos';
 
 // Color map for position badges matching eFootball standard (13 official positions)
 const POSITION_COLORS = {
-  GK: 'bg-[#d9a000] text-black',
-  CB: 'bg-[#007ba7] text-white',
-  LB: 'bg-[#007ba7] text-white',
-  RB: 'bg-[#007ba7] text-white',
-  DMF: 'bg-[#008a3c] text-white',
-  CMF: 'bg-[#008a3c] text-white',
-  AMF: 'bg-[#008a3c] text-white',
-  LMF: 'bg-[#008a3c] text-white',
-  RMF: 'bg-[#008a3c] text-white',
-  LWF: 'bg-[#c80058] text-white',
-  RWF: 'bg-[#c80058] text-white',
-  SS: 'bg-[#c80058] text-white',
-  CF: 'bg-[#c80058] text-white',
+  GK: 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black',
+  CB: 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold',
+  LB: 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold',
+  RB: 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold',
+  DMF: 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold',
+  CMF: 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold',
+  AMF: 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold',
+  LMF: 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold',
+  RMF: 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold',
+  LWF: 'bg-gradient-to-r from-rose-600 to-pink-600 text-white font-bold',
+  RWF: 'bg-gradient-to-r from-rose-600 to-pink-600 text-white font-bold',
+  SS: 'bg-gradient-to-r from-rose-600 to-pink-600 text-white font-bold',
+  CF: 'bg-gradient-to-r from-rose-600 to-pink-600 text-white font-bold',
 };
 
 // Tactical Descriptions for exact 13 standard pitch positions
@@ -240,7 +241,9 @@ export default function EFootballGamePlan({
   hideReserves = false,
   initialStartingXi = DEFAULT_STARTING_XI,
   initialSubstitutes = DEFAULT_SUBSTITUTES,
+  initialReserves = DEFAULT_RESERVES,
   onFormationChange,
+  onLineupChange,
   isLiveMode = false,
   matchState = 'FIRST_HALF', // 'FIRST_HALF', 'HALF_TIME', 'SECOND_HALF', 'FINISHED'
   halfTimeSeconds = 30,
@@ -250,23 +253,125 @@ export default function EFootballGamePlan({
   isAdminMode = false,
   onPushLiveEvent,
 }) {
-  const [currentFormation, setCurrentFormation] = useState(initialFormationProp || '4-3-3 (4-2-1-3)');
-  const [startingXi, setStartingXi] = useState(() =>
-    initialStartingXi.map((p) => ({ ...p, naturalPosition: p.naturalPosition || p.position }))
-  );
+  // Helper to match DB short formations (e.g. '4-3-3') to full presets (e.g. '4-3-3 (4-2-1-3)')
+  const getResolvedFormation = (form) => {
+
+    if (FORMATION_PRESETS[form]) return form;
+    if (form) {
+      const match = Object.keys(FORMATION_PRESETS).find(f => f.startsWith(form));
+      if (match) return match;
+    }
+    return '4-3-3 (4-2-1-3)';
+  };
+
+  // Helper to intelligently match players to tactical slots based on their natural position
+  const matchPlayersToFormation = (players, preset) => {
+    if (!preset) return players;
+    const unassignedPlayers = [...players];
+    const availableSlots = [...preset];
+    const newXi = new Array(players.length).fill(null);
+
+    // Pass 1: Exact Natural Position Match
+    for (let i = 0; i < availableSlots.length; i++) {
+      if (availableSlots[i] === null) continue;
+      const targetPos = availableSlots[i].pos;
+      const playerIndex = unassignedPlayers.findIndex(
+        p => p && (p.naturalPosition || p.position) === targetPos
+      );
+
+      if (playerIndex !== -1) {
+        newXi[i] = {
+          ...unassignedPlayers[playerIndex],
+          naturalPosition: unassignedPlayers[playerIndex].naturalPosition || unassignedPlayers[playerIndex].position,
+          position: targetPos,
+          x_coord: availableSlots[i].x,
+          y_coord: availableSlots[i].y,
+        };
+        unassignedPlayers[playerIndex] = null;
+        availableSlots[i] = null;
+      }
+    }
+
+    // Pass 2: Fill remaining slots with remaining players
+    for (let i = 0; i < availableSlots.length; i++) {
+      if (availableSlots[i] !== null) {
+        const playerIndex = unassignedPlayers.findIndex(p => p !== null);
+        if (playerIndex !== -1) {
+          newXi[i] = {
+            ...unassignedPlayers[playerIndex],
+            naturalPosition: unassignedPlayers[playerIndex].naturalPosition || unassignedPlayers[playerIndex].position,
+            position: availableSlots[i].pos,
+            x_coord: availableSlots[i].x,
+            y_coord: availableSlots[i].y,
+          };
+          unassignedPlayers[playerIndex] = null;
+        }
+      }
+    }
+    
+    // Fallback for any leftovers
+    return newXi.map((p, idx) => p || { ...players[idx], naturalPosition: players[idx].naturalPosition || players[idx].position });
+  };
+
+  const resolvedInitialFormation = getResolvedFormation(initialFormationProp);
+  const [currentFormation, setCurrentFormation] = useState(resolvedInitialFormation);
+
+  const [startingXi, setStartingXi] = useState(() => {
+    const preset = FORMATION_PRESETS[resolvedInitialFormation];
+    // If any player lacks valid coordinates, auto-layout the entire squad
+    const needsAutoLayout = initialStartingXi.some(p => p.x_coord == null || p.y_coord == null || (p.x_coord === 0 && p.y_coord === 0));
+    
+    if (!needsAutoLayout) {
+      return initialStartingXi.map(p => ({
+        ...p,
+        naturalPosition: p.naturalPosition || p.position,
+      }));
+    }
+
+    return matchPlayersToFormation(initialStartingXi, preset);
+  });
   const [substitutes, setSubstitutes] = useState(() =>
     initialSubstitutes.map((p) => ({ ...p, naturalPosition: p.naturalPosition || p.position }))
   );
   const [reserves, setReserves] = useState(() =>
-    DEFAULT_RESERVES.map((p) => ({ ...p, naturalPosition: p.naturalPosition || p.position }))
+    initialReserves.map((p) => ({ ...p, naturalPosition: p.naturalPosition || p.position }))
   );
 
   // Sync formation prop changes if any
   useEffect(() => {
-    if (initialFormationProp && initialFormationProp !== currentFormation) {
-      handleFormationChange(initialFormationProp, false);
+    const resolved = getResolvedFormation(initialFormationProp);
+    if (resolved && resolved !== currentFormation) {
+      handleFormationChange(resolved, false);
     }
   }, [initialFormationProp]);
+
+  // Sync squad props when loaded asynchronously
+  useEffect(() => {
+    if (initialStartingXi && initialStartingXi.length > 0) {
+      const preset = FORMATION_PRESETS[getResolvedFormation(initialFormationProp)];
+      const needsAutoLayout = initialStartingXi.some(p => p.x_coord == null || p.y_coord == null || (p.x_coord === 0 && p.y_coord === 0));
+      if (!needsAutoLayout) {
+        setStartingXi(initialStartingXi.map(p => ({
+          ...p,
+          naturalPosition: p.naturalPosition || p.position,
+        })));
+      } else if (preset) {
+        setStartingXi(matchPlayersToFormation(initialStartingXi, preset));
+      }
+    }
+  }, [initialStartingXi]);
+
+  useEffect(() => {
+    if (initialSubstitutes) {
+      setSubstitutes(initialSubstitutes.map((p) => ({ ...p, naturalPosition: p.naturalPosition || p.position })));
+    }
+  }, [initialSubstitutes]);
+
+  useEffect(() => {
+    if (initialReserves) {
+      setReserves(initialReserves.map((p) => ({ ...p, naturalPosition: p.naturalPosition || p.position })));
+    }
+  }, [initialReserves]);
 
   // Interactive Swap & Admin Event Modal States
   const [selectedPitchPlayerId, setSelectedPitchPlayerId] = useState(null);
@@ -292,23 +397,17 @@ export default function EFootballGamePlan({
     if (!preset) return;
 
     setCurrentFormation(newFormation);
-    setStartingXi((prevXi) => {
-      return prevXi.map((p, index) => {
-        const targetPos = preset[index] || preset[preset.length - 1];
-        return {
-          ...p,
-          position: targetPos.pos,
-          x_coord: targetPos.x,
-          y_coord: targetPos.y,
-        };
-      });
-    });
+    const updatedXi = matchPlayersToFormation(startingXi, preset);
+    setStartingXi(updatedXi);
 
     if (notify) {
       showNotification(`چیدمان تیمی به ${newFormation} تغییر یافت.`);
     }
     if (onFormationChange) {
       onFormationChange(newFormation);
+    }
+    if (onLineupChange) {
+      onLineupChange({ startingXi: updatedXi, substitutes, reserves, formation: newFormation });
     }
   };
 
@@ -537,7 +636,7 @@ export default function EFootballGamePlan({
     if (readOnly) return;
 
     // Official Football Rule: Once subbed out, a player cannot re-enter the pitch
-    if (clickedBenchPlayer.isSubbedOut) {
+    if (isLiveMode && clickedBenchPlayer.isSubbedOut) {
       showNotification(`🚫 بازیکن «${clickedBenchPlayer.name}» تعویض شده است و طبق قوانین رسمی فوتبال دیگر نمی‌تواند به زمین بازی بازگردد.`);
       return;
     }
@@ -596,6 +695,9 @@ export default function EFootballGamePlan({
 
     setStartingXi(updatedXi);
     showNotification(`پست تاکتیکی «${p1.name}» و «${p2.name}» روی چمن جابجا شد.`);
+    if (onLineupChange) {
+      onLineupChange({ startingXi: updatedXi, substitutes, reserves, formation: currentFormation });
+    }
   };
 
   // Swap two bench or reserve players (between bench-bench, reserve-reserve, or bench-reserve)
@@ -613,34 +715,48 @@ export default function EFootballGamePlan({
 
     // Case A: Both in bench substitutes list
     if (isSub1 && isSub2) {
-      setSubstitutes((prev) =>
-        prev.map((item) => (item.id === id1 ? p2 : item.id === id2 ? p1 : item))
-      );
+      const newSubs = substitutes.map((item) => (item.id === id1 ? p2 : item.id === id2 ? p1 : item));
+      setSubstitutes(newSubs);
       showNotification(`جابجایی روی نیمکت: جایگاه «${p1.name}» و «${p2.name}» تعویض شد 🔄`);
+      if (onLineupChange) {
+        onLineupChange({ startingXi, substitutes: newSubs, reserves, formation: currentFormation });
+      }
       return;
     }
 
     // Case B: Both in reserves list
     if (isRes1 && isRes2) {
-      setReserves((prev) =>
-        prev.map((item) => (item.id === id1 ? p2 : item.id === id2 ? p1 : item))
-      );
+      const newRes = reserves.map((item) => (item.id === id1 ? p2 : item.id === id2 ? p1 : item));
+      setReserves(newRes);
       showNotification(`جابجایی در رختکن: جایگاه «${p1.name}» و «${p2.name}» تعویض شد 🔄`);
+      if (onLineupChange) {
+        onLineupChange({ startingXi, substitutes, reserves: newRes, formation: currentFormation });
+      }
       return;
     }
 
     // Case C: Cross swap between substitutes and reserves
     if (isSub1 && isRes2) {
-      setSubstitutes((prev) => prev.map((item) => (item.id === id1 ? p2 : item)));
-      setReserves((prev) => prev.map((item) => (item.id === id2 ? p1 : item)));
+      const newSubs = substitutes.map((item) => (item.id === id1 ? p2 : item));
+      const newRes = reserves.map((item) => (item.id === id2 ? p1 : item));
+      setSubstitutes(newSubs);
+      setReserves(newRes);
       showNotification(`ورود «${p2.name}» به نیمکت ذخیره‌ها و انتقال «${p1.name}» به خارج از ترکیب 🔄`);
+      if (onLineupChange) {
+        onLineupChange({ startingXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
+      }
       return;
     }
 
     if (isRes1 && isSub2) {
-      setReserves((prev) => prev.map((item) => (item.id === id1 ? p2 : item)));
-      setSubstitutes((prev) => prev.map((item) => (item.id === id2 ? p1 : item)));
+      const newRes = reserves.map((item) => (item.id === id1 ? p2 : item));
+      const newSubs = substitutes.map((item) => (item.id === id2 ? p1 : item));
+      setReserves(newRes);
+      setSubstitutes(newSubs);
       showNotification(`ورود «${p1.name}» به نیمکت ذخیره‌ها و انتقال «${p2.name}» به خارج از ترکیب 🔄`);
+      if (onLineupChange) {
+        onLineupChange({ startingXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
+      }
       return;
     }
   };
@@ -669,12 +785,13 @@ export default function EFootballGamePlan({
       x_coord: pitchPlayer.x_coord,
       y_coord: pitchPlayer.y_coord,
       face: benchPlayer.face || pitchPlayer.face,
+      is_starting: true,
     };
 
     const updatedXi = startingXi.map((p) => (p.id === pitchId ? newPitchPlayer : p));
     setStartingXi(updatedXi);
 
-    // 2. Move pitch player to bench: RESTORED to their naturalPosition and marked as permanently subbed out!
+    // 2. Move pitch player to bench: RESTORED to their naturalPosition and marked as permanently subbed out (ONLY in live mode)!
     const newBenchPlayer = {
       ...pitchPlayer,
       naturalPosition: pitchNaturalPos,
@@ -682,17 +799,25 @@ export default function EFootballGamePlan({
       x_coord: undefined,
       y_coord: undefined,
       face: pitchPlayer.face,
-      isSubbedOut: true, // Official football rule: once subbed out, cannot re-enter pitch
+      is_starting: false,
+      isSubbedOut: isLiveMode ? true : false, // Official football rule: once subbed out, cannot re-enter pitch (only in match mode)
     };
 
+    let newSubs = substitutes;
+    let newRes = reserves;
     const isBenchSub = substitutes.some((b) => b.id === benchId);
     if (isBenchSub) {
-      setSubstitutes((prev) => prev.map((b) => (b.id === benchId ? newBenchPlayer : b)));
+      newSubs = substitutes.map((b) => (b.id === benchId ? newBenchPlayer : b));
+      setSubstitutes(newSubs);
     } else {
-      setReserves((prev) => prev.map((b) => (b.id === benchId ? newBenchPlayer : b)));
+      newRes = reserves.map((b) => (b.id === benchId ? newBenchPlayer : b));
+      setReserves(newRes);
     }
 
     showNotification(`تعویض تاکتیکی: ورود ${benchPlayer.name} به جای ${pitchPlayer.name} 🔄`);
+    if (onLineupChange) {
+      onLineupChange({ startingXi: updatedXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
+    }
   };
 
   const activeSelectedPlayer =
@@ -709,8 +834,12 @@ export default function EFootballGamePlan({
       {/* 1. TOP HEADER BANNER */}
       <div className="bg-[#180026] text-white px-4 py-3.5 md:px-5 md:py-4 flex items-center justify-between border-b-2 border-[#e6007e]/40 shadow-md">
         <div className="flex items-center gap-3 md:gap-4">
-          <div className="w-10 h-10 md:w-11 md:h-11 rounded-full bg-rose-700/20 border-2 border-rose-500/60 p-1 flex items-center justify-center shadow-md">
-            <Shield size={22} className="text-rose-500 fill-rose-500/30" />
+          <div className="w-11 h-11 md:w-12 md:h-12 rounded-2xl team-crest-badge p-1 flex items-center justify-center shadow-md overflow-hidden shrink-0">
+            {getTeamLogoUrl(teamName) ? (
+              <img src={getTeamLogoUrl(teamName)} alt={teamName} className="w-full h-full object-contain" />
+            ) : (
+              <Shield size={22} className="text-slate-800 fill-slate-800/30" />
+            )}
           </div>
           <div>
             <h2 className="text-lg md:text-2xl font-black tracking-wide uppercase font-mono leading-tight">
@@ -774,10 +903,10 @@ export default function EFootballGamePlan({
 
         {/* FORMATION SELECTOR BAR (در بالای زمین چمن) */}
         {!readOnly && (
-          <div className="bg-[#180026]/90 p-3 rounded-2xl border border-purple-500/40 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
+          <div className="bg-[#080c14]/90 p-3.5 rounded-2xl border border-cyan-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur-xl">
             <div className="flex items-center gap-2">
               <Sliders size={18} className="text-cyan-400" />
-              <span className="text-xs font-bold text-white">انتخاب ترکیب چیدمان تیمی (Formation):</span>
+              <span className="text-xs font-black text-white">انتخاب ترکیب چیدمان تیمی (Formation):</span>
             </div>
             <div className="w-full sm:w-64">
               <CustomSelect
@@ -796,19 +925,19 @@ export default function EFootballGamePlan({
           <motion.div
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-[#180026]/95 p-3.5 rounded-2xl border border-purple-500/40 text-white space-y-1 shadow-lg"
+            className="fc-card-elevated p-3.5 rounded-2xl border border-cyan-500/30 text-white space-y-1.5 shadow-xl"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className={`text-[9.5px] font-black px-2 py-0.5 rounded shadow ${POSITION_COLORS[displayPosCode] || 'bg-purple-600'}`}>
                   {displayPosCode}
                 </span>
-                <span className="font-bold text-xs text-white">
+                <span className="font-black text-xs text-white">
                   {POSITION_INFO[displayPosCode].title} ({POSITION_INFO[displayPosCode].englishTitle})
                 </span>
               </div>
-              <span className="text-[11px] text-cyan-300 font-bold">
-                {activeSelectedPlayer.name} — OVR: {activeSelectedPlayer.overall}
+              <span className="text-[11px] text-cyan-300 font-bold font-sport">
+                {activeSelectedPlayer.name} — OVR: <strong className="text-amber-300 font-black">{activeSelectedPlayer.overall}</strong>
                 {activeSelectedPlayer.naturalPosition && activeSelectedPlayer.naturalPosition !== activeSelectedPlayer.position && selectedPitchPlayerId && (
                   <span className="text-purple-300 font-normal mr-2"> (پست اصلی: {activeSelectedPlayer.naturalPosition})</span>
                 )}
@@ -821,19 +950,33 @@ export default function EFootballGamePlan({
         )}
 
         {/* TOP: GREEN FOOTBALL PITCH CONTAINER */}
-        <div className="bg-[#250033] rounded-3xl p-3 md:p-5 border-2 border-[#e6007e]/50 shadow-2xl relative overflow-hidden flex flex-col justify-between min-h-[600px] md:min-h-[700px]">
-          {/* Pitch Lines (Neon Pink Line Art) */}
-          <div className="absolute inset-3 border-2 border-[#e6007e]/70 rounded-2xl pointer-events-none"></div>
+        <div className="fc-pitch-turf rounded-3xl p-3 md:p-5 border-2 border-cyan-500/40 shadow-[0_20px_50px_rgba(0,0,0,0.85)] relative flex flex-col justify-between min-h-[600px] md:min-h-[700px] overflow-hidden select-none">
+          {/* Turf Mowing Stripes & Center Spotlight */}
+          <div className="absolute inset-0 fc-pitch-mow-stripes opacity-70 pointer-events-none"></div>
+          <div 
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[450px] h-[450px] rounded-full pointer-events-none"
+            style={{
+              background: 'radial-gradient(circle, rgba(0, 243, 255, 0.08) 0%, rgba(0, 255, 135, 0.04) 50%, transparent 80%)',
+            }}
+          />
+
+          {/* Pitch Lines (Neon Cyan Line Art) */}
+          <div className="absolute inset-3 border-2 border-cyan-400/60 rounded-2xl pointer-events-none shadow-[0_0_15px_rgba(0,243,255,0.2)]"></div>
 
           {/* Penalty Boxes & Circle */}
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-48 md:w-64 h-24 md:h-32 border-2 border-[#e6007e]/70 border-t-0 rounded-b-2xl pointer-events-none"></div>
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-48 md:w-64 h-24 md:h-32 border-2 border-[#e6007e]/70 border-b-0 rounded-t-2xl pointer-events-none"></div>
-          <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-[#e6007e]/70 pointer-events-none"></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 md:w-40 h-28 md:h-40 rounded-full border-2 border-[#e6007e]/70 pointer-events-none"></div>
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-48 md:w-64 h-24 md:h-32 border-2 border-cyan-400/60 border-t-0 rounded-b-2xl pointer-events-none overflow-hidden">
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-10 border-2 border-cyan-400/40 border-t-0 rounded-b-xl"></div>
+          </div>
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-48 md:w-64 h-24 md:h-32 border-2 border-cyan-400/60 border-b-0 rounded-t-2xl pointer-events-none overflow-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-10 border-2 border-cyan-400/40 border-b-0 rounded-t-xl"></div>
+          </div>
+          <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-cyan-400/60 pointer-events-none shadow-[0_0_8px_rgba(0,243,255,0.3)]"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 md:w-40 h-28 md:h-40 rounded-full border-2 border-cyan-400/60 pointer-events-none"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-cyan-300 pointer-events-none shadow-[0_0_10px_#00f3ff]"></div>
 
           {/* Watermark Logo Overlay */}
-          <div className="absolute inset-0 flex items-center justify-center opacity-15 pointer-events-none">
-            <Shield size={160} className="text-[#e6007e]" />
+          <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
+            <Shield size={160} className="text-cyan-400" />
           </div>
 
           {/* PLAYERS ON PITCH */}
@@ -841,6 +984,20 @@ export default function EFootballGamePlan({
             {startingXi.map((player) => {
               const isSelected = selectedPitchPlayerId === player.id;
               const isDimmed = selectedPitchPlayerId && !isSelected;
+              const posCode = player.position || player.naturalPosition || 'CMF';
+
+              // Readiness / Stamina Calculation (linked with facilities & fatigue formula)
+              const staminaPercent = Math.max(5, Math.min(100, Math.round(Number(player.stamina ?? player.virtual_stamina ?? 90))));
+              const staminaColorClass =
+                staminaPercent >= 80
+                  ? 'bg-[#00ff87] shadow-[0_0_8px_#00ff87]'
+                  : staminaPercent >= 50
+                  ? 'bg-cyan-400 shadow-[0_0_8px_#00f3ff]'
+                  : staminaPercent >= 30
+                  ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'
+                  : 'bg-rose-500 shadow-[0_0_8px_#f43f5e] animate-pulse';
+
+              const photoUrl = player.photo_url || player.image || player.avatar || null;
 
               return (
                 <motion.div
@@ -850,7 +1007,7 @@ export default function EFootballGamePlan({
                   animate={{
                     left: `${player.x_coord}%`,
                     top: `${player.y_coord}%`,
-                    scale: isSelected ? 1.15 : 1,
+                    scale: isSelected ? 1.12 : 1,
                     opacity: isDimmed ? 0.35 : 1,
                   }}
                   transition={{
@@ -859,20 +1016,20 @@ export default function EFootballGamePlan({
                     scale: { duration: 0.2 },
                     opacity: { duration: 0.2 },
                   }}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center cursor-pointer group z-10 hover:z-30 transition-all active:scale-105 ${
-                    isSelected ? 'ring-4 ring-cyan-400 rounded-full p-1 bg-cyan-950/80 shadow-2xl animate-pulse' : ''
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 w-[86px] md:w-[96px] flex flex-col items-center cursor-pointer group z-10 hover:z-30 transition-all active:scale-105 ${
+                    isSelected ? 'ring-4 ring-cyan-400 rounded-2xl p-1 bg-cyan-950/90 shadow-[0_0_30px_rgba(0,243,255,0.7)] animate-pulse' : ''
                   }`}
                 >
                   {/* Player Avatar Container + Floating Event Badges Next To Photo */}
                   <div className="relative flex items-center justify-center">
                     {/* Floating Event Badges Next To Avatar (Top-Right / Beside Avatar) */}
                     {(player.goals > 0 || player.assists > 0 || player.yellowCards > 0 || player.isRed || player.isInjured) && (
-                      <div className="absolute -top-2 -right-7 flex flex-col items-start gap-0.5 pointer-events-none z-30 drop-shadow-md">
+                      <div className="absolute -top-2 -right-6 flex flex-col items-start gap-0.5 pointer-events-none z-30 drop-shadow-md">
                         {player.goals > 0 && (
                           <motion.span
                             initial={{ scale: 0, x: -5 }}
                             animate={{ scale: 1, x: 0 }}
-                            className="text-[9.5px] bg-emerald-950/95 text-emerald-300 px-1.5 py-0.2 rounded-full border border-emerald-400 font-black font-mono shadow-lg flex items-center gap-0.5 whitespace-nowrap"
+                            className="text-[9px] bg-emerald-950/95 text-emerald-300 px-1.5 py-0.2 rounded-full border border-emerald-400 font-black font-sport shadow-lg flex items-center gap-0.5 whitespace-nowrap"
                           >
                             ⚽🔥{player.goals > 1 ? `x${player.goals}` : ''}
                           </motion.span>
@@ -881,93 +1038,129 @@ export default function EFootballGamePlan({
                           <motion.span
                             initial={{ scale: 0, x: -5 }}
                             animate={{ scale: 1, x: 0 }}
-                            className="text-[9.5px] bg-cyan-950/95 text-cyan-300 px-1.5 py-0.2 rounded-full border border-cyan-400 font-black font-mono shadow-lg flex items-center gap-0.5 whitespace-nowrap"
+                            className="text-[9px] bg-cyan-950/95 text-cyan-300 px-1.5 py-0.2 rounded-full border border-cyan-400 font-black font-sport shadow-lg flex items-center gap-0.5 whitespace-nowrap"
                           >
                             🅰️🎯{player.assists > 1 ? `x${player.assists}` : ''}
                           </motion.span>
                         )}
                         {player.yellowCards === 1 && (
-                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-[11px] drop-shadow-lg">
+                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-[10px] drop-shadow-lg">
                             🟨⚠️
                           </motion.span>
                         )}
                         {player.yellowCards === 2 && (
-                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-[11px] drop-shadow-lg">
+                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-[10px] drop-shadow-lg">
                             🟨🟨 🟥⛔
                           </motion.span>
                         )}
                         {player.isRed && (
-                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-[11px] drop-shadow-lg">
+                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-[10px] drop-shadow-lg">
                             🟥⛔
                           </motion.span>
                         )}
                         {player.isInjured && (
-                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-[11px] drop-shadow-lg animate-pulse">
+                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-[10px] drop-shadow-lg animate-pulse">
                             🚑🩹
                           </motion.span>
                         )}
                       </div>
                     )}
 
-                    {/* Face Cutout Avatar (Icon) - Clean & Unobstructed */}
-                    <div className={`relative flex items-center justify-center w-10 h-10 md:w-13 md:h-13 rounded-full overflow-hidden border-2 shadow-md transition-all ${
+                    {/* FUT Portrait Photo Card Frame (1:1.15 Ratio) */}
+                    <div className={`relative flex items-center justify-center w-12 h-14 md:w-14 md:h-16 rounded-2xl overflow-hidden border-2 shadow-xl transition-all ${
                       player.isRed
                         ? 'border-rose-600 ring-2 ring-rose-600/80 bg-rose-950/90 text-rose-300 opacity-60 grayscale'
                         : player.isInjured
                         ? 'border-amber-500 ring-2 ring-amber-500/80 bg-amber-950/90 text-amber-300 animate-pulse'
                         : player.goals > 0
-                        ? 'border-emerald-400 ring-2 ring-emerald-400/60 bg-emerald-950/70'
+                        ? 'border-emerald-400 ring-2 ring-emerald-400/60 bg-emerald-950/80'
                         : isSelected
-                        ? 'border-cyan-400 bg-cyan-900/50 ring-2 ring-cyan-400'
-                        : 'border-white/80 bg-slate-900 group-hover:border-[#e6007e]'
+                        ? 'border-cyan-400 bg-cyan-900/70 ring-2 ring-cyan-400 shadow-[0_0_20px_rgba(0,243,255,0.6)]'
+                        : 'border-slate-400/60 bg-gradient-to-b from-[#0d162a] to-[#05080e] group-hover:border-cyan-400 group-hover:shadow-[0_0_15px_rgba(0,243,255,0.4)]'
                     }`}>
-                      <User size={28} className="text-slate-400 opacity-70" />
+                      {photoUrl ? (
+                        <img
+                          src={photoUrl}
+                          alt={player.name}
+                          className="w-full h-full object-cover object-top"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            if (e.currentTarget.nextSibling) {
+                              e.currentTarget.nextSibling.style.display = 'flex';
+                            }
+                          }}
+                        />
+                      ) : null}
+
+                      {/* Fallback Avatar Icon */}
+                      <div className={`w-full h-full flex items-center justify-center bg-gradient-to-b from-[#0f172a] to-[#05080e] ${photoUrl ? 'hidden' : 'flex'}`}>
+                        <User size={26} className="text-slate-300 opacity-85" />
+                      </div>
+
+                      {/* Shirt Number Tag Overlay */}
+                      {player.shirt_number != null && (
+                        <span className="absolute bottom-0 right-0 bg-[#05080e]/95 text-cyan-300 text-[8px] md:text-[9px] font-sport font-black px-1 rounded-tl-md border-t border-l border-cyan-500/30">
+                          #{player.shirt_number}
+                        </span>
+                      )}
                     </div>
                   </div>
 
-                  {/* Badge Pill: Position + OVR Rating */}
-                  <div className="flex items-center gap-0.5 md:gap-1 mt-0.5 shadow-md">
+                  {/* Badge Pill: Position + Championship Gold OVR Rating */}
+                  <div className="flex items-center gap-1 mt-1 shadow-lg z-10">
                     <span
-                      className={`text-[8.5px] md:text-[10px] font-black px-1.5 py-0.2 rounded-sm shadow ${
-                        POSITION_COLORS[player.position] || 'bg-purple-600 text-white'
+                      className={`text-[8px] md:text-[9px] px-1.5 py-0.2 rounded-md shadow ${
+                        POSITION_COLORS[posCode] || 'bg-purple-600 text-white font-bold'
                       }`}
                     >
-                      {player.position}
+                      {posCode}
                     </span>
-                    <span className="text-[10.5px] md:text-xs font-black text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] font-mono">
+                    <span className="text-[10.5px] md:text-xs font-black text-amber-300 bg-amber-950/90 border border-amber-400/50 px-1 rounded-md drop-shadow font-sport tracking-wide">
                       {player.overall}
                     </span>
                   </div>
 
                   {/* Player Name Tag */}
-                  <span className="text-[9px] md:text-[11px] font-bold text-white tracking-tight drop-shadow-[0_1.5px_3px_rgba(0,0,0,0.9)] text-center whitespace-nowrap leading-none mt-0.5">
+                  <span className="text-[9px] md:text-[10px] font-black text-white tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] text-center whitespace-nowrap leading-none mt-0.5 max-w-[84px] md:max-w-[92px] truncate bg-[#05080e]/80 px-1.5 py-0.5 rounded-md border border-white/10">
                     {player.isCaptain && (
-                      <span className="bg-amber-400 text-black font-black text-[7.5px] md:text-[8px] px-1 ml-0.5 rounded">
+                      <span className="bg-amber-400 text-black font-black text-[7.5px] px-1 ml-0.5 rounded">
                         C
                       </span>
                     )}
                     {player.name}
                   </span>
+
+                  {/* Stamina / Readiness Bar under Player Name */}
+                  <div 
+                    className="w-13 md:w-15 h-1.5 bg-[#05080e]/95 rounded-full overflow-hidden border border-white/15 p-0.2 mt-0.5 shadow-inner"
+                    title={`میزان آمادگی و استقامت: ${staminaPercent}٪`}
+                  >
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${staminaColorClass}`}
+                      style={{ width: `${staminaPercent}%` }}
+                    ></div>
+                  </div>
                 </motion.div>
               );
             })}
           </div>
 
           {/* Formation Label */}
-          <div className="relative z-20 text-right pt-1 pr-1">
-            <span className="text-xl md:text-3xl font-black text-white font-mono tracking-wider drop-shadow-md">
+          <div className="relative z-20 text-right pt-1 pr-1 flex justify-between items-end bg-[#080c14]/70 p-2.5 rounded-2xl border border-white/10 backdrop-blur-md">
+            <span className="text-xs text-cyan-300 font-bold">ترکیب چیدمان تیمی</span>
+            <span className="text-xl md:text-3xl font-black text-white font-sport tracking-wider drop-shadow-md">
               {currentFormation}
             </span>
           </div>
         </div>
 
         {/* BOTTOM: BENCH & RESERVES CONTAINER (زیر چمن) */}
-        <div className="bg-slate-900/90 rounded-3xl p-4 md:p-5 border-2 border-purple-900/40 text-white shadow-2xl space-y-4">
+        <div className="bg-[#080c14]/90 rounded-3xl p-4 md:p-5 border border-slate-700/60 text-white shadow-2xl space-y-4 backdrop-blur-xl">
           {/* SECTION 1: BENCH SUBSTITUTES (نیمکت ذخیره‌ها) */}
           <div className="space-y-2.5">
             <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-              <span className="font-black text-sm md:text-base text-purple-300 flex items-center gap-2">
-                <Users size={18} className="text-purple-400" />
+              <span className="font-black text-sm md:text-base text-cyan-300 flex items-center gap-2">
+                <Users size={18} className="text-cyan-400" />
                 <span>بازیکنان نیمکت ذخیره (Substitutes - {substitutes.length} نفر)</span>
               </span>
               <span className="text-[11px] text-slate-400">کلیک جهت جابجایی دو بازیکن نیمکت یا تعویض با چمن</span>
@@ -978,6 +1171,15 @@ export default function EFootballGamePlan({
                 const isSelected = selectedBenchPlayerId === sub.id;
                 const natPos = sub.naturalPosition || sub.position;
                 const isOut = sub.isSubbedOut;
+                const subStamina = Math.max(5, Math.min(100, Math.round(Number(sub.stamina ?? sub.virtual_stamina ?? 90))));
+                const subStaminaColor =
+                  subStamina >= 80
+                    ? 'bg-[#00ff87]'
+                    : subStamina >= 50
+                    ? 'bg-cyan-400'
+                    : subStamina >= 30
+                    ? 'bg-amber-400'
+                    : 'bg-rose-500';
 
                 return (
                   <div
@@ -987,29 +1189,50 @@ export default function EFootballGamePlan({
                       isOut
                         ? 'opacity-65 bg-rose-950/40 border-rose-800/60 grayscale cursor-not-allowed hover:border-rose-600'
                         : isSelected
-                        ? 'bg-gradient-to-r from-purple-900 to-indigo-900 border-2 border-cyan-400 scale-105 shadow-xl ring-2 ring-cyan-400 animate-pulse'
-                        : 'bg-slate-800/80 border-slate-700 hover:border-purple-500/60 hover:bg-slate-800'
+                        ? 'bg-gradient-to-r from-cyan-950 to-purple-950 border-2 border-cyan-400 scale-105 shadow-[0_0_20px_rgba(0,243,255,0.4)] ring-2 ring-cyan-400 animate-pulse'
+                        : 'bg-[#0f172a]/80 border-slate-700/60 hover:border-cyan-400/60 hover:bg-slate-800'
                     }`}
                   >
                     {isOut && (
-                      <span className="absolute top-1 right-1 text-[7px] font-black bg-rose-600 text-white px-1 py-0.2 rounded-full flex items-center gap-0.5 shadow z-10">
+                      <span className="absolute top-1 right-1 text-[7px] font-black bg-rose-600 text-white px-1 py-0.2 rounded-full flex items-center gap-0.5 shadow z-10 font-sport">
                         ↩️ OUT
                       </span>
                     )}
 
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center border border-slate-600 mb-1 bg-slate-900">
-                      <User size={18} className={isOut ? 'text-rose-400 opacity-60' : 'text-slate-400 opacity-70'} />
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-slate-600 mb-1 bg-[#05080e] relative overflow-hidden shadow-inner">
+                      {sub.photo_url || sub.image || sub.avatar ? (
+                        <img
+                          src={sub.photo_url || sub.image || sub.avatar}
+                          alt={sub.name}
+                          className="w-full h-full object-cover object-top"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <User size={18} className={isOut ? 'text-rose-400 opacity-60' : 'text-slate-400 opacity-70'} />
+                      )}
+                      {sub.shirt_number != null && (
+                        <span className="absolute bottom-0 right-0 bg-[#05080e]/95 text-cyan-300 text-[7px] font-sport font-black px-0.5 rounded-tl border-t border-l border-cyan-500/40">
+                          #{sub.shirt_number}
+                        </span>
+                      )}
                     </div>
 
-                    <span className={`font-bold text-[9.5px] leading-tight w-full break-words min-h-[26px] flex items-center justify-center line-clamp-2 ${isOut ? 'line-through text-slate-400' : 'text-white'}`}>
+                    <span className={`font-black text-[9px] leading-tight w-full truncate max-w-[70px] ${isOut ? 'line-through text-slate-400' : 'text-white'}`}>
                       {sub.name}
                     </span>
 
+                    {/* Stamina Meter */}
+                    <div className="w-11 h-1 bg-[#05080e] rounded-full overflow-hidden border border-white/10 mt-1">
+                      <div className={`h-full rounded-full ${subStaminaColor}`} style={{ width: `${subStamina}%` }}></div>
+                    </div>
+
                     <div className="flex items-center gap-1 mt-1">
-                      <span className={`text-[8px] font-black px-1.5 py-0.2 rounded ${POSITION_COLORS[natPos] || 'bg-slate-700 text-white'}`}>
+                      <span className={`text-[7.5px] font-black px-1 rounded ${POSITION_COLORS[natPos] || 'bg-slate-700 text-white'}`}>
                         {natPos}
                       </span>
-                      <span className="font-mono text-[10px] font-bold text-purple-300">{sub.overall}</span>
+                      <span className="font-sport text-[10.5px] font-black text-amber-300">{sub.overall}</span>
                     </div>
                   </div>
                 );
@@ -1017,47 +1240,55 @@ export default function EFootballGamePlan({
             </div>
           </div>
 
-          {/* VISUAL SEPARATOR DIVIDER (خط جداکننده مشخص بین نیمکت و خارج از ترکیب) */}
+          {/* VISUAL SEPARATOR DIVIDER */}
           {!hideReserves && (
             <>
               <div className="my-4 flex items-center gap-3">
-            <div className="h-0.5 flex-1 bg-gradient-to-r from-transparent via-purple-500/60 to-transparent"></div>
-            <span className="text-[11px] font-black text-purple-300 px-3 py-1 bg-purple-950/80 rounded-full border border-purple-500/40 shadow-inner flex items-center gap-1.5">
-              <ArrowLeftRight size={13} className="text-cyan-400" />
-              <span>بازیکنان خارج از بازی و لیست رختکن (Reserves / Out of Squad)</span>
-            </span>
-            <div className="h-0.5 flex-1 bg-gradient-to-r from-transparent via-purple-500/60 to-transparent"></div>
-          </div>
+                <div className="h-0.5 flex-1 bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent"></div>
+                <span className="text-[11px] font-black text-cyan-300 px-3 py-1 bg-[#080c14] rounded-full border border-cyan-500/40 shadow-inner flex items-center gap-1.5 font-sport">
+                  <ArrowLeftRight size={13} className="text-cyan-400" />
+                  <span>بازیکنان خارج از بازی و لیست رختکن (Reserves / Out of Squad)</span>
+                </span>
+                <div className="h-0.5 flex-1 bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent"></div>
+              </div>
 
-          {/* SECTION 2: RESERVES / OUT OF SQUAD (خارج از بازی) */}
-          <div className="space-y-2">
-            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2">
-              {reserves.map((res) => {
-                const isSelected = selectedBenchPlayerId === res.id;
-                const natPos = res.naturalPosition || res.position;
+              {/* SECTION 2: RESERVES / OUT OF SQUAD */}
+              <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                  {reserves.map((res) => {
+                    const isSelected = selectedBenchPlayerId === res.id;
+                    const natPos = res.naturalPosition || res.position;
+                    const resStamina = Math.max(5, Math.min(100, Math.round(Number(res.stamina ?? res.virtual_stamina ?? 90))));
 
-                return (
-                  <div
-                    key={res.id}
-                    onClick={() => handleBenchPlayerClick(res, false)}
-                    className={`p-2 rounded-2xl border cursor-pointer flex justify-between items-center transition-all ${isSelected
-                        ? 'bg-purple-900 border-2 border-cyan-400 shadow-lg ring-2 ring-cyan-400 animate-pulse'
-                        : 'bg-slate-950/70 border-slate-800 hover:border-slate-600 text-slate-300'
-                      }`}
-                  >
-                    <div className="flex items-center gap-1.5 truncate">
-                      <span className={`text-[8.5px] font-black px-1.5 py-0.5 rounded ${POSITION_COLORS[natPos] || 'bg-slate-700 text-white'}`}>
-                        {natPos}
-                      </span>
-                      <span className="font-bold text-[9.5px] sm:text-[10.5px] truncate">{res.name}</span>
-                    </div>
-                    <span className="font-mono text-[10px] font-bold text-slate-400">{res.overall}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          </>
+                    return (
+                      <div
+                        key={res.id}
+                        onClick={() => handleBenchPlayerClick(res, false)}
+                        className={`p-2.5 rounded-2xl border cursor-pointer flex justify-between items-center transition-all ${
+                          isSelected
+                            ? 'bg-cyan-950/80 border-2 border-cyan-400 shadow-lg ring-2 ring-cyan-400 animate-pulse'
+                            : 'bg-slate-950/70 border-slate-800 hover:border-slate-600 text-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          {res.shirt_number != null && (
+                            <span className="text-[8.5px] font-sport text-cyan-400 font-black">#{res.shirt_number}</span>
+                          )}
+                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${POSITION_COLORS[natPos] || 'bg-slate-700 text-white'}`}>
+                            {natPos}
+                          </span>
+                          <span className="font-bold text-[10px] sm:text-[11px] truncate max-w-[90px]">{res.name}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-sport text-cyan-300 font-bold">{resStamina}%</span>
+                          <span className="font-sport text-[11px] font-black text-amber-300">{res.overall}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
@@ -1081,7 +1312,7 @@ export default function EFootballGamePlan({
 
       {/* ADMIN QUICK MATCH EVENT REGISTRATION MODAL */}
       {isAdminMode && adminModalPlayer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md font-sans dir-rtl text-xs">
+        <div className="fixed top-0 left-0 w-screen h-screen z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md font-sans dir-rtl text-xs">
           <div className="w-full max-w-md glass-panel p-5 rounded-3xl border-2 border-cyan-500/60 space-y-4 shadow-2xl bg-slate-950">
             <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
               <div>

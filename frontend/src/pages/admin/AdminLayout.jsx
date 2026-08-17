@@ -67,12 +67,12 @@ const AdminLayout = () => {
 
         <div className="p-4 border-t border-gray-800">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
-              {user?.phone_number?.substring(user.phone_number.length - 4)}
+            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold uppercase">
+              {user?.username ? user.username.substring(0, 2) : 'AD'}
             </div>
             <div>
               <p className="text-sm font-bold text-gray-200">ادمین سیستم</p>
-              <p className="text-xs text-gray-500">{user?.phone_number}</p>
+              <p className="text-xs text-gray-500 dir-ltr text-right">@{user?.username}</p>
             </div>
           </div>
           <button 

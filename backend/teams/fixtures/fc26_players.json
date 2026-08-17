@@ -4,7 +4,7 @@
     "pk": 271,
     "fields": {
       "name": "AC Milan",
-      "logo": "Team Logos/italy_milan_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/ac-milan.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -17,12 +17,12 @@
       "name": "M. Gabbia",
       "age": 25,
       "position": "CB",
-      "overall": 80,
+      "overall": 77,
       "potential_ovr": 83,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "48000.0",
-      "rarity": "RARE"
+      "rarity": "REGULAR"
     }
   },
   {
@@ -33,7 +33,7 @@
       "name": "Rafael Leão",
       "age": 26,
       "position": "LWF",
-      "overall": 84,
+      "overall": 85,
       "potential_ovr": 85,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
@@ -65,12 +65,12 @@
       "name": "S. Giménez",
       "age": 24,
       "position": "CF",
-      "overall": 79,
+      "overall": 83,
       "potential_ovr": 84,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "48000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -81,12 +81,12 @@
       "name": "Y. Fofana",
       "age": 26,
       "position": "DMF",
-      "overall": 81,
+      "overall": 84,
       "potential_ovr": 84,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "54000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -97,12 +97,12 @@
       "name": "S. Ricci",
       "age": 23,
       "position": "DMF",
-      "overall": 79,
+      "overall": 83,
       "potential_ovr": 83,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "35000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -113,7 +113,7 @@
       "name": "S. Pavlović",
       "age": 24,
       "position": "CB",
-      "overall": 77,
+      "overall": 79,
       "potential_ovr": 85,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
@@ -129,7 +129,7 @@
       "name": "A. Jashari",
       "age": 23,
       "position": "DMF",
-      "overall": 75,
+      "overall": 78,
       "potential_ovr": 86,
       "base_stamina": 78,
       "virtual_stamina": "100.00",
@@ -145,7 +145,7 @@
       "name": "K. De Winter",
       "age": 22,
       "position": "CB",
-      "overall": 77,
+      "overall": 79,
       "potential_ovr": 84,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
@@ -177,7 +177,7 @@
       "name": "Z. Athekame",
       "age": 19,
       "position": "RB",
-      "overall": 65,
+      "overall": 77,
       "potential_ovr": 78,
       "base_stamina": 68,
       "virtual_stamina": "100.00",
@@ -193,7 +193,7 @@
       "name": "L. Torriani",
       "age": 20,
       "position": "GK",
-      "overall": 62,
+      "overall": 73,
       "potential_ovr": 82,
       "base_stamina": 62,
       "virtual_stamina": "100.00",
@@ -209,7 +209,7 @@
       "name": "D. Odogu",
       "age": 19,
       "position": "CB",
-      "overall": 65,
+      "overall": 73,
       "potential_ovr": 86,
       "base_stamina": 68,
       "virtual_stamina": "100.00",
@@ -273,12 +273,12 @@
       "name": "L. Modrić",
       "age": 39,
       "position": "CMF",
-      "overall": 85,
+      "overall": 83,
       "potential_ovr": 85,
       "base_stamina": 88,
       "virtual_stamina": "100.00",
       "wage": "72000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -321,7 +321,7 @@
       "name": "A. Rabiot",
       "age": 30,
       "position": "CMF",
-      "overall": 85,
+      "overall": 84,
       "potential_ovr": 85,
       "base_stamina": 88,
       "virtual_stamina": "100.00",
@@ -337,8 +337,8 @@
       "name": "R. Loftus-Cheek",
       "age": 29,
       "position": "CMF",
-      "overall": 80,
-      "potential_ovr": 80,
+      "overall": 81,
+      "potential_ovr": 81,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "55000.0",
@@ -353,7 +353,7 @@
       "name": "M. Maignan",
       "age": 29,
       "position": "GK",
-      "overall": 87,
+      "overall": 84,
       "potential_ovr": 88,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
@@ -369,12 +369,12 @@
       "name": "C. Pulisic",
       "age": 26,
       "position": "RWF",
-      "overall": 85,
+      "overall": 83,
       "potential_ovr": 85,
       "base_stamina": 88,
       "virtual_stamina": "100.00",
       "wage": "86000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -385,8 +385,8 @@
       "name": "C. Nkunku",
       "age": 27,
       "position": "AMF",
-      "overall": 81,
-      "potential_ovr": 81,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "58000.0",
@@ -401,7 +401,7 @@
       "name": "F. Tomori",
       "age": 27,
       "position": "CB",
-      "overall": 81,
+      "overall": 82,
       "potential_ovr": 83,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
@@ -417,12 +417,12 @@
       "name": "P. Estupiñán",
       "age": 27,
       "position": "LB",
-      "overall": 79,
-      "potential_ovr": 79,
+      "overall": 82,
+      "potential_ovr": 82,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "48000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -430,7 +430,7 @@
     "pk": 272,
     "fields": {
       "name": "Arsenal",
-      "logo": "Team Logos/england_arsenal_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/arsenal.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -443,12 +443,12 @@
       "name": "Kepa",
       "age": 30,
       "position": "GK",
-      "overall": 79,
-      "potential_ovr": 79,
+      "overall": 81,
+      "potential_ovr": 81,
       "base_stamina": 79,
       "virtual_stamina": "100.00",
       "wage": "76000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -491,7 +491,7 @@
       "name": "David Raya",
       "age": 29,
       "position": "GK",
-      "overall": 87,
+      "overall": 85,
       "potential_ovr": 87,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
@@ -523,12 +523,12 @@
       "name": "Mikel Merino",
       "age": 29,
       "position": "CMF",
-      "overall": 83,
-      "potential_ovr": 83,
+      "overall": 84,
+      "potential_ovr": 84,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
       "wage": "160000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -539,12 +539,12 @@
       "name": "Gabriel Jesus",
       "age": 28,
       "position": "CF",
-      "overall": 80,
-      "potential_ovr": 82,
+      "overall": 84,
+      "potential_ovr": 84,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "135000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -555,12 +555,12 @@
       "name": "B. White",
       "age": 27,
       "position": "RB",
-      "overall": 82,
-      "potential_ovr": 80,
+      "overall": 84,
+      "potential_ovr": 84,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
       "wage": "140000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -571,12 +571,12 @@
       "name": "Gabriel",
       "age": 27,
       "position": "CB",
-      "overall": 89,
+      "overall": 85,
       "potential_ovr": 90,
       "base_stamina": 92,
       "virtual_stamina": "100.00",
       "wage": "250000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -587,12 +587,12 @@
       "name": "D. Rice",
       "age": 26,
       "position": "DMF",
-      "overall": 88,
+      "overall": 87,
       "potential_ovr": 89,
       "base_stamina": 91,
       "virtual_stamina": "100.00",
       "wage": "175000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -603,12 +603,12 @@
       "name": "K. Havertz",
       "age": 26,
       "position": "CF",
-      "overall": 82,
-      "potential_ovr": 84,
+      "overall": 85,
+      "potential_ovr": 85,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
       "wage": "230000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -635,7 +635,7 @@
       "name": "V. Gyökeres",
       "age": 27,
       "position": "CF",
-      "overall": 86,
+      "overall": 85,
       "potential_ovr": 86,
       "base_stamina": 89,
       "virtual_stamina": "100.00",
@@ -651,12 +651,12 @@
       "name": "W. Saliba",
       "age": 24,
       "position": "CB",
-      "overall": 88,
+      "overall": 87,
       "potential_ovr": 90,
       "base_stamina": 91,
       "virtual_stamina": "100.00",
       "wage": "200000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -667,12 +667,12 @@
       "name": "B. Saka",
       "age": 23,
       "position": "RWF",
-      "overall": 87,
+      "overall": 88,
       "potential_ovr": 89,
       "base_stamina": 90,
       "virtual_stamina": "100.00",
       "wage": "210000.0",
-      "rarity": "EPIC"
+      "rarity": "LEGENDARY"
     }
   },
   {
@@ -699,12 +699,12 @@
       "name": "Gabriel Martinelli",
       "age": 24,
       "position": "LWF",
-      "overall": 81,
-      "potential_ovr": 84,
+      "overall": 85,
+      "potential_ovr": 85,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "140000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -715,12 +715,12 @@
       "name": "N. Madueke",
       "age": 24,
       "position": "RMF",
-      "overall": 84,
+      "overall": 82,
       "potential_ovr": 87,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
       "wage": "115000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -731,7 +731,7 @@
       "name": "J. Timber",
       "age": 23,
       "position": "RB",
-      "overall": 80,
+      "overall": 81,
       "potential_ovr": 84,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
@@ -763,7 +763,7 @@
       "name": "R. Calafiori",
       "age": 23,
       "position": "CB",
-      "overall": 82,
+      "overall": 83,
       "potential_ovr": 86,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
@@ -795,12 +795,12 @@
       "name": "M. Lewis-Skelly",
       "age": 18,
       "position": "LB",
-      "overall": 78,
+      "overall": 83,
       "potential_ovr": 87,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "64000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -808,7 +808,7 @@
     "pk": 273,
     "fields": {
       "name": "Atlético Madrid",
-      "logo": "Team Logos/spain_atletico-madrid_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/atletico-madrid.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -837,7 +837,7 @@
       "name": "J. Alvarez",
       "age": 25,
       "position": "AMF",
-      "overall": 78,
+      "overall": 86,
       "potential_ovr": 89,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
@@ -853,12 +853,12 @@
       "name": "T. Almada",
       "age": 24,
       "position": "CF",
-      "overall": 86,
+      "overall": 83,
       "potential_ovr": 83,
       "base_stamina": 89,
       "virtual_stamina": "100.00",
       "wage": "52000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -869,7 +869,7 @@
       "name": "D. Hancko",
       "age": 27,
       "position": "LB",
-      "overall": 83,
+      "overall": 82,
       "potential_ovr": 83,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
@@ -885,7 +885,7 @@
       "name": "Giuliano",
       "age": 22,
       "position": "RMF",
-      "overall": 82,
+      "overall": 81,
       "potential_ovr": 86,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
@@ -901,12 +901,12 @@
       "name": "Álex Baena",
       "age": 23,
       "position": "LMF",
-      "overall": 82,
+      "overall": 85,
       "potential_ovr": 87,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
       "wage": "69000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -917,7 +917,7 @@
       "name": "Johnny Cardoso",
       "age": 23,
       "position": "DMF",
-      "overall": 78,
+      "overall": 77,
       "potential_ovr": 82,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
@@ -949,7 +949,7 @@
       "name": "O. Vargas",
       "age": 19,
       "position": "DMF",
-      "overall": 72,
+      "overall": 75,
       "potential_ovr": 83,
       "base_stamina": 75,
       "virtual_stamina": "100.00",
@@ -965,12 +965,12 @@
       "name": "Pubill",
       "age": 22,
       "position": "CB",
-      "overall": 80,
+      "overall": 73,
       "potential_ovr": 87,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "56000.0",
-      "rarity": "RARE"
+      "rarity": "REGULAR"
     }
   },
   {
@@ -981,7 +981,7 @@
       "name": "Pablo Barrios",
       "age": 22,
       "position": "CMF",
-      "overall": 83,
+      "overall": 80,
       "potential_ovr": 87,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
@@ -1205,8 +1205,8 @@
       "name": "Koke",
       "age": 33,
       "position": "CMF",
-      "overall": 81,
-      "potential_ovr": 81,
+      "overall": 82,
+      "potential_ovr": 82,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "76000.0",
@@ -1237,12 +1237,12 @@
       "name": "J. Oblak",
       "age": 32,
       "position": "GK",
-      "overall": 88,
+      "overall": 84,
       "potential_ovr": 88,
       "base_stamina": 88,
       "virtual_stamina": "100.00",
       "wage": "87000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -1253,8 +1253,8 @@
       "name": "J. Musso",
       "age": 31,
       "position": "GK",
-      "overall": 80,
-      "potential_ovr": 80,
+      "overall": 82,
+      "potential_ovr": 82,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
       "wage": "44000.0",
@@ -1301,12 +1301,12 @@
       "name": "C. Lenglet",
       "age": 30,
       "position": "CB",
-      "overall": 77,
-      "potential_ovr": 77,
+      "overall": 80,
+      "potential_ovr": 80,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
       "wage": "55000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -1317,12 +1317,12 @@
       "name": "Marcos Llorente",
       "age": 30,
       "position": "RB",
-      "overall": 85,
+      "overall": 83,
       "potential_ovr": 85,
       "base_stamina": 88,
       "virtual_stamina": "100.00",
       "wage": "105000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -1333,12 +1333,12 @@
       "name": "A. Lookman",
       "age": 27,
       "position": "CF",
-      "overall": 83,
-      "potential_ovr": 83,
+      "overall": 85,
+      "potential_ovr": 85,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
       "wage": "95000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -1349,12 +1349,12 @@
       "name": "N. Molina",
       "age": 27,
       "position": "RB",
-      "overall": 77,
-      "potential_ovr": 77,
+      "overall": 82,
+      "potential_ovr": 82,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
       "wage": "52000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -1365,8 +1365,8 @@
       "name": "R. Le Normand",
       "age": 28,
       "position": "CB",
-      "overall": 81,
-      "potential_ovr": 82,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "73000.0",
@@ -1378,7 +1378,7 @@
     "pk": 274,
     "fields": {
       "name": "BVB Borussia Dortmund",
-      "logo": "Team Logos/germany_borussia-dortmund_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/borussia-dortmund.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -1407,7 +1407,7 @@
       "name": "F. Mane",
       "age": 20,
       "position": "CB",
-      "overall": 65,
+      "overall": 71,
       "potential_ovr": 79,
       "base_stamina": 68,
       "virtual_stamina": "100.00",
@@ -1503,8 +1503,8 @@
       "name": "M. Sabitzer",
       "age": 31,
       "position": "DMF",
-      "overall": 81,
-      "potential_ovr": 81,
+      "overall": 82,
+      "potential_ovr": 82,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "55000.0",
@@ -1535,8 +1535,8 @@
       "name": "P. Drewes",
       "age": 32,
       "position": "GK",
-      "overall": 71,
-      "potential_ovr": 71,
+      "overall": 73,
+      "potential_ovr": 73,
       "base_stamina": 71,
       "virtual_stamina": "100.00",
       "wage": "17000.0",
@@ -1567,7 +1567,7 @@
       "name": "S. Guirassy",
       "age": 29,
       "position": "CF",
-      "overall": 85,
+      "overall": 84,
       "potential_ovr": 85,
       "base_stamina": 88,
       "virtual_stamina": "100.00",
@@ -1583,12 +1583,12 @@
       "name": "R. Bensebaini",
       "age": 30,
       "position": "CB",
-      "overall": 79,
-      "potential_ovr": 79,
+      "overall": 80,
+      "potential_ovr": 80,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "89000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -1599,7 +1599,7 @@
       "name": "W. Anton",
       "age": 28,
       "position": "CB",
-      "overall": 83,
+      "overall": 82,
       "potential_ovr": 83,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
@@ -1615,8 +1615,8 @@
       "name": "J. Ryerson",
       "age": 27,
       "position": "RB",
-      "overall": 80,
-      "potential_ovr": 80,
+      "overall": 81,
+      "potential_ovr": 81,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "50000.0",
@@ -1631,7 +1631,7 @@
       "name": "G. Kobel",
       "age": 27,
       "position": "GK",
-      "overall": 86,
+      "overall": 84,
       "potential_ovr": 89,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
@@ -1647,8 +1647,8 @@
       "name": "S. Özcan",
       "age": 27,
       "position": "DMF",
-      "overall": 74,
-      "potential_ovr": 75,
+      "overall": 79,
+      "potential_ovr": 79,
       "base_stamina": 77,
       "virtual_stamina": "100.00",
       "wage": "33000.0",
@@ -1663,8 +1663,8 @@
       "name": "A. Meyer",
       "age": 34,
       "position": "GK",
-      "overall": 74,
-      "potential_ovr": 74,
+      "overall": 76,
+      "potential_ovr": 76,
       "base_stamina": 74,
       "virtual_stamina": "100.00",
       "wage": "22000.0",
@@ -1679,12 +1679,12 @@
       "name": "F. Nmecha",
       "age": 24,
       "position": "CMF",
-      "overall": 84,
+      "overall": 80,
       "potential_ovr": 86,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
       "wage": "63000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -1695,7 +1695,7 @@
       "name": "N. Schlotterbeck",
       "age": 25,
       "position": "CB",
-      "overall": 86,
+      "overall": 84,
       "potential_ovr": 88,
       "base_stamina": 89,
       "virtual_stamina": "100.00",
@@ -1727,7 +1727,7 @@
       "name": "Fábio Silva",
       "age": 22,
       "position": "CF",
-      "overall": 79,
+      "overall": 76,
       "potential_ovr": 85,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
@@ -1759,12 +1759,12 @@
       "name": "Yan Couto",
       "age": 23,
       "position": "RB",
-      "overall": 77,
+      "overall": 80,
       "potential_ovr": 81,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
       "wage": "3000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -1791,7 +1791,7 @@
       "name": "D. Svensson",
       "age": 23,
       "position": "LB",
-      "overall": 79,
+      "overall": 77,
       "potential_ovr": 83,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
@@ -1823,12 +1823,12 @@
       "name": "J. Bellingham",
       "age": 19,
       "position": "CMF",
-      "overall": 77,
+      "overall": 81,
       "potential_ovr": 83,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
       "wage": "29000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -1839,7 +1839,7 @@
       "name": "A. Kabar",
       "age": 19,
       "position": "CB",
-      "overall": 65,
+      "overall": 71,
       "potential_ovr": 80,
       "base_stamina": 68,
       "virtual_stamina": "100.00",
@@ -1852,7 +1852,7 @@
     "pk": 275,
     "fields": {
       "name": "Chelsea",
-      "logo": "Team Logos/england_chelsea_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/chelsea.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -1865,7 +1865,7 @@
       "name": "M. Caicedo",
       "age": 23,
       "position": "CMF",
-      "overall": 85,
+      "overall": 84,
       "potential_ovr": 89,
       "base_stamina": 88,
       "virtual_stamina": "100.00",
@@ -1881,12 +1881,12 @@
       "name": "E. Fernández",
       "age": 23,
       "position": "DMF",
-      "overall": 88,
+      "overall": 86,
       "potential_ovr": 88,
       "base_stamina": 91,
       "virtual_stamina": "100.00",
       "wage": "170000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -1897,7 +1897,7 @@
       "name": "C. Palmer",
       "age": 24,
       "position": "CMF",
-      "overall": 86,
+      "overall": 87,
       "potential_ovr": 90,
       "base_stamina": 89,
       "virtual_stamina": "100.00",
@@ -1913,7 +1913,7 @@
       "name": "Marc Cucurella",
       "age": 25,
       "position": "LB",
-      "overall": 85,
+      "overall": 84,
       "potential_ovr": 85,
       "base_stamina": 88,
       "virtual_stamina": "100.00",
@@ -1929,12 +1929,12 @@
       "name": "R. James",
       "age": 26,
       "position": "RB",
-      "overall": 84,
+      "overall": 83,
       "potential_ovr": 86,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
       "wage": "145000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -1945,12 +1945,12 @@
       "name": "Pedro Neto",
       "age": 25,
       "position": "RMF",
-      "overall": 82,
-      "potential_ovr": 83,
+      "overall": 85,
+      "potential_ovr": 85,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
       "wage": "130000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -1961,7 +1961,7 @@
       "name": "João Pedro",
       "age": 23,
       "position": "CF",
-      "overall": 82,
+      "overall": 83,
       "potential_ovr": 86,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
@@ -1977,12 +1977,12 @@
       "name": "Robert Sánchez",
       "age": 27,
       "position": "GK",
-      "overall": 81,
-      "potential_ovr": 82,
+      "overall": 84,
+      "potential_ovr": 84,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "76000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -1993,7 +1993,7 @@
       "name": "T. Chalobah",
       "age": 25,
       "position": "CB",
-      "overall": 80,
+      "overall": 81,
       "potential_ovr": 82,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
@@ -2025,7 +2025,7 @@
       "name": "L. Colwill",
       "age": 22,
       "position": "CB",
-      "overall": 80,
+      "overall": 83,
       "potential_ovr": 84,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
@@ -2041,7 +2041,7 @@
       "name": "W. Fofana",
       "age": 24,
       "position": "CB",
-      "overall": 79,
+      "overall": 82,
       "potential_ovr": 89,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
@@ -2057,12 +2057,12 @@
       "name": "Estêvão",
       "age": 18,
       "position": "RMF",
-      "overall": 79,
-      "potential_ovr": 82,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "71000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -2073,12 +2073,12 @@
       "name": "M. Gusto",
       "age": 22,
       "position": "RB",
-      "overall": 79,
+      "overall": 80,
       "potential_ovr": 84,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "90000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -2089,12 +2089,12 @@
       "name": "J. Gittens",
       "age": 20,
       "position": "LMF",
-      "overall": 78,
+      "overall": 82,
       "potential_ovr": 84,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "73000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -2105,12 +2105,12 @@
       "name": "J. Hato",
       "age": 19,
       "position": "LB",
-      "overall": 78,
+      "overall": 80,
       "potential_ovr": 87,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "65000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -2121,12 +2121,12 @@
       "name": "A. Garnacho",
       "age": 21,
       "position": "LMF",
-      "overall": 78,
+      "overall": 82,
       "potential_ovr": 84,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "73000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -2137,12 +2137,12 @@
       "name": "T. Adarabioyo",
       "age": 27,
       "position": "CB",
-      "overall": 78,
+      "overall": 80,
       "potential_ovr": 85,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "95000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -2153,12 +2153,12 @@
       "name": "R. Lavia",
       "age": 21,
       "position": "DMF",
-      "overall": 78,
-      "potential_ovr": 79,
+      "overall": 81,
+      "potential_ovr": 81,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "69000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -2169,7 +2169,7 @@
       "name": "M. Sarr",
       "age": 19,
       "position": "CB",
-      "overall": 77,
+      "overall": 74,
       "potential_ovr": 84,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
@@ -2185,7 +2185,7 @@
       "name": "L. Delap",
       "age": 23,
       "position": "CF",
-      "overall": 77,
+      "overall": 78,
       "potential_ovr": 83,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
@@ -2201,12 +2201,12 @@
       "name": "F. Jörgensen",
       "age": 22,
       "position": "GK",
-      "overall": 77,
+      "overall": 80,
       "potential_ovr": 83,
       "base_stamina": 77,
       "virtual_stamina": "100.00",
       "wage": "89000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -2217,12 +2217,12 @@
       "name": "B. Badiashile",
       "age": 24,
       "position": "CB",
-      "overall": 76,
+      "overall": 80,
       "potential_ovr": 80,
       "base_stamina": 79,
       "virtual_stamina": "100.00",
       "wage": "72000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -2233,7 +2233,7 @@
       "name": "Dário Essugo",
       "age": 20,
       "position": "CB",
-      "overall": 75,
+      "overall": 79,
       "potential_ovr": 83,
       "base_stamina": 78,
       "virtual_stamina": "100.00",
@@ -2249,7 +2249,7 @@
       "name": "J. Acheampong",
       "age": 19,
       "position": "CB",
-      "overall": 74,
+      "overall": 77,
       "potential_ovr": 85,
       "base_stamina": 77,
       "virtual_stamina": "100.00",
@@ -2342,7 +2342,7 @@
     "pk": 276,
     "fields": {
       "name": "FC Bayern München",
-      "logo": "Team Logos/germany_bayern-munchen_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/bayern-munchen.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -2355,7 +2355,7 @@
       "name": "H. Kane",
       "age": 31,
       "position": "CF",
-      "overall": 90,
+      "overall": 89,
       "potential_ovr": 90,
       "base_stamina": 93,
       "virtual_stamina": "100.00",
@@ -2371,12 +2371,12 @@
       "name": "M. Olise",
       "age": 23,
       "position": "DMF",
-      "overall": 89,
+      "overall": 87,
       "potential_ovr": 91,
       "base_stamina": 92,
       "virtual_stamina": "100.00",
       "wage": "120000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -2387,12 +2387,12 @@
       "name": "J. Kimmich",
       "age": 30,
       "position": "DMF",
-      "overall": 89,
+      "overall": 86,
       "potential_ovr": 89,
       "base_stamina": 92,
       "virtual_stamina": "100.00",
       "wage": "140000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -2403,7 +2403,7 @@
       "name": "J. Musiala",
       "age": 22,
       "position": "AMF",
-      "overall": 87,
+      "overall": 86,
       "potential_ovr": 91,
       "base_stamina": 90,
       "virtual_stamina": "100.00",
@@ -2419,12 +2419,12 @@
       "name": "J. Tah",
       "age": 29,
       "position": "CB",
-      "overall": 87,
+      "overall": 83,
       "potential_ovr": 87,
       "base_stamina": 90,
       "virtual_stamina": "100.00",
       "wage": "115000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -2435,7 +2435,7 @@
       "name": "L. Díaz",
       "age": 28,
       "position": "LMF",
-      "overall": 87,
+      "overall": 86,
       "potential_ovr": 88,
       "base_stamina": 90,
       "virtual_stamina": "100.00",
@@ -2451,7 +2451,7 @@
       "name": "D. Upamecano",
       "age": 26,
       "position": "CB",
-      "overall": 86,
+      "overall": 84,
       "potential_ovr": 87,
       "base_stamina": 89,
       "virtual_stamina": "100.00",
@@ -2467,12 +2467,12 @@
       "name": "K. Laimer",
       "age": 28,
       "position": "RB",
-      "overall": 84,
+      "overall": 83,
       "potential_ovr": 84,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
       "wage": "90000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -2483,12 +2483,12 @@
       "name": "S. Gnabry",
       "age": 29,
       "position": "AMF",
-      "overall": 83,
-      "potential_ovr": 83,
+      "overall": 84,
+      "potential_ovr": 84,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
       "wage": "87000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -2499,12 +2499,12 @@
       "name": "A. Davies",
       "age": 24,
       "position": "LB",
-      "overall": 83,
+      "overall": 84,
       "potential_ovr": 86,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
       "wage": "68000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -2515,12 +2515,12 @@
       "name": "Kim Min Jae",
       "age": 28,
       "position": "CB",
-      "overall": 82,
-      "potential_ovr": 82,
+      "overall": 85,
+      "potential_ovr": 85,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
       "wage": "75000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -2531,12 +2531,12 @@
       "name": "M. Neuer",
       "age": 39,
       "position": "GK",
-      "overall": 82,
-      "potential_ovr": 82,
+      "overall": 85,
+      "potential_ovr": 85,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "23000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -2547,7 +2547,7 @@
       "name": "A. Pavlović",
       "age": 21,
       "position": "DMF",
-      "overall": 82,
+      "overall": 83,
       "potential_ovr": 87,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
@@ -2563,12 +2563,12 @@
       "name": "L. Goretzka",
       "age": 30,
       "position": "DMF",
-      "overall": 81,
-      "potential_ovr": 81,
+      "overall": 84,
+      "potential_ovr": 84,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "69000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -2579,12 +2579,12 @@
       "name": "J. Stanišić",
       "age": 25,
       "position": "RB",
-      "overall": 79,
+      "overall": 80,
       "potential_ovr": 82,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "56000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -2595,12 +2595,12 @@
       "name": "N. Jackson",
       "age": 24,
       "position": "CF",
-      "overall": 79,
+      "overall": 82,
       "potential_ovr": 82,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "105000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -2611,7 +2611,7 @@
       "name": "T. Bischof",
       "age": 20,
       "position": "CMF",
-      "overall": 78,
+      "overall": 76,
       "potential_ovr": 86,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
@@ -2627,12 +2627,12 @@
       "name": "R. Guerreiro",
       "age": 31,
       "position": "LB",
-      "overall": 79,
-      "potential_ovr": 79,
+      "overall": 82,
+      "potential_ovr": 82,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "41000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -2643,12 +2643,12 @@
       "name": "H. Ito",
       "age": 26,
       "position": "CB",
-      "overall": 78,
+      "overall": 80,
       "potential_ovr": 81,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "53000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -2659,7 +2659,7 @@
       "name": "J. Urbig",
       "age": 21,
       "position": "GK",
-      "overall": 77,
+      "overall": 76,
       "potential_ovr": 85,
       "base_stamina": 77,
       "virtual_stamina": "100.00",
@@ -2691,8 +2691,8 @@
       "name": "S. Ulreich",
       "age": 36,
       "position": "GK",
-      "overall": 73,
-      "potential_ovr": 73,
+      "overall": 79,
+      "potential_ovr": 79,
       "base_stamina": 73,
       "virtual_stamina": "100.00",
       "wage": "15000.0",
@@ -2880,7 +2880,7 @@
     "pk": 277,
     "fields": {
       "name": "FC Barcelona",
-      "logo": "Team Logos/spain_barcelona_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/barcelona.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -2893,7 +2893,7 @@
       "name": "Gerard Martín",
       "age": 23,
       "position": "CB",
-      "overall": 78,
+      "overall": 76,
       "potential_ovr": 82,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
@@ -2909,7 +2909,7 @@
       "name": "Marc Bernal",
       "age": 18,
       "position": "DMF",
-      "overall": 75,
+      "overall": 78,
       "potential_ovr": 86,
       "base_stamina": 78,
       "virtual_stamina": "100.00",
@@ -3021,7 +3021,7 @@
       "name": "W. Szczęsny",
       "age": 35,
       "position": "GK",
-      "overall": 83,
+      "overall": 81,
       "potential_ovr": 83,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
@@ -3037,12 +3037,12 @@
       "name": "R. Lewandowski",
       "age": 36,
       "position": "CF",
-      "overall": 86,
-      "potential_ovr": 86,
+      "overall": 88,
+      "potential_ovr": 88,
       "base_stamina": 89,
       "virtual_stamina": "100.00",
       "wage": "130000.0",
-      "rarity": "EPIC"
+      "rarity": "LEGENDARY"
     }
   },
   {
@@ -3069,8 +3069,8 @@
       "name": "A. Christensen",
       "age": 29,
       "position": "CB",
-      "overall": 80,
-      "potential_ovr": 80,
+      "overall": 82,
+      "potential_ovr": 82,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "90000.0",
@@ -3085,7 +3085,7 @@
       "name": "M. Rashford",
       "age": 28,
       "position": "CF",
-      "overall": 87,
+      "overall": 84,
       "potential_ovr": 87,
       "base_stamina": 90,
       "virtual_stamina": "100.00",
@@ -3101,12 +3101,12 @@
       "name": "F. de Jong",
       "age": 27,
       "position": "CMF",
-      "overall": 82,
-      "potential_ovr": 82,
+      "overall": 85,
+      "potential_ovr": 85,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
       "wage": "110000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -3133,12 +3133,12 @@
       "name": "Ferran Torres",
       "age": 25,
       "position": "CF",
-      "overall": 84,
+      "overall": 82,
       "potential_ovr": 86,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
       "wage": "130000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -3165,8 +3165,8 @@
       "name": "Dani Olmo",
       "age": 27,
       "position": "AMF",
-      "overall": 84,
-      "potential_ovr": 84,
+      "overall": 85,
+      "potential_ovr": 85,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
       "wage": "130000.0",
@@ -3181,7 +3181,7 @@
       "name": "Eric García",
       "age": 24,
       "position": "CB",
-      "overall": 83,
+      "overall": 82,
       "potential_ovr": 86,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
@@ -3197,7 +3197,7 @@
       "name": "Pedri",
       "age": 22,
       "position": "CMF",
-      "overall": 90,
+      "overall": 86,
       "potential_ovr": 93,
       "base_stamina": 93,
       "virtual_stamina": "100.00",
@@ -3213,12 +3213,12 @@
       "name": "R. Araujo",
       "age": 26,
       "position": "CB",
-      "overall": 81,
-      "potential_ovr": 84,
+      "overall": 85,
+      "potential_ovr": 85,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "90000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -3229,7 +3229,7 @@
       "name": "Joan García",
       "age": 24,
       "position": "GK",
-      "overall": 86,
+      "overall": 84,
       "potential_ovr": 89,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
@@ -3245,12 +3245,12 @@
       "name": "Balde",
       "age": 21,
       "position": "LB",
-      "overall": 83,
+      "overall": 84,
       "potential_ovr": 87,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
       "wage": "80000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -3261,12 +3261,12 @@
       "name": "Gavi",
       "age": 20,
       "position": "CMF",
-      "overall": 83,
+      "overall": 84,
       "potential_ovr": 87,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
       "wage": "85000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -3277,7 +3277,7 @@
       "name": "R. Bardghji",
       "age": 19,
       "position": "RWF",
-      "overall": 74,
+      "overall": 76,
       "potential_ovr": 85,
       "base_stamina": 77,
       "virtual_stamina": "100.00",
@@ -3293,12 +3293,12 @@
       "name": "Marc Casadó",
       "age": 21,
       "position": "DMF",
-      "overall": 78,
+      "overall": 83,
       "potential_ovr": 87,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "100000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -3310,7 +3310,7 @@
       "age": 22,
       "position": "AMF",
       "overall": 83,
-      "potential_ovr": 82,
+      "potential_ovr": 83,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
       "wage": "54000.0",
@@ -3325,7 +3325,7 @@
       "name": "Lamine Yamal",
       "age": 17,
       "position": "RWF",
-      "overall": 89,
+      "overall": 88,
       "potential_ovr": 95,
       "base_stamina": 92,
       "virtual_stamina": "100.00",
@@ -3370,7 +3370,7 @@
     "pk": 278,
     "fields": {
       "name": "Inter",
-      "logo": "Team Logos/italy_inter_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/inter.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -3383,8 +3383,8 @@
       "name": "P. Zieliński",
       "age": 31,
       "position": "CMF",
-      "overall": 81,
-      "potential_ovr": 81,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "41000.0",
@@ -3399,8 +3399,8 @@
       "name": "R. Di Gennaro",
       "age": 31,
       "position": "GK",
-      "overall": 68,
-      "potential_ovr": 68,
+      "overall": 71,
+      "potential_ovr": 71,
       "base_stamina": 68,
       "virtual_stamina": "100.00",
       "wage": "9000.0",
@@ -3415,12 +3415,12 @@
       "name": "N. Barella",
       "age": 28,
       "position": "CMF",
-      "overall": 88,
+      "overall": 86,
       "potential_ovr": 88,
       "base_stamina": 91,
       "virtual_stamina": "100.00",
       "wage": "76000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -3431,7 +3431,7 @@
       "name": "F. Dimarco",
       "age": 27,
       "position": "LB",
-      "overall": 86,
+      "overall": 84,
       "potential_ovr": 86,
       "base_stamina": 89,
       "virtual_stamina": "100.00",
@@ -3447,8 +3447,8 @@
       "name": "M. Thuram",
       "age": 27,
       "position": "CF",
-      "overall": 85,
-      "potential_ovr": 85,
+      "overall": 86,
+      "potential_ovr": 86,
       "base_stamina": 88,
       "virtual_stamina": "100.00",
       "wage": "61000.0",
@@ -3463,7 +3463,7 @@
       "name": "M. Akanji",
       "age": 29,
       "position": "CB",
-      "overall": 83,
+      "overall": 82,
       "potential_ovr": 83,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
@@ -3479,12 +3479,12 @@
       "name": "L. Martínez",
       "age": 27,
       "position": "CF",
-      "overall": 88,
+      "overall": 86,
       "potential_ovr": 88,
       "base_stamina": 91,
       "virtual_stamina": "100.00",
       "wage": "79000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -3495,7 +3495,7 @@
       "name": "A. Bastoni",
       "age": 26,
       "position": "CB",
-      "overall": 84,
+      "overall": 86,
       "potential_ovr": 89,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
@@ -3511,12 +3511,12 @@
       "name": "Josep Martínez",
       "age": 25,
       "position": "GK",
-      "overall": 76,
+      "overall": 80,
       "potential_ovr": 80,
       "base_stamina": 76,
       "virtual_stamina": "100.00",
       "wage": "51000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -3527,7 +3527,7 @@
       "name": "Y. Bisseck",
       "age": 27,
       "position": "CB",
-      "overall": 87,
+      "overall": 80,
       "potential_ovr": 89,
       "base_stamina": 90,
       "virtual_stamina": "100.00",
@@ -3543,8 +3543,8 @@
       "name": "D. Frattesi",
       "age": 29,
       "position": "CMF",
-      "overall": 81,
-      "potential_ovr": 81,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "16000.0",
@@ -3559,12 +3559,12 @@
       "name": "D. Dumfries",
       "age": 24,
       "position": "RB",
-      "overall": 75,
-      "potential_ovr": 77,
+      "overall": 84,
+      "potential_ovr": 84,
       "base_stamina": 78,
       "virtual_stamina": "100.00",
       "wage": "23000.0",
-      "rarity": "REGULAR"
+      "rarity": "EPIC"
     }
   },
   {
@@ -3575,7 +3575,7 @@
       "name": "Luis Henrique",
       "age": 23,
       "position": "RMF",
-      "overall": 78,
+      "overall": 77,
       "potential_ovr": 82,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
@@ -3591,7 +3591,7 @@
       "name": "Carlos Augusto",
       "age": 26,
       "position": "LMF",
-      "overall": 81,
+      "overall": 82,
       "potential_ovr": 83,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
@@ -3607,7 +3607,7 @@
       "name": "Y. Bonny",
       "age": 21,
       "position": "CF",
-      "overall": 78,
+      "overall": 77,
       "potential_ovr": 86,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
@@ -3639,7 +3639,7 @@
       "name": "P. Sučić",
       "age": 21,
       "position": "CMF",
-      "overall": 77,
+      "overall": 73,
       "potential_ovr": 83,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
@@ -3655,7 +3655,7 @@
       "name": "F. Esposito",
       "age": 20,
       "position": "CF",
-      "overall": 76,
+      "overall": 77,
       "potential_ovr": 84,
       "base_stamina": 79,
       "virtual_stamina": "100.00",
@@ -3767,7 +3767,7 @@
       "name": "Y. Sommer",
       "age": 36,
       "position": "GK",
-      "overall": 86,
+      "overall": 85,
       "potential_ovr": 86,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
@@ -3783,12 +3783,12 @@
       "name": "M. Darmian",
       "age": 35,
       "position": "RB",
-      "overall": 78,
-      "potential_ovr": 78,
+      "overall": 82,
+      "potential_ovr": 82,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "24000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -3799,7 +3799,7 @@
       "name": "H. Mkhitaryan",
       "age": 36,
       "position": "CMF",
-      "overall": 83,
+      "overall": 82,
       "potential_ovr": 83,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
@@ -3815,7 +3815,7 @@
       "name": "S. de Vrij",
       "age": 33,
       "position": "CB",
-      "overall": 83,
+      "overall": 82,
       "potential_ovr": 83,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
@@ -3847,7 +3847,7 @@
       "name": "H. Çalhanoğlu",
       "age": 31,
       "position": "DMF",
-      "overall": 86,
+      "overall": 84,
       "potential_ovr": 86,
       "base_stamina": 89,
       "virtual_stamina": "100.00",
@@ -3860,7 +3860,7 @@
     "pk": 279,
     "fields": {
       "name": "Juventus",
-      "logo": "Team Logos/italy_juventus_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/juventus.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -3905,7 +3905,7 @@
       "name": "V. Adžić",
       "age": 19,
       "position": "AMF",
-      "overall": 69,
+      "overall": 76,
       "potential_ovr": 79,
       "base_stamina": 72,
       "virtual_stamina": "100.00",
@@ -3921,8 +3921,8 @@
       "name": "C. Pinsoglio",
       "age": 35,
       "position": "GK",
-      "overall": 69,
-      "potential_ovr": 69,
+      "overall": 72,
+      "potential_ovr": 72,
       "base_stamina": 69,
       "virtual_stamina": "100.00",
       "wage": "17000.0",
@@ -3937,12 +3937,12 @@
       "name": "M. Perin",
       "age": 32,
       "position": "GK",
-      "overall": 78,
-      "potential_ovr": 78,
+      "overall": 80,
+      "potential_ovr": 80,
       "base_stamina": 78,
       "virtual_stamina": "100.00",
       "wage": "62000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -3953,12 +3953,12 @@
       "name": "A. Milik",
       "age": 31,
       "position": "CF",
-      "overall": 78,
-      "potential_ovr": 78,
+      "overall": 81,
+      "potential_ovr": 81,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "110000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -3969,12 +3969,12 @@
       "name": "F. Kostić",
       "age": 32,
       "position": "LMF",
-      "overall": 80,
-      "potential_ovr": 76,
+      "overall": 78,
+      "potential_ovr": 78,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "115000.0",
-      "rarity": "RARE"
+      "rarity": "REGULAR"
     }
   },
   {
@@ -3985,12 +3985,12 @@
       "name": "M. Locatelli",
       "age": 27,
       "position": "DMF",
-      "overall": 84,
-      "potential_ovr": 80,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
       "wage": "150000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -4017,7 +4017,7 @@
       "name": "L. Kelly",
       "age": 26,
       "position": "CB",
-      "overall": 78,
+      "overall": 79,
       "potential_ovr": 85,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
@@ -4033,12 +4033,12 @@
       "name": "M. Di Gregorio",
       "age": 27,
       "position": "GK",
-      "overall": 81,
-      "potential_ovr": 80,
+      "overall": 84,
+      "potential_ovr": 84,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "73000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -4049,12 +4049,12 @@
       "name": "W. McKennie",
       "age": 26,
       "position": "CMF",
-      "overall": 79,
+      "overall": 81,
       "potential_ovr": 84,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "105000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -4065,7 +4065,7 @@
       "name": "Bremer",
       "age": 28,
       "position": "CB",
-      "overall": 86,
+      "overall": 85,
       "potential_ovr": 86,
       "base_stamina": 89,
       "virtual_stamina": "100.00",
@@ -4081,12 +4081,12 @@
       "name": "E. Zhegrova",
       "age": 26,
       "position": "RMF",
-      "overall": 79,
-      "potential_ovr": 79,
+      "overall": 81,
+      "potential_ovr": 81,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "105000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -4097,12 +4097,12 @@
       "name": "T. Koopmeiners",
       "age": 27,
       "position": "AMF",
-      "overall": 80,
-      "potential_ovr": 84,
+      "overall": 85,
+      "potential_ovr": 85,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "115000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -4129,12 +4129,12 @@
       "name": "J. David",
       "age": 25,
       "position": "CF",
-      "overall": 81,
+      "overall": 84,
       "potential_ovr": 84,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "125000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -4145,7 +4145,7 @@
       "name": "D. Vlahović",
       "age": 25,
       "position": "CF",
-      "overall": 81,
+      "overall": 83,
       "potential_ovr": 84,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
@@ -4177,7 +4177,7 @@
       "name": "K. Thuram",
       "age": 24,
       "position": "CMF",
-      "overall": 81,
+      "overall": 82,
       "potential_ovr": 85,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
@@ -4193,7 +4193,7 @@
       "name": "J. Cabal",
       "age": 25,
       "position": "LB",
-      "overall": 74,
+      "overall": 78,
       "potential_ovr": 79,
       "base_stamina": 77,
       "virtual_stamina": "100.00",
@@ -4209,7 +4209,7 @@
       "name": "P. Kalulu",
       "age": 25,
       "position": "CB",
-      "overall": 80,
+      "overall": 82,
       "potential_ovr": 85,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
@@ -4225,7 +4225,7 @@
       "name": "A. Cambiaso",
       "age": 22,
       "position": "LB",
-      "overall": 80,
+      "overall": 81,
       "potential_ovr": 82,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
@@ -4241,12 +4241,12 @@
       "name": "Francisco Conceição",
       "age": 27,
       "position": "AMF",
-      "overall": 79,
+      "overall": 81,
       "potential_ovr": 86,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "59000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -4257,7 +4257,7 @@
       "name": "F. Gatti",
       "age": 21,
       "position": "CB",
-      "overall": 80,
+      "overall": 81,
       "potential_ovr": 83,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
@@ -4273,12 +4273,12 @@
       "name": "F. Miretti",
       "age": 20,
       "position": "CMF",
-      "overall": 75,
-      "potential_ovr": 80,
+      "overall": 81,
+      "potential_ovr": 81,
       "base_stamina": 78,
       "virtual_stamina": "100.00",
       "wage": "5000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -4289,7 +4289,7 @@
       "name": "K. Yıldız",
       "age": 20,
       "position": "AMF",
-      "overall": 82,
+      "overall": 81,
       "potential_ovr": 89,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
@@ -4302,7 +4302,7 @@
     "pk": 280,
     "fields": {
       "name": "Liverpool",
-      "logo": "Team Logos/england_liverpool_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/liverpool.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -4315,12 +4315,12 @@
       "name": "M. Salah",
       "age": 33,
       "position": "RMF",
-      "overall": 89,
+      "overall": 87,
       "potential_ovr": 89,
       "base_stamina": 92,
       "virtual_stamina": "100.00",
       "wage": "220000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -4331,12 +4331,12 @@
       "name": "V. van Dijk",
       "age": 32,
       "position": "CB",
-      "overall": 88,
+      "overall": 86,
       "potential_ovr": 88,
       "base_stamina": 91,
       "virtual_stamina": "100.00",
       "wage": "195000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -4347,12 +4347,12 @@
       "name": "Alisson",
       "age": 33,
       "position": "GK",
-      "overall": 88,
+      "overall": 87,
       "potential_ovr": 88,
       "base_stamina": 88,
       "virtual_stamina": "100.00",
       "wage": "130000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -4363,7 +4363,7 @@
       "name": "A. Isak",
       "age": 25,
       "position": "CF",
-      "overall": 87,
+      "overall": 86,
       "potential_ovr": 88,
       "base_stamina": 90,
       "virtual_stamina": "100.00",
@@ -4379,7 +4379,7 @@
       "name": "F. Wirtz",
       "age": 22,
       "position": "AMF",
-      "overall": 87,
+      "overall": 83,
       "potential_ovr": 91,
       "base_stamina": 90,
       "virtual_stamina": "100.00",
@@ -4395,7 +4395,7 @@
       "name": "R. Gravenberch",
       "age": 23,
       "position": "DMF",
-      "overall": 86,
+      "overall": 85,
       "potential_ovr": 89,
       "base_stamina": 89,
       "virtual_stamina": "100.00",
@@ -4411,7 +4411,7 @@
       "name": "D. Szoboszlai",
       "age": 24,
       "position": "AMF",
-      "overall": 86,
+      "overall": 87,
       "potential_ovr": 88,
       "base_stamina": 89,
       "virtual_stamina": "100.00",
@@ -4427,7 +4427,7 @@
       "name": "H. Ekitiké",
       "age": 23,
       "position": "CF",
-      "overall": 85,
+      "overall": 84,
       "potential_ovr": 88,
       "base_stamina": 88,
       "virtual_stamina": "100.00",
@@ -4459,7 +4459,7 @@
       "name": "I. Konaté",
       "age": 26,
       "position": "CB",
-      "overall": 84,
+      "overall": 85,
       "potential_ovr": 85,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
@@ -4475,12 +4475,12 @@
       "name": "C. Gakpo",
       "age": 26,
       "position": "LMF",
-      "overall": 83,
-      "potential_ovr": 83,
+      "overall": 86,
+      "potential_ovr": 86,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
       "wage": "125000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -4491,12 +4491,12 @@
       "name": "G. Mamardashvili",
       "age": 24,
       "position": "GK",
-      "overall": 83,
+      "overall": 84,
       "potential_ovr": 86,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "61000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -4507,7 +4507,7 @@
       "name": "J. Frimpong",
       "age": 21,
       "position": "LB",
-      "overall": 82,
+      "overall": 83,
       "potential_ovr": 84,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
@@ -4539,12 +4539,12 @@
       "name": "A. Robertson",
       "age": 31,
       "position": "LB",
-      "overall": 81,
-      "potential_ovr": 81,
+      "overall": 84,
+      "potential_ovr": 84,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "105000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -4555,7 +4555,7 @@
       "name": "C. Jones",
       "age": 24,
       "position": "CMF",
-      "overall": 80,
+      "overall": 83,
       "potential_ovr": 83,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
@@ -4571,8 +4571,8 @@
       "name": "F. Chiesa",
       "age": 27,
       "position": "RMF",
-      "overall": 80,
-      "potential_ovr": 80,
+      "overall": 81,
+      "potential_ovr": 81,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "100000.0",
@@ -4603,12 +4603,12 @@
       "name": "J. Gomez",
       "age": 28,
       "position": "CB",
-      "overall": 79,
-      "potential_ovr": 79,
+      "overall": 81,
+      "potential_ovr": 81,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "95000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -4619,12 +4619,12 @@
       "name": "C. Bradley",
       "age": 21,
       "position": "RB",
-      "overall": 79,
+      "overall": 81,
       "potential_ovr": 84,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "66000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -4635,7 +4635,7 @@
       "name": "Stefan Bajcetic",
       "age": 20,
       "position": "DMF",
-      "overall": 73,
+      "overall": 77,
       "potential_ovr": 82,
       "base_stamina": 76,
       "virtual_stamina": "100.00",
@@ -4651,7 +4651,7 @@
       "name": "R. Ngumoha",
       "age": 16,
       "position": "LMF",
-      "overall": 72,
+      "overall": 70,
       "potential_ovr": 88,
       "base_stamina": 75,
       "virtual_stamina": "100.00",
@@ -4667,8 +4667,8 @@
       "name": "F. Woodman",
       "age": 28,
       "position": "GK",
-      "overall": 71,
-      "potential_ovr": 71,
+      "overall": 77,
+      "potential_ovr": 77,
       "base_stamina": 71,
       "virtual_stamina": "100.00",
       "wage": "32000.0",
@@ -4683,7 +4683,7 @@
       "name": "G. Leoni",
       "age": 18,
       "position": "CB",
-      "overall": 69,
+      "overall": 73,
       "potential_ovr": 82,
       "base_stamina": 72,
       "virtual_stamina": "100.00",
@@ -4699,7 +4699,7 @@
       "name": "J. McConnell",
       "age": 20,
       "position": "DMF",
-      "overall": 68,
+      "overall": 73,
       "potential_ovr": 79,
       "base_stamina": 71,
       "virtual_stamina": "100.00",
@@ -4792,7 +4792,7 @@
     "pk": 281,
     "fields": {
       "name": "Manchester City",
-      "logo": "Team Logos/england_manchester-city_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/manchester-city.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -4821,8 +4821,8 @@
       "name": "J. Stones",
       "age": 31,
       "position": "CB",
-      "overall": 82,
-      "potential_ovr": 80,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
       "wage": "135000.0",
@@ -4869,8 +4869,8 @@
       "name": "N. Aké",
       "age": 30,
       "position": "CB",
-      "overall": 82,
-      "potential_ovr": 82,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
       "wage": "135000.0",
@@ -4885,12 +4885,12 @@
       "name": "Bernardo Silva",
       "age": 30,
       "position": "CMF",
-      "overall": 83,
-      "potential_ovr": 83,
+      "overall": 84,
+      "potential_ovr": 84,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
       "wage": "150000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -4901,12 +4901,12 @@
       "name": "G. Donnarumma",
       "age": 26,
       "position": "GK",
-      "overall": 89,
+      "overall": 87,
       "potential_ovr": 91,
       "base_stamina": 89,
       "virtual_stamina": "100.00",
       "wage": "150000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -4933,7 +4933,7 @@
       "name": "Rúben Dias",
       "age": 25,
       "position": "CB",
-      "overall": 85,
+      "overall": 87,
       "potential_ovr": 88,
       "base_stamina": 88,
       "virtual_stamina": "100.00",
@@ -4949,7 +4949,7 @@
       "name": "P. Foden",
       "age": 24,
       "position": "AMF",
-      "overall": 91,
+      "overall": 85,
       "potential_ovr": 93,
       "base_stamina": 94,
       "virtual_stamina": "100.00",
@@ -4965,12 +4965,12 @@
       "name": "E. Haaland",
       "age": 28,
       "position": "CF",
-      "overall": 87,
-      "potential_ovr": 87,
+      "overall": 91,
+      "potential_ovr": 91,
       "base_stamina": 90,
       "virtual_stamina": "100.00",
       "wage": "390000.0",
-      "rarity": "EPIC"
+      "rarity": "LEGENDARY"
     }
   },
   {
@@ -4997,12 +4997,12 @@
       "name": "M. Guéhi",
       "age": 24,
       "position": "CB",
-      "overall": 84,
+      "overall": 83,
       "potential_ovr": 86,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
       "wage": "130000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -5013,12 +5013,12 @@
       "name": "A. Semenyo",
       "age": 25,
       "position": "RWF",
-      "overall": 84,
+      "overall": 82,
       "potential_ovr": 85,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
       "wage": "165000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -5029,7 +5029,7 @@
       "name": "R. Aït-Nouri",
       "age": 24,
       "position": "LB",
-      "overall": 81,
+      "overall": 82,
       "potential_ovr": 85,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
@@ -5045,12 +5045,12 @@
       "name": "J. Doku",
       "age": 23,
       "position": "LWF",
-      "overall": 83,
+      "overall": 85,
       "potential_ovr": 86,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
       "wage": "135000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -5061,7 +5061,7 @@
       "name": "J. Gvardiol",
       "age": 23,
       "position": "CB",
-      "overall": 85,
+      "overall": 83,
       "potential_ovr": 88,
       "base_stamina": 88,
       "virtual_stamina": "100.00",
@@ -5077,12 +5077,12 @@
       "name": "Matheus Nunes",
       "age": 21,
       "position": "RWF",
-      "overall": 84,
+      "overall": 83,
       "potential_ovr": 83,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
       "wage": "130000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -5093,7 +5093,7 @@
       "name": "R. Cherki",
       "age": 26,
       "position": "RB",
-      "overall": 82,
+      "overall": 84,
       "potential_ovr": 88,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
@@ -5109,12 +5109,12 @@
       "name": "Nico González",
       "age": 23,
       "position": "DMF",
-      "overall": 81,
+      "overall": 84,
       "potential_ovr": 85,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "100000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -5125,12 +5125,12 @@
       "name": "O. Marmoush",
       "age": 26,
       "position": "CF",
-      "overall": 83,
+      "overall": 84,
       "potential_ovr": 84,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
       "wage": "155000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -5141,12 +5141,12 @@
       "name": "J. Trafford",
       "age": 22,
       "position": "GK",
-      "overall": 77,
+      "overall": 80,
       "potential_ovr": 83,
       "base_stamina": 77,
       "virtual_stamina": "100.00",
       "wage": "44000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -5157,12 +5157,12 @@
       "name": "Savinho",
       "age": 18,
       "position": "CF",
-      "overall": 70,
+      "overall": 83,
       "potential_ovr": 86,
       "base_stamina": 73,
       "virtual_stamina": "100.00",
       "wage": "33000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -5173,12 +5173,12 @@
       "name": "S. Nypan",
       "age": 21,
       "position": "CMF",
-      "overall": 81,
+      "overall": 76,
       "potential_ovr": 86,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "100000.0",
-      "rarity": "RARE"
+      "rarity": "REGULAR"
     }
   },
   {
@@ -5189,12 +5189,12 @@
       "name": "R. Lewis",
       "age": 20,
       "position": "RB",
-      "overall": 77,
+      "overall": 83,
       "potential_ovr": 84,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
       "wage": "65000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -5205,7 +5205,7 @@
       "name": "A. Khusanov",
       "age": 21,
       "position": "CB",
-      "overall": 80,
+      "overall": 81,
       "potential_ovr": 86,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
@@ -5234,7 +5234,7 @@
     "pk": 282,
     "fields": {
       "name": "Manchester United",
-      "logo": "Team Logos/england_manchester-united_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/manchester-united.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -5247,12 +5247,12 @@
       "name": "Bruno Fernandes",
       "age": 30,
       "position": "AMF",
-      "overall": 88,
+      "overall": 87,
       "potential_ovr": 88,
       "base_stamina": 91,
       "virtual_stamina": "100.00",
       "wage": "185000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -5263,12 +5263,12 @@
       "name": "Diogo Dalot",
       "age": 26,
       "position": "RB",
-      "overall": 78,
-      "potential_ovr": 79,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "77000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -5279,12 +5279,12 @@
       "name": "M. Mount",
       "age": 26,
       "position": "AMF",
-      "overall": 78,
-      "potential_ovr": 79,
+      "overall": 82,
+      "potential_ovr": 82,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "72000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -5295,7 +5295,7 @@
       "name": "M. de Ligt",
       "age": 25,
       "position": "CB",
-      "overall": 82,
+      "overall": 83,
       "potential_ovr": 84,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
@@ -5311,8 +5311,8 @@
       "name": "N. Mazraoui",
       "age": 27,
       "position": "RB",
-      "overall": 80,
-      "potential_ovr": 80,
+      "overall": 82,
+      "potential_ovr": 82,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "84000.0",
@@ -5327,8 +5327,8 @@
       "name": "T. Malacia",
       "age": 25,
       "position": "LB",
-      "overall": 75,
-      "potential_ovr": 76,
+      "overall": 79,
+      "potential_ovr": 79,
       "base_stamina": 78,
       "virtual_stamina": "100.00",
       "wage": "58000.0",
@@ -5343,12 +5343,12 @@
       "name": "L. Martínez",
       "age": 27,
       "position": "CB",
-      "overall": 81,
-      "potential_ovr": 82,
+      "overall": 84,
+      "potential_ovr": 84,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "90000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -5391,8 +5391,8 @@
       "name": "A. Bayındır",
       "age": 27,
       "position": "GK",
-      "overall": 75,
-      "potential_ovr": 77,
+      "overall": 78,
+      "potential_ovr": 78,
       "base_stamina": 75,
       "virtual_stamina": "100.00",
       "wage": "38000.0",
@@ -5407,12 +5407,12 @@
       "name": "J. Zirkzee",
       "age": 24,
       "position": "CF",
-      "overall": 77,
+      "overall": 81,
       "potential_ovr": 82,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
       "wage": "68000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -5423,12 +5423,12 @@
       "name": "M. Ugarte",
       "age": 24,
       "position": "DMF",
-      "overall": 78,
+      "overall": 82,
       "potential_ovr": 82,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "62000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -5439,12 +5439,12 @@
       "name": "Amad",
       "age": 22,
       "position": "RMF",
-      "overall": 80,
+      "overall": 84,
       "potential_ovr": 85,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "77000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -5455,7 +5455,7 @@
       "name": "S. Lammens",
       "age": 22,
       "position": "GK",
-      "overall": 81,
+      "overall": 80,
       "potential_ovr": 87,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
@@ -5471,7 +5471,7 @@
       "name": "B. Šeško",
       "age": 22,
       "position": "CF",
-      "overall": 80,
+      "overall": 83,
       "potential_ovr": 87,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
@@ -5487,12 +5487,12 @@
       "name": "L. Yoro",
       "age": 19,
       "position": "CB",
-      "overall": 78,
+      "overall": 81,
       "potential_ovr": 86,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "49000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -5503,12 +5503,12 @@
       "name": "K. Mainoo",
       "age": 20,
       "position": "DMF",
-      "overall": 79,
+      "overall": 81,
       "potential_ovr": 85,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "58000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -5535,7 +5535,7 @@
       "name": "P. Dorgu",
       "age": 20,
       "position": "LMF",
-      "overall": 77,
+      "overall": 79,
       "potential_ovr": 84,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
@@ -5583,7 +5583,7 @@
       "name": "D. León",
       "age": 18,
       "position": "LB",
-      "overall": 74,
+      "overall": 76,
       "potential_ovr": 83,
       "base_stamina": 77,
       "virtual_stamina": "100.00",
@@ -5615,7 +5615,7 @@
       "name": "C. Obi",
       "age": 17,
       "position": "CF",
-      "overall": 65,
+      "overall": 76,
       "potential_ovr": 84,
       "base_stamina": 68,
       "virtual_stamina": "100.00",
@@ -5679,7 +5679,7 @@
       "name": "Casemiro",
       "age": 33,
       "position": "DMF",
-      "overall": 82,
+      "overall": 81,
       "potential_ovr": 82,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
@@ -5695,7 +5695,7 @@
       "name": "H. Maguire",
       "age": 32,
       "position": "CB",
-      "overall": 81,
+      "overall": 80,
       "potential_ovr": 81,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
@@ -5711,12 +5711,12 @@
       "name": "L. Shaw",
       "age": 29,
       "position": "LB",
-      "overall": 79,
-      "potential_ovr": 79,
+      "overall": 81,
+      "potential_ovr": 81,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "83000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -5724,7 +5724,7 @@
     "pk": 283,
     "fields": {
       "name": "Newcastle United",
-      "logo": "Team Logos/england_newcastle_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/newcastle.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -5769,8 +5769,8 @@
       "name": "J. Ruddy",
       "age": 38,
       "position": "GK",
-      "overall": 68,
-      "potential_ovr": 68,
+      "overall": 71,
+      "potential_ovr": 71,
       "base_stamina": 68,
       "virtual_stamina": "100.00",
       "wage": "16000.0",
@@ -5785,12 +5785,12 @@
       "name": "K. Trippier",
       "age": 34,
       "position": "RB",
-      "overall": 79,
-      "potential_ovr": 79,
+      "overall": 82,
+      "potential_ovr": 82,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "110000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -5801,8 +5801,8 @@
       "name": "D. Burn",
       "age": 33,
       "position": "CB",
-      "overall": 80,
-      "potential_ovr": 80,
+      "overall": 81,
+      "potential_ovr": 81,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "115000.0",
@@ -5833,12 +5833,12 @@
       "name": "N. Pope",
       "age": 33,
       "position": "GK",
-      "overall": 79,
-      "potential_ovr": 79,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 79,
       "virtual_stamina": "100.00",
       "wage": "71000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -5865,8 +5865,8 @@
       "name": "E. Krafth",
       "age": 30,
       "position": "RB",
-      "overall": 72,
-      "potential_ovr": 72,
+      "overall": 77,
+      "potential_ovr": 77,
       "base_stamina": 75,
       "virtual_stamina": "100.00",
       "wage": "63000.0",
@@ -5881,8 +5881,8 @@
       "name": "F. Schär",
       "age": 33,
       "position": "CB",
-      "overall": 82,
-      "potential_ovr": 82,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
       "wage": "135000.0",
@@ -5897,8 +5897,8 @@
       "name": "Joelinton",
       "age": 28,
       "position": "CMF",
-      "overall": 81,
-      "potential_ovr": 81,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "130000.0",
@@ -5929,8 +5929,8 @@
       "name": "H. Barnes",
       "age": 27,
       "position": "LWF",
-      "overall": 80,
-      "potential_ovr": 80,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "125000.0",
@@ -5961,12 +5961,12 @@
       "name": "J. Willock",
       "age": 25,
       "position": "CMF",
-      "overall": 76,
-      "potential_ovr": 78,
+      "overall": 82,
+      "potential_ovr": 82,
       "base_stamina": 79,
       "virtual_stamina": "100.00",
       "wage": "83000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -5993,12 +5993,12 @@
       "name": "A. Gordon",
       "age": 24,
       "position": "LWF",
-      "overall": 82,
+      "overall": 85,
       "potential_ovr": 85,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
       "wage": "125000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -6009,12 +6009,12 @@
       "name": "J. Ramsey",
       "age": 24,
       "position": "CMF",
-      "overall": 77,
+      "overall": 80,
       "potential_ovr": 81,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
       "wage": "81000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -6025,7 +6025,7 @@
       "name": "Bruno Guimarães",
       "age": 27,
       "position": "CMF",
-      "overall": 86,
+      "overall": 84,
       "potential_ovr": 86,
       "base_stamina": 89,
       "virtual_stamina": "100.00",
@@ -6041,12 +6041,12 @@
       "name": "S. Botman",
       "age": 25,
       "position": "CB",
-      "overall": 81,
-      "potential_ovr": 83,
+      "overall": 84,
+      "potential_ovr": 84,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "115000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -6057,12 +6057,12 @@
       "name": "N. Woltemade",
       "age": 23,
       "position": "CF",
-      "overall": 80,
+      "overall": 79,
       "potential_ovr": 85,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "110000.0",
-      "rarity": "RARE"
+      "rarity": "REGULAR"
     }
   },
   {
@@ -6073,7 +6073,7 @@
       "name": "M. Thiaw",
       "age": 23,
       "position": "CB",
-      "overall": 81,
+      "overall": 80,
       "potential_ovr": 85,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
@@ -6089,12 +6089,12 @@
       "name": "A. Elanga",
       "age": 23,
       "position": "RWF",
-      "overall": 79,
+      "overall": 81,
       "potential_ovr": 82,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "105000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -6121,7 +6121,7 @@
       "name": "L. Hall",
       "age": 20,
       "position": "LB",
-      "overall": 81,
+      "overall": 80,
       "potential_ovr": 86,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
@@ -6137,7 +6137,7 @@
       "name": "W. Osula",
       "age": 21,
       "position": "CF",
-      "overall": 73,
+      "overall": 72,
       "potential_ovr": 79,
       "base_stamina": 76,
       "virtual_stamina": "100.00",
@@ -6153,7 +6153,7 @@
       "name": "A. Murphy",
       "age": 21,
       "position": "LB",
-      "overall": 65,
+      "overall": 75,
       "potential_ovr": 81,
       "base_stamina": 68,
       "virtual_stamina": "100.00",
@@ -6169,7 +6169,7 @@
       "name": "L. Miley",
       "age": 19,
       "position": "CMF",
-      "overall": 76,
+      "overall": 74,
       "potential_ovr": 86,
       "base_stamina": 79,
       "virtual_stamina": "100.00",
@@ -6182,7 +6182,7 @@
     "pk": 284,
     "fields": {
       "name": "Paris Saint-Germain",
-      "logo": "Team Logos/france_paris-saint-germain_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/psg.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -6195,7 +6195,7 @@
       "name": "S. Mayulu",
       "age": 19,
       "position": "CMF",
-      "overall": 77,
+      "overall": 75,
       "potential_ovr": 86,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
@@ -6211,7 +6211,7 @@
       "name": "I. Mbaye",
       "age": 17,
       "position": "RWF",
-      "overall": 74,
+      "overall": 77,
       "potential_ovr": 85,
       "base_stamina": 77,
       "virtual_stamina": "100.00",
@@ -6227,7 +6227,7 @@
       "name": "Q. Ndjantou",
       "age": 17,
       "position": "LWF",
-      "overall": 69,
+      "overall": 67,
       "potential_ovr": 83,
       "base_stamina": 72,
       "virtual_stamina": "100.00",
@@ -6243,7 +6243,7 @@
       "name": "Dro Fernández",
       "age": 17,
       "position": "CMF",
-      "overall": 70,
+      "overall": 69,
       "potential_ovr": 85,
       "base_stamina": 73,
       "virtual_stamina": "100.00",
@@ -6323,7 +6323,7 @@
       "name": "Marquinhos",
       "age": 31,
       "position": "CB",
-      "overall": 87,
+      "overall": 84,
       "potential_ovr": 87,
       "base_stamina": 90,
       "virtual_stamina": "100.00",
@@ -6339,12 +6339,12 @@
       "name": "L. Hernández",
       "age": 29,
       "position": "LB",
-      "overall": 81,
-      "potential_ovr": 81,
+      "overall": 84,
+      "potential_ovr": 84,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "89000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -6371,12 +6371,12 @@
       "name": "O. Dembélé",
       "age": 28,
       "position": "CF",
-      "overall": 90,
+      "overall": 86,
       "potential_ovr": 90,
       "base_stamina": 93,
       "virtual_stamina": "100.00",
       "wage": "220000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -6387,12 +6387,12 @@
       "name": "A. Hakimi",
       "age": 26,
       "position": "RB",
-      "overall": 89,
+      "overall": 85,
       "potential_ovr": 90,
       "base_stamina": 92,
       "virtual_stamina": "100.00",
       "wage": "170000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -6403,7 +6403,7 @@
       "name": "M. Safonov",
       "age": 26,
       "position": "GK",
-      "overall": 82,
+      "overall": 80,
       "potential_ovr": 86,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
@@ -6419,7 +6419,7 @@
       "name": "Lee Kang In",
       "age": 24,
       "position": "RWF",
-      "overall": 80,
+      "overall": 81,
       "potential_ovr": 83,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
@@ -6435,12 +6435,12 @@
       "name": "K. Kvaratskhelia",
       "age": 24,
       "position": "LWF",
-      "overall": 88,
+      "overall": 87,
       "potential_ovr": 91,
       "base_stamina": 91,
       "virtual_stamina": "100.00",
       "wage": "150000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -6451,12 +6451,12 @@
       "name": "L. Chevalier",
       "age": 23,
       "position": "GK",
-      "overall": 82,
+      "overall": 84,
       "potential_ovr": 86,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "46000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -6467,7 +6467,7 @@
       "name": "Nuno Mendes",
       "age": 23,
       "position": "LB",
-      "overall": 88,
+      "overall": 85,
       "potential_ovr": 92,
       "base_stamina": 91,
       "virtual_stamina": "100.00",
@@ -6483,12 +6483,12 @@
       "name": "Vitinha",
       "age": 25,
       "position": "CMF",
-      "overall": 90,
+      "overall": 85,
       "potential_ovr": 91,
       "base_stamina": 93,
       "virtual_stamina": "100.00",
       "wage": "135000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -6499,12 +6499,12 @@
       "name": "W. Pacho",
       "age": 23,
       "position": "CB",
-      "overall": 88,
+      "overall": 83,
       "potential_ovr": 90,
       "base_stamina": 91,
       "virtual_stamina": "100.00",
       "wage": "135000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -6515,7 +6515,7 @@
       "name": "Gonçalo Ramos",
       "age": 24,
       "position": "CF",
-      "overall": 80,
+      "overall": 83,
       "potential_ovr": 84,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
@@ -6531,7 +6531,7 @@
       "name": "I. Zabarnyi",
       "age": 22,
       "position": "CB",
-      "overall": 80,
+      "overall": 81,
       "potential_ovr": 85,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
@@ -6563,7 +6563,7 @@
       "name": "W. Zaïre-Emery",
       "age": 19,
       "position": "CMF",
-      "overall": 83,
+      "overall": 84,
       "potential_ovr": 89,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
@@ -6595,7 +6595,7 @@
       "name": "João Neves",
       "age": 20,
       "position": "CMF",
-      "overall": 88,
+      "overall": 82,
       "potential_ovr": 93,
       "base_stamina": 91,
       "virtual_stamina": "100.00",
@@ -6611,12 +6611,12 @@
       "name": "Lucas Beraldo",
       "age": 21,
       "position": "CB",
-      "overall": 78,
+      "overall": 80,
       "potential_ovr": 83,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "49000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -6627,7 +6627,7 @@
       "name": "Renato Marin",
       "age": 18,
       "position": "GK",
-      "overall": 70,
+      "overall": 73,
       "potential_ovr": 83,
       "base_stamina": 70,
       "virtual_stamina": "100.00",
@@ -6640,7 +6640,7 @@
     "pk": 285,
     "fields": {
       "name": "Real Madrid",
-      "logo": "Team Logos/spain_real-madrid_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/real-madrid.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -6653,8 +6653,8 @@
       "name": "Dani Ceballos",
       "age": 28,
       "position": "CMF",
-      "overall": 80,
-      "potential_ovr": 80,
+      "overall": 81,
+      "potential_ovr": 81,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "165000.0",
@@ -6685,7 +6685,7 @@
       "name": "T. Alexander-Arnold",
       "age": 26,
       "position": "RB",
-      "overall": 85,
+      "overall": 86,
       "potential_ovr": 86,
       "base_stamina": 88,
       "virtual_stamina": "100.00",
@@ -6701,8 +6701,8 @@
       "name": "Brahim",
       "age": 25,
       "position": "RMF",
-      "overall": 81,
-      "potential_ovr": 82,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "160000.0",
@@ -6749,12 +6749,12 @@
       "name": "F. Valverde",
       "age": 26,
       "position": "CMF",
-      "overall": 89,
+      "overall": 87,
       "potential_ovr": 90,
       "base_stamina": 92,
       "virtual_stamina": "100.00",
       "wage": "340000.0",
-      "rarity": "LEGENDARY"
+      "rarity": "EPIC"
     }
   },
   {
@@ -6781,7 +6781,7 @@
       "name": "A. Tchouaméni",
       "age": 25,
       "position": "DMF",
-      "overall": 84,
+      "overall": 85,
       "potential_ovr": 87,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
@@ -6797,7 +6797,7 @@
       "name": "Rodrygo",
       "age": 24,
       "position": "LWF",
-      "overall": 84,
+      "overall": 86,
       "potential_ovr": 87,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
@@ -6813,7 +6813,7 @@
       "name": "A. Lunin",
       "age": 26,
       "position": "GK",
-      "overall": 80,
+      "overall": 82,
       "potential_ovr": 83,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
@@ -6829,7 +6829,7 @@
       "name": "Fran García",
       "age": 25,
       "position": "LB",
-      "overall": 77,
+      "overall": 79,
       "potential_ovr": 80,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
@@ -6845,12 +6845,12 @@
       "name": "E. Camavinga",
       "age": 22,
       "position": "CMF",
-      "overall": 81,
+      "overall": 84,
       "potential_ovr": 85,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
       "wage": "145000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -6877,7 +6877,7 @@
       "name": "A. Güler",
       "age": 20,
       "position": "AMF",
-      "overall": 83,
+      "overall": 84,
       "potential_ovr": 89,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
@@ -6925,7 +6925,7 @@
       "name": "D. Huijsen",
       "age": 20,
       "position": "CB",
-      "overall": 81,
+      "overall": 82,
       "potential_ovr": 82,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
@@ -6957,7 +6957,7 @@
       "name": "Gonzalo",
       "age": 21,
       "position": "CF",
-      "overall": 74,
+      "overall": 78,
       "potential_ovr": 84,
       "base_stamina": 77,
       "virtual_stamina": "100.00",
@@ -6973,12 +6973,12 @@
       "name": "F. Mastantuono",
       "age": 17,
       "position": "RMF",
-      "overall": 77,
+      "overall": 81,
       "potential_ovr": 87,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
       "wage": "66000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -7005,12 +7005,12 @@
       "name": "Asencio",
       "age": 22,
       "position": "CB",
-      "overall": 78,
+      "overall": 80,
       "potential_ovr": 83,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "110000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -7085,7 +7085,7 @@
       "name": "Thiago Pitarch",
       "age": 17,
       "position": "CMF",
-      "overall": 68,
+      "overall": 79,
       "potential_ovr": 85,
       "base_stamina": 71,
       "virtual_stamina": "100.00",
@@ -7181,7 +7181,7 @@
       "name": "T. Courtois",
       "age": 33,
       "position": "GK",
-      "overall": 90,
+      "overall": 88,
       "potential_ovr": 90,
       "base_stamina": 90,
       "virtual_stamina": "100.00",
@@ -7197,12 +7197,12 @@
       "name": "D. Alaba",
       "age": 33,
       "position": "CB",
-      "overall": 80,
-      "potential_ovr": 80,
+      "overall": 84,
+      "potential_ovr": 84,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "160000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -7213,12 +7213,12 @@
       "name": "Carvajal",
       "age": 33,
       "position": "RB",
-      "overall": 84,
+      "overall": 83,
       "potential_ovr": 84,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
       "wage": "220000.0",
-      "rarity": "EPIC"
+      "rarity": "RARE"
     }
   },
   {
@@ -7229,8 +7229,8 @@
       "name": "A. Rüdiger",
       "age": 32,
       "position": "CB",
-      "overall": 84,
-      "potential_ovr": 84,
+      "overall": 85,
+      "potential_ovr": 85,
       "base_stamina": 87,
       "virtual_stamina": "100.00",
       "wage": "220000.0",
@@ -7242,7 +7242,7 @@
     "pk": 286,
     "fields": {
       "name": "Tottenham Hotspur",
-      "logo": "Team Logos/england_tottenham_3000x3000.football-logos.cc.png",
+      "logo": "/assets/logos/tottenham.webp",
       "budget": "500000000.00",
       "wage_cap": "5000000.00"
     }
@@ -7255,12 +7255,12 @@
       "name": "Y. Bissouma",
       "age": 28,
       "position": "DMF",
-      "overall": 78,
-      "potential_ovr": 78,
+      "overall": 81,
+      "potential_ovr": 81,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "87000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -7287,12 +7287,12 @@
       "name": "R. Kolo Muani",
       "age": 26,
       "position": "CF",
-      "overall": 79,
-      "potential_ovr": 80,
+      "overall": 82,
+      "potential_ovr": 82,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "85000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -7303,12 +7303,12 @@
       "name": "K. Danso",
       "age": 26,
       "position": "CB",
-      "overall": 79,
+      "overall": 82,
       "potential_ovr": 82,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "90000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -7319,12 +7319,12 @@
       "name": "C. Gallagher",
       "age": 25,
       "position": "CMF",
-      "overall": 79,
-      "potential_ovr": 81,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "90000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -7335,12 +7335,12 @@
       "name": "G. Vicario",
       "age": 28,
       "position": "GK",
-      "overall": 81,
-      "potential_ovr": 82,
+      "overall": 85,
+      "potential_ovr": 85,
       "base_stamina": 81,
       "virtual_stamina": "100.00",
       "wage": "71000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -7351,7 +7351,7 @@
       "name": "Pedro Porro",
       "age": 25,
       "position": "RB",
-      "overall": 82,
+      "overall": 83,
       "potential_ovr": 85,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
@@ -7367,7 +7367,7 @@
       "name": "D. Spence",
       "age": 24,
       "position": "LB",
-      "overall": 79,
+      "overall": 78,
       "potential_ovr": 83,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
@@ -7383,7 +7383,7 @@
       "name": "X. Simons",
       "age": 22,
       "position": "RWF",
-      "overall": 81,
+      "overall": 82,
       "potential_ovr": 83,
       "base_stamina": 84,
       "virtual_stamina": "100.00",
@@ -7399,7 +7399,7 @@
       "name": "M. Kudus",
       "age": 24,
       "position": "CF",
-      "overall": 82,
+      "overall": 81,
       "potential_ovr": 85,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
@@ -7415,12 +7415,12 @@
       "name": "D. Kulusevski",
       "age": 25,
       "position": "CMF",
-      "overall": 83,
+      "overall": 84,
       "potential_ovr": 86,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
       "wage": "125000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -7431,12 +7431,12 @@
       "name": "D. Udogie",
       "age": 22,
       "position": "LB",
-      "overall": 79,
+      "overall": 83,
       "potential_ovr": 83,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "80000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -7447,7 +7447,7 @@
       "name": "P. Sarr",
       "age": 22,
       "position": "CMF",
-      "overall": 80,
+      "overall": 82,
       "potential_ovr": 85,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
@@ -7463,7 +7463,7 @@
       "name": "R. Drăguşin",
       "age": 23,
       "position": "CB",
-      "overall": 75,
+      "overall": 78,
       "potential_ovr": 81,
       "base_stamina": 78,
       "virtual_stamina": "100.00",
@@ -7495,12 +7495,12 @@
       "name": "M. Tel",
       "age": 20,
       "position": "CF",
-      "overall": 77,
+      "overall": 81,
       "potential_ovr": 85,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
       "wage": "68000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -7527,7 +7527,7 @@
       "name": "W. Odobert",
       "age": 20,
       "position": "LWF",
-      "overall": 77,
+      "overall": 78,
       "potential_ovr": 84,
       "base_stamina": 80,
       "virtual_stamina": "100.00",
@@ -7639,8 +7639,8 @@
       "name": "B. Davies",
       "age": 32,
       "position": "CB",
-      "overall": 75,
-      "potential_ovr": 75,
+      "overall": 79,
+      "potential_ovr": 79,
       "base_stamina": 78,
       "virtual_stamina": "100.00",
       "wage": "73000.0",
@@ -7655,12 +7655,12 @@
       "name": "J. Maddison",
       "age": 28,
       "position": "CMF",
-      "overall": 83,
-      "potential_ovr": 83,
+      "overall": 86,
+      "potential_ovr": 86,
       "base_stamina": 86,
       "virtual_stamina": "100.00",
       "wage": "135000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -7671,8 +7671,8 @@
       "name": "D. Solanke",
       "age": 27,
       "position": "CF",
-      "overall": 80,
-      "potential_ovr": 80,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "110000.0",
@@ -7687,12 +7687,12 @@
       "name": "R. Bentancur",
       "age": 28,
       "position": "DMF",
-      "overall": 80,
-      "potential_ovr": 81,
+      "overall": 86,
+      "potential_ovr": 86,
       "base_stamina": 83,
       "virtual_stamina": "100.00",
       "wage": "100000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   },
   {
@@ -7703,8 +7703,8 @@
       "name": "Palhinha",
       "age": 29,
       "position": "DMF",
-      "overall": 82,
-      "potential_ovr": 82,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
       "wage": "75000.0",
@@ -7719,12 +7719,12 @@
       "name": "Richarlison",
       "age": 28,
       "position": "CF",
-      "overall": 79,
-      "potential_ovr": 79,
+      "overall": 83,
+      "potential_ovr": 83,
       "base_stamina": 82,
       "virtual_stamina": "100.00",
       "wage": "110000.0",
-      "rarity": "REGULAR"
+      "rarity": "RARE"
     }
   },
   {
@@ -7735,12 +7735,12 @@
       "name": "C. Romero",
       "age": 27,
       "position": "CB",
-      "overall": 82,
-      "potential_ovr": 84,
+      "overall": 85,
+      "potential_ovr": 85,
       "base_stamina": 85,
       "virtual_stamina": "100.00",
       "wage": "115000.0",
-      "rarity": "RARE"
+      "rarity": "EPIC"
     }
   }
 ]

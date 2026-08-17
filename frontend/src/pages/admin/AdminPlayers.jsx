@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const AdminPlayers = () => {
+
   const [players, setPlayers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [selectedTeam, setSelectedTeam] = useState('');
@@ -149,7 +150,7 @@ const AdminPlayers = () => {
 
       {/* Edit Player Modal */}
       {editingPlayer && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+        <div className="fixed top-0 left-0 w-screen h-screen bg-black/70 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-md">
             <h2 className="text-xl font-bold text-white mb-4">ویرایش بازیکن: {editingPlayer.name}</h2>
             

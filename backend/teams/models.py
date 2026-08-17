@@ -14,6 +14,7 @@ class Team(models.Model):
     budget = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="بودجه")
     gems = models.PositiveIntegerField(default=0, verbose_name="جم (ارز ارتقا/گاچا)")
     wage_cap = models.DecimalField(max_digits=15, decimal_places=2, default=10000.00, verbose_name="سقف دستمزد")
+    default_formation = models.CharField(max_length=20, default='4-3-3', verbose_name="ترکیب پیش‌فرض")
 
     class Meta:
         verbose_name = "تیم"
@@ -25,14 +26,14 @@ class Team(models.Model):
 
 class ClubFacilities(models.Model):
     team = models.OneToOneField(Team, on_delete=models.CASCADE, related_name='facilities', null=True, blank=True)
-    # Major Facilities (تسهیلات اصلی باشگاه)
-    training_camp_level = models.PositiveIntegerField(default=1, verbose_name="سطح کمپ تمرینی")
-    gym_level = models.PositiveIntegerField(default=1, verbose_name="سطح سالن بدنسازی")
-    medical_level = models.PositiveIntegerField(default=1, verbose_name="سطح مرکز پزشکی")
-    pool_level = models.PositiveIntegerField(default=1, verbose_name="سطح استخر بازیابی")
-    stadium_level = models.PositiveIntegerField(default=1, verbose_name="سطح استادیوم")
-    academy_level = models.PositiveIntegerField(default=1, verbose_name="سطح آکادمی جوانان")
-    scouting_level = models.PositiveIntegerField(default=1, verbose_name="سطح استعدادیابی بین‌المللی")
+    # Major Facilities (تسهیلات اصلی باشگاه - شروع از سطح 0)
+    training_camp_level = models.PositiveIntegerField(default=0, verbose_name="سطح کمپ تمرینی")
+    gym_level = models.PositiveIntegerField(default=0, verbose_name="سطح سالن بدنسازی")
+    medical_level = models.PositiveIntegerField(default=0, verbose_name="سطح مرکز پزشکی")
+    pool_level = models.PositiveIntegerField(default=0, verbose_name="سطح استخر بازیابی")
+    stadium_level = models.PositiveIntegerField(default=0, verbose_name="سطح استادیوم")
+    academy_level = models.PositiveIntegerField(default=0, verbose_name="سطح آکادمی جوانان")
+    scouting_level = models.PositiveIntegerField(default=0, verbose_name="سطح استعدادیابی بین‌المللی")
 
     class Meta:
         verbose_name = "تسهیلات باشگاه"
@@ -43,8 +44,10 @@ class ClubFacilities(models.Model):
 
     @staticmethod
     def curve_percent(level: int) -> float:
-        """Returns the percentage of the max effect for the given level (1-20)."""
-        level = max(1, min(level, 20))
+        """Returns the percentage of the max effect for the given level (0-20)."""
+        if not level or level <= 0:
+            return 0.0
+        level = min(level, 20)
         CURVE = [
             0, 15, 27, 37, 46, 54, 61, 67, 71, 75,
             79, 83, 86, 89, 92, 94, 96, 98, 99, 100
@@ -103,6 +106,7 @@ class Player(models.Model):
         help_text="مانده کسری رشد که در هر دوره ارزیابی روی اورال اعمال می‌شود."
     )
     is_locked = models.BooleanField(default=False, verbose_name="قفل استقامت زیر ۳۰٪")
+    shirt_number = models.PositiveIntegerField(null=True, blank=True, default=None, verbose_name="شماره پیراهن")
     x_coord = models.FloatField(default=0.0, verbose_name="مختصات X در ترکیب")
     y_coord = models.FloatField(default=0.0, verbose_name="مختصات Y در ترکیب")
     is_starting = models.BooleanField(default=False, verbose_name="فیکس است؟")

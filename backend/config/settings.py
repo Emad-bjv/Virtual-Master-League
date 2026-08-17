@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     'notifications',
     'realtime',
     'audit',
+    'admin_api',
 ]
 
 AUTH_USER_MODEL = 'users.User'
@@ -204,6 +205,11 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Media files (uploaded receipts, etc.)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 # Celery Configuration Options
 from celery.schedules import crontab
@@ -251,7 +257,8 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '1000/minute',
         'user': '10000/day',
-        'otp': '3/min',
+        'otp': '30/min',
+        'otp_verify': '100/min',
         'payment': '10/min',
         'gacha': '20/min',
         'transfer_bid': '30/min',

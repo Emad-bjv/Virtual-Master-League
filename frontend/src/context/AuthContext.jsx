@@ -29,13 +29,8 @@ export function AuthProvider({ children }) {
     }
   }, [token]);
 
-  const requestOtp = async (phoneNumber) => {
-    const res = await authApi.requestOtp(phoneNumber);
-    return res.data;
-  };
-
-  const verifyOtp = async (phoneNumber, code) => {
-    const res = await authApi.verifyOtp(phoneNumber, code);
+  const passwordLogin = async (username, password) => {
+    const res = await authApi.login(username, password);
     const { access, refresh, user: userData } = res.data;
     localStorage.setItem('vml_token', access);
     if (refresh) {
@@ -71,7 +66,7 @@ export function AuthProvider({ children }) {
     setUser(null);
   };
 
-  const login = quickLogin;
+  const login = passwordLogin;
   const refreshProfile = fetchProfile;
 
   return (
@@ -82,14 +77,11 @@ export function AuthProvider({ children }) {
         isAuthenticated: !!token && !!user,
         loading,
         login,
-        requestOtp,
-        verifyOtp,
+        passwordLogin,
         quickLogin,
-        fetchProfile,
+        logout,
         updateProfile,
         refreshProfile,
-        logout,
-        setUser,
       }}
     >
       {children}

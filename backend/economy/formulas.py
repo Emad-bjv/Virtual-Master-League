@@ -15,6 +15,8 @@ SOFT_CAP_DECAY = Decimal('0.35')  # 35% after cap
 WEEKLY_TASK_GEM_REWARD = 15
 SEASON_PASS_LEVEL_GEM_REWARD = 8
 CUP_WIN_GEM_REWARD = 50
+MATCH_WIN_GEM_REWARD = 10
+UNDERDOG_WIN_GEM_BONUS = 15
 
 
 def calculate_match_reward(team, match_result: str, goals_scored: int, clean_sheet: bool) -> Decimal:
@@ -24,6 +26,41 @@ def calculate_match_reward(team, match_result: str, goals_scored: int, clean_she
     if clean_sheet:
         reward += REWARD_CLEAN_SHEET
     return reward
+
+
+def calculate_match_gem_reward(team, opponent_team, match_result: str) -> dict:
+    """
+    Calculates gem rewards for match:
+    - Base Win: 10 Gems
+    - Underdog Win Bonus: +15 Gems (if opponent rating/squad overall is >= 2.0 higher)
+    """
+    if match_result != 'WIN':
+        return {'total_gems': 0, 'base_gems': 0, 'underdog_gems': 0, 'is_underdog': False}
+
+    from django.db.models import Avg
+    base_gems = MATCH_WIN_GEM_REWARD
+    underdog_gems = 0
+    is_underdog = False
+
+    if team and opponent_team:
+        team_ovr = team.players.filter(is_starting=True).aggregate(avg=Avg('overall'))['avg']
+        if team_ovr is None:
+            team_ovr = team.players.aggregate(avg=Avg('overall'))['avg'] or 75.0
+
+        opp_ovr = opponent_team.players.filter(is_starting=True).aggregate(avg=Avg('overall'))['avg']
+        if opp_ovr is None:
+            opp_ovr = opponent_team.players.aggregate(avg=Avg('overall'))['avg'] or 75.0
+
+        if float(opp_ovr) >= float(team_ovr) + 2.0:
+            is_underdog = True
+            underdog_gems = UNDERDOG_WIN_GEM_BONUS
+
+    return {
+        'total_gems': base_gems + underdog_gems,
+        'base_gems': base_gems,
+        'underdog_gems': underdog_gems,
+        'is_underdog': is_underdog
+    }
 
 
 def apply_weekly_soft_cap(team, raw_reward: Decimal, week_start) -> Decimal:

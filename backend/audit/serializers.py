@@ -21,7 +21,7 @@ class AdminAuditLogSerializer(serializers.ModelSerializer):
         if obj.admin_user:
             return {
                 'id': obj.admin_user.id,
-                'phone_number': obj.admin_user.phone_number,
+                'username': obj.admin_user.username,
                 'first_name': obj.admin_user.first_name,
                 'last_name': obj.admin_user.last_name,
             }

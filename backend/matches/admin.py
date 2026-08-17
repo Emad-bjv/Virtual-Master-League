@@ -94,7 +94,7 @@ class MatchAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('اطلاعات پایه مسابقه', {
-            'fields': ('tournament', 'round_name', 'is_knockout', 'date', 'status', 'fatigue_applied')
+            'fields': ('tournament', 'round_name', 'is_knockout', 'date', 'status', 'fatigue_applied', 'stream_url')
         }),
         ('تیم‌ها و نتیجه', {
             'fields': ('home_team', 'away_team', 'home_score', 'away_score')

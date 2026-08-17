@@ -16,6 +16,7 @@ const APP_CATEGORIES = [
 ];
 
 const AdminDatabase = () => {
+
   const [summary, setSummary] = useState([]);
   const [activeCategory, setActiveCategory] = useState('all');
   const [selectedModel, setSelectedModel] = useState(null);
@@ -426,7 +427,7 @@ const AdminDatabase = () => {
 
       {/* Dynamic Form Modal (Create / Edit) */}
       {(creatingRow || editingRow) && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div className="fixed top-0 left-0 w-screen h-screen bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
             <div className="p-5 border-b border-gray-800 bg-gray-900">
               <h2 className="text-xl font-bold text-white flex justify-between items-center">
@@ -490,7 +491,7 @@ const AdminDatabase = () => {
 
       {/* JSON Viewer Modal */}
       {activeJsonRow && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+        <div className="fixed top-0 left-0 w-screen h-screen bg-black/80 flex items-center justify-center p-4 z-50">
           <div className="bg-gray-900 p-6 rounded-2xl max-w-2xl w-full">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-white font-bold">داده‌های خام (JSON)</h3>
