@@ -39,7 +39,6 @@ export default function LiveMatchStandby({
       setSecondsLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          if (onUnlockLive) onUnlockLive();
           return 0;
         }
         return prev - 1;
@@ -47,12 +46,17 @@ export default function LiveMatchStandby({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [secondsLeft, onUnlockLive]);
+  }, [secondsLeft]);
 
-  // Pre-Match T-15 Audio Chime Trigger
+  const hasTriggeredStandbyChime = React.useRef(false);
+
+  // Pre-Match T-15 Audio Chime Trigger (Play once only)
   useEffect(() => {
     if (secondsLeft != null && secondsLeft > 0 && secondsLeft <= 900) {
-      notificationSoundService.playMatchAlertChime();
+      if (!hasTriggeredStandbyChime.current) {
+        notificationSoundService.playMatchAlertChime();
+        hasTriggeredStandbyChime.current = true;
+      }
     }
   }, [secondsLeft]);
 
@@ -246,8 +250,30 @@ export default function LiveMatchStandby({
           </div>
         </div>
 
-        {/* T-15 Pre-Match Notification Banner */}
-        {secondsLeft <= 900 && secondsLeft > 0 ? (
+        {/* T-15 Pre-Match Notification Banner or Match Ready CTA */}
+        {secondsLeft != null && secondsLeft <= 0 ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/80 via-slate-900 to-cyan-950/80 border-2 border-amber-500/70 text-amber-200 text-xs flex flex-col sm:flex-row items-center justify-between gap-3 shadow-[0_0_30px_rgba(245,158,11,0.25)] relative z-10"
+          >
+            <div className="flex items-center gap-2.5 text-right">
+              <div className="w-3 h-3 rounded-full bg-amber-400 animate-ping shrink-0" />
+              <span className="font-black text-white sm:text-sm">
+                زمان برنامه‌ریزی‌شده مسابقه فرا رسیده است. سیستم در انتظار سوت آغاز مسابقه توسط داور می‌باشد ⏳
+              </span>
+            </div>
+            {isAdmin && (
+              <button
+                onClick={onAdminOverride}
+                className="fc-btn-volt px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-black text-slate-950 shrink-0 flex items-center gap-2 shadow-lg active:scale-95 cursor-pointer font-sport"
+              >
+                <Play size={16} />
+                <span>ورود به اتاق فرمان داوری</span>
+              </button>
+            )}
+          </motion.div>
+        ) : secondsLeft <= 900 && secondsLeft > 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

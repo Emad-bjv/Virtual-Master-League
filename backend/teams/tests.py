@@ -163,3 +163,40 @@ class PlayerAndFacilityActionsTestCase(APITestCase):
         self.assertEqual(self.facility.gym_level, 1)
         self.assertEqual(self.team.gems, 35) # lvl 0 cost = 15 -> 50 - 15 = 35
 
+    def test_gem_boost_progression_to_max_99(self):
+        self.team.gems = 30000
+        self.team.save()
+        self.player.level = 1
+        self.player.overall = 87
+        self.player.base_overall = 87
+        self.player.potential_ovr = 89
+        self.player.save()
+
+        # Upgrade from level 1 to 2 with gems (costs 10 gems in Scenario 1)
+        url = f"/api/players/{self.player.id}/gem_boost/"
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        self.player.refresh_from_db()
+        self.team.refresh_from_db()
+        self.assertEqual(self.player.level, 2)
+        self.assertEqual(self.team.gems, 29990) # 30000 - 10
+
+        # Max out to level 20
+        self.player.level = 19
+        self.player.save()
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, 200)
+        self.player.refresh_from_db()
+        self.assertEqual(self.player.level, 20)
+        self.assertEqual(self.player.overall, 99) # Max PES 99!
+
+    def test_free_xp_capped_at_potential(self):
+        from teams.level_engine import apply_level_bonus
+        self.player.overall = 89
+        self.player.potential_ovr = 89
+        self.player.save()
+
+        apply_level_bonus(self.player, 5)
+        self.player.refresh_from_db()
+        self.assertEqual(self.player.overall, 89) # Capped at potential_ovr!
+

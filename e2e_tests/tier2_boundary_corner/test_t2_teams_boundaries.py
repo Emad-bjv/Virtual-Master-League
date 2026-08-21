@@ -38,7 +38,7 @@ class Tier2TeamsBoundaryTests(VMLTestHarness):
         User.objects.all().delete()
         Team.objects.all().delete()
         Player.objects.all().delete()
-        self.user = User.objects.create_user(phone_number="09121110011")
+        self.user = self.create_user(phone_number="09121110011")
         self.team = Team.objects.create(manager=self.user, name="Tehran Boundary FC", budget=Decimal("100000.00"))
         self.facilities, _ = ClubFacilities.objects.get_or_create(team=self.team)
 

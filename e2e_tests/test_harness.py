@@ -186,17 +186,49 @@ class VMLTestHarness(TestCase):
     def client(self):
         return self.django_client
 
-    def create_user(self, phone_number="09123456789", virtual_dollars=1000.00, **kwargs):
+    def create_user(self, username=None, phone_number="09123456789", virtual_dollars=1000.00, role="coach", **kwargs):
         from users.models import User
-        return User.objects.create_user(phone_number=phone_number, virtual_dollars=virtual_dollars, **kwargs)
+        uname = username or phone_number
+        if not uname:
+            uname = f"user_{User.objects.count() + 1}"
+        from decimal import Decimal
+        if not isinstance(virtual_dollars, Decimal):
+            virtual_dollars = Decimal(str(virtual_dollars))
+        return User.objects.create_user(username=uname, virtual_dollars=virtual_dollars, role=role, **kwargs)
+
+    def authenticate(self, user):
+        if self.django_client and hasattr(self.django_client, 'force_authenticate'):
+            self.django_client.force_authenticate(user=user)
+        return user
+
+    def authenticate_as_admin(self, admin_user=None):
+        if admin_user is None:
+            admin_user = self.create_user(role="admin", is_staff=True)
+        if self.django_client and hasattr(self.django_client, 'force_authenticate'):
+            self.django_client.force_authenticate(user=admin_user)
+        return admin_user
+
+    def authenticate_as_coach(self, coach_user=None, team=None):
+        if coach_user is None:
+            coach_user = self.create_user(role="coach")
+        if team is not None:
+            team.manager = coach_user
+            team.save()
+        if self.django_client and hasattr(self.django_client, 'force_authenticate'):
+            self.django_client.force_authenticate(user=coach_user)
+        return coach_user
 
     def create_team(self, manager=None, name="Test Team", budget=1000000.00, **kwargs):
         from teams.models import Team
         return Team.objects.create(manager=manager, name=name, budget=budget, **kwargs)
 
-    def create_player(self, team=None, name="Test Player", position="CMF", overall=75, virtual_stamina=100.0, **kwargs):
+    def create_player(self, team=None, name="Test Player", position="CF", overall=75, age=24, base_stamina=80, potential_ovr=85, virtual_stamina=100.0, **kwargs):
         from teams.models import Player
-        return Player.objects.create(team=team, name=name, position=position, overall=overall, virtual_stamina=virtual_stamina, **kwargs)
+        return Player.objects.create(
+            team=team, name=name, position=position, overall=overall,
+            age=age, base_stamina=base_stamina, potential_ovr=potential_ovr,
+            virtual_stamina=virtual_stamina, **kwargs
+        )
 
     def set_token(self, token: str):
         """Set active JWT auth bearer token."""

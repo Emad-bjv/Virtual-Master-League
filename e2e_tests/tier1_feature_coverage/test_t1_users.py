@@ -21,27 +21,27 @@ class Tier1UsersFeatureTests(VMLTestHarness):
     # --- Feature 1: User Auth & OTP ---
 
     def test_feature1_user_model_creation_with_phone_number(self):
-        user = User.objects.create_user(phone_number="09123456789")
-        self.assertEqual(user.phone_number, "09123456789")
+        user = User.objects.create_user(username="09123456789")
+        self.assertEqual(user.username, "09123456789")
         self.assertTrue(Decimal(str(user.virtual_dollars)) >= Decimal("0.00"))
         self.assertFalse(user.is_staff)
 
     def test_feature1_user_model_unique_phone_number_constraint(self):
-        User.objects.create_user(phone_number="09123456789")
+        User.objects.create_user(username="09123456789")
         with self.assertRaises(IntegrityError):
-            User.objects.create_user(phone_number="09123456789")
+            User.objects.create_user(username="09123456789")
 
     def test_feature1_user_manager_create_user_requires_phone(self):
         with self.assertRaises(ValueError):
-            User.objects.create_user(phone_number="")
+            User.objects.create_user(username="")
 
     def test_feature1_user_manager_create_superuser(self):
-        admin = User.objects.create_superuser(phone_number="09120000000", password="adminpassword")
+        admin = User.objects.create_superuser(username="09120000000", password="adminpassword")
         self.assertTrue(admin.is_staff)
         self.assertTrue(admin.is_superuser)
 
     def test_feature1_user_str_representation(self):
-        user = User.objects.create_user(phone_number="09998887766")
+        user = User.objects.create_user(username="09998887766")
         self.assertEqual(str(user), "09998887766")
 
     def test_feature1_otp_request_endpoint_valid_phone(self):
@@ -112,12 +112,12 @@ class Tier1UsersFeatureTests(VMLTestHarness):
         user = self.create_user(phone_number="09123332211", virtual_dollars=2500.00)
         payload = {
             "id": user.id,
-            "phone_number": user.phone_number,
+            "username": user.username,
             "virtual_dollars": str(user.virtual_dollars),
         }
-        self.assertIn("phone_number", payload)
+        self.assertIn("username", payload)
         self.assertIn("virtual_dollars", payload)
-        self.assertEqual(payload["phone_number"], "09123332211")
+        self.assertEqual(payload["username"], "09123332211")
 
     def test_feature25_frontend_unauthorized_token_handling(self):
         self.client.credentials(HTTP_AUTHORIZATION="Bearer invalid_token")
@@ -131,21 +131,21 @@ class Tier1UsersFeatureTests(VMLTestHarness):
             "refresh": "fake_refresh_token",
             "user": {
                 "id": user.id,
-                "phone_number": user.phone_number,
+                "username": user.username,
                 "virtual_dollars": str(user.virtual_dollars),
             }
         }
         self.assertIn("access", auth_contract)
         self.assertIn("refresh", auth_contract)
         self.assertIn("user", auth_contract)
-        self.assertEqual(auth_contract["user"]["phone_number"], "09124445566")
+        self.assertEqual(auth_contract["user"]["username"], "09124445566")
 
     def test_feature25_frontend_profile_response_contract(self):
         user = self.create_user(phone_number="09128889900")
-        self.client.force_authenticate(user=user)
+        self.authenticate(user)
         response = self.client.get("/api/users/me/")
         if response.status_code == 200:
-            self.assertIn("phone_number", response.data)
+            self.assertIn("username", response.data)
             self.assertIn("virtual_dollars", response.data)
 
     def test_feature25_frontend_otp_request_payload_validation(self):

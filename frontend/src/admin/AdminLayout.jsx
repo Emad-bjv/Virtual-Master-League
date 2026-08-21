@@ -5,7 +5,7 @@ import api from '../services/api';
 import { ToastProvider } from './components/Toast';
 import { 
   LayoutDashboard, Radio, Users, Shield, DollarSign, Settings, 
-  FileText, Database, LogOut, ExternalLink, ArrowRight 
+  FileText, Database, LogOut, ExternalLink, ArrowRight, Newspaper 
 } from 'lucide-react';
 
 const AdminLayoutContent = () => {
@@ -18,7 +18,7 @@ const AdminLayoutContent = () => {
     const checkAdmin = async () => {
       try {
         const response = await api.get('/users/me/');
-        if (response.data.role === 'admin' || response.data.is_superuser || response.data.is_staff) {
+        if (response.data.role === 'admin' || response.data.role === 'superadmin' || response.data.is_superuser || response.data.is_staff) {
           setIsAdmin(true);
           setAdminUser(response.data);
         } else {
@@ -63,6 +63,11 @@ const AdminLayoutContent = () => {
           <Link to="/admin" className={`admin-nav-link ${isActive('/admin')}`}>
             <LayoutDashboard size={17} />
             <span>داشبورد اصلی</span>
+          </Link>
+
+          <Link to="/admin/transfer-reports" className={`admin-nav-link ${isActive('/admin/transfer-reports')}`}>
+            <Newspaper size={17} className="text-cyan-400" />
+            <span>اتاق خبر و نقل‌وانتقالات</span>
           </Link>
 
           <Link to="/admin/live-control" className={`admin-nav-link ${isActive('/admin/live-control')}`}>

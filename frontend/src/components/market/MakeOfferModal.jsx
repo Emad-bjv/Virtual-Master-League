@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Handshake, Users, Calendar } from 'lucide-react';
+import { X, Handshake, Users, Calendar, AlertCircle, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import useBodyScrollLock from '../../hooks/useBodyScrollLock';
+import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
+import ConfirmModal from '../common/ConfirmModal';
 
 export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, onSubmitOffer }) {
   useBodyScrollLock(true);
@@ -11,6 +13,9 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
   const [cashAmount, setCashAmount] = useState('');
   const [selectedSwapPlayers, setSelectedSwapPlayers] = useState([]);
   const [loanDuration, setLoanDuration] = useState('');
+  const [clientError, setClientError] = useState('');
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState(null);
 
   if (!player) return null;
 
@@ -25,15 +30,36 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setClientError('');
+
+    // Check if offering to own team
+    if (myTeam && targetTeam && myTeam.id === targetTeam.id) {
+      setClientError('امکان ارسال پیشنهاد برای بازیکنان تیم خودتان وجود ندارد.');
+      return;
+    }
+
+    const numCash = cashAmount ? parseFloat(cashAmount) : 0;
+    if (numCash < 0) {
+      setClientError('مبلغ پیشنهادی نمی‌تواند منفی باشد.');
+      return;
+    }
+
+    if (myTeam && (activeTab === 'DIRECT_TRANSFER' || activeTab === 'LOAN') && numCash > Number(myTeam.budget || 0)) {
+      setClientError(`مبلغ پیشنهادی (${numCash.toLocaleString()} $) بیش از بودجه موجود باشگاه شما (${Number(myTeam.budget || 0).toLocaleString()} $) است.`);
+      return;
+    }
+
     const payload = {
+      sender_team_id: myTeam?.id,
       target_player_id: player.id,
       receiver_team_id: targetTeam.id,
       offer_type: activeTab,
-      cash_amount: cashAmount ? parseFloat(cashAmount) : 0,
+      cash_amount: numCash,
       swap_players: activeTab === 'SWAP' ? selectedSwapPlayers : [],
-      loan_duration_matches: activeTab === 'LOAN' ? parseInt(loanDuration) : 0,
+      loan_duration_matches: activeTab === 'LOAN' ? parseInt(loanDuration || 0) : 0,
     };
-    onSubmitOffer(payload);
+    setPendingPayload(payload);
+    setShowConfirm(true);
   };
 
   return createPortal(
@@ -44,12 +70,49 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
         exit={{ opacity: 0, y: 20 }}
         className="w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar glass-panel p-5 rounded-2xl border border-indigo-500/30 shadow-2xl relative my-auto"
       >
-        <button onClick={onClose} className="absolute left-4 top-4 text-slate-400 hover:text-white transition-colors">
+        <button onClick={onClose} className="absolute left-4 top-4 text-slate-400 hover:text-white transition-colors cursor-pointer">
           <X size={20} />
         </button>
 
-        <h2 className="text-lg font-black text-white mb-1">پیشنهاد رسمی به تیم {targetTeam.name}</h2>
-        <p className="text-xs text-slate-400 mb-5">برای جذب {player.name} (OVR {player.overall})</p>
+        <div className="flex items-center gap-3.5 mb-4">
+          <div className="w-14 h-16 rounded-2xl overflow-hidden border border-indigo-500/40 bg-gradient-to-b from-[#0f172a] to-[#05080e] shrink-0 flex items-center justify-center relative shadow-md">
+            {getPlayerPhotoUrl(player) ? (
+              <img
+                src={getPlayerPhotoUrl(player)}
+                alt={player.name}
+                className="w-full h-full object-cover object-top"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            ) : (
+              <User size={24} className="text-indigo-400 opacity-80" />
+            )}
+          </div>
+          <div className="space-y-0.5">
+            <h2 className="text-base sm:text-lg font-black text-white">پیشنهاد رسمی به تیم {targetTeam.name}</h2>
+            <div className="flex flex-wrap items-center gap-2 text-xs font-sport">
+              <span className="text-white font-bold">{player.name}</span>
+              <span className="text-amber-300 font-bold bg-amber-950/70 px-1.5 py-0.2 rounded border border-amber-500/30">OVR {player.overall}</span>
+              {player.potential_ovr && player.potential_ovr > player.overall && (
+                <span className="text-cyan-300 font-bold bg-cyan-950/70 px-1.5 py-0.2 rounded border border-cyan-500/30">POT {player.potential_ovr}</span>
+              )}
+              <span className="text-slate-400 font-sans">({player.position})</span>
+            </div>
+            <div className="text-[11px] text-slate-300 flex items-center gap-2 font-sport pt-0.5">
+              <span>ارزش پایه: <strong className="text-[#00ff87]">€{Number(player.market_value || player.wage * 50 || 1000000).toLocaleString()}</strong></span>
+              <span>•</span>
+              <span>دستمزد: <strong className="text-amber-300">€{Number(player.wage || 0).toLocaleString()}</strong>/هفته</span>
+            </div>
+          </div>
+        </div>
+
+        {clientError && (
+          <div className="mb-4 bg-rose-950/70 border border-rose-500/50 text-rose-200 text-xs p-3 rounded-xl flex items-center gap-2 font-medium">
+            <AlertCircle size={16} className="text-rose-400 shrink-0" />
+            <span>{clientError}</span>
+          </div>
+        )}
 
         <div className="flex bg-slate-900/60 p-1 rounded-xl border border-slate-800 mb-5">
           <button 
@@ -99,10 +162,34 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
                   <div 
                     key={p.id}
                     onClick={() => toggleSwapPlayer(p.id)}
-                    className={`flex justify-between items-center p-2 rounded-lg cursor-pointer border transition-colors ${selectedSwapPlayers.includes(p.id) ? 'bg-indigo-900/50 border-indigo-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-600'}`}
+                    className={`flex justify-between items-center p-2 rounded-xl cursor-pointer border transition-colors ${selectedSwapPlayers.includes(p.id) ? 'bg-indigo-900/50 border-indigo-500 text-white' : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-600'}`}
                   >
-                    <span>{p.name}</span>
-                    <span className="text-[10px] opacity-70">{p.position} | OVR {p.overall}</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg overflow-hidden border border-slate-700 bg-[#05080e] shrink-0 flex items-center justify-center relative">
+                        {getPlayerPhotoUrl(p) ? (
+                          <img
+                            src={getPlayerPhotoUrl(p)}
+                            alt={p.name}
+                            className="w-full h-full object-cover object-top"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <User size={14} className="text-slate-500" />
+                        )}
+                      </div>
+                      <span className="font-bold">{p.name}</span>
+                    </div>
+                    <div className="text-right text-[10px] font-sport">
+                      <div className="flex items-center gap-1 justify-end">
+                        <span className="text-amber-300 font-bold">{p.position} • OVR {p.overall}</span>
+                        {p.potential_ovr && p.potential_ovr > p.overall && (
+                          <span className="text-cyan-400 font-bold bg-cyan-950/70 px-1 rounded">POT {p.potential_ovr}</span>
+                        )}
+                      </div>
+                      <span className="text-[#00ff87] text-[9.5px] block font-bold">€{Number(p.market_value || (p.wage ? p.wage * 50 : 1000000)).toLocaleString()}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -149,13 +236,58 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
           <div className="pt-4 border-t border-slate-800">
             <button 
               type="submit"
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all"
+              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all cursor-pointer font-sport"
             >
               ارسال پیشنهاد رسمی
             </button>
           </div>
         </form>
       </motion.div>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showConfirm}
+        title="تأیید ارسال پیشنهاد رسمی"
+        message={`آیا از ارسال این پیشنهاد رسمی به باشگاه ${targetTeam?.name} برای جذب «${player?.name}» اطمینان دارید؟`}
+        details={
+          <div className="space-y-1 font-sport text-xs">
+            <div className="flex justify-between">
+              <span>نوع پیشنهاد:</span>
+              <span className="text-indigo-300 font-bold font-sans">
+                {activeTab === 'DIRECT_TRANSFER' ? 'خرید قطعی' : activeTab === 'SWAP' ? 'معاوضه' : 'قرضی'}
+              </span>
+            </div>
+            {pendingPayload?.cash_amount > 0 && (
+              <div className="flex justify-between">
+                <span>مبلغ پیشنهادی:</span>
+                <span className="text-[#00ff87] font-black">${pendingPayload.cash_amount.toLocaleString()}</span>
+              </div>
+            )}
+            {activeTab === 'SWAP' && selectedSwapPlayers.length > 0 && (
+              <div className="flex justify-between">
+                <span>تعداد بازیکن معاوضه:</span>
+                <span className="text-amber-400 font-bold">{selectedSwapPlayers.length} بازیکن</span>
+              </div>
+            )}
+            {activeTab === 'LOAN' && (
+              <div className="flex justify-between">
+                <span>مدت قرض:</span>
+                <span className="text-cyan-300 font-bold">{loanDuration} مسابقه</span>
+              </div>
+            )}
+          </div>
+        }
+        confirmText="بله، ارسال پیشنهاد"
+        cancelText="خیر، ویرایش"
+        variant="info"
+        onConfirm={() => {
+          setShowConfirm(false);
+          if (pendingPayload) {
+            onSubmitOffer(pendingPayload);
+          }
+        }}
+        onCancel={() => setShowConfirm(false)}
+      />
     </div>,
     document.body
   );

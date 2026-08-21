@@ -9,12 +9,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { economyApi, gachaApi, seasonPassApi } from '../../services/api';
 import { useTeam } from '../../context/TeamContext';
 import Toast from '../common/Toast';
+import ConfirmModal from '../common/ConfirmModal';
 
 const STORE_SUBNAV = [
   { id: 'gems', label: 'الماس (جم 💎)' },
   { id: 'coins', label: 'بودجه باشگاه (دلار 💵)' },
-  { id: 'packs', label: 'پک‌ها (گاشا 🎁)' },
-  { id: 'pass', label: 'پاس فصلی (VIP 👑)' },
+  { id: 'packs', label: 'پک‌ها (🎁)' },
+  { id: 'pass', label: 'Season Pass (👑)' },
   { id: 'receipts', label: 'پیگیری واریزها' },
 ];
 
@@ -26,6 +27,7 @@ export default function StoreTab({ teamData, initialSub = 'gems' }) {
   const [gachaPacks, setGachaPacks] = useState([]);
   const [cardInfo, setCardInfo] = useState(null);
   const [myPaymentRequests, setMyPaymentRequests] = useState([]);
+  const [packToOpen, setPackToOpen] = useState(null);
 
   useEffect(() => {
     if (initialSub) {
@@ -248,7 +250,7 @@ export default function StoreTab({ teamData, initialSub = 'gems' }) {
               className="glass-panel p-6 rounded-3xl border-2 border-amber-400 max-w-xs w-full text-center space-y-4 bg-gradient-to-b from-purple-950 via-slate-900 to-slate-950 shadow-[0_0_30px_rgba(245,158,11,0.5)]"
             >
               <div className="text-xs font-black text-amber-300">تبریک! بازیکن جدید جذب شد</div>
-              
+
               <div className="fut-card p-4 rounded-2xl border border-amber-400/50 bg-gradient-to-b from-amber-900/40 to-slate-900 shadow-xl">
                 <div className="w-20 h-20 mx-auto rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300 font-black text-2xl font-sport shadow-inner">
                   {gachaResult.player?.overall_rating || gachaResult.player_rating || 88}
@@ -385,7 +387,7 @@ export default function StoreTab({ teamData, initialSub = 'gems' }) {
                   <span className="text-purple-300 block">Epic: {pack.rate_epic}% | Rare: {pack.rate_rare}%</span>
                 </div>
                 <button
-                  onClick={() => handleOpenGacha(pack.id)}
+                  onClick={() => setPackToOpen(pack)}
                   className="fc-btn-magenta text-white px-3.5 py-2 rounded-2xl font-black w-full shadow-lg transition-all font-sport cursor-pointer"
                 >
                   باز کردن پک ({pack.cost_usd ? `$${pack.cost_usd}` : `${pack.cost_gems} جم`})
@@ -398,6 +400,39 @@ export default function StoreTab({ teamData, initialSub = 'gems' }) {
             </div>
           )}
         </motion.div>
+      )}
+
+      {/* Confirmation Modal for Gacha Pack */}
+      {packToOpen && (
+        <ConfirmModal
+          isOpen={!!packToOpen}
+          title={`باز کردن ${packToOpen.name}`}
+          message={`آیا از خرید و باز کردن این پک ویژه اطمینان دارید؟`}
+          details={
+            <div className="space-y-1 font-sport text-xs">
+              <div className="flex justify-between">
+                <span>هزینه پک:</span>
+                <span className="text-pink-400 font-black">
+                  {packToOpen.cost_usd ? `$${packToOpen.cost_usd}` : `${packToOpen.cost_gems} جم`}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-400 text-[11px]">
+                <span>شانس لجندری:</span>
+                <span className="text-amber-300 font-bold">{packToOpen.rate_legendary}%</span>
+              </div>
+            </div>
+          }
+          confirmText="بله، باز کردن پک"
+          cancelText="خیر، انصراف"
+          variant="warning"
+          isLoading={isOpeningPack}
+          onConfirm={() => {
+            const id = packToOpen.id;
+            setPackToOpen(null);
+            handleOpenGacha(id);
+          }}
+          onCancel={() => setPackToOpen(null)}
+        />
       )}
 
       {/* Subtab 4: Payment Requests Tracking */}
@@ -502,69 +537,69 @@ export default function StoreTab({ teamData, initialSub = 'gems' }) {
 
             {/* Progress Bar */}
             <div className="w-full h-3 bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-purple-600 via-indigo-500 to-cyan-400 rounded-full"
                 style={{ width: `${Math.min(100, ((seasonPassData?.current_xp || 0) / (seasonPassLevels.find(l => l.level === (seasonPassData?.current_level || 1))?.xp_required || 100)) * 100)}%` }}
               ></div>
             </div>
-            
+
             <p className="text-slate-400 text-center text-[10px]">{seasonPassData?.current_xp || 0} XP دریافت شده</p>
           </div>
 
           {/* Weekly Tasks List */}
           <div className="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3">
-             <h3 className="font-bold text-white mb-2 border-b border-slate-800 pb-2">تسک‌های هفتگی</h3>
-             {weeklyTasks.map(task => (
-                <div key={task.id} className="flex justify-between items-center p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
-                   <div>
-                      <span className="font-bold text-slate-200 block">{task.task?.title}</span>
-                      <span className="text-[10px] text-slate-400">{task.current_value} / {task.task?.target_value} انجام شده</span>
-                   </div>
-                   
-                   {task.is_claimed ? (
-                      <span className="text-emerald-400 font-bold flex items-center gap-1"><Check size={14} /> دریافت شد</span>
-                   ) : task.is_completed ? (
-                      <button 
-                         onClick={() => handleClaimTask(task.id)}
-                         className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-xl transition-all text-[10px]"
-                      >
-                         دریافت +{task.task?.reward_xp} XP
-                      </button>
-                   ) : (
-                      <span className="text-slate-500 font-bold px-3 py-1.5 border border-slate-700 rounded-xl bg-slate-800 text-[10px]">ناتمام</span>
-                   )}
+            <h3 className="font-bold text-white mb-2 border-b border-slate-800 pb-2">تسک‌های هفتگی</h3>
+            {weeklyTasks.map(task => (
+              <div key={task.id} className="flex justify-between items-center p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 text-xs">
+                <div>
+                  <span className="font-bold text-slate-200 block">{task.task?.title}</span>
+                  <span className="text-[10px] text-slate-400">{task.current_value} / {task.task?.target_value} انجام شده</span>
                 </div>
-             ))}
-             {weeklyTasks.length === 0 && <p className="text-slate-500 text-xs text-center py-2">تسکی برای این هفته وجود ندارد.</p>}
+
+                {task.is_claimed ? (
+                  <span className="text-emerald-400 font-bold flex items-center gap-1"><Check size={14} /> دریافت شد</span>
+                ) : task.is_completed ? (
+                  <button
+                    onClick={() => handleClaimTask(task.id)}
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-xl transition-all text-[10px]"
+                  >
+                    دریافت +{task.task?.reward_xp} XP
+                  </button>
+                ) : (
+                  <span className="text-slate-500 font-bold px-3 py-1.5 border border-slate-700 rounded-xl bg-slate-800 text-[10px]">ناتمام</span>
+                )}
+              </div>
+            ))}
+            {weeklyTasks.length === 0 && <p className="text-slate-500 text-xs text-center py-2">تسکی برای این هفته وجود ندارد.</p>}
           </div>
 
           {/* Levels List */}
           <div className="space-y-2">
-             <h3 className="font-bold text-white px-2">جوایز سطوح</h3>
-             {seasonPassLevels.map(lvl => (
-                <div key={lvl.level} className={`p-3 rounded-xl border ${seasonPassData?.current_level >= lvl.level ? 'border-purple-500/40 bg-purple-950/20' : 'border-slate-800 bg-slate-900/40'} flex justify-between items-center text-xs`}>
-                   <div>
-                      <span className="font-bold text-white block">سطح {lvl.level} <span className="text-slate-400 font-normal text-[10px]">({lvl.xp_required} XP)</span></span>
-                      <div className="text-[10px] mt-1 space-y-1">
-                         <div className="text-cyan-300">رایگان: {lvl.free_reward_gems} جم</div>
-                         <div className="text-amber-400">ویژه (VIP): {lvl.vip_reward_player_rarity ? `بازیکن ${lvl.vip_reward_player_rarity}` : `${lvl.vip_reward_gems} جم`}</div>
-                      </div>
-                   </div>
-                   
-                   {seasonPassData?.claimed_levels?.includes(lvl.level) ? (
-                      <span className="text-emerald-400 font-bold flex items-center gap-1"><Check size={14} /> کامل</span>
-                   ) : seasonPassData?.current_level >= lvl.level ? (
-                      <button 
-                         onClick={() => handleClaimLevel(lvl.level)}
-                         className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold px-3 py-1.5 rounded-xl shadow-md"
-                      >
-                         دریافت
-                      </button>
-                   ) : (
-                      <span className="text-slate-600 font-bold">قفل</span>
-                   )}
+            <h3 className="font-bold text-white px-2">جوایز سطوح</h3>
+            {seasonPassLevels.map(lvl => (
+              <div key={lvl.level} className={`p-3 rounded-xl border ${seasonPassData?.current_level >= lvl.level ? 'border-purple-500/40 bg-purple-950/20' : 'border-slate-800 bg-slate-900/40'} flex justify-between items-center text-xs`}>
+                <div>
+                  <span className="font-bold text-white block">سطح {lvl.level} <span className="text-slate-400 font-normal text-[10px]">({lvl.xp_required} XP)</span></span>
+                  <div className="text-[10px] mt-1 space-y-1">
+                    <div className="text-cyan-300">رایگان: {lvl.free_reward_gems} جم</div>
+                    <div className="text-amber-400">ویژه (VIP): {lvl.vip_reward_player_rarity ? `بازیکن ${lvl.vip_reward_player_rarity}` : `${lvl.vip_reward_gems} جم`}</div>
+                  </div>
                 </div>
-             ))}
+
+                {seasonPassData?.claimed_levels?.includes(lvl.level) ? (
+                  <span className="text-emerald-400 font-bold flex items-center gap-1"><Check size={14} /> کامل</span>
+                ) : seasonPassData?.current_level >= lvl.level ? (
+                  <button
+                    onClick={() => handleClaimLevel(lvl.level)}
+                    className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold px-3 py-1.5 rounded-xl shadow-md"
+                  >
+                    دریافت
+                  </button>
+                ) : (
+                  <span className="text-slate-600 font-bold">قفل</span>
+                )}
+              </div>
+            ))}
           </div>
         </motion.div>
       )}
@@ -704,11 +739,10 @@ export default function StoreTab({ teamData, initialSub = 'gems' }) {
                     <button
                       onClick={handleSubmitReceipt}
                       disabled={!receiptFile || isUploadingReceipt}
-                      className={`w-2/3 py-2.5 rounded-xl font-black transition-all ${
-                        receiptFile && !isUploadingReceipt
+                      className={`w-2/3 py-2.5 rounded-xl font-black transition-all ${receiptFile && !isUploadingReceipt
                           ? 'bg-gradient-to-r from-emerald-500 to-cyan-500 text-slate-950 shadow-lg'
                           : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                      }`}
+                        }`}
                     >
                       {isUploadingReceipt ? 'در حال ارسال...' : 'ثبت و ارسال نهایی رسید'}
                     </button>

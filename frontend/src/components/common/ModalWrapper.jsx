@@ -1,16 +1,9 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { createPortal } from 'react-dom';
+import useBodyScrollLock from '../../hooks/useBodyScrollLock';
 
 export default function ModalWrapper({ isOpen, onClose, children, className = "" }) {
-  useEffect(() => {
-    if (isOpen) {
-      const originalStyle = window.getComputedStyle(document.body).overflow;
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = originalStyle;
-      };
-    }
-  }, [isOpen]);
+  useBodyScrollLock(isOpen);
 
   if (!isOpen) return null;
 

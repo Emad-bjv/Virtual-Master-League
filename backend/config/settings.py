@@ -71,6 +71,7 @@ AUTH_USER_MODEL = 'users.User'
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.gzip.GZipMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -157,6 +158,7 @@ def _get_database_config():
                 'HOST': '127.0.0.1',
                 'PORT': '5432',
                 'ATOMIC_REQUESTS': False,
+                'CONN_MAX_AGE': 600,
             }
         }
     except Exception:
@@ -164,6 +166,7 @@ def _get_database_config():
             'default': {
                 'ENGINE': 'django.db.backends.sqlite3',
                 'NAME': BASE_DIR / 'db.sqlite3',
+                'CONN_MAX_AGE': 600,
             }
         }
 

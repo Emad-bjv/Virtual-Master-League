@@ -47,7 +47,7 @@ class PositionChoicesView(views.APIView):
 from .permissions import IsManagerOrAdminOrReadOnly
 
 class TeamViewSet(viewsets.ModelViewSet):
-    queryset = Team.objects.all()
+    queryset = Team.objects.all().select_related('manager', 'facilities', 'gameplan').prefetch_related('players')
     serializer_class = TeamSerializer
     permission_classes = [permissions.IsAuthenticated, IsManagerOrAdminOrReadOnly]
 
@@ -96,19 +96,78 @@ class TeamViewSet(viewsets.ModelViewSet):
         if not request.user.is_staff and team.manager != request.user:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("شما دسترسی برای تغییر تاکتیک این تیم را ندارید.")
-        gameplan, _ = TeamGamePlan.objects.get_or_create(team=team)
+        
+        from matches.models import Match, MatchGamePlan
+        from matches.serializers import MatchGamePlanSerializer
+        from django.db.models import Q
+
+        # Discover target match (either explicitly passed or auto-discovered next match)
+        match_id = request.data.get('match_id') or request.query_params.get('match_id')
+        target_match = None
+        if match_id:
+            try:
+                target_match = Match.objects.get(id=match_id)
+            except Match.DoesNotExist:
+                pass
+
+        if not target_match:
+            # Auto-find the team's next upcoming match
+            target_match = Match.objects.filter(
+                Q(home_team=team) | Q(away_team=team),
+                status__in=['SCHEDULED', 'LIVE']
+            ).order_by('date', 'id').first()
+
+        # Default template gameplan
+        default_gameplan, _ = TeamGamePlan.objects.get_or_create(team=team)
+
+        # Match-scoped gameplan
+        match_gameplan = None
+        if target_match:
+            match_gameplan, _ = MatchGamePlan.objects.get_or_create(
+                match=target_match,
+                team=team,
+                defaults={
+                    'formation': default_gameplan.formation,
+                    'attacking_style': default_gameplan.attacking_style,
+                    'build_up': default_gameplan.build_up,
+                    'attacking_area': default_gameplan.attacking_area,
+                    'positioning': default_gameplan.positioning,
+                    'support_range': default_gameplan.support_range,
+                    'defensive_style': default_gameplan.defensive_style,
+                    'containment_area': default_gameplan.containment_area,
+                    'pressing': default_gameplan.pressing,
+                    'defensive_line': default_gameplan.defensive_line,
+                    'compactness': default_gameplan.compactness,
+                    'adv_offense_1': default_gameplan.adv_offense_1,
+                    'adv_offense_2': default_gameplan.adv_offense_2,
+                    'adv_defense_1': default_gameplan.adv_defense_1,
+                    'adv_defense_2': default_gameplan.adv_defense_2,
+                    'is_submitted': False,
+                }
+            )
+
+        active_gameplan = match_gameplan if match_gameplan else default_gameplan
 
         if request.method == 'POST':
             tactics = request.data.get('tactics', {})
             players_data = request.data.get('players', [])
 
-            # Use serializer with partial=True to accept any subset of
-            # TeamGamePlan fields (all 14 tactic fields + formation).
-            # This replaces the old manual field-by-field reading that
-            # referenced non-existent fields (play_style, defensive_press, etc.)
-            serializer = TeamGamePlanSerializer(gameplan, data=tactics, partial=True)
-            serializer.is_valid(raise_exception=True)
-            serializer.save(is_submitted=True)
+            # Update default template
+            def_serializer = TeamGamePlanSerializer(default_gameplan, data=tactics, partial=True)
+            if def_serializer.is_valid():
+                def_serializer.save()
+
+            # Update match gameplan
+            if match_gameplan:
+                mgp_serializer = MatchGamePlanSerializer(match_gameplan, data=tactics, partial=True)
+                mgp_serializer.is_valid(raise_exception=True)
+                from django.utils import timezone
+                mgp_serializer.save(is_submitted=True, submitted_at=timezone.now(), players_data=players_data)
+                active_gameplan = match_gameplan
+            else:
+                default_gameplan.is_submitted = True
+                default_gameplan.save()
+                active_gameplan = default_gameplan
 
             if players_data:
                 for item in players_data:
@@ -122,21 +181,59 @@ class TeamViewSet(viewsets.ModelViewSet):
                         player.save()
                     except Player.DoesNotExist:
                         continue
-                        
+
             try:
                 from season_pass.services import increment_task_progress
                 increment_task_progress(team, 'SUBMIT_LINEUP', 1)
-            except Exception as e:
-                print("Failed to increment season pass progress:", e)
+            except Exception:
+                pass
 
+            # Broadcast tactical change to active live matches and admin
+            try:
+                from realtime.events import broadcast_match_event, notify_admin
+                target_broadcast_matches = [target_match] if target_match else Match.objects.filter(
+                    Q(home_team=team) | Q(away_team=team),
+                    status__in=['LIVE', 'SCHEDULED']
+                )
+
+                for m in target_broadcast_matches:
+                    broadcast_match_event(m.id, {
+                        'type': 'coach_tactics_submitted',
+                        'match_id': m.id,
+                        'team_id': team.id,
+                        'team_name': team.name,
+                        'is_home': m.home_team_id == team.id,
+                        'formation': active_gameplan.formation,
+                        'tactics': MatchGamePlanSerializer(active_gameplan).data if isinstance(active_gameplan, MatchGamePlan) else TeamGamePlanSerializer(active_gameplan).data,
+                        'message': f'سرمربی تیم {team.name} ترکیب و تاکتیک جدید را برای مسابقه ارسال کرد ⚡'
+                    })
+
+                notify_admin({
+                    'type': 'coach_tactics_submitted',
+                    'title': f'درخواست تغییرات تاکتیکی: {team.name}',
+                    'body': f'سرمربی تیم {team.name} ترکیب جدید ({active_gameplan.formation}) را برای {target_match.round_name if target_match else "مسابقه"} ارسال کرد.',
+                    'team_id': team.id,
+                    'team_name': team.name,
+                    'formation': active_gameplan.formation,
+                    'match_id': target_match.id if target_match else None,
+                })
+            except Exception as e:
+                print("Failed to broadcast tactical change:", e)
+
+            serialized_gp = MatchGamePlanSerializer(active_gameplan).data if isinstance(active_gameplan, MatchGamePlan) else TeamGamePlanSerializer(active_gameplan).data
             return Response({
                 'status': 'ترکیب و تاکتیک‌ها با موفقیت در بک‌اند ثبت شد و به پنل ادمین ارسال گردید.',
-                'gameplan': TeamGamePlanSerializer(gameplan).data,
+                'gameplan': serialized_gp,
+                'target_match_id': target_match.id if target_match else None,
+                'target_match_round': target_match.round_name if target_match else None,
                 'team': TeamSerializer(team).data
             })
 
+        serialized_gp = MatchGamePlanSerializer(active_gameplan).data if isinstance(active_gameplan, MatchGamePlan) else TeamGamePlanSerializer(active_gameplan).data
         return Response({
-            'gameplan': TeamGamePlanSerializer(gameplan).data,
+            'gameplan': serialized_gp,
+            'target_match_id': target_match.id if target_match else None,
+            'target_match_round': target_match.round_name if target_match else None,
             'team': TeamSerializer(team).data
         })
 
@@ -153,7 +250,7 @@ class TeamViewSet(viewsets.ModelViewSet):
         
         allowed_fields = [
             'training_camp_level', 'gym_level', 'medical_level', 
-            'stadium_level', 'academy_level', 'scouting_level', 'pool_level'
+            'stadium_level', 'academy_level', 'pool_level'
         ]
         
         field_name = f"{facility_name}_level" if not facility_name.endswith('_level') else facility_name
@@ -188,12 +285,39 @@ class TeamViewSet(viewsets.ModelViewSet):
         facilities.save()
         team.refresh_from_db(fields=['gems'])
         
+        # --- Player Level System XP ---
+        from .level_engine import grant_facility_xp
+        grant_facility_xp(team, field_name, current_level + 1)
+        
+        # --- Youth Academy: Milestone Potential OVR Boost (Levels 5, 10, 15, 20 - Max +4) ---
+        boosted_young_count = 0
+        new_level = current_level + 1
+        if field_name == 'academy_level':
+            is_milestone = new_level in [5, 10, 15, 20]
+            if is_milestone:
+                young_players = Player.objects.filter(team=team, age__lte=23)
+                for yp in young_players:
+                    if yp.potential_ovr < 99:
+                        yp.potential_ovr = min(99, yp.potential_ovr + 1)
+                        yp.save(update_fields=['potential_ovr'])
+                        boosted_young_count += 1
+                
+                if boosted_young_count > 0:
+                    from notifications.models import Notification
+                    Notification.objects.create(
+                        team=team,
+                        category='TRANSFER',
+                        title=f"🌟 مایلستون سطح {new_level} آکادمی: افزایش پتانسیل جوانان",
+                        message=f"با دستیابی آکادمی به سطح طلایی {new_level}، سقف پتانسیل (Potential OVR) تعداد {boosted_young_count} بازیکن جوان و آینده‌دار تیم شما (+1) افزایش یافت!"
+                    )
+        
         return Response({
             'status': 'ارتقاء با موفقیت انجام شد',
             'facility': field_name,
             'new_level': current_level + 1,
             'gem_cost': gem_cost,
             'remaining_gems': team.gems,
+            'boosted_young_count': boosted_young_count,
             'facilities': ClubFacilitiesSerializer(facilities).data
         })
 
@@ -372,7 +496,7 @@ class TeamViewSet(viewsets.ModelViewSet):
             return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 class PlayerViewSet(viewsets.ModelViewSet):
-    queryset = Player.objects.all()
+    queryset = Player.objects.all().select_related('team', 'loan_owner_team')
     serializer_class = PlayerSerializer
     permission_classes = [permissions.IsAuthenticated, IsManagerOrAdminOrReadOnly]
 
@@ -458,6 +582,30 @@ class PlayerViewSet(viewsets.ModelViewSet):
         return Response({
             'status': f'مصدومیت {player.name} با موفقیت درمان شد.',
             'gem_cost': INJURY_HEAL_COST,
+            'remaining_gems': player.team.gems,
+            'player': PlayerSerializer(player).data
+        })
+
+    @action(detail=True, methods=['post'])
+    def gem_boost(self, request, pk=None):
+        player = self.get_object()
+        if not player.team:
+            return Response({'error': 'بازیکن در تیمی عضو نیست.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if not request.user.is_staff and player.team.manager != request.user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("شما دسترسی برای مدیریت این بازیکن را ندارید.")
+            
+        from .level_engine import grant_gem_boost
+        success, message = grant_gem_boost(player, player.team)
+        
+        if not success:
+            return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
+            
+        player.team.refresh_from_db(fields=['gems'])
+        
+        return Response({
+            'status': message,
             'remaining_gems': player.team.gems,
             'player': PlayerSerializer(player).data
         })

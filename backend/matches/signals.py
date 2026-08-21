@@ -110,6 +110,15 @@ def update_standings_and_rewards(sender, instance, **kwargs):
             import logging
             logging.getLogger(__name__).error(f"[Signal] Disciplinary task dispatch failed: {e}")
 
+        # Update Loan Statuses
+        try:
+            from transfers.loan_services import process_post_match_loans
+            process_post_match_loans(home)
+            process_post_match_loans(away)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"[Signal] Loan processing failed: {e}")
+
         # Mark as processed — prevent duplicate runs
         match.standings_processed = True
         match.save(update_fields=['standings_processed'])

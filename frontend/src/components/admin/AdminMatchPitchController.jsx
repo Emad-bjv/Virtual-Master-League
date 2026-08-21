@@ -17,14 +17,58 @@ const INITIAL_TEAM_B = {
   bench: [],
 };
 
-export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStatusChange, matchId = 1 }) {
-
+export default function AdminMatchPitchController({
+  onPushLiveEvent,
+  onMatchStatusChange,
+  matchId = 1,
+  homeTeamName = 'تیم میزبان',
+  awayTeamName = 'تیم میهمان',
+  initialStartersHome = [],
+  initialBenchHome = [],
+  initialStartersAway = [],
+  initialBenchAway = [],
+}) {
   const [activeTeamKey, setActiveTeamKey] = useState('teamA');
   const [matchStatus, setMatchStatus] = useState('FIRST_HALF'); // 'SCHEDULED', 'FIRST_HALF', 'HALF_TIME', 'SECOND_HALF', 'FINISHED'
   const [teams, setTeams] = useState({
-    teamA: INITIAL_TEAM_A,
-    teamB: INITIAL_TEAM_B,
+    teamA: {
+      name: homeTeamName || INITIAL_TEAM_A.name,
+      color: INITIAL_TEAM_A.color,
+      starters: initialStartersHome.length > 0 ? initialStartersHome : INITIAL_TEAM_A.starters,
+      bench: initialBenchHome.length > 0 ? initialBenchHome : INITIAL_TEAM_A.bench,
+    },
+    teamB: {
+      name: awayTeamName || INITIAL_TEAM_B.name,
+      color: INITIAL_TEAM_B.color,
+      starters: initialStartersAway.length > 0 ? initialStartersAway : INITIAL_TEAM_B.starters,
+      bench: initialBenchAway.length > 0 ? initialBenchAway : INITIAL_TEAM_B.bench,
+    },
   });
+
+  const [selectedBenchPlayer, setSelectedBenchPlayer] = useState(null);
+  const [activePitchPlayerModal, setActivePitchPlayerModal] = useState(null);
+  const [subModalBenchSelect, setSubModalBenchSelect] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
+
+  const currentTeam = teams[activeTeamKey] || teams.teamA;
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 3500);
+  };
+
+  const triggerLiveEvent = (text, icon, color, teamName) => {
+    const ev = {
+      id: Date.now(),
+      type: 'ADMIN_EVENT',
+      text,
+      team: teamName,
+      icon,
+      color,
+    };
+    if (onPushLiveEvent) onPushLiveEvent(ev);
+    showToast(text);
+  };
 
   const handleSetMatchState = async (newStatus) => {
     let action = 'START_MATCH';
@@ -66,31 +110,6 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
     triggerLiveEvent(text, icon, color, 'سیستم داوری');
   };
 
-  const [selectedBenchPlayer, setSelectedBenchPlayer] = useState(null);
-  const [activePitchPlayerModal, setActivePitchPlayerModal] = useState(null);
-  const [subModalBenchSelect, setSubModalBenchSelect] = useState(false);
-  const [toastMsg, setToastMsg] = useState('');
-
-  const currentTeam = teams[activeTeamKey];
-
-  const showToast = (msg) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(''), 3500);
-  };
-
-  const triggerLiveEvent = (text, icon, color, teamName) => {
-    const ev = {
-      id: Date.now(),
-      type: 'ADMIN_EVENT',
-      text,
-      team: teamName,
-      icon,
-      color,
-    };
-    if (onPushLiveEvent) onPushLiveEvent(ev);
-    showToast(text);
-  };
-
   // Flow B: Click Bench player first
   const handleSelectBenchPlayer = (bPlayer) => {
     if (bPlayer.hasBeenSubbed) {
@@ -129,22 +148,20 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
     }
 
     try {
-      // Assuming matchId=1 and teamId extracted from activeTeamKey for demo
-      const teamId = activeTeamKey === 'teamA' ? 1 : 2; 
-      // Call API
-      await matchApi.applySubstitution(1, {
+      const teamId = activeTeamKey === 'teamA' ? 1 : 2;
+      await matchApi.applySubstitution(matchId, {
         team_id: teamId,
-        player_out: outPlayer.id, // note: in demo these are strings 'a1', backend expects int, but this is a mock integration
+        player_out: outPlayer.id,
         player_in: inPlayer.id,
-        minute: 60 // hardcoded for demo
+        minute: 60,
       });
     } catch (err) {
       const errMsg = err.response?.data?.detail || 'خطا در ثبت تعویض در سرور';
       showToast(errMsg + ' ❌');
-      return; // abort optimistic update if failed
+      return;
     }
 
-    const updatedStarters = currentTeam.starters.map((p) => {
+    const updatedStarters = (currentTeam.starters || []).map((p) => {
       if (p.id === outPlayer.id) {
         return {
           ...inPlayer,
@@ -161,7 +178,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
       return p;
     });
 
-    const updatedBench = currentTeam.bench.map((b) => {
+    const updatedBench = (currentTeam.bench || []).map((b) => {
       if (b.id === inPlayer.id) {
         return {
           ...outPlayer,
@@ -193,11 +210,11 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
     const targetId = activePitchPlayerModal.id;
 
     try {
-      if (delta > 0) { // Only record additions to backend for simplicity
-        await matchApi.recordEvent(1, {
+      if (delta > 0) {
+        await matchApi.recordEvent(matchId, {
           player: targetId,
           event_type: statType,
-          minute: 45
+          minute: 45,
         });
       }
     } catch (err) {
@@ -208,13 +225,13 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
     let icon = '⚽';
     let color = 'text-emerald-400 border-emerald-500/40 bg-emerald-950/40';
 
-    const updatedStarters = currentTeam.starters.map((p) => {
+    const updatedStarters = (currentTeam.starters || []).map((p) => {
       if (p.id !== targetId) return p;
 
       let updated = { ...p };
 
       if (statType === 'GOAL') {
-        const newCount = Math.max(0, updated.goals + delta);
+        const newCount = Math.max(0, (updated.goals || 0) + delta);
         updated.goals = newCount;
         icon = '⚽';
         color = delta > 0 ? 'text-emerald-400 border-emerald-500/40 bg-emerald-950/40' : 'text-amber-400 border-amber-500/40 bg-amber-950/40';
@@ -222,7 +239,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
           ? `ثبت گل برای ${p.name} (${currentTeam.name}) ⚽ (مجموع: ${newCount} گل)`
           : `کاهش / اصلاح گل برای ${p.name} (${currentTeam.name}) ⚽ (مجموع: ${newCount} گل)`;
       } else if (statType === 'ASSIST') {
-        const newCount = Math.max(0, updated.assists + delta);
+        const newCount = Math.max(0, (updated.assists || 0) + delta);
         updated.assists = newCount;
         icon = '🅰️';
         color = delta > 0 ? 'text-cyan-400 border-cyan-500/40 bg-cyan-950/40' : 'text-amber-400 border-amber-500/40 bg-amber-950/40';
@@ -256,13 +273,12 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
       if (actionType === 'TOGGLE_YELLOW_1' || actionType === 'TOGGLE_YELLOW_2') event_type = 'YELLOW';
       if (actionType === 'TOGGLE_RED') event_type = 'RED';
       if (actionType === 'TOGGLE_INJURY') event_type = 'INJURY';
-      
+
       if (event_type) {
-        // Optimistic API Call
-        await matchApi.recordEvent(1, {
+        await matchApi.recordEvent(matchId, {
           player: targetId,
           event_type: event_type,
-          minute: 45
+          minute: 45,
         });
       }
     } catch (err) {
@@ -273,7 +289,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
     let color = 'text-amber-400 border-amber-500/40 bg-amber-950/40';
     let text = '';
 
-    const updatedStarters = currentTeam.starters.map((p) => {
+    const updatedStarters = (currentTeam.starters || []).map((p) => {
       if (p.id !== targetId) return p;
 
       let updated = { ...p };
@@ -365,7 +381,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
           <button
             onClick={() => handleSetMatchState('FIRST_HALF')}
             disabled={matchStatus === 'FIRST_HALF'}
-            className="flex-1 md:flex-none bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-1.5 text-xs"
+            className="flex-1 md:flex-none bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
           >
             <span>⚽ شروع بازی (نیمه اول)</span>
           </button>
@@ -373,7 +389,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
           <button
             onClick={() => handleSetMatchState('HALF_TIME')}
             disabled={matchStatus === 'HALF_TIME' || matchStatus === 'FINISHED'}
-            className="flex-1 md:flex-none bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-1.5 text-xs"
+            className="flex-1 md:flex-none bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
           >
             <span>⏸️ پایان نیمه اول (استراحت ۳۰s)</span>
           </button>
@@ -381,7 +397,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
           <button
             onClick={() => handleSetMatchState('SECOND_HALF')}
             disabled={matchStatus === 'SECOND_HALF' || matchStatus === 'FINISHED'}
-            className="flex-1 md:flex-none bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-1.5 text-xs"
+            className="flex-1 md:flex-none bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-black px-4 py-2 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
           >
             <span>▶️ شروع نیمه دوم</span>
           </button>
@@ -389,7 +405,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
           <button
             onClick={() => handleSetMatchState('FINISHED')}
             disabled={matchStatus === 'FINISHED'}
-            className="flex-1 md:flex-none bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-black px-4 py-2 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-1.5 text-xs"
+            className="flex-1 md:flex-none bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-black px-4 py-2 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-1.5 text-xs cursor-pointer"
           >
             <span>⏹️ پایان کامل بازی</span>
           </button>
@@ -410,14 +426,14 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
               setActiveTeamKey('teamA');
               setSelectedBenchPlayer(null);
             }}
-            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTeamKey === 'teamA'
                 ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg border border-purple-400/40'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-purple-400"></span>
-            <span>{teamA.name}</span>
+            <span>{teams.teamA.name}</span>
           </button>
 
           <button
@@ -425,14 +441,14 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
               setActiveTeamKey('teamB');
               setSelectedBenchPlayer(null);
             }}
-            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTeamKey === 'teamB'
                 ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-slate-950 shadow-lg border border-amber-400/40'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
             <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-            <span>سپاهان اصفهان</span>
+            <span>{teams.teamB.name}</span>
           </button>
         </div>
       </div>
@@ -457,14 +473,14 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
           </span>
           <button
             onClick={() => setSelectedBenchPlayer(null)}
-            className="mr-2 bg-slate-800 text-rose-300 px-2 py-0.5 rounded-lg text-[10px] hover:bg-slate-700"
+            className="mr-2 bg-slate-800 text-rose-300 px-2 py-0.5 rounded-lg text-[10px] hover:bg-slate-700 cursor-pointer"
           >
             لغو انتخاب
           </button>
         </div>
       )}
 
-      {/* STARTING XI PLAYERS CONTAINER (LIST / GRID FORMAT - WITHOUT GREEN PITCH) */}
+      {/* STARTING XI PLAYERS CONTAINER */}
       <div className="glass-panel p-4 rounded-3xl border border-cyan-500/30 space-y-3 bg-slate-900/90 shadow-2xl">
         <div className="flex justify-between items-center border-b border-slate-800 pb-2">
           <span className="font-bold text-white flex items-center gap-1.5">
@@ -477,11 +493,11 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-          {currentTeam.starters.map((player) => (
+          {(currentTeam.starters || []).map((player) => (
             <button
               key={player.id}
               onClick={() => handlePitchPlayerClick(player)}
-              className={`p-3 rounded-2xl border flex items-center justify-between text-right transition-all group hover:scale-[1.01] active:scale-95 ${
+              className={`p-3 rounded-2xl border flex items-center justify-between text-right transition-all group hover:scale-[1.01] active:scale-95 cursor-pointer ${
                 player.isRed
                   ? 'bg-rose-950/80 border-2 border-rose-600 text-rose-200 opacity-50 grayscale'
                   : player.isInjured
@@ -499,7 +515,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
                   <span className={`font-bold text-xs block ${player.isRed ? 'line-through' : ''}`}>
                     {player.name}
                   </span>
-                  <span className="text-[10px] text-purple-300 font-mono font-bold">OVR {player.overall}</span>
+                  <span className="text-[10px] text-purple-300 font-mono font-bold">OVR {player.overall || 75}</span>
                 </div>
               </div>
 
@@ -522,7 +538,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
         <div className="flex justify-between items-center border-b border-slate-800 pb-2">
           <span className="font-bold text-white flex items-center gap-1.5">
             <UserCheck size={16} className="text-purple-400" />
-            <span>نیمکت ذخیره تیم «{currentTeam.name}» ({currentTeam.bench.length} بازیکن)</span>
+            <span>نیمکت ذخیره تیم «{currentTeam.name}» ({(currentTeam.bench || []).length} بازیکن)</span>
           </span>
           <span className="text-[10px] text-slate-400">
             جهت تعویض سریع روی بازیکن کلیک کنید
@@ -530,7 +546,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-          {currentTeam.bench.map((bPlayer) => {
+          {(currentTeam.bench || []).map((bPlayer) => {
             const isSelected = selectedBenchPlayer?.id === bPlayer.id;
             const isDimmed = selectedBenchPlayer && !isSelected;
             const isSubbedOff = bPlayer.hasBeenSubbed;
@@ -553,7 +569,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
                   <span className="text-[8.5px] font-black bg-purple-950 text-purple-300 px-1 py-0.5 rounded">
                     {bPlayer.position}
                   </span>
-                  <span className="font-mono text-[9.5px] text-purple-300 font-bold">OVR {bPlayer.overall}</span>
+                  <span className="font-mono text-[9.5px] text-purple-300 font-bold">OVR {bPlayer.overall || 70}</span>
                 </div>
 
                 <div className="my-1">
@@ -601,7 +617,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
 
               <button
                 onClick={() => setActivePitchPlayerModal(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
               >
                 ✕
               </button>
@@ -616,20 +632,20 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-emerald-300 flex items-center gap-1">⚽ گل‌های بازیکن</span>
                       <span className="bg-emerald-900 text-white px-2 py-0.5 rounded font-mono font-bold">
-                        {activePitchPlayerModal.goals}
+                        {activePitchPlayerModal.goals || 0}
                       </span>
                     </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleModifyStatCount('GOAL', 1)}
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all"
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
                       >
                         <Plus size={14} /> افزایش گل
                       </button>
                       <button
                         onClick={() => handleModifyStatCount('GOAL', -1)}
-                        disabled={activePitchPlayerModal.goals <= 0}
-                        className="bg-emerald-900/80 hover:bg-emerald-800 disabled:opacity-40 text-emerald-200 font-bold px-3 py-1.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all"
+                        disabled={(activePitchPlayerModal.goals || 0) <= 0}
+                        className="bg-emerald-900/80 hover:bg-emerald-800 disabled:opacity-40 text-emerald-200 font-bold px-3 py-1.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
                       >
                         <Minus size={14} /> کسر
                       </button>
@@ -641,20 +657,20 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-cyan-300 flex items-center gap-1">🅰️ پاس‌گل‌ها</span>
                       <span className="bg-cyan-900 text-white px-2 py-0.5 rounded font-mono font-bold">
-                        {activePitchPlayerModal.assists}
+                        {activePitchPlayerModal.assists || 0}
                       </span>
                     </div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleModifyStatCount('ASSIST', 1)}
-                        className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-1.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all"
+                        className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-1.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
                       >
                         <Plus size={14} /> افزایش پاس
                       </button>
                       <button
                         onClick={() => handleModifyStatCount('ASSIST', -1)}
-                        disabled={activePitchPlayerModal.assists <= 0}
-                        className="bg-cyan-900/80 hover:bg-cyan-800 disabled:opacity-40 text-cyan-200 font-bold px-3 py-1.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all"
+                        disabled={(activePitchPlayerModal.assists || 0) <= 0}
+                        className="bg-cyan-900/80 hover:bg-cyan-800 disabled:opacity-40 text-cyan-200 font-bold px-3 py-1.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
                       >
                         <Minus size={14} /> کسر
                       </button>
@@ -667,7 +683,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
                   {/* Yellow 1 */}
                   <button
                     onClick={() => handleToggleCardOrInjury('TOGGLE_YELLOW_1')}
-                    className={`p-3 rounded-2xl border font-bold flex items-center justify-between transition-all active:scale-95 ${
+                    className={`p-3 rounded-2xl border font-bold flex items-center justify-between transition-all active:scale-95 cursor-pointer ${
                       activePitchPlayerModal.yellowCards >= 1
                         ? 'bg-amber-900/80 border-amber-400 text-white'
                         : 'bg-amber-950/60 hover:bg-amber-900/60 border-amber-500/40 text-amber-300'
@@ -686,7 +702,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
                   {/* Yellow 2 */}
                   <button
                     onClick={() => handleToggleCardOrInjury('TOGGLE_YELLOW_2')}
-                    className={`p-3 rounded-2xl border font-bold flex items-center justify-between transition-all active:scale-95 ${
+                    className={`p-3 rounded-2xl border font-bold flex items-center justify-between transition-all active:scale-95 cursor-pointer ${
                       activePitchPlayerModal.yellowCards === 2
                         ? 'bg-rose-950/90 border-rose-400 text-white'
                         : 'bg-amber-950/60 hover:bg-rose-900/50 border-amber-500/40 text-amber-200'
@@ -705,7 +721,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
                   {/* Red Direct */}
                   <button
                     onClick={() => handleToggleCardOrInjury('TOGGLE_RED')}
-                    className={`p-3 rounded-2xl border font-bold flex items-center justify-between transition-all active:scale-95 ${
+                    className={`p-3 rounded-2xl border font-bold flex items-center justify-between transition-all active:scale-95 cursor-pointer ${
                       activePitchPlayerModal.isRed
                         ? 'bg-rose-950/90 border-rose-400 text-white'
                         : 'bg-rose-950/60 hover:bg-rose-900/60 border-rose-500/40 text-rose-300'
@@ -724,7 +740,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
                   {/* Injury */}
                   <button
                     onClick={() => handleToggleCardOrInjury('TOGGLE_INJURY')}
-                    className={`p-3 rounded-2xl border font-bold flex items-center justify-between transition-all active:scale-95 ${
+                    className={`p-3 rounded-2xl border font-bold flex items-center justify-between transition-all active:scale-95 cursor-pointer ${
                       activePitchPlayerModal.isInjured
                         ? 'bg-rose-950/90 border-rose-400 text-white'
                         : 'bg-rose-900/60 hover:bg-rose-800/60 border-rose-500/40 text-rose-200'
@@ -750,7 +766,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
                 ) : (
                   <button
                     onClick={() => setSubModalBenchSelect(true)}
-                    className="w-full mt-2 p-3 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white font-bold flex items-center justify-center gap-2 shadow-lg transition-all"
+                    className="w-full mt-2 p-3 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 text-white font-bold flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
                   >
                     <ArrowLeftRight size={16} />
                     <span>انجام تعویض (انتخاب از لیست رختکن / نیمکت) 🔄</span>
@@ -765,7 +781,7 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
                 </span>
 
                 <div className="space-y-2 max-h-56 overflow-y-auto">
-                  {currentTeam.bench
+                  {(currentTeam.bench || [])
                     .filter((b) => !b.hasBeenSubbed)
                     .map((bPlayer) => (
                       <div
@@ -779,14 +795,14 @@ export default function AdminMatchPitchController({ onPushLiveEvent, onMatchStat
                           </span>
                           <span className="font-bold text-white">{bPlayer.name}</span>
                         </div>
-                        <span className="font-mono text-cyan-300 font-bold">OVR {bPlayer.overall}</span>
+                        <span className="font-mono text-cyan-300 font-bold">OVR {bPlayer.overall || 70}</span>
                       </div>
                     ))}
                 </div>
 
                 <button
                   onClick={() => setSubModalBenchSelect(false)}
-                  className="w-full bg-slate-800 text-slate-300 font-bold py-2 rounded-xl"
+                  className="w-full bg-slate-800 text-slate-300 font-bold py-2 rounded-xl cursor-pointer hover:bg-slate-700"
                 >
                   بازگشت به گزینه اتفاقات
                 </button>

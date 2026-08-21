@@ -79,7 +79,7 @@ class Tier1NotificationsFeatureTests(VMLTestHarness):
         pack = GachaPack.objects.create(name="Legend Pack", cost_usd=Decimal("50.00"))
         player = self.create_player(team=team, name="Legend Player", rarity="LEGENDARY")
         log = PackOpeningLog.objects.create(
-            team=team, pack=pack, player_obtained=player, rarity_drawn="LEGENDARY", cost_usd=Decimal("50.00")
+            team=team, pack=pack, player_obtained=player, rarity_drawn="LEGENDARY", cost=Decimal("50.00")
         )
         self.assertEqual(log.rarity_drawn, "LEGENDARY")
 
@@ -115,3 +115,136 @@ class Tier1NotificationsFeatureTests(VMLTestHarness):
     def test_feature30_frontend_header_badge_sync(self):
         header_state = {"unread_notifications_count": 3}
         self.assertEqual(header_state["unread_notifications_count"], 3)
+
+    # --- Requirement R1: Smart Notifications, Role Separation & Dismissal ---
+
+    def test_r1_role_separation_coach_and_admin(self):
+        """
+        Verify role-based notification segregation:
+        - Admin sees notifications with target_role IN ['ALL', 'ADMIN']
+        - Coach sees notifications for their own team + target_role IN ['ALL', 'COACH']
+        - Coach does NOT see other team's notifications
+        """
+        from notifications.models import Notification
+        Notification.objects.all().delete()
+
+        admin_user = self.create_user(username="admin_r1", role="admin", is_staff=True)
+        coach1 = self.create_user(username="coach1_r1", role="coach")
+        team1 = self.create_team(manager=coach1, name="Team 1 R1")
+
+        coach2 = self.create_user(username="coach2_r1", role="coach")
+        team2 = self.create_team(manager=coach2, name="Team 2 R1")
+
+        # Create notifications
+        n_admin = Notification.objects.create(
+            category="MATCH", target_role="ADMIN", title="Admin Ref Room Alert",
+            action_url="/admin/matches?match_id=1"
+        )
+        n_team1 = Notification.objects.create(
+            team=team1, category="MATCH", target_role="COACH", title="Team 1 Kickoff",
+            action_url="/live?match_id=1"
+        )
+        n_team2 = Notification.objects.create(
+            team=team2, category="MATCH", target_role="COACH", title="Team 2 Kickoff",
+            action_url="/live?match_id=2"
+        )
+        n_public = Notification.objects.create(
+            team=None, category="SYSTEM", target_role="ALL", title="Public League Notice"
+        )
+
+        # 1. Coach 1 View
+        self.client.force_authenticate(user=coach1)
+        res_coach1 = self.client.get("/api/notifications/inbox/")
+        self.assertEqual(res_coach1.status_code, 200)
+        c1_titles = [item["title"] for item in res_coach1.data]
+        self.assertIn("Team 1 Kickoff", c1_titles)
+        self.assertIn("Public League Notice", c1_titles)
+        self.assertNotIn("Team 2 Kickoff", c1_titles)
+        self.assertNotIn("Admin Ref Room Alert", c1_titles)
+
+        # 2. Admin View
+        self.client.force_authenticate(user=admin_user)
+        res_admin = self.client.get("/api/notifications/inbox/")
+        self.assertEqual(res_admin.status_code, 200)
+        admin_titles = [item["title"] for item in res_admin.data]
+        self.assertIn("Admin Ref Room Alert", admin_titles)
+        self.assertIn("Public League Notice", admin_titles)
+
+    def test_r1_dismiss_notification_api(self):
+        """
+        POST /api/notifications/<id>/dismiss/ marks is_dismissed=True and sets dismissed_at.
+        """
+        from notifications.models import Notification
+        notif = Notification.objects.create(
+            category="MATCH", title="Dismiss Test Alert", is_dismissed=False
+        )
+        response = self.client.post(f"/api/notifications/{notif.id}/dismiss/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data.get("status"), "dismissed")
+        self.assertEqual(response.data.get("id"), notif.id)
+
+        notif.refresh_from_db()
+        self.assertTrue(notif.is_dismissed)
+        self.assertIsNotNone(notif.dismissed_at)
+
+    def test_r1_is_dismissed_filtering(self):
+        """
+        GET /api/notifications/inbox/?dismissed=false returns only active notifications,
+        and ?dismissed=true returns dismissed ones.
+        """
+        from notifications.models import Notification
+        Notification.objects.all().delete()
+        n_active = Notification.objects.create(
+            title="Active Alert", is_dismissed=False, target_role="ALL"
+        )
+        n_dismissed = Notification.objects.create(
+            title="Dismissed Alert", is_dismissed=True, target_role="ALL"
+        )
+
+        res_active = self.client.get("/api/notifications/inbox/?dismissed=false")
+        self.assertEqual(res_active.status_code, 200)
+        active_ids = [item["id"] for item in res_active.data]
+        self.assertIn(n_active.id, active_ids)
+        self.assertNotIn(n_dismissed.id, active_ids)
+
+        res_dismissed = self.client.get("/api/notifications/inbox/?dismissed=true")
+        self.assertEqual(res_dismissed.status_code, 200)
+        dismissed_ids = [item["id"] for item in res_dismissed.data]
+        self.assertIn(n_dismissed.id, dismissed_ids)
+        self.assertNotIn(n_active.id, dismissed_ids)
+
+    def test_r1_action_url_and_match_routing(self):
+        """
+        Notification serializer preserves action_url and target_role fields for UI deep-linking.
+        """
+        from notifications.models import Notification
+        team = self.create_team(name="Routing Team")
+        match = Match.objects.create(home_team=team, status="SCHEDULED")
+        notif = Notification.objects.create(
+            team=team,
+            match=match,
+            category="MATCH",
+            target_role="COACH",
+            title="Matchday Room Ready",
+            action_url=f"/live?match_id={match.id}"
+        )
+        self.client.force_authenticate(user=team.manager)
+        res = self.client.get("/api/notifications/inbox/")
+        self.assertEqual(res.status_code, 200)
+        item = next(x for x in res.data if x["id"] == notif.id)
+        self.assertEqual(item["action_url"], f"/live?match_id={match.id}")
+        self.assertEqual(item["target_role"], "COACH")
+        self.assertEqual(item["match"], match.id)
+
+    def test_r1_read_persistence_in_db(self):
+        """
+        POST /api/notifications/<id>/read/ persists is_read=True in the database.
+        """
+        from notifications.models import Notification
+        notif = Notification.objects.create(
+            category="MATCH", title="Read Persistence Test", is_read=False
+        )
+        res = self.client.post(f"/api/notifications/{notif.id}/read/")
+        self.assertEqual(res.status_code, 200)
+        notif.refresh_from_db()
+        self.assertTrue(notif.is_read)

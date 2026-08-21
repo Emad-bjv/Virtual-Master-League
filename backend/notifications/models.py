@@ -17,10 +17,29 @@ class Notification(models.Model):
         ('SYSTEM', 'سیستم'),
     ]
 
+    TARGET_ROLE_CHOICES = [
+        ('ALL', 'همه'),
+        ('ADMIN', 'ادمین'),
+        ('COACH', 'مربی'),
+    ]
+
     team = models.ForeignKey(
         Team, on_delete=models.CASCADE,
         null=True, blank=True,
         related_name='notifications', verbose_name="تیم"
+    )
+    match = models.ForeignKey(
+        'matches.Match', on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='notifications', verbose_name="مسابقه"
+    )
+    target_role = models.CharField(
+        max_length=10, choices=TARGET_ROLE_CHOICES,
+        default='ALL', verbose_name="نقش مخاطب"
+    )
+    action_url = models.CharField(
+        max_length=255, blank=True, default='',
+        verbose_name="لینک اقدام"
     )
     category = models.CharField(
         max_length=15, choices=CATEGORY_CHOICES,
@@ -29,6 +48,8 @@ class Notification(models.Model):
     title = models.CharField(max_length=255, verbose_name="عنوان")
     message = models.TextField(blank=True, verbose_name="متن پیام")
     is_read = models.BooleanField(default=False, verbose_name="خوانده شده؟")
+    is_dismissed = models.BooleanField(default=False, verbose_name="رد/بسته شده؟")
+    dismissed_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان رد/بستن")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="زمان ایجاد")
 
     class Meta:
@@ -37,5 +58,5 @@ class Notification(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        audience = self.team.name if self.team else "همه"
+        audience = self.team.name if self.team else f"نقش {self.get_target_role_display()}"
         return f"[{self.get_category_display()}] {audience}: {self.title}"

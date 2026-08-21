@@ -11,7 +11,9 @@ from .views import (
     TransferInboxAPIView,
     TransferOfferActionView,
     PlayerReleaseAPIView,
-    TransferLogListView
+    TransferLogListView,
+    FreeAgentsAPIView,
+    SignFreeAgentAPIView
 )
 
 urlpatterns = [
@@ -24,6 +26,8 @@ urlpatterns = [
     
     # New Negotiation Hub Routes
     path('transfers/league-teams/', LeagueDirectoryAPIView.as_view(), name='league-teams'),
+    path('transfers/free-agents/', FreeAgentsAPIView.as_view(), name='free-agents'),
+    path('transfers/free-agents/<int:pk>/sign/', SignFreeAgentAPIView.as_view(), name='sign-free-agent'),
     path('transfers/offers/', TransferOfferCreateView.as_view(), name='create-offer'),
     path('transfers/inbox/', TransferInboxAPIView.as_view(), name='inbox'),
     path('transfers/offers/<int:pk>/<str:action>/', TransferOfferActionView.as_view(), name='offer-action'),

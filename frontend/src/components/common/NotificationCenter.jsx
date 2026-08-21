@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, CheckCheck, Trash2, ChevronLeft, ShieldAlert, Sparkles, Filter } from 'lucide-react';
 import { notificationApi } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 const DEFAULT_NOTIFICATIONS = [];
 
@@ -32,22 +33,29 @@ const CATEGORY_TO_FILTER = {
   SYSTEM: 'system',
 };
 
-const mapApiNotification = (n) => {
+const mapApiNotification = (n, isAdmin = false) => {
   const style = CATEGORY_STYLES[n.category] || CATEGORY_STYLES.SYSTEM;
+  let targetTab = style.targetTab;
+  if (n.category === 'MATCH') {
+    targetTab = isAdmin ? 'admin' : 'live';
+  }
   return {
     id: n.id,
+    matchId: n.match_id || n.match,
     category: CATEGORY_TO_FILTER[n.category] || 'system',
     title: n.title || 'اعلامیه جدید',
     message: n.message || '',
     time: formatRelativeTime(n.created_at),
     isUnread: !n.is_read,
-    targetTab: style.targetTab,
+    targetTab: targetTab,
     color: style.color,
     icon: style.icon,
   };
 };
 
 export default function NotificationCenter({ onNavigateTab }) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.is_superuser;
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'live' | 'market' | 'team' | 'finance'
@@ -58,10 +66,10 @@ export default function NotificationCenter({ onNavigateTab }) {
   // Load the real inbox from the backend
   const loadInbox = () => {
     notificationApi
-      .getInbox()
+      .getInbox({ dismissed: false })
       .then((res) => {
         if (Array.isArray(res.data) && res.data.length > 0) {
-          setNotifications(res.data.map(mapApiNotification));
+          setNotifications(res.data.map((n) => mapApiNotification(n, isAdmin)));
         } else {
           setNotifications([]);
         }
@@ -75,13 +83,13 @@ export default function NotificationCenter({ onNavigateTab }) {
   useEffect(() => {
     loadInbox();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isAdmin]);
 
   // Refresh whenever the dropdown is opened
   useEffect(() => {
     if (isOpen) loadInbox();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, isAdmin]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -104,7 +112,10 @@ export default function NotificationCenter({ onNavigateTab }) {
 
   const handleClearAll = () => {
     setNotifications((prev) => {
-      prev.forEach((n) => notificationApi.markAsRead(n.id).catch(() => {}));
+      prev.forEach((n) => {
+        notificationApi.markAsRead(n.id).catch(() => {});
+        notificationApi.dismissNotification(n.id).catch(() => {});
+      });
       return [];
     });
   };
@@ -112,6 +123,7 @@ export default function NotificationCenter({ onNavigateTab }) {
   const handleRemoveItem = (id, e) => {
     e.stopPropagation();
     notificationApi.markAsRead(id).catch(() => {});
+    notificationApi.dismissNotification(id).catch(() => {});
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
@@ -124,9 +136,19 @@ export default function NotificationCenter({ onNavigateTab }) {
       );
     }
 
-    // Navigate to section if requested
-    if (notif.targetTab && onNavigateTab) {
-      onNavigateTab(notif.targetTab);
+    // Dismiss notification from future popups
+    notificationApi.dismissNotification(notif.id).catch(() => {});
+    if (notif.matchId) {
+      try {
+        localStorage.setItem(`vml_dismissed_match_alert_${notif.matchId}_SCHEDULED`, 'true');
+        localStorage.setItem(`vml_dismissed_match_alert_${notif.matchId}_LIVE`, 'true');
+      } catch {}
+    }
+
+    // Navigate to role-appropriate tab
+    const destinationTab = notif.targetTab || (isAdmin ? 'admin' : 'live');
+    if (destinationTab && onNavigateTab) {
+      onNavigateTab(destinationTab);
       setIsOpen(false);
     }
   };
@@ -164,7 +186,7 @@ export default function NotificationCenter({ onNavigateTab }) {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.95 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="absolute top-full left-0 sm:left-auto sm:-left-28 mt-3 w-[88vw] max-w-sm sm:w-96 z-50 glass-panel bg-slate-950/95 border-2 border-purple-500/50 shadow-2xl rounded-3xl p-4 space-y-3 backdrop-blur-2xl text-xs"
+            className="absolute top-full left-0 mt-3 w-[90vw] max-w-sm sm:w-96 z-50 glass-panel bg-slate-950/95 border-2 border-purple-500/50 shadow-2xl rounded-3xl p-4 space-y-3 backdrop-blur-2xl text-xs origin-top-left"
           >
             {/* Modal Header */}
             <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
@@ -225,7 +247,7 @@ export default function NotificationCenter({ onNavigateTab }) {
                   onClick={() => setActiveFilter('live')}
                   className={`px-2.5 py-1 rounded-xl text-[10px] font-bold shrink-0 transition-all ${
                     activeFilter === 'live'
-                      ? 'bg-emerald-900 text-emerald-200 border border-emerald-500/50'
+                      ? 'bg-emerald-900 text-emerald-200 border border-emerald-500/50 shadow-md'
                       : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
                   }`}
                 >
@@ -235,41 +257,31 @@ export default function NotificationCenter({ onNavigateTab }) {
                   onClick={() => setActiveFilter('market')}
                   className={`px-2.5 py-1 rounded-xl text-[10px] font-bold shrink-0 transition-all ${
                     activeFilter === 'market'
-                      ? 'bg-amber-900 text-amber-200 border border-amber-500/50'
+                      ? 'bg-amber-900 text-amber-200 border border-amber-500/50 shadow-md'
                       : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
                   }`}
                 >
                   💼 نقل‌وانتقالات
                 </button>
                 <button
-                  onClick={() => setActiveFilter('team')}
-                  className={`px-2.5 py-1 rounded-xl text-[10px] font-bold shrink-0 transition-all ${
-                    activeFilter === 'team'
-                      ? 'bg-rose-900 text-rose-200 border border-rose-500/50'
-                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                  }`}
-                >
-                  🏥 تیم و مصدومیت
-                </button>
-                <button
-                  onClick={() => setActiveFilter('finance')}
-                  className={`px-2.5 py-1 rounded-xl text-[10px] font-bold shrink-0 transition-all ${
-                    activeFilter === 'finance'
-                      ? 'bg-purple-900 text-purple-200 border border-purple-500/50'
-                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                  }`}
-                >
-                  💰 مالی
-                </button>
-                <button
                   onClick={() => setActiveFilter('gacha')}
                   className={`px-2.5 py-1 rounded-xl text-[10px] font-bold shrink-0 transition-all ${
                     activeFilter === 'gacha'
-                      ? 'bg-purple-900 text-purple-200 border border-purple-500/50'
+                      ? 'bg-purple-900 text-purple-200 border border-purple-500/50 shadow-md'
                       : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
                   }`}
                 >
-                  🎁 پک و گاشا
+                  🎁 استور و پک‌ها
+                </button>
+                <button
+                  onClick={() => setActiveFilter('system')}
+                  className={`px-2.5 py-1 rounded-xl text-[10px] font-bold shrink-0 transition-all ${
+                    activeFilter === 'system'
+                      ? 'bg-cyan-900 text-cyan-200 border border-cyan-500/50 shadow-md'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  ⚡ سیستم
                 </button>
               </div>
             )}

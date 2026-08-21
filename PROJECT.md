@@ -1,100 +1,91 @@
-# Project: Virtual Master League (VML)
+# Project: Virtual Master League (VML) — Referee Room & Coach Panel Upgrade
 
 ## Architecture
-- **Tech Stack**: Django REST Framework (Backend, Port 9000), PostgreSQL, Celery/Redis, React 19 + Vite 8 + Tailwind CSS v4 (Frontend, Port 5173).
-- **Communication**: REST API (`/api/v1/` or `/api/`), JWT Authentication (`Authorization: Bearer <token>`).
-- **Domain Apps**:
-  1. `users`: Auth (OTP/JWT), User Profile, Virtual Balance, Leaderboard, Roles (User/Admin/Coach).
-  2. `teams`: Team, Squad Players (18-32 cap), GamePlan/Formation (dnd-kit), Club Facilities (20-level curves), Player Growth & Stamina (Virtual Stamina <30% lock).
-  3. `matches`: Tournaments, League Schedule, Live Match Events, Standings Table, Live Substitutions, Aparat Live Stream embedding.
-  4. `transfers`: Market Listings, Direct Buying, Bidding System, Caretaker Policy, Auto-release Overflow.
-  5. `economy`: Store Packages, ZarinPal Gateway Sandbox/Live (500k Toman weekly top-up cap), Season Pass, Daily Rewards.
-  6. `gacha`: Gacha Packs, Pity Counter (guaranteed 4-star+ on 10th pull), Pack Opening Animation & Player Odds.
-  7. `notifications`: In-App Notification model & endpoints, Telegram bot signals (`send_telegram_message`).
+- **Tech Stack**: Django 6 + Django REST Framework (Backend, Port 9000), Django Channels (ASGI/Daphne, WebSocket `ws/match/<id>/`), SQLite/PostgreSQL, Celery/Redis, React 19 + Vite 8 + Tailwind CSS v4 (Frontend, Port 5173).
+- **Core Domain Modules**:
+  1. `matches`: Tournaments, League Schedule, Live Match Events, Standings Table, Live Substitutions, Match Team Stats, Player Match Stats, Admin Control Room.
+  2. `notifications`: Smart In-App Notifications, Role Distinction (Admin vs Coach), Dismissal Persistence, Telegram Bot Signals.
+  3. `realtime`: WebSocket Consumers (`MatchLiveConsumer`, `AdminChannelConsumer`), Event Broadcasting (`broadcast_match_event`), JWT Channel Auth Middleware.
+  4. `teams`: Team Roster, GamePlan Formations, 14 Modern Tactics, Unified Submission (`submit_gameplan`), Club Facilities.
+  5. `users`: Auth (OTP/JWT), User Profile, Role Management (Admin, Coach, User).
 
-## Feature Inventory
+## Feature Inventory (Requirements R1 – R6)
 | # | Feature | Description | Milestone | Source |
 |---|---------|-------------|-----------|--------|
-| 1 | User Auth & OTP | Phone number login, OTP verification, JWT access/refresh token issue, user role management | M1 | ORIGINAL_REQUEST §1 |
-| 2 | User Profile & Leaderboard | User profile view, global ranking leaderboard, virtual dollar balance sync | M1 | ORIGINAL_REQUEST §1 |
-| 3 | Team & Squad Management | Team details, player roster (18-32 cap), player stats, market values | M2 | ORIGINAL_REQUEST §1,2 |
-| 4 | eFootball GamePlan & Formations | Interactive 11v11 pitch tactics, formation presets, position assignments, stamina state | M2 | gemini-code-1785504060357.md |
-| 5 | Club Facilities Upgrade | 20-level stadium, academy, medical, training facility curves with cost/growth formulas | M2 | review_results.md |
-| 6 | Player Growth & Virtual Stamina | Stamina consumption, virtual stamina lock (<30%), natural growth logs | M2 | review_results.md |
-| 7 | League Schedule & Match List | Weekly match calendar, match status (scheduled, live, completed), scores | M3 | ORIGINAL_REQUEST §1,2 |
-| 8 | Match Details & Event Ticker | Live match events, goal logs, card events, possession/shots stats | M3 | ORIGINAL_REQUEST §1,2 |
-| 9 | Live Standings Table | Real-time league table (PTS, W/D/L, GF, GA, GD) updated post-match | M3 | ORIGINAL_REQUEST §1,2 |
-| 10 | Live Substitution Requests | Mid-match live substitution queue and verification for active matches | M3 | ORIGINAL_REQUEST §2 |
-| 11 | Aparat Live Stream Binding | Integration of Aparat live stream embed URL and live stream chat/events | M3 | implementation_plan.md |
-| 12 | Transfer Market Listings | Browse active player listings, filter by position/OVR/price, list player for sale | M4 | ORIGINAL_REQUEST §1,2 |
-| 13 | Direct Buy & Bidding | Direct buy with balance validation, bidding system with bid history and escrow | M4 | ORIGINAL_REQUEST §1,2 |
-| 14 | Caretaker Policy & Budget Rules | Coach mid-season leave policy, automated team/budget lock rules | M4 | سیاست ترک مربی.md |
-| 15 | Auto-Release Overflow | Automatic player release to market if squad size exceeds 32 or under 18 | M4 | review_results.md |
-| 16 | Store Packages & Currency | Virtual dollar packages, pricing, 500,000 Toman weekly top-up limit | M5 | ORIGINAL_REQUEST §1,2 |
-| 17 | ZarinPal Payment Gateway | Payment request init, ZarinPal sandbox redirect, callback verification & transaction logging | M5 | ORIGINAL_REQUEST §2 |
-| 18 | Season Pass & Daily Claim | 50-level season pass progression, daily login reward claim tracking | M5 | implementation_plan.md |
-| 19 | Gacha Pack System | Gacha packs list, pack odds (3-star, 4-star, 5-star), pack draw endpoint | M6 | ORIGINAL_REQUEST §1,2 |
-| 20 | Gacha Pity Counter | Pity counter tracking per user/pack (guaranteed legendary on 10th pull if 9 pulls miss) | M6 | review_results.md |
-| 21 | Pack Opening Logs & Reveal | Pack opening log history and frontend animation reveal payload | M6 | implementation_plan.md |
-| 22 | In-App Notification Center | Backend Notification model, list/unread endpoints, mark-read, clear-all | M7 | ORIGINAL_REQUEST §1,2 |
-| 23 | Telegram Bot Integration | Asynchronous Telegram messages for match results, big transfers, legendary gacha pulls | M7 | gemini-code-1785504060357.md |
-| 24 | Admin Dashboard & Match Sim | Admin match result input, week simulation batch job, coach registration | M3 | ORIGINAL_REQUEST §2 |
-| 25 | Frontend Auth Binding | Bind AuthModal to active Django JWT endpoints, sync user token in localStorage | M1 | ORIGINAL_REQUEST §1 |
-| 26 | Frontend Team Binding | Bind TeamTab, EFootballGamePlan, ClubTab to Django team REST endpoints | M2 | ORIGINAL_REQUEST §1 |
-| 27 | Frontend Match Binding | Bind HomeTab schedule, LiveStreamTab, AdminDashboard match management to Django REST | M3 | ORIGINAL_REQUEST §1 |
-| 28 | Frontend Transfer Binding | Bind MarketTab to Django transfer REST endpoints (list, buy, bid) | M4 | ORIGINAL_REQUEST §1 |
-| 29 | Frontend Store/Gacha Binding | Bind StoreTab packages, ZarinPal callback, pack draw modal to Django economy/gacha REST | M5, M6 | ORIGINAL_REQUEST §1 |
-| 30 | Frontend Notification Binding | Bind NotificationCenter & Header unread count to Django notification REST endpoints | M7 | ORIGINAL_REQUEST §1 |
+| 1 | R1: Smart Notifications & Role Distinction | Model extension (`match`, `action_url`, `target_role`, `is_dismissed`), dismissal API, role-based direct routing (Admin -> Referee Room, Coach -> Live Desk), LocalStorage + DB persistence to prevent repeated chimes on reload | M1, M2, M3 | ORIGINAL_REQUEST §R1 |
+| 2 | R2: Gameweek Round Filtering Isolation | Accurate round filtering in `AdminMatchListView` & `GameweekStatusView` across weeks 1-30 via `normalize_round_query`, eliminating substring `icontains` bug where Week 1 showed matches for weeks 10-19 | M1, M2 | ORIGINAL_REQUEST §R2 |
+| 3 | R3: Real-Time Zero-Refresh Match Events | Instant event broadcast (`GOAL`, `ASSIST`, `CARD`, `SUB`, `VAR`, `CLOCK_SYNC`) via WebSocket + Polling fallback, animated event cards and audio chimes in Coach Panel without page refresh | M1, M3 | ORIGINAL_REQUEST §R3 |
+| 4 | R4: Unified Tactics Submission & In-Game Changes Tab | Single unified coach submission button («ارسال ترکیب و تاکتیک به داوری») + Dedicated "In-Game Changes" tab in Referee Desk with Home/Away split, checklist approval, and instant feedback to coach | M1, M2, M3 | ORIGINAL_REQUEST §R4 |
+| 5 | R5: Modular 4-Tab Referee Desk & Match Stats | 4-Tab desk (1. Live Desk & Events, 2. In-Game Changes, 3. Match Team Stats, 4. Player Ratings & Minutes) + Post-match comparative cards and rating tables in both admin and coach panels | M1, M2, M3 | ORIGINAL_REQUEST §R5 |
+| 6 | R6: 3-Phase Live Match Smart Timer | 3-Phase lifecycle in Coach Panel (Phase 1: Pre-match standby countdown -> Phase 2: Live match broadcast/events -> Phase 3: 10-min post-match recap countdown with comparison cards -> auto-transition to next week standby) | M1, M3 | ORIGINAL_REQUEST §R6 |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | User Auth & Profile | `users` app Django models/views/urls + JWT Auth + Frontend AuthModal & Profile binding | none | PLANNED |
-| M2 | Team & GamePlan | `teams` app backend completion + GamePlan/Facilities API + Frontend TeamTab binding | M1 | PLANNED |
-| M3 | Matches & Standings | `matches` app REST routes (standings, matches, stream, admin sim) + Frontend Match binding | M2 | PLANNED |
-| M4 | Transfers & Caretaker | `transfers` app REST routes + Caretaker rules + Frontend MarketTab binding | M1, M2 | PLANNED |
-| M5 | Economy & ZarinPal | `economy` app REST routes + ZarinPal payment/verification + Season Pass + Frontend StoreTab | M1 | PLANNED |
-| M6 | Gacha & Pity | `gacha` app REST routes + 10th-pull Pity engine + Frontend Pack Draw modal | M1, M5 | PLANNED |
-| M7 | Notifications & Telegram | `notifications` app Django model/views/urls + Telegram bot signals + NotificationCenter binding | M1 | PLANNED |
-| M8 | Final E2E Integration & Hardening | Run 100% E2E test suite (Tiers 1-5), clean build/run verification, zero console errors | M1-M7 | PLANNED |
+| M1 | Backend Engine Upgrades (R1-R6) | `notifications` model & dismissal API, `matches` round normalization (fix week 1 bug), safe channel broadcasting, team stats `'saves'` fix, live context retention | none | IN_PROGRESS |
+| M2 | Frontend Referee Desk Redesign (R1, R2, R4, R5) | Admin role routing, 1-30 week tabs exact filtering, modular 4-tab match desk, in-game changes approval checklist, post-match team stats & player rating forms | M1 | PLANNED |
+| M3 | Frontend Coach Panel & Live Desk (R1, R3, R4, R5, R6) | LocalStorage+DB persistent alert dismissal, unified «ارسال ترکیب و تاکتیک به داوری» button, real-time animated ticker with audio cues, 3-phase smart countdown timer | M1 | PLANNED |
+| M4 | E2E Automated Test Suite & Coverage | Harness fixes, automated tests for R1-R6 in `e2e_tests/` (Tiers 1-4), 100% pass rate verification | M1, M2, M3 | PLANNED |
+| M5 | Review, Adversarial Stress & Forensic Audit | 2 Reviewers + 2 Challengers + Forensic Auditor binary veto verification + Final Gate Approval | M4 | PLANNED |
 
 ## Interface Contracts
-### `users` ↔ Frontend
-- `POST /api/users/auth/otp/request/`: `{ "phone_number": string }` -> `{ "message": string }`
-- `POST /api/users/auth/otp/verify/`: `{ "phone_number": string, "code": string }` -> `{ "access": string, "refresh": string, "user": object }`
-- `GET /api/users/me/`: Header `Authorization: Bearer <token>` -> User profile object
 
-### `teams` ↔ Frontend
-- `GET /api/teams/my-team/`: Returns user's team, roster, facilities, budget, gameplan.
-- `POST /api/teams/gameplan/`: `{ "formation": string, "starting_xi": array, "substitutes": array }` -> Updated GamePlan.
-- `POST /api/teams/facilities/upgrade/`: `{ "facility_type": string }` -> Updated facility levels & deducted budget.
+### 1. Notifications API (`notifications` ↔ Frontend)
+- `GET /api/notifications/inbox/`: Returns notifications filtered by user role (`target_role`) and team. Includes `match_id`, `action_url`, `is_dismissed`.
+- `POST /api/notifications/<id>/dismiss/`: Body `{}` -> Marks notification dismissed in DB (`is_dismissed=True`, `dismissed_at=now`).
+- `POST /api/notifications/<id>/read/`: Body `{}` -> Marks notification read (`is_read=True`).
 
-### `matches` ↔ Frontend
-- `GET /api/matches/schedule/`: List of matches for current/all weeks.
-- `GET /api/matches/standings/`: Current league table.
-- `POST /api/matches/substitute/`: `{ "match_id": int, "player_out_id": int, "player_in_id": int }` -> Substitution log.
+### 2. Match Control & Round Filtering API (`matches` ↔ Frontend)
+- `GET /api/matches/admin-list/?round=<round_number>`: Exact numerical match filter for gameweek (e.g. `round=1` returns only Week 1 matches).
+- `GET /api/matches/gameweeks-status/`: Returns list of 30 gameweeks with match counts, statuses, and `active_gameweek`.
+- `GET /api/matches/live-context/`: Returns `{ has_active_match, active_match, next_match, time_to_kickoff_seconds, recent_finished_match }`.
+- `POST /api/matches/<id>/control/`: Body `{ action: string, ...payload }` (Actions: `START_MATCH`, `TRIGGER_HALF_TIME`, `START_SECOND_HALF`, `CONCLUDE_FULL_TIME`, `RECORD_EVENT`, `DELETE_EVENT`, `APPROVE_SUB_REQUEST`, `REJECT_SUB_REQUEST`, `SUBMIT_TEAM_STATS`, `SUBMIT_PLAYER_RATINGS`, `SYNC_CLOCK`).
+- `POST /api/matches/<id>/team-stats/`: Body `{ home_stats: {...}, away_stats: {...} }` with possession, shots, shots_on_target, fouls, corners, offsides, saves.
+- `POST /api/matches/<id>/player-ratings/`: Body `{ ratings: [ { player_id, rating, minutes_played, was_starter } ] }`.
 
-### `transfers` ↔ Frontend
-- `GET /api/transfers/market/`: List of players for sale with prices and seller info.
-- `POST /api/transfers/buy/`: `{ "listing_id": int }` -> Purchase transaction result.
-- `POST /api/transfers/bid/`: `{ "listing_id": int, "bid_amount": int }` -> Bid placement result.
+### 3. Coach GamePlan & In-Game Changes API (`teams` ↔ `matches` ↔ Frontend)
+- `POST /api/teams/<id>/submit_gameplan/`: Body `{ tactics: {...14 fields}, players: [{ player_id, x_coord, y_coord, is_starting, position }] }` -> Atomically saves and broadcasts `coach_tactics_submitted`.
+- `POST /api/matches/substitute/`: Body `{ match_id, player_out_id, player_in_id, minute }` -> Submits live sub request -> Admin approves/rejects -> Broadcasts `sub_request_approved` / `sub_request_rejected`.
 
-### `economy` ↔ Frontend
-- `POST /api/economy/zarinpal/request/`: `{ "package_id": int }` -> `{ "payment_url": string, "authority": string }`
-- `GET /api/economy/zarinpal/verify/`: Query `Authority`, `Status` -> Transaction verification & balance update.
-
-### `gacha` ↔ Frontend
-- `POST /api/gacha/draw/`: `{ "pack_id": int }` -> `{ "player": object, "is_pity": bool, "pity_count": int }`
-
-### `notifications` ↔ Frontend
-- `GET /api/notifications/`: List of user notifications.
-- `POST /api/notifications/mark-read/`: `{ "notification_ids": array }` -> Success response.
+### 4. Real-Time WebSocket Interface (`realtime` ↔ Frontend)
+- Connection URL: `ws://127.0.0.1:9000/ws/match/<match_id>/?token=<jwt_token>`
+- Event Message Payload Format:
+  ```json
+  {
+    "type": "match_event",
+    "event": {
+      "type": "GOAL" | "YELLOW" | "RED" | "SUB" | "VAR" | "STATUS_CHANGE" | "COACH_TACTICS_SUBMITTED" | "SUB_REQUEST_APPROVED",
+      "minute": 23,
+      "player_id": 10,
+      "player_name": "Mehdi Taremi",
+      "team_id": 1,
+      "team_name": "Persepolis",
+      "home_score": 1,
+      "away_score": 0,
+      "description": "گل اول برای پرسپولیس توسط مهدی طارمی",
+      "match": { ... }
+    }
+  }
+  ```
 
 ## Code Layout
-- Backend Root: `e:\Codes\Virtual Master League\` (Django settings: `config/`)
-- Backend Apps: `users/`, `teams/`, `matches/`, `transfers/`, `economy/`, `gacha/`, `notifications/`
-- Frontend Root: `e:\Codes\Virtual Master League\frontend\`
-- Frontend Source: `frontend/src/`
-  - `services/api.js`: Centralized Axios REST client
-  - `context/AuthContext.jsx`: Global authentication & user state
-  - `components/`: Domain UI tabs and components
+- Backend:
+  - `backend/matches/`: `models.py`, `views.py`, `serializers.py`, `urls.py`, `tests.py`, `fixture_engine.py`
+  - `backend/notifications/`: `models.py`, `views.py`, `serializers.py`, `urls.py`, `signals.py`
+  - `backend/realtime/`: `consumers.py`, `events.py`, `routing.py`, `middleware.py`
+  - `backend/teams/`: `models.py`, `views.py`, `serializers.py`
+  - `backend/users/`: `models.py`, `views.py`, `serializers.py`
+- Frontend:
+  - `frontend/src/pages/MainDashboard.jsx`: Root dashboard layout, notification alerts, role navigation routing.
+  - `frontend/src/components/admin/AdminDashboard.jsx`: Referee Control Room (Weeks 1-30 tabs, 4-Modular Match Desk, In-Game Changes review, Team Stats & Player Ratings forms, Post-match comparison).
+  - `frontend/src/components/live/LiveStreamTab.jsx`: Coach Live Match Desk (3-Phase smart timer: Standby -> Live -> 10-min Post-Match recap, real-time animated event ticker, post-match comparison cards).
+  - `frontend/src/components/team/TeamTab.jsx` & `EFootballGamePlan.jsx`: Unified «ارسال ترکیب و تاکتیک به داوری» CTA button.
+  - `frontend/src/components/common/NotificationCenter.jsx`: In-app notification center with role-aware action routing and persistent read/dismissal.
+  - `frontend/src/services/api.js`: REST API client functions for all referee and coach operations.
+- E2E Tests:
+  - `e2e_tests/harness/vml_test_harness.py`: Centralized test harness.
+  - `e2e_tests/run_tests.py`: Test runner across Tiers 1-4.
+  - `e2e_tests/tier1_feature_coverage/`: Feature-specific tests (matches, notifications, teams).
+  - `e2e_tests/tier2_boundary_corner/`: Boundary & corner cases (round filtering isolation, sub limits).
+  - `e2e_tests/tier3_cross_feature/`: Interaction tests (tactics submission -> admin approval -> event broadcast).
+  - `e2e_tests/tier4_scenarios/`: Real-world match lifecycle scenario tests.

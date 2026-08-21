@@ -29,9 +29,7 @@ from transfers.services import (
     place_bid,
     list_player_for_sale,
     finalize_auction,
-    auto_release_overflow_players,
-    get_negotiation_discount,
-    get_potential_display_error
+    auto_release_overflow_players
 )
 
 User = get_user_model()
@@ -52,8 +50,8 @@ class Tier2TransfersBoundaryTests(VMLTestHarness):
         Team.objects.all().delete()
         Player.objects.all().delete()
 
-        self.seller_user = User.objects.create_user(phone_number="09121112233")
-        self.buyer_user = User.objects.create_user(phone_number="09124445566")
+        self.seller_user = self.create_user(phone_number="09121112233")
+        self.buyer_user = self.create_user(phone_number="09124445566")
 
         self.seller_team = Team.objects.create(manager=self.seller_user, name="Seller FC", budget=Decimal("1000.00"))
         self.buyer_team = Team.objects.create(manager=self.buyer_user, name="Buyer FC", budget=Decimal("500.00"))
@@ -289,16 +287,6 @@ class Tier2TransfersBoundaryTests(VMLTestHarness):
         self.assertIn(res.status_code, [200, 401, 404])
 
     # --- F14: Caretaker Policy & Budget Rules Boundaries ---
-
-    def test_tr23_scouting_facility_negotiation_discount_bounds(self):
-        """Negotiation discount scaling between level 1 and level 20."""
-        disc = get_negotiation_discount(self.seller_team)
-        self.assertTrue(0.0 <= disc <= 0.12)
-
-    def test_tr24_scouting_facility_potential_display_error_bounds(self):
-        """Potential display error range from level 1 (+-15) to level 20 (0)."""
-        err = get_potential_display_error(self.seller_team)
-        self.assertTrue(0 <= err <= 15)
 
     def test_tr26_caretaker_team_manager_none_policy(self):
         """Team in Caretaker mode (manager=None) locks active manager operations."""

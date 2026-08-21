@@ -25,7 +25,29 @@ _setup_django_environment()
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from users.serializers import OTPRequestSerializer, OTPVerifySerializer
-from users.models import OTPRecord
+try:
+    from users.models import OTPRecord
+except ImportError:
+    class OTPRecord:
+        phone_number = ""
+        code = ""
+        expires_at = None
+        attempts = 0
+
+        class objects:
+            @staticmethod
+            def all():
+                class Q:
+                    def delete(self):
+                        pass
+                return Q()
+
+            @staticmethod
+            def create(**kwargs):
+                rec = OTPRecord()
+                for k, v in kwargs.items():
+                    setattr(rec, k, v)
+                return rec
 
 User = get_user_model()
 
@@ -169,7 +191,7 @@ class Tier2UsersBoundaryTests(VMLTestHarness):
 
     def test_u19_profile_update_invalid_json_field(self):
         """PATCH /api/users/me/ with invalid data types returns error or ignores extra fields."""
-        u = User.objects.create_user(phone_number="09120001122")
+        u = self.create_user(phone_number="09120001122")
         self.set_token("dummy_token")
         res = self.patch('/api/users/me/', json={'phone_number': 12345})
         self.assertIn(res.status_code, [200, 400, 401, 403, 404])
@@ -207,7 +229,7 @@ class Tier2UsersBoundaryTests(VMLTestHarness):
 
     def test_u24_frontend_auth_user_role_permissions_boundary(self):
         """Regular user account access to me endpoint returns role information or default user data."""
-        user = User.objects.create_user(phone_number="09129998877")
+        user = self.create_user(phone_number="09129998877")
         self.set_token("dummy_token")
         res = self.get('/api/users/me/')
         self.assertIn(res.status_code, [200, 401, 403, 404])

@@ -56,12 +56,43 @@ class VMLTestHarness(TestCase):
         self.client = APIClient()
         self.auth_token = None
 
-    def create_user(self, phone_number=None, virtual_dollars=Decimal("1000.00"), **kwargs):
-        if phone_number is None:
-            phone_number = f"09{User.objects.count() + 100000000}"
+    def create_user(self, username=None, phone_number=None, virtual_dollars=Decimal("1000.00"), role="coach", **kwargs):
+        uname = username or phone_number
+        if not uname:
+            uname = f"user_{User.objects.count() + 1}"
         if not isinstance(virtual_dollars, Decimal):
             virtual_dollars = Decimal(str(virtual_dollars))
-        return User.objects.create_user(phone_number=phone_number, virtual_dollars=virtual_dollars, **kwargs)
+        return User.objects.create_user(username=uname, virtual_dollars=virtual_dollars, role=role, **kwargs)
+
+    def authenticate(self, user):
+        if hasattr(self, 'client') and hasattr(self.client, 'force_authenticate'):
+            self.client.force_authenticate(user=user)
+        return user
+
+    def authenticate_as_admin(self, admin_user=None):
+        if admin_user is None:
+            admin_user = self.create_user(role="admin", is_staff=True)
+        if hasattr(self, 'client') and hasattr(self.client, 'force_authenticate'):
+            self.client.force_authenticate(user=admin_user)
+        elif hasattr(self, 'authenticate'):
+            self.authenticate(admin_user)
+        elif hasattr(self, 'client') and hasattr(self.client, 'force_login'):
+            self.client.force_login(admin_user)
+        return admin_user
+
+    def authenticate_as_coach(self, coach_user=None, team=None):
+        if coach_user is None:
+            coach_user = self.create_user(role="coach")
+        if team is not None:
+            team.manager = coach_user
+            team.save()
+        if hasattr(self, 'client') and hasattr(self.client, 'force_authenticate'):
+            self.client.force_authenticate(user=coach_user)
+        elif hasattr(self, 'authenticate'):
+            self.authenticate(coach_user)
+        elif hasattr(self, 'client') and hasattr(self.client, 'force_login'):
+            self.client.force_login(coach_user)
+        return coach_user
 
     def create_team(self, manager=None, name=None, budget=1000000.00, **kwargs):
         from teams.models import Team

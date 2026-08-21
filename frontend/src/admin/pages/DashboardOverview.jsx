@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, Shield, Trophy, DollarSign, Activity, Radio, Calendar, 
-  CheckCircle2, Clock, AlertTriangle, ArrowUpRight, TrendingUp, RefreshCw 
+  CheckCircle2, Clock, AlertTriangle, ArrowUpRight, TrendingUp, RefreshCw, Newspaper 
 } from 'lucide-react';
 import { adminApi } from '../../services/api';
 import { useToast } from '../components/Toast';
@@ -72,15 +72,23 @@ export default function DashboardOverview() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
           <button 
             onClick={fetchStats}
             disabled={refreshing}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all border border-slate-700 shadow-sm active:scale-95"
+            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all border border-slate-700 shadow-sm active:scale-95 cursor-pointer"
           >
-            <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+            <RefreshCw size={14} className={refreshing ? 'animate-spin text-cyan-400' : ''} />
             <span>بروزرسانی آمار</span>
           </button>
+
+          <Link
+            to="/admin/transfer-reports"
+            className="flex items-center gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shadow-[0_0_20px_rgba(6,182,212,0.3)] active:scale-95"
+          >
+            <Newspaper size={14} />
+            <span>اتاق خبر و نقل‌وانتقالات 📰</span>
+          </Link>
           
           <Link
             to="/admin/live-control"

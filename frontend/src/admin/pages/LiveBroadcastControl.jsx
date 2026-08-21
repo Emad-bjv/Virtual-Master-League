@@ -147,7 +147,7 @@ export default function LiveBroadcastControl() {
         // starting XI (is_starting=true) and bench (is_starting=false).
         // The response is: { gameplan: {...}, team: { players: [...] } }
         if (m.home_team) {
-          api.get(`/teams/${m.home_team}/submit_gameplan/`).then(gpRes => {
+          api.get(`/teams/${m.home_team}/submit_gameplan/`, { params: { match_id: m.id } }).then(gpRes => {
             setHomeGameplan(gpRes.data.gameplan || null);
             // Players come from team.players which includes is_starting, position,
             // x_coord, y_coord, name, overall, shirt_number, etc.
@@ -162,7 +162,7 @@ export default function LiveBroadcastControl() {
         }
 
         if (m.away_team) {
-          api.get(`/teams/${m.away_team}/submit_gameplan/`).then(gpRes => {
+          api.get(`/teams/${m.away_team}/submit_gameplan/`, { params: { match_id: m.id } }).then(gpRes => {
             setAwayGameplan(gpRes.data.gameplan || null);
             const teamPlayers = gpRes.data.team?.players || [];
             setAwayPlayers(teamPlayers);
@@ -184,7 +184,7 @@ export default function LiveBroadcastControl() {
       if (selectedGameweek) {
         fetchGameweeksAndFixtures(selectedGameweek);
       }
-    }, 12000);
+    }, 25000);
     return () => clearInterval(interval);
   }, []);
 
@@ -757,6 +757,13 @@ export default function LiveBroadcastControl() {
                   </div>
                   <h3 className="font-black text-sm sm:text-base text-white">{selectedMatch.home_team_name}</h3>
                   <span className="text-[11px] text-slate-400 font-sport">@{selectedMatch.home_coach_name || 'مربی'}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 font-sport ${
+                    selectedMatch.home_lineup_ready || homeGameplan?.is_submitted
+                      ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50'
+                      : 'bg-amber-950/80 text-amber-300 border-amber-500/50'
+                  }`}>
+                    {selectedMatch.home_lineup_ready || homeGameplan?.is_submitted ? '✓ ترکیب ارسال شده' : '⏳ ترکیب پیش‌فرض'}
+                  </span>
                   <div className="flex items-center gap-1.5 text-[10px]">
                     <span className="bg-slate-900 text-cyan-400 px-2 py-0.5 rounded border border-cyan-900/50">
                       تعویض: {selectedMatch.home_subs_count || 0}/5
@@ -793,6 +800,13 @@ export default function LiveBroadcastControl() {
                   </div>
                   <h3 className="font-black text-sm sm:text-base text-white">{selectedMatch.away_team_name}</h3>
                   <span className="text-[11px] text-slate-400 font-sport">@{selectedMatch.away_coach_name || 'مربی'}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 font-sport ${
+                    selectedMatch.away_lineup_ready || awayGameplan?.is_submitted
+                      ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50'
+                      : 'bg-amber-950/80 text-amber-300 border-amber-500/50'
+                  }`}>
+                    {selectedMatch.away_lineup_ready || awayGameplan?.is_submitted ? '✓ ترکیب ارسال شده' : '⏳ ترکیب پیش‌فرض'}
+                  </span>
                   <div className="flex items-center gap-1.5 text-[10px]">
                     <span className="bg-slate-900 text-cyan-400 px-2 py-0.5 rounded border border-cyan-900/50">
                       تعویض: {selectedMatch.away_subs_count || 0}/5

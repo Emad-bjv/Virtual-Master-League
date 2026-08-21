@@ -329,25 +329,3 @@ def auto_release_overflow_players(team_id: int) -> dict:
         'released_players': released_names,
         'message': f"{overflow_count} بازیکن مازاد به لیست آزاد انتقال یافتند."
     }
-
-# ──────────────────────────────────────────────
-# CLUB FACILITIES MULTIPLIERS (20-LEVEL)
-# ──────────────────────────────────────────────
-
-def get_negotiation_discount(club) -> float:
-    from teams.models import ClubFacilities
-    level = club.facilities.scouting_level if hasattr(club, 'facilities') and club.facilities else 1
-    return ClubFacilities.scaled_effect(level, 0.12)
-
-def get_potential_display_error(club) -> int:
-    level = club.facilities.scouting_level if hasattr(club, 'facilities') and club.facilities else 1
-    # Interpolate error from +-15 at level 1 to 0 at level 20
-    if level >= 20: return 0
-    if level >= 18: return 1
-    if level >= 15: return 2
-    if level >= 12: return 3
-    if level >= 10: return 4
-    if level >= 7: return 6
-    if level >= 5: return 8
-    if level >= 3: return 11
-    return 15

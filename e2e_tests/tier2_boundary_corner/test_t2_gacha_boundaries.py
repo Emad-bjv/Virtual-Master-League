@@ -44,7 +44,7 @@ class Tier2GachaBoundaryTests(VMLTestHarness):
         PackOpeningLog.objects.all().delete()
         Player.objects.all().delete()
 
-        self.user = User.objects.create_user(phone_number="09128889900")
+        self.user = self.create_user(phone_number="09128889900")
         self.team = Team.objects.create(manager=self.user, name="Gacha FC", budget=Decimal("1000.00"))
 
         self.pack = GachaPack.objects.create(

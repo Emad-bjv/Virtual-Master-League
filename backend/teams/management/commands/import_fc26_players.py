@@ -193,9 +193,9 @@ class Command(BaseCommand):
                     defaults={
                         'stadium_level': 3,
                         'academy_level': 3,
-                        'medical_level': 3,
                         'gym_level': 3,
-                        'scouting_level': 3,
+                        'medical_level': 3,
+                        'pool_level': 3,
                         'training_camp_level': 3
                     }
                 )
@@ -227,6 +227,7 @@ class Command(BaseCommand):
                         'base_stamina': pdata['base_stamina'],
                         'virtual_stamina': pdata['virtual_stamina'],
                         'wage': pdata['wage'],
+                        'market_value': pdata['market_value'],
                         'rarity': pdata['rarity'],
                     }
                 )
@@ -246,6 +247,7 @@ class Command(BaseCommand):
                         'base_stamina': player.base_stamina,
                         'virtual_stamina': str(player.virtual_stamina),
                         'wage': str(player.wage),
+                        'market_value': str(player.market_value),
                         'rarity': player.rarity
                     }
                 })

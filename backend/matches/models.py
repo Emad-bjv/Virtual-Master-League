@@ -46,6 +46,7 @@ class Match(models.Model):
         ('FINISHED', 'پایان یافته'),
     ]
     HALF_STATUS_CHOICES = [
+        ('NOT_STARTED', 'شروع نشده'),
         ('1ST_HALF', 'نیمه اول'),
         ('HALF_TIME', 'بین دو نیمه'),
         ('2ND_HALF', 'نیمه دوم'),
@@ -64,14 +65,14 @@ class Match(models.Model):
     )
     home_score = models.PositiveIntegerField(default=0, verbose_name="گل‌های میزبان")
     away_score = models.PositiveIntegerField(default=0, verbose_name="گل‌های میهمان")
-    date = models.DateTimeField(null=True, blank=True, verbose_name="تاریخ و ساعت برگزاری")
+    date = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name="تاریخ و ساعت برگزاری")
     status = models.CharField(
         max_length=15, choices=STATUS_CHOICES,
-        default='SCHEDULED', verbose_name="وضعیت بازی"
+        default='SCHEDULED', db_index=True, verbose_name="وضعیت بازی"
     )
     half_status = models.CharField(
         max_length=15, choices=HALF_STATUS_CHOICES,
-        default='1ST_HALF', verbose_name="وضعیت نیمه"
+        default='NOT_STARTED', db_index=True, verbose_name="وضعیت نیمه"
     )
     fatigue_applied = models.BooleanField(
         default=False, verbose_name="خستگی اعمال شده؟",
@@ -88,7 +89,7 @@ class Match(models.Model):
         related_name='matches', verbose_name="تورنمنت"
     )
     round_name = models.CharField(
-        max_length=50, blank=True, verbose_name="مرحله/هفته",
+        max_length=50, blank=True, db_index=True, verbose_name="مرحله/هفته",
         help_text="مثال: هفته ۱، یک‌چهارم نهایی"
     )
     is_knockout = models.BooleanField(
@@ -123,6 +124,11 @@ class Match(models.Model):
     class Meta:
         verbose_name = "مسابقه"
         verbose_name_plural = "مسابقات"
+        indexes = [
+            models.Index(fields=['tournament', 'status']),
+            models.Index(fields=['tournament', 'round_name']),
+            models.Index(fields=['date', 'status']),
+        ]
 
     def __str__(self):
         h = self.home_team.name if self.home_team else "TBD"
@@ -144,6 +150,9 @@ class MatchEvent(models.Model):
         ('SUB_OUT', 'تعویض (خروج)'),
         ('INJURY', 'مصدومیت'),
         ('VAR', 'بررسی VAR'),
+        ('UNDO_GOAL', 'لغو گل'),
+        ('UNDO_EVENT', 'لغو رویداد'),
+        ('INFO', 'پیام اطلاعاتی'),
     ]
 
     match = models.ForeignKey(
@@ -257,6 +266,53 @@ class LiveSubstitutionRequest(models.Model):
         return f"[{self.get_status_display()}] {self.team.name}: {self.player_out.name} OUT, {self.player_in.name} IN (Min {self.minute})"
 
 
+class LiveInGameChangeRequest(models.Model):
+    CATEGORY_CHOICES = [
+        ('SUBSTITUTION', 'تعویض بازیکن'),
+        ('POSITION', 'جابجایی و تغییر پست'),
+        ('TACTIC', 'تغییر تاکتیک'),
+        ('FORMATION', 'تغییر سیستم بازی'),
+    ]
+    STATUS_CHOICES = [
+        ('PENDING', 'در انتظار بررسی داور'),
+        ('APPLIED', 'تایید و اعمال شده ✓'),
+        ('REJECTED', 'رد شده ✗'),
+    ]
+
+    match = models.ForeignKey(
+        Match, on_delete=models.CASCADE,
+        related_name='in_game_changes', verbose_name="مسابقه"
+    )
+    team = models.ForeignKey(
+        Team, on_delete=models.CASCADE,
+        related_name='in_game_changes', verbose_name="تیم"
+    )
+    coach = models.ForeignKey(
+        'users.User', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='submitted_in_game_changes', verbose_name="سرمربی"
+    )
+    change_category = models.CharField(
+        max_length=20, choices=CATEGORY_CHOICES, default='TACTIC', verbose_name="دسته‌بندی تغییر"
+    )
+    title = models.CharField(max_length=150, verbose_name="عنوان تغییر")
+    detail = models.TextField(verbose_name="جزئیات تغییر")
+    diff_data = models.JSONField(default=dict, blank=True, verbose_name="داده‌های تفاوت (Payload)")
+    status = models.CharField(
+        max_length=15, choices=STATUS_CHOICES, default='PENDING', verbose_name="وضعیت درخواست"
+    )
+    minute = models.PositiveIntegerField(null=True, blank=True, verbose_name="دقیقه ثبت")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="زمان ثبت")
+    applied_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان اعمال داور")
+
+    class Meta:
+        verbose_name = "تغییر حین بازی مربی"
+        verbose_name_plural = "تغییرات حین بازی مربیان"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"[{self.get_change_category_display()}] {self.team.name} - {self.title} ({self.status})"
+
+
 class MatchTeamStat(models.Model):
     """
     Per-team aggregate stats for a specific match (possession, shots, etc).
@@ -322,3 +378,46 @@ class LeagueStanding(models.Model):
 
     def __str__(self):
         return f"{self.tournament.name} — {self.team.name}: {self.points}pts"
+
+
+class MatchGamePlan(models.Model):
+    match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name='gameplans', verbose_name="مسابقه")
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='match_gameplans', verbose_name="تیم")
+    formation = models.CharField(max_length=20, default='4-3-3', verbose_name="سیستم ترکیب")
+
+    # حمله
+    attacking_style = models.CharField(max_length=50, default='بازی مالکانه')
+    build_up = models.CharField(max_length=50, default='پاس کوتاه')
+    attacking_area = models.CharField(max_length=20, default='مرکز')
+    positioning = models.CharField(max_length=20, default='حفظ ترکیب')
+    support_range = models.PositiveIntegerField(default=7)
+
+    # دفاع
+    defensive_style = models.CharField(max_length=50, default='فشار خط مقدم')
+    containment_area = models.CharField(max_length=20, default='میانه')
+    pressing = models.CharField(max_length=20, default='تهاجمی')
+    defensive_line = models.PositiveIntegerField(default=6)
+    compactness = models.PositiveIntegerField(default=5)
+
+    # پیشرفته
+    adv_offense_1 = models.CharField(max_length=50, default='هیچکدام')
+    adv_offense_2 = models.CharField(max_length=50, default='هیچکدام')
+    adv_defense_1 = models.CharField(max_length=50, default='هیچکدام')
+    adv_defense_2 = models.CharField(max_length=50, default='هیچکدام')
+
+    is_submitted = models.BooleanField(default=False, db_index=True, verbose_name="تایید و ارسال شده برای این مسابقه")
+    submitted_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان ثبت و ارسال")
+    players_data = models.JSONField(default=list, blank=True, verbose_name="چیدمان بازیکنان در این مسابقه")
+
+    class Meta:
+        verbose_name = "ترکیب و تاکتیک مسابقه"
+        verbose_name_plural = "ترکیب‌ها و تاکتیک‌های مسابقات"
+        unique_together = ('match', 'team')
+        indexes = [
+            models.Index(fields=['match', 'team', 'is_submitted']),
+        ]
+
+    def __str__(self):
+        status = "ارسال شده" if self.is_submitted else "پیش‌نویس"
+        return f"ترکیب {self.team.name} برای بازی {self.match_id} ({status})"
+

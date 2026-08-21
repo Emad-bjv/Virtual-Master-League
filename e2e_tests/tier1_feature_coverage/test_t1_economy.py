@@ -56,7 +56,7 @@ class Tier1EconomyFeatureTests(VMLTestHarness):
         team = self.create_team(budget=1000.00)
         res = process_atomic_wallet_update(
             team_id=team.id,
-            amount_usd=Decimal("500.00"),
+            amount=Decimal("500.00"),
             transaction_type="DEPOSIT",
             description="Test deposit"
         )
@@ -68,7 +68,7 @@ class Tier1EconomyFeatureTests(VMLTestHarness):
         team = self.create_team(budget=100.00)
         res = process_atomic_wallet_update(
             team_id=team.id,
-            amount_usd=Decimal("-500.00"),
+            amount=Decimal("-500.00"),
             transaction_type="WITHDRAW",
             description="Overdraft attempt"
         )
@@ -95,7 +95,7 @@ class Tier1EconomyFeatureTests(VMLTestHarness):
         team = self.create_team()
         txn = Transaction.objects.create(
             team=team,
-            amount_usd=Decimal("100.00"),
+            amount=Decimal("100.00"),
             amount_irr=50000,
             transaction_type="DEPOSIT",
             status="PENDING",
@@ -114,7 +114,7 @@ class Tier1EconomyFeatureTests(VMLTestHarness):
         team = self.create_team()
         txn = Transaction.objects.create(
             team=team,
-            amount_usd=Decimal("300.00"),
+            amount=Decimal("300.00"),
             amount_irr=150000,
             transaction_type="DEPOSIT",
             status="PENDING",
@@ -187,11 +187,11 @@ class Tier1EconomyFeatureTests(VMLTestHarness):
     def test_feature29_frontend_transaction_history_serializer_fields(self):
         team = self.create_team()
         txn = Transaction.objects.create(
-            team=team, amount_usd=Decimal("100.00"), amount_irr=50000, transaction_type="DEPOSIT", status="SUCCESS"
+            team=team, amount=Decimal("100.00"), amount_irr=50000, transaction_type="DEPOSIT", status="SUCCESS"
         )
         serializer = TransactionSerializer(txn)
         self.assertIn("id", serializer.data)
-        self.assertIn("amount_usd", serializer.data)
+        self.assertIn("amount", serializer.data)
         self.assertIn("status", serializer.data)
 
     def test_feature29_frontend_zarinpal_callback_redirect_url(self):

@@ -24,8 +24,15 @@ class NotificationSoundService {
 
   /**
    * Plays a distinct high-priority match kickoff notification chime (D5 -> A5 ascending harmony).
+   * Throttled to avoid continuous/looping beeps.
    */
-  playMatchAlertChime() {
+  playMatchAlertChime(force = false) {
+    const nowMs = Date.now();
+    if (!force && this.lastPlayed && nowMs - this.lastPlayed < 30000) {
+      return; // Do not replay chime within 30 seconds
+    }
+    this.lastPlayed = nowMs;
+
     try {
       const ctx = this.getAudioContext();
       if (!ctx) return;

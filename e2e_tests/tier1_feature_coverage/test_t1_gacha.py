@@ -117,18 +117,18 @@ class Tier1GachaFeatureTests(VMLTestHarness):
         pack = GachaPack.objects.create(name="Log Pack", cost_usd=Decimal("25.00"))
         player = self.create_player(team=team, rarity="EPIC")
         log = PackOpeningLog.objects.create(
-            team=team, pack=pack, player_obtained=player, rarity_drawn="EPIC", pity_applied=False, cost_usd=Decimal("25.00")
+            team=team, pack=pack, player_obtained=player, rarity_drawn="EPIC", pity_applied=False, cost=Decimal("25.00")
         )
         self.assertEqual(log.team, team)
         self.assertEqual(log.rarity_drawn, "EPIC")
-        self.assertEqual(log.cost_usd, Decimal("25.00"))
+        self.assertEqual(log.cost, Decimal("25.00"))
 
     def test_feature21_pack_opening_log_history_query(self):
         team = self.create_team()
         pack = GachaPack.objects.create(name="Query Pack", cost_usd=Decimal("15.00"))
         player = self.create_player(team=team)
         PackOpeningLog.objects.create(
-            team=team, pack=pack, player_obtained=player, rarity_drawn="RARE", cost_usd=Decimal("15.00")
+            team=team, pack=pack, player_obtained=player, rarity_drawn="RARE", cost=Decimal("15.00")
         )
         logs = PackOpeningLog.objects.filter(team=team)
         self.assertEqual(logs.count(), 1)
@@ -157,6 +157,6 @@ class Tier1GachaFeatureTests(VMLTestHarness):
         pack = GachaPack.objects.create(name="Str Pack", cost_usd=Decimal("10.00"))
         player = self.create_player(team=team, name="Gacha Star")
         log = PackOpeningLog.objects.create(
-            team=team, pack=pack, player_obtained=player, rarity_drawn="RARE", cost_usd=Decimal("10.00")
+            team=team, pack=pack, player_obtained=player, rarity_drawn="RARE", cost=Decimal("10.00")
         )
         self.assertIn("Log Team", str(log))

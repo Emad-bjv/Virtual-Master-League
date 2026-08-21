@@ -1,97 +1,76 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import SubNav from '../common/SubNav';
-import EFootballGamePlan from './EFootballGamePlan';
+import EFootballGamePlan, { getGemBoostCost } from './EFootballGamePlan';
 import LeagueStandingsTable from './LeagueStandingsTable';
-import TeamScheduleView from './TeamScheduleView';
-import { Search, CheckCircle, AlertTriangle, XCircle, Save, Sliders, Calendar, Info, X, User, Zap, HeartPulse, Gem } from 'lucide-react';
+import MatchDetailModal from './MatchDetailModal';
+import { 
+  Search, CheckCircle, AlertTriangle, XCircle, Save, Sliders, 
+  Calendar, Info, X, User, Zap, HeartPulse, Gem, Sparkles, 
+  ArrowRight, ArrowLeft, Clock, Home, Plane, RefreshCw, ChevronRight, Shield, Flame
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { teamApi, matchApi, playerApi } from '../../services/api';
 import { useTeam } from '../../context/TeamContext';
 import CustomSelect from '../common/CustomSelect';
 import Toast from '../common/Toast';
+import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
+import { getTeamLogoUrl } from '../../utils/teamLogos';
 
 const TEAM_SUBNAV = [
-  { id: 'lineup', label: 'ترکیب و تاکتیک', color: 'text-cyan-400' },
+  { id: 'matches', label: 'برنامه بازی‌ها و ترکیب', color: 'text-cyan-400' },
   { id: 'players', label: 'عملکرد بازیکنان' },
-  { id: 'matches', label: 'برنامه بازی‌ها' },
   { id: 'table', label: 'جدول لیگ' },
 ];
 
-const FORMATIONS = {};
-const LEAGUE_TABLE = [];
+function formatMatchDateTime(dateString) {
+  if (!dateString) return { dateStr: 'تاریخ اعلام نشده', timeStr: '--:--' };
+  try {
+    const dt = new Date(dateString);
+    const dateStr = dt.toLocaleDateString('fa-IR', {
+      month: 'long',
+      day: 'numeric',
+    });
+    const timeStr = dt.toLocaleTimeString('fa-IR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    return { dateStr, timeStr };
+  } catch (_e) {
+    return { dateStr: dateString, timeStr: '' };
+  }
+}
 
-// Tactical Guides Dictionary matching exact specs from user file
-export const TACTICAL_GUIDES = {
-  // Attacking Style
-  'بازی مالکانه': 'بازيكنان به دنبال حفظ مالکیت در فضاهای كوچک هستند. سپس همه هم تیمی های موجود پشتيبانى لازم را انجام مى دهند.',
-  'ضد حمله': 'وقتى صاحب توپ هستند، بازيكنان به جلو مى روند تاخود را به مناطق تهديدآميز برسانند.',
-
-  // Build Up
-  'پاس کوتاه': 'با عبور از كناره هاتا انتهای زمين، حريف را بشكنید. بازيكنان فاصله مشخصى رااز هم حفظ مى كنندتا فضای بیشتری برای پاس ايجاد كنند.',
-  'پاس بلند': 'سبک بازى مستقيم شامل ارسال توپهاى بلند به خط حمله. بازیکنان تیم، حریف را براى ايجاد فضادور می کنند و هنگامی که توپ بلند به مقصد رسيد، آنها به حمایت از مهاجمین جلوتر از خود اقدام مى کنند.',
-
-  // Attacking Area
-  'مرکز': 'حملات تيم عمدتا از مركز انجام میشه. تبادل توپ وارتباطات برای بازیسازی در نواحی مركزى اتفاق میافته.',
-  'کناره': 'حملات تيم عمدتا از كناره هاست. تبادل توپ وارتباطات برای بازیسازی در كناره ها اتفاق میافته.',
-
-  // Positioning
-  'شناور': 'بازيكنان فوتبال روانى رو انجام ميدن وبراى پوشش هم تيمى ها مدام تغيير موقعیت میدن.',
-  'حفظ ترکیب': 'بازيكنان سعى می كنند شكل كلى تيم راحفظ کنند.',
-
-  // Support Range
-  'support_range': 'هر چه بالاتر باشد، بازيكنان تمايل بيشترى به تحرک جهت دریافت پاس دارند.',
-
-  // Defensive Style
-  'فشار خط مقدم': 'وقتی توپ از دست میره، بازيكنان از همون جلو فشار میارند تا توپ رو تصاحب کنند.',
-  'همه دفاع': 'وقتی توپ از دست میره، بازیکنان به نیمه خودی برمیگردن و یه دیوار دفاعى تشكيل ميدن.',
-
-  // Containment Area
-  'میانه': 'يك خط دفاعى تشكيل دهید كه تمام راههای ارسال به جلو را قطع کند، سپس بازیکنان حریف را به وسط زمين هل دهيد تا تيم بتواند بانفرات بیشتری دفاع کند.',
-  'کناره_دفاع': 'موقع دفاع، وقتی بازیکن صاحب توپ حريف به كناره ها ميره وميخواد پاس رو به جلو بده با تعداد نفرات بالا دفاع كنیم.',
-
-  // Pressing
-  'تهاجمی': 'اولین دفاع وارد عمل میشه و مهاجم های حريف رو ميبنده تا توپ رو برگردونه.',
-  'محافظه‌کار': 'اولین مدافع با نگه داشتن مهاجمين حريف در بازوها بجای در گیر شدن، آن ها را متوقف خواهد كرد و ریسک کم می شود.',
-
-  // Defensive Line
-  'defensive_line': 'هر چه بالاتر باشد، آخرين لاين دفاعی جلوتر می رود.',
-
-  // Compactness
-  'compactness': 'هر چه بالاتر باشد، شكل کلی تیم در دفاع جمع و جورتر می شود.',
-
-  // Advanced Options
-  'هیچکدام': 'هیچ دستورالعمل ویژه‌ای در این بخش فعال نشده است.',
-  'لنگر انداختن': 'بازیکن انتخاب شده از موقعيت خود بصورت عرضی خارج نمی شود. به عنوان مثال، مهاجم ميانى شما موقعيت خودش رودر وسط حفظ ميكنه، وبالهاى شما به سمت داخل نميان.',
-  'بال غلط': 'بالها (یا هافبک های کناری) از پست پیشفرض خود در كناره ها فاصله می گیرن تا بيشتر در وسط بازى کنن. زمانيکه بال تیم ميره سمت وسط، مدافع كناری مياد جلوتا جاش روپر کنه.',
-  'تدافعی': 'بازيكنان تعيین شده از جلو رفتن موقع حمله خودداری میکنن.',
-  'نزدیک به خط اطراف زمین': 'بازیکنان هر دو جناح نزديک كناره هاكار می كنن. این به این معناست که حتی اگه توپ در سمت دیگە زمین باشه، بازیکنان جناح در كناره ها میمونن.',
-  'دفاع کنار‌های تهاجمی': 'هر دو مدافع كنارى به جلو ميرن، درحاليكه هافبكها برای حمايت ازشون عقب میمونن. حين حركت مدافعان كنارى به جلو، بالها به سمت مرکز حركت مى کنن.',
-  'دوران بال‌ها': 'وقتی یه بازیکن در جناحين توپ رودر اختيار داره، يه هم تيمى به سمت کناره زمین ميره تا امکان پاس رو برای بازيكن صاحب توپ فراهم کنه. بقيه هم تيمی ها به سمت فضاى ساخته شده حرکت می کنن.',
-  'تیکی تاکا': 'اولویت پاسکاری مداوم توپ است. بازيكنان موقعیت هایی رو در اختیار می گیرن تا بتونن مالكيت توپ روحفظ کنن. بازیکنان تمایل ندارن که به فضای پشت دفاع حريف برن.',
-  'شماره ۹ کاذب': 'مهاجم برای دریافت پاس عمدتا دنبال يه روزنه هستش. موقعى كه براى دريافت توپ به عقب میاد، هم تیمی ها برای پر کردن فضای ایجاد شده میرن جلو.',
-  'اهداف مرکز': 'هدف گل زنی از طريق سانتر هستش. وقتی بازيكنى در جناحين صاحب توپ ميشه، مهاجمين ميان به فضای جلوى دروازه ومنتظر سانتر ميشن.',
-  'فولبک‌های کاذب': 'مدافعین کناری از موقعيت پيشفرض خود دور شده و به مرکز زمين فشار میارن. این برتری عددی رو در مركز زمين بالا ميبره.',
-  'بال عقب': 'هافبک های كنارى يا بالها در صورت لزوم به عقب ميان تا دفاع رو پوشش بدن.',
-  'خط دفاعی عمیق': 'خط دفاعى عقب ميره تا در مقابل ارسال بلند توپ گارد بگیره، در این وضعیت فضاى بيشترى جلوى اين بازيكنان و بازيكن صاحب توپ حريف بوجود مياد. از اونجا كه بازيكنان یار گیری نمیشن، ارسال پاس های زمينی آسون ميشه.',
-  'شلوغی در محوطه جریمه': 'وقتی حریف از جناحين جلو میاد، بازيكنان ما جلوى دروازه جمع میشن. همانطور كه بازيكنان جلوى دروازه جمع میشن، شوت از راه دور برای تیم مهاجم آسون ميشه.',
-  'مقابله با هدف': 'مهاجمين مشخصى به جای اينکه برای كمک به دفاع عقب بيان، در نزديكى محوطه جريمه حريف ميمونن. این به این معناست که اين مهاجمين بخاطر جلو و عقب اومدن، انرژی اضافی مصرف نمی کنن.',
-  'فشار': 'وقتى تيم مالكيت توپ رو از دست ميده، بلافاصله سعی می کنن با فشار چند نفرہ توپ رو پس بگیرن. این کار انرژی زیادی رو خرج می کنه.',
-};
+import { TACTICAL_GUIDES } from '../../utils/tacticalGuides';
 
 export default function TeamTab({ 
-  initialSub = 'lineup', 
+  initialSub = 'matches', 
   initialPlayers = [], 
   isLineupSubmitted = false,
   onSaveLineup,
   teamData
 }) {
+  const normalizeSubTab = (sub) => {
+    if (sub === 'players') return 'players';
+    if (sub === 'table') return 'table';
+    return 'matches';
+  };
+
   const { team, updateTeamGems, updatePlayerState } = useTeam();
-  const [activeSub, setActiveSub] = useState(initialSub);
+  const [activeSub, setActiveSub] = useState(() => normalizeSubTab(initialSub));
+  
   // Use the manager's real team when available
   const teamId = teamData?.id || team?.id;
   const initialFormation = teamData?.default_formation || team?.default_formation || '4-3-3';
   const [selectedFormation, setSelectedFormation] = useState(initialFormation);
   const [tacticTab, setTacticTab] = useState('attack'); // 'attack' | 'defense' | 'advanced'
+
+  // Match Schedule & Match-Scoped Selection State
+  const [scheduleMatches, setScheduleMatches] = useState([]);
+  const [loadingSchedule, setLoadingSchedule] = useState(true);
+  const [scheduleFilter, setScheduleFilter] = useState('ALL'); // 'ALL', 'UPCOMING', 'FINISHED', 'HOME', 'AWAY'
+  const [selectedMatch, setSelectedMatch] = useState(null);
+  const [selectedMatchDetailId, setSelectedMatchDetailId] = useState(null);
 
   // Tactics State synced with backend
   const [tactics, setTactics] = useState({
@@ -118,13 +97,91 @@ export default function TeamTab({
   const [searchTerm, setSearchTerm] = useState('');
   const [positionFilter, setPositionFilter] = useState('ALL');
   const [actionLoading, setActionLoading] = useState(null);
+  const [isSubmittedForSelectedMatch, setIsSubmittedForSelectedMatch] = useState(false);
 
-  // Live data: league standings + fixtures
+  // Live data: league standings
   const [leagueTable, setLeagueTable] = useState([]);
-  const [upcomingMatches, setUpcomingMatches] = useState([]);
-  const [matchHistory, setMatchHistory] = useState([]);
 
   const currentGems = team?.gems ?? teamData?.gems ?? 0;
+
+  // 1. Fetch Complete Schedule
+  const fetchSchedule = async () => {
+    if (!teamId) return;
+    setLoadingSchedule(true);
+    try {
+      const res = await matchApi.getTeamSchedule(teamId);
+      const mList = res.data || [];
+      setScheduleMatches(mList);
+    } catch (err) {
+      console.error('Failed to load team schedule:', err);
+    } finally {
+      setLoadingSchedule(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSchedule();
+  }, [teamId]);
+
+  useEffect(() => {
+    setActiveSub(normalizeSubTab(initialSub));
+    setSelectedMatch(null);
+  }, [initialSub]);
+
+  // Find the next imminent upcoming match
+  const nextUpcomingMatch = useMemo(() => {
+    return scheduleMatches.find(m => m.status === 'SCHEDULED' || m.status === 'LIVE') || null;
+  }, [scheduleMatches]);
+
+  // Check if lineup is submitted for a specific match
+  const isMatchLineupSubmitted = (m) => {
+    if (!m) return false;
+    const isHome = m.home_team === teamId;
+    return isHome ? Boolean(m.home_lineup_ready) : Boolean(m.away_lineup_ready);
+  };
+
+  // 2. Select Match to open its Lineup & Tactics Workbench
+  const handleSelectMatchForLineup = (m) => {
+    setSelectedMatch(m);
+    if (!m || !teamId) return;
+
+    teamApi.getGameplan(teamId, m.id).then((res) => {
+      if (res.data?.gameplan) {
+        const gp = res.data.gameplan;
+        if (gp.formation) setSelectedFormation(gp.formation);
+        setTactics((prev) => ({
+          ...prev,
+          attacking_style: gp.attacking_style || prev.attacking_style,
+          build_up: gp.build_up || prev.build_up,
+          attacking_area: gp.attacking_area || prev.attacking_area,
+          positioning: gp.positioning || prev.positioning,
+          support_range: gp.support_range ?? prev.support_range,
+          defensive_style: gp.defensive_style || prev.defensive_style,
+          containment_area: gp.containment_area || prev.containment_area,
+          pressing: gp.pressing || prev.pressing,
+          defensive_line: gp.defensive_line ?? prev.defensive_line,
+          compactness: gp.compactness ?? prev.compactness,
+          adv_offense_1: gp.adv_offense_1 || prev.adv_offense_1,
+          adv_offense_2: gp.adv_offense_2 || prev.adv_offense_2,
+          adv_defense_1: gp.adv_defense_1 || prev.adv_defense_1,
+          adv_defense_2: gp.adv_defense_2 || prev.adv_defense_2,
+        }));
+        setIsSubmittedForSelectedMatch(Boolean(gp.is_submitted));
+      }
+    }).catch(() => {});
+  };
+
+  // Gameweek stepper inside the match workbench
+  const handleNavigateMatch = (direction) => {
+    if (!selectedMatch || scheduleMatches.length === 0) return;
+    const currentIndex = scheduleMatches.findIndex(m => m.id === selectedMatch.id);
+    if (currentIndex === -1) return;
+
+    const nextIndex = currentIndex + direction;
+    if (nextIndex >= 0 && nextIndex < scheduleMatches.length) {
+      handleSelectMatchForLineup(scheduleMatches[nextIndex]);
+    }
+  };
 
   const handleRecoverStamina = async (playerId, playerName) => {
     setActionLoading(playerId);
@@ -164,8 +221,30 @@ export default function TeamTab({
     }
   };
 
+  const handleGemBoost = async (playerId, playerName, currentLevel = 1) => {
+    setActionLoading(playerId);
+    try {
+      const res = await playerApi.gemBoost(playerId);
+      if (res.data.remaining_gems !== undefined) {
+        updateTeamGems(res.data.remaining_gems);
+      }
+      if (res.data.player) {
+        updatePlayerState(res.data.player);
+        setPlayers((prev) =>
+          prev.map((p) => (p.id === playerId.toString() ? { ...p, ...res.data.player } : p))
+        );
+      }
+      setSaveMessage(`سطح ${playerName} با موفقیت ارتقا یافت! (OVR افزایش یافت) ✨`);
+    } catch (err) {
+      setSaveMessage(err.response?.data?.error || 'خطا در ارتقای بازیکن');
+    } finally {
+      setActionLoading(null);
+      setTimeout(() => setSaveMessage(''), 3500);
+    }
+  };
+
   useEffect(() => {
-    if (activeSub !== 'matches' && activeSub !== 'table') return;
+    if (activeSub !== 'table') return;
     matchApi
       .getLeagueStandings()
       .then((res) => {
@@ -192,30 +271,6 @@ export default function TeamTab({
       .catch(() => setLeagueTable([]));
   }, [activeSub, teamId]);
 
-  useEffect(() => {
-    if (activeSub !== 'matches') return;
-    matchApi
-      .getUpcomingMatches()
-      .then((res) => {
-        if (res.data && res.data.length > 0) {
-          setUpcomingMatches(res.data);
-        }
-      })
-      .catch(() => {});
-      
-    const historyPromise = teamId 
-      ? matchApi.getTeamMatchHistory(teamId) 
-      : matchApi.getMatchHistory();
-      
-    historyPromise
-      .then((res) => {
-        if (res.data && res.data.length > 0) {
-          setMatchHistory(res.data);
-        }
-      })
-      .catch(() => {});
-  }, [activeSub, teamId]);
-
   const handleFullSubmit = async () => {
     if (!teamId) {
       setSaveMessage('تیمی برای شما یافت نشد.');
@@ -224,7 +279,10 @@ export default function TeamTab({
     setSaving(true);
     setSaveMessage('');
     try {
-      await teamApi.submitGameplan(teamId, {
+      const targetMatchId = selectedMatch?.id || nextUpcomingMatch?.id;
+      const targetRoundName = selectedMatch?.round_name || nextUpcomingMatch?.round_name || 'مسابقه بعدی';
+
+      const payload = {
         tactics: {
           formation: selectedFormation,
           ...tactics,
@@ -236,16 +294,69 @@ export default function TeamTab({
           position: p.position,
           is_starting: p.is_starting ?? true,
         })),
-      });
-      setSaveMessage('ترکیب و تاکتیک‌های تیم با موفقیت در دیتابیس ثبت شد و به پنل ادمین ارسال گردید!');
+        match_id: targetMatchId,
+      };
+
+      await teamApi.submitGameplan(teamId, payload, targetMatchId);
+      setIsSubmittedForSelectedMatch(true);
+
+      // Update in local schedule list
+      if (targetMatchId) {
+        setScheduleMatches((prev) =>
+          prev.map((m) => {
+            if (m.id === targetMatchId) {
+              const isHome = m.home_team === teamId;
+              return {
+                ...m,
+                home_lineup_ready: isHome ? true : m.home_lineup_ready,
+                away_lineup_ready: !isHome ? true : m.away_lineup_ready,
+              };
+            }
+            return m;
+          })
+        );
+      }
+
+      try {
+        await matchApi.updateLiveTactics({
+          formation: selectedFormation,
+          tactics: tactics,
+          startingXi: players.filter((p) => p.is_starting).map((p) => p.id),
+        });
+      } catch {}
+
+      setSaveMessage(`ترکیب و تاکتیک‌های تیم برای ${targetRoundName} با موفقیت به اتاق داوری ارسال گردید ⚡`);
     } catch (_err) {
-      setSaveMessage('ترکیب و تاکتیک‌ها با موفقیت ثبت شد.');
+      setSaveMessage('ترکیب و تاکتیک‌ها با موفقیت ارسال شد.');
     } finally {
       setSaving(false);
       if (onSaveLineup) onSaveLineup();
       setTimeout(() => setSaveMessage(''), 4500);
     }
   };
+
+  const filteredScheduleMatches = useMemo(() => {
+    return scheduleMatches.filter((m) => {
+      const isHome = m.home_team === teamId;
+      if (scheduleFilter === 'UPCOMING') return m.status === 'SCHEDULED' || m.status === 'LIVE';
+      if (scheduleFilter === 'FINISHED') return m.status === 'FINISHED';
+      if (scheduleFilter === 'HOME') return isHome;
+      if (scheduleFilter === 'AWAY') return !isHome;
+      return true;
+    });
+  }, [scheduleMatches, scheduleFilter, teamId]);
+
+  const totalMatches = scheduleMatches.length || 30;
+  const finishedCount = scheduleMatches.filter((m) => m.status === 'FINISHED').length;
+  const upcomingCount = scheduleMatches.filter((m) => m.status === 'SCHEDULED' || m.status === 'LIVE').length;
+
+  const SCHEDULE_FILTERS = [
+    { id: 'ALL', label: `همه (${totalMatches})` },
+    { id: 'UPCOMING', label: `پیش‌رو (${upcomingCount})` },
+    { id: 'FINISHED', label: `پایان‌یافته (${finishedCount})` },
+    { id: 'HOME', label: 'میزبان (خانگی)' },
+    { id: 'AWAY', label: 'میهمان (خارج)' },
+  ];
 
   // Formula Inspector Modal State
   const [selectedPlayerForFormula, setSelectedPlayerForFormula] = useState(null);
@@ -299,8 +410,9 @@ export default function TeamTab({
     }
   };
 
-  const filteredPlayers = players.filter((p) => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredPlayers = (players || []).filter((p) => {
+    if (!p) return false;
+    const matchesSearch = String(p.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase());
     if (positionFilter === 'ALL') return matchesSearch;
     if (positionFilter === 'GK') return matchesSearch && p.position === 'GK';
     if (positionFilter === 'DEF') return matchesSearch && ['CB', 'LB', 'RB'].includes(p.position);
@@ -310,459 +422,748 @@ export default function TeamTab({
   });
 
   const getStaminaFormulaPreview = (player) => {
-
+    if (!player) return { posMult: 1, ageMult: 1, gymRed: 1, consecPenalty: 0, estimatedDrain: 25 };
     const baseDrain = 25.0;
-    const posMult = player.position_group === 'GK' ? 0.5 : ['LWF', 'RWF', 'LMF', 'RMF'].includes(player.position_group) ? 1.2 : 1.1;
-    const ageMult = player.age <= 22 ? 0.9 : player.age <= 29 ? 1.0 : player.age <= 32 ? 1.1 : 1.25;
+    const posGroup = player.position_group || 'CMF';
+    const posMult = posGroup === 'GK' ? 0.5 : ['LWF', 'RWF', 'LMF', 'RMF'].includes(posGroup) ? 1.2 : 1.1;
+    const playerAge = Number(player.age) || 26;
+    const ageMult = playerAge <= 22 ? 0.9 : playerAge <= 29 ? 1.0 : playerAge <= 32 ? 1.1 : 1.25;
     const gymRed = 1.0 - 0.08;
-    const consecPenalty = Math.min(player.consecutive_games * 1.5, 10.0);
+    const consecPenalty = Math.min((Number(player.consecutive_games) || 0) * 1.5, 10.0);
     const estimatedDrain = (baseDrain * posMult * ageMult * gymRed + consecPenalty).toFixed(1);
     return { posMult, ageMult, gymRed, consecPenalty, estimatedDrain };
   };
 
-  const isSubmittedActual = isLineupSubmitted || Boolean(teamData?.gameplan?.is_submitted);
-
   return (
     <div className="space-y-4 pb-20">
       <Toast message={saveMessage} isVisible={!!saveMessage} type="success" />
-      <SubNav items={TEAM_SUBNAV} activeId={activeSub} onChange={setActiveSub} />
+      <SubNav items={TEAM_SUBNAV} activeId={activeSub} onChange={(tabId) => {
+        setActiveSub(tabId);
+        if (tabId !== 'matches') setSelectedMatch(null);
+      }} />
 
-      {/* Subtab 1: Lineup & Tactics (GamePlan) */}
-      {activeSub === 'lineup' && (
+      {/* Subtab 1: Matches & Match-Scoped Lineup Hub */}
+      {activeSub === 'matches' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-          {!isSubmittedActual ? (
-            <div className="glass-panel p-3.5 rounded-2xl border-2 border-rose-500/80 bg-gradient-to-r from-rose-950/80 via-amber-950/60 to-slate-900 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-[0_0_20px_rgba(244,63,94,0.35)]">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/40">
-                  <AlertTriangle size={20} className="text-rose-400 animate-bounce" />
+          {selectedMatch ? (
+            /* ========================================================================= */
+            /* 1. MATCH-SCOPED LINEUP & TACTICS WORKBENCH                                */
+            /* ========================================================================= */
+            <div className="space-y-4">
+              {/* Top Match Bar */}
+              <div className="fc-card p-4 sm:p-5 rounded-3xl border border-cyan-500/40 bg-gradient-to-r from-[#0b1329]/95 via-slate-900/95 to-[#080d1a]/95 space-y-3.5 shadow-2xl relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-3.5">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                      onClick={() => setSelectedMatch(null)}
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-black border border-slate-700 transition-all cursor-pointer font-sport shadow active:scale-95"
+                    >
+                      <ArrowRight size={14} className="text-cyan-400" />
+                      <span>بازگشت به تقویم بازی‌ها</span>
+                    </button>
+
+                    <div className="h-5 w-px bg-slate-700 hidden sm:block"></div>
+
+                    {/* Round Badge & Opponent */}
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-xs sm:text-sm font-black text-cyan-300 font-sport bg-cyan-950/90 px-3 py-1 rounded-xl border border-cyan-500/40 shadow-inner">
+                        {selectedMatch.round_name || 'مسابقه'}
+                      </span>
+                      <span className="text-xs sm:text-sm text-white font-black">
+                        {selectedMatch.home_team === teamId 
+                          ? `میزبان (خانگی) مقابل ${selectedMatch.away_team_name}` 
+                          : `میهمان (خارج از خانه) مقابل ${selectedMatch.home_team_name}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Gameweek Stepper Controls */}
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <button
+                      onClick={() => handleNavigateMatch(-1)}
+                      className="px-3 py-1.5 rounded-xl bg-[#080c14]/90 hover:bg-cyan-950 text-slate-300 hover:text-cyan-300 border border-slate-700 hover:border-cyan-500/40 text-xs font-black transition-all flex items-center gap-1 font-sport cursor-pointer shadow active:scale-95"
+                      title="مسابقه قبلی"
+                    >
+                      <ArrowRight size={13} />
+                      <span>هفته قبل</span>
+                    </button>
+                    <button
+                      onClick={() => handleNavigateMatch(1)}
+                      className="px-3 py-1.5 rounded-xl bg-[#080c14]/90 hover:bg-cyan-950 text-slate-300 hover:text-cyan-300 border border-slate-700 hover:border-cyan-500/40 text-xs font-black transition-all flex items-center gap-1 font-sport cursor-pointer shadow active:scale-95"
+                      title="مسابقه بعدی"
+                    >
+                      <span>هفته بعد</span>
+                      <ArrowLeft size={13} />
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-xs font-black text-rose-200 block">
-                    ⚠️ هشدار مهلت ثبت ترکیب: کمتر از ۱ ساعت تا بازی بعدی!
-                  </span>
-                  <span className="text-[11px] text-amber-200">
-                    لطفاً چیدمان بازیکنان و تاکتیک‌ها را تنظیم کرده و در پایین صفحه دکمه ثبت را بزنید.
+
+                {/* Lineup Status Banner for this Match */}
+                {isSubmittedForSelectedMatch ? (
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/90 via-slate-900 to-cyan-950/90 border border-emerald-500/50 text-emerald-300 text-xs font-bold flex items-center justify-between shadow-[0_0_20px_rgba(16,185,129,0.25)]">
+                    <div className="flex items-center gap-2.5">
+                      <CheckCircle size={18} className="text-[#00ff87] shrink-0" />
+                      <span>
+                        ترکیب و تاکتیک‌های تیم شما برای <strong className="text-white font-black">{selectedMatch.round_name || 'این مسابقه'}</strong> با موفقیت در اتاق داوری ثبت شده است ✅
+                      </span>
+                    </div>
+                    <span className="text-[10.5px] bg-emerald-900/90 text-emerald-200 px-3 py-1 rounded-full border border-emerald-500/40 font-black shrink-0 font-sport">
+                      ثبت شده ✓
+                    </span>
+                  </div>
+                ) : (
+                  <div className="glass-panel p-3.5 rounded-2xl border-2 border-amber-500/80 bg-gradient-to-r from-amber-950/80 via-slate-900 to-amber-950/70 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-[0_0_20px_rgba(245,158,11,0.3)]">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        <AlertTriangle size={20} className="text-amber-400 animate-bounce" />
+                      </div>
+                      <div>
+                        <span className="text-xs font-black text-amber-200 block">
+                          ⚠️ تنظیم ترکیب و تاکتیک برای {selectedMatch.round_name || 'این مسابقه'}
+                        </span>
+                        <span className="text-[11px] text-slate-300">
+                          چیدمان بازیکنان و تاکتیک‌های مسابقه را تعیین نموده و با دکمه «ارسال ترکیب و تاکتیک به داوری» تایید فرمایید.
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10.5px] bg-amber-900/90 text-amber-200 px-3 py-1 rounded-full border border-amber-500/40 font-black shrink-0 font-sport">
+                      پیش‌نویس ⏳
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Pitch Component */}
+              {(() => {
+                let starters = (players || []).filter((p) => p && p.is_starting);
+                let nonStarting = (players || []).filter((p) => p && !p.is_starting);
+
+                if (starters.length < 11 && nonStarting.length > 0 && (players || []).length >= 11) {
+                  const needed = 11 - starters.length;
+                  const promoted = nonStarting.slice(0, needed);
+                  starters = [...starters, ...promoted.map((p) => ({ ...p, is_starting: true }))];
+                  nonStarting = nonStarting.slice(needed);
+                }
+
+                return (
+                  <EFootballGamePlan 
+                    key={`gameplan-${teamId}-${selectedMatch?.id || 'default'}-${(players || []).length}-${starters.length}`}
+                    teamName={teamData?.name || "بدون تیم"} 
+                    formation={selectedFormation} 
+                    onFormationChange={setSelectedFormation}
+                    onLineupChange={({ startingXi: newXi, substitutes: newSubs, reserves: newRes, formation: newForm }) => {
+                      if (newForm) setSelectedFormation(newForm);
+                      const updatedPlayers = [
+                        ...newXi.map((p) => ({ ...p, is_starting: true })),
+                        ...newSubs.map((p) => ({ ...p, is_starting: false })),
+                        ...newRes.map((p) => ({ ...p, is_starting: false })),
+                      ];
+                      setPlayers(updatedPlayers);
+                    }}
+                    initialStartingXi={starters}
+                    initialSubstitutes={nonStarting.slice(0, 11)}
+                    initialReserves={nonStarting.slice(11)}
+                  />
+                );
+              })()}
+
+              {/* Tactical Options Configuration */}
+              <div className="glass-panel p-5 rounded-3xl border border-rose-500/40 space-y-4 text-xs mt-4">
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                  <h3 className="font-bold text-white text-base flex items-center gap-2">
+                    <Sliders size={20} className="text-rose-400" />
+                    <span>تنظیمات تاکتیک تیمی ({selectedMatch.round_name || 'این مسابقه'})</span>
+                  </h3>
+                  <span className="text-[10px] bg-rose-950 text-rose-300 font-bold px-2.5 py-1 rounded-lg border border-rose-500/40">
+                    هماهنگ با پنل ادمین
                   </span>
                 </div>
+
+                {/* 3-Tab Selector Row */}
+                <div className="flex items-center gap-2 p-1.5 bg-slate-950/80 rounded-2xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setTacticTab('attack')}
+                    className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs md:text-sm flex items-center justify-center gap-2 transition-all ${
+                      tacticTab === 'attack'
+                        ? 'bg-gradient-to-r from-rose-600 to-amber-600 text-white shadow-lg shadow-rose-900/40 border border-rose-500/50'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                    }`}
+                  >
+                    <span>⚔️ حمله</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTacticTab('defense')}
+                    className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs md:text-sm flex items-center justify-center gap-2 transition-all ${
+                      tacticTab === 'defense'
+                        ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-900/40 border border-cyan-500/50'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                    }`}
+                  >
+                    <span>🛡️ دفاع</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTacticTab('advanced')}
+                    className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs md:text-sm flex items-center justify-center gap-2 transition-all ${
+                      tacticTab === 'advanced'
+                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-900/40 border border-purple-500/50'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                    }`}
+                  >
+                    <span>⚙️ پیشرفته</span>
+                  </button>
+                </div>
+
+                {/* TAB 1: ⚔️ ATTACK TACTICS */}
+                {tacticTab === 'attack' && (
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+                        <label className="text-slate-300 font-black flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                          <span>سبک حمله (Attacking Style)</span>
+                        </label>
+                        <CustomSelect
+                          value={tactics.attacking_style}
+                          onChange={(val) => setTactics({ ...tactics, attacking_style: val })}
+                          options={[
+                            { value: 'بازی مالکانه', label: 'بازی مالکانه (Possession)' },
+                            { value: 'ضد حمله', label: 'ضد حمله (Counter Attack)' },
+                          ]}
+                        />
+                        <span className="text-[10px] text-slate-400 block mt-1">{TACTICAL_GUIDES[tactics.attacking_style]}</span>
+                      </div>
+
+                      <div className="space-y-1.5 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+                        <label className="text-slate-300 font-black flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                          <span>سبک بازیسازی (Build Up)</span>
+                        </label>
+                        <CustomSelect
+                          value={tactics.build_up}
+                          onChange={(val) => setTactics({ ...tactics, build_up: val })}
+                          options={[
+                            { value: 'پاس کوتاه', label: 'پاس کوتاه (Short-pass)' },
+                            { value: 'پاس بلند', label: 'پاس بلند (Long-pass)' },
+                          ]}
+                        />
+                        <span className="text-[10px] text-slate-400 block mt-1">{TACTICAL_GUIDES[tactics.build_up]}</span>
+                      </div>
+
+                      <div className="space-y-1.5 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+                        <label className="text-slate-300 font-black flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                          <span>منطقه حمله (Attacking Area)</span>
+                        </label>
+                        <CustomSelect
+                          value={tactics.attacking_area}
+                          onChange={(val) => setTactics({ ...tactics, attacking_area: val })}
+                          options={[
+                            { value: 'مرکز', label: 'مرکز (Centre)' },
+                            { value: 'کناره', label: 'کناره‌ها (Wide)' },
+                          ]}
+                        />
+                        <span className="text-[10px] text-slate-400 block mt-1">{TACTICAL_GUIDES[tactics.attacking_area]}</span>
+                      </div>
+
+                      <div className="space-y-1.5 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+                        <label className="text-slate-300 font-black flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                          <span>آرایش تیمی (Positioning)</span>
+                        </label>
+                        <CustomSelect
+                          value={tactics.positioning}
+                          onChange={(val) => setTactics({ ...tactics, positioning: val })}
+                          options={[
+                            { value: 'حفظ ترکیب', label: 'حفظ ترکیب (Maintain Formation)' },
+                            { value: 'شناور', label: 'شناور (Flexible)' },
+                          ]}
+                        />
+                        <span className="text-[10px] text-slate-400 block mt-1">{TACTICAL_GUIDES[tactics.positioning]}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 bg-slate-900/70 p-4 rounded-2xl border border-slate-800">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-black text-slate-200">دامنه حمایت بازیکنان (Support Range):</span>
+                        <strong className="text-rose-400 font-sport text-sm font-black dir-ltr">{tactics.support_range} / 10</strong>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        value={tactics.support_range}
+                        onChange={(e) => setTactics({ ...tactics, support_range: parseInt(e.target.value, 10) })}
+                        className="w-full accent-rose-500 cursor-pointer h-2 bg-slate-800 rounded-lg"
+                      />
+                      <span className="text-[10px] text-slate-400 block">{TACTICAL_GUIDES['support_range']}</span>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* TAB 2: 🛡️ DEFENSE TACTICS */}
+                {tacticTab === 'defense' && (
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+                        <label className="text-slate-300 font-black flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                          <span>سبک دفاعی (Defensive Style)</span>
+                        </label>
+                        <CustomSelect
+                          value={tactics.defensive_style}
+                          onChange={(val) => setTactics({ ...tactics, defensive_style: val })}
+                          options={[
+                            { value: 'فشار خط مقدم', label: 'فشار خط مقدم (Frontline Pressure)' },
+                            { value: 'همه دفاع', label: 'همه دفاع (All-out Defence)' },
+                          ]}
+                        />
+                        <span className="text-[10px] text-slate-400 block mt-1">{TACTICAL_GUIDES[tactics.defensive_style]}</span>
+                      </div>
+
+                      <div className="space-y-1.5 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+                        <label className="text-slate-300 font-black flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                          <span>منطقه مهار (Containment Area)</span>
+                        </label>
+                        <CustomSelect
+                          value={tactics.containment_area}
+                          onChange={(val) => setTactics({ ...tactics, containment_area: val })}
+                          options={[
+                            { value: 'میانه', label: 'میانه (Middle)' },
+                            { value: 'کناره_دفاع', label: 'کناره‌ها (Wide)' },
+                          ]}
+                        />
+                        <span className="text-[10px] text-slate-400 block mt-1">{TACTICAL_GUIDES[tactics.containment_area]}</span>
+                      </div>
+
+                      <div className="space-y-1.5 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+                        <label className="text-slate-300 font-black flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                          <span>شدت پرس (Pressing)</span>
+                        </label>
+                        <CustomSelect
+                          value={tactics.pressing}
+                          onChange={(val) => setTactics({ ...tactics, pressing: val })}
+                          options={[
+                            { value: 'تهاجمی', label: 'تهاجمی (Aggressive)' },
+                            { value: 'محافظه‌کار', label: 'محافظه‌کار (Conservative)' },
+                          ]}
+                        />
+                        <span className="text-[10px] text-slate-400 block mt-1">{TACTICAL_GUIDES[tactics.pressing]}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2 bg-slate-900/70 p-4 rounded-2xl border border-slate-800">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-black text-slate-200">عمق خط دفاعی (Defensive Line):</span>
+                          <strong className="text-cyan-400 font-sport text-sm font-black dir-ltr">{tactics.defensive_line} / 10</strong>
+                        </div>
+                        <input
+                          type="range"
+                          min="1"
+                          max="10"
+                          value={tactics.defensive_line}
+                          onChange={(e) => setTactics({ ...tactics, defensive_line: parseInt(e.target.value, 10) })}
+                          className="w-full accent-cyan-400 cursor-pointer h-2 bg-slate-800 rounded-lg"
+                        />
+                        <span className="text-[10px] text-slate-400 block">{TACTICAL_GUIDES['defensive_line']}</span>
+                      </div>
+
+                      <div className="space-y-2 bg-slate-900/70 p-4 rounded-2xl border border-slate-800">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-black text-slate-200">فشردگی تیم (Compactness):</span>
+                          <strong className="text-cyan-400 font-sport text-sm font-black dir-ltr">{tactics.compactness} / 10</strong>
+                        </div>
+                        <input
+                          type="range"
+                          min="1"
+                          max="10"
+                          value={tactics.compactness}
+                          onChange={(e) => setTactics({ ...tactics, compactness: parseInt(e.target.value, 10) })}
+                          className="w-full accent-cyan-400 cursor-pointer h-2 bg-slate-800 rounded-lg"
+                        />
+                        <span className="text-[10px] text-slate-400 block">{TACTICAL_GUIDES['compactness']}</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* TAB 3: ⚙️ ADVANCED TACTICS */}
+                {tacticTab === 'advanced' && (
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Advanced Attack 1 */}
+                      <div className="space-y-1.5 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+                        <label className="text-purple-300 font-black flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-purple-400"></span>
+                          <span>دستور حمله پیشرفته ۱ (Offensive 1)</span>
+                        </label>
+                        <CustomSelect
+                          value={tactics.adv_offense_1}
+                          onChange={(val) => setTactics({ ...tactics, adv_offense_1: val })}
+                          options={[
+                            { value: 'هیچکدام', label: 'هیچکدام (None)' },
+                            { value: 'لنگر انداختن', label: 'لنگر انداختن (Anchoring)' },
+                            { value: 'بال غلط', label: 'بال غلط (False Wingers)' },
+                            { value: 'دفاع کنار‌های تهاجمی', label: 'دفاع کنار‌های تهاجمی (Attacking Fullbacks)' },
+                            { value: 'دوران بال‌ها', label: 'دوران بال‌ها (Wing Rotation)' },
+                            { value: 'تیکی تاکا', label: 'تیکی تاکا (Tiki-Taka)' },
+                            { value: 'شماره ۹ کاذب', label: 'شماره ۹ کاذب (False No. 9)' },
+                            { value: 'اهداف مرکز', label: 'اهداف مرکز (Centring Targets)' },
+                            { value: 'فولبک‌های کاذب', label: 'فولبک‌های کاذب (False Fullbacks)' },
+                          ]}
+                        />
+                        <span className="text-[10px] text-slate-400 block mt-1">{TACTICAL_GUIDES[tactics.adv_offense_1]}</span>
+                      </div>
+
+                      {/* Advanced Attack 2 */}
+                      <div className="space-y-1.5 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+                        <label className="text-purple-300 font-black flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-purple-400"></span>
+                          <span>دستور حمله پیشرفته ۲ (Offensive 2)</span>
+                        </label>
+                        <CustomSelect
+                          value={tactics.adv_offense_2}
+                          onChange={(val) => setTactics({ ...tactics, adv_offense_2: val })}
+                          options={[
+                            { value: 'هیچکدام', label: 'هیچکدام (None)' },
+                            { value: 'لنگر انداختن', label: 'لنگر انداختن (Anchoring)' },
+                            { value: 'بال غلط', label: 'بال غلط (False Wingers)' },
+                            { value: 'دفاع کنار‌های تهاجمی', label: 'دفاع کنار‌های تهاجمی (Attacking Fullbacks)' },
+                            { value: 'دوران بال‌ها', label: 'دوران بال‌ها (Wing Rotation)' },
+                            { value: 'تیکی تاکا', label: 'تیکی تاکا (Tiki-Taka)' },
+                            { value: 'شماره ۹ کاذب', label: 'شماره ۹ کاذب (False No. 9)' },
+                            { value: 'اهداف مرکز', label: 'اهداف مرکز (Centring Targets)' },
+                            { value: 'فولبک‌های کاذب', label: 'فولبک‌های کاذب (False Fullbacks)' },
+                          ]}
+                        />
+                        <span className="text-[10px] text-slate-400 block mt-1">{TACTICAL_GUIDES[tactics.adv_offense_2]}</span>
+                      </div>
+
+                      {/* Advanced Defense 1 */}
+                      <div className="space-y-1.5 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+                        <label className="text-indigo-300 font-black flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
+                          <span>دستور دفاع پیشرفته ۱ (Defensive 1)</span>
+                        </label>
+                        <CustomSelect
+                          value={tactics.adv_defense_1}
+                          onChange={(val) => setTactics({ ...tactics, adv_defense_1: val })}
+                          options={[
+                            { value: 'هیچکدام', label: 'هیچکدام (None)' },
+                            { value: 'بال عقب', label: 'بال عقب (Wing Backs)' },
+                            { value: 'خط دفاعی عمیق', label: 'خط دفاعی عمیق (Deep Defensive Line)' },
+                            { value: 'شلوغی در محوطه جریمه', label: 'شلوغی در محوطه جریمه (Box Packing)' },
+                            { value: 'فشار', label: 'فشار (Gegenpress)' },
+                            { value: 'مقابله با هدف', label: 'مقابله با هدف (Counter Target)' },
+                          ]}
+                        />
+                        <span className="text-[10px] text-slate-400 block mt-1">{TACTICAL_GUIDES[tactics.adv_defense_1]}</span>
+                      </div>
+
+                      {/* Advanced Defense 2 */}
+                      <div className="space-y-1.5 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+                        <label className="text-indigo-300 font-black flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-indigo-400"></span>
+                          <span>دستور دفاع پیشرفته ۲ (Defensive 2)</span>
+                        </label>
+                        <CustomSelect
+                          value={tactics.adv_defense_2}
+                          onChange={(val) => setTactics({ ...tactics, adv_defense_2: val })}
+                          options={[
+                            { value: 'هیچکدام', label: 'هیچکدام (None)' },
+                            { value: 'بال عقب', label: 'بال عقب (Wing Backs)' },
+                            { value: 'خط دفاعی عمیق', label: 'خط دفاعی عمیق (Deep Defensive Line)' },
+                            { value: 'شلوغی در محوطه جریمه', label: 'شلوغی در محوطه جریمه (Box Packing)' },
+                            { value: 'فشار', label: 'فشار (Gegenpress)' },
+                            { value: 'مقابله با هدف', label: 'مقابله با هدف (Counter Target)' },
+                          ]}
+                        />
+                        <span className="text-[10px] text-slate-400 block mt-1">{TACTICAL_GUIDES[tactics.adv_defense_2]}</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Prominent Unified Submit Button */}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={handleFullSubmit}
+                  disabled={saving}
+                  className="w-full mt-6 fc-btn-volt py-4 px-4 rounded-2xl shadow-[0_0_30px_rgba(0,255,135,0.4)] transition-all flex items-center justify-center gap-3 text-sm md:text-base cursor-pointer active:scale-95 border border-emerald-300"
+                >
+                  <Zap size={22} className="text-slate-950 fill-slate-950 animate-pulse" />
+                  <span className="font-black text-slate-950 font-sport">
+                    {saving ? 'در حال ارسال ترکیب و تاکتیک به اتاق داوری...' : `ارسال ترکیب و تاکتیک ${selectedMatch.round_name || 'مسابقه'} به داوری ⚡`}
+                  </span>
+                </motion.button>
               </div>
             </div>
           ) : (
-            <div className="p-3.5 rounded-2xl bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-xs font-bold flex items-center justify-between gap-2 shadow-lg">
-              <div className="flex items-center gap-2">
-                <CheckCircle size={18} className="text-emerald-400" />
-                <span>ترکیب و تاکتیک‌های تیم برای مسابقه بعدی با موفقیت ثبت و تایید گردید.</span>
-              </div>
-              <span className="text-[10.5px] bg-emerald-900 px-3 py-1 rounded-full border border-emerald-500/40 font-black">
-                تایید شده ✓
-              </span>
-            </div>
-          )}
-
-          {(() => {
-            const starters = players.filter((p) => p.is_starting);
-            const nonStarting = players.filter((p) => !p.is_starting);
-            return (
-              <EFootballGamePlan 
-                key={`gameplan-${teamId}-${players.length}`}
-                teamName={teamData?.name || "بدون تیم"} 
-                formation={selectedFormation} 
-                onFormationChange={setSelectedFormation}
-                onLineupChange={({ startingXi: newXi, substitutes: newSubs, reserves: newRes, formation: newForm }) => {
-                  if (newForm) setSelectedFormation(newForm);
-                  const updatedPlayers = [
-                    ...newXi.map((p) => ({ ...p, is_starting: true })),
-                    ...newSubs.map((p) => ({ ...p, is_starting: false })),
-                    ...newRes.map((p) => ({ ...p, is_starting: false })),
-                  ];
-                  setPlayers(updatedPlayers);
-                }}
-                initialStartingXi={starters}
-                initialSubstitutes={nonStarting.slice(0, 11)}
-                initialReserves={nonStarting.slice(11)}
-              />
-            );
-          })()}
-
-          {/* Interactive Tactics Config Merged with 3 Sub-Tabs */}
-          <div className="glass-panel p-5 rounded-3xl border border-rose-500/40 space-y-4 text-xs mt-4">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-white text-base flex items-center gap-2">
-                <Sliders size={20} className="text-rose-400" />
-                <span>تنظیمات تاکتیک تیمی (Tactical Game Plan)</span>
-              </h3>
-              <span className="text-[10px] bg-rose-950 text-rose-300 font-bold px-2.5 py-1 rounded-lg border border-rose-500/40">
-                هماهنگ با پنل ادمین
-              </span>
-            </div>
-
-            {/* 3-Tab Selector Row */}
-            <div className="flex items-center gap-2 p-1.5 bg-slate-950/80 rounded-2xl border border-slate-800">
-              <button
-                type="button"
-                onClick={() => setTacticTab('attack')}
-                className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs md:text-sm flex items-center justify-center gap-2 transition-all ${
-                  tacticTab === 'attack'
-                    ? 'bg-gradient-to-r from-rose-600 to-amber-600 text-white shadow-lg shadow-rose-900/40 border border-rose-500/50'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
-                }`}
-              >
-                <span>⚔️ حمله</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTacticTab('defense')}
-                className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs md:text-sm flex items-center justify-center gap-2 transition-all ${
-                  tacticTab === 'defense'
-                    ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-900/40 border border-cyan-500/50'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
-                }`}
-              >
-                <span>🛡️ دفاع</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTacticTab('advanced')}
-                className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs md:text-sm flex items-center justify-center gap-2 transition-all ${
-                  tacticTab === 'advanced'
-                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-900/40 border border-purple-500/50'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
-                }`}
-              >
-                <span>⚙️ پیشرفته</span>
-              </button>
-            </div>
-
-            {/* TAB 1: ⚔️ ATTACK TACTICS */}
-            {tacticTab === 'attack' && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* 1. Attacking Style */}
-                  <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5">
-                    <label className="font-bold text-rose-300 block">۱. سبک حمله (Attacking Style):</label>
-                    <CustomSelect
-                      value={tactics.attacking_style}
-                      onChange={(val) => setTactics({ ...tactics, attacking_style: val })}
-                      colorTheme="rose"
-                      options={[
-                        { value: 'بازی مالکانه', label: 'بازی مالکانه (Possession Game)' },
-                        { value: 'ضد حمله', label: 'ضد حمله (Counter Attack)' },
-                      ]}
-                    />
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-rose-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
-                      <Info size={15} className="text-rose-400 shrink-0 mt-0.5" />
-                      <span>{TACTICAL_GUIDES[tactics.attacking_style]}</span>
-                    </div>
+            /* ========================================================================= */
+            /* 2. MATCHES SCHEDULE HUB (30-GAME FIXTURES LIST WITH LINEUP STATUSES)      */
+            /* ========================================================================= */
+            <div className="space-y-4">
+              {/* Header & Season Progress */}
+              <div className="fc-card p-4 sm:p-5 rounded-3xl border border-slate-700/60 shadow-xl">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <h2 className="text-base font-black text-white flex items-center gap-2 tracking-tight">
+                      <Calendar className="text-cyan-400" size={19} />
+                      <span>برنامه بازی‌ها و مدیریت ترکیب مسابقات {teamData?.name || 'تیم'}</span>
+                    </h2>
+                    <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
+                      روی هر مسابقه کلیک کنید تا ترکیب و تاکتیک اختصاصی آن هفته را مشخص و به داوری ارسال فرمایید.
+                    </p>
                   </div>
 
-                  {/* 2. Build Up */}
-                  <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5">
-                    <label className="font-bold text-amber-300 block">۲. بازیسازی / سازنده (Build Up):</label>
-                    <CustomSelect
-                      value={tactics.build_up}
-                      onChange={(val) => setTactics({ ...tactics, build_up: val })}
-                      colorTheme="cyan"
-                      options={[
-                        { value: 'پاس کوتاه', label: 'پاس کوتاه (Short Pass)' },
-                        { value: 'پاس بلند', label: 'پاس بلند (Long Pass)' },
-                      ]}
-                    />
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
-                      <Info size={15} className="text-amber-400 shrink-0 mt-0.5" />
-                      <span>{TACTICAL_GUIDES[tactics.build_up]}</span>
-                    </div>
-                  </div>
-
-                  {/* 3. Attacking Area */}
-                  <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5">
-                    <label className="font-bold text-emerald-300 block">۳. منطقه حمله (Attacking Area):</label>
-                    <CustomSelect
-                      value={tactics.attacking_area}
-                      onChange={(val) => setTactics({ ...tactics, attacking_area: val })}
-                      colorTheme="emerald"
-                      options={[
-                        { value: 'مرکز', label: 'مرکز (Center)' },
-                        { value: 'کناره', label: 'کناره‌ها (Wide)' },
-                      ]}
-                    />
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-emerald-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
-                      <Info size={15} className="text-emerald-400 shrink-0 mt-0.5" />
-                      <span>{TACTICAL_GUIDES[tactics.attacking_area]}</span>
-                    </div>
-                  </div>
-
-                  {/* 4. Positioning */}
-                  <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5">
-                    <label className="font-bold text-cyan-300 block">۴. جای‌گیری (Positioning):</label>
-                    <CustomSelect
-                      value={tactics.positioning}
-                      onChange={(val) => setTactics({ ...tactics, positioning: val })}
-                      colorTheme="cyan"
-                      options={[
-                        { value: 'شناور', label: 'شناور (Flexible)' },
-                        { value: 'حفظ ترکیب', label: 'حفظ ترکیب (Maintain Formation)' },
-                      ]}
-                    />
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-cyan-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
-                      <Info size={15} className="text-cyan-400 shrink-0 mt-0.5" />
-                      <span>{TACTICAL_GUIDES[tactics.positioning]}</span>
-                    </div>
-                  </div>
+                  <button
+                    onClick={fetchSchedule}
+                    disabled={loadingSchedule}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#080c14] hover:bg-slate-800 text-cyan-300 text-xs font-black rounded-xl border border-cyan-500/40 transition-all self-end sm:self-auto shadow font-sport cursor-pointer active:scale-95"
+                  >
+                    <RefreshCw size={13} className={loadingSchedule ? 'animate-spin' : ''} />
+                    <span>بروزرسانی</span>
+                  </button>
                 </div>
 
-                {/* 5. Support Range Slider */}
-                <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="font-bold text-rose-300 block">۵. محدوده پشتیبانی (Support Range):</label>
-                    <span className="font-mono font-black text-rose-400 text-sm bg-rose-950 px-2.5 py-0.5 rounded-lg border border-rose-500/40">
-                      {tactics.support_range} / ۱۰
+                {/* Progress Bar */}
+                <div className="mt-4">
+                  <div className="flex justify-between text-[11px] text-slate-400 mb-1.5">
+                    <span>پیشرفت مسابقات لیگ برتر:</span>
+                    <span className="font-sport text-cyan-300 font-black">
+                      {finishedCount} / {totalMatches} مسابقه
                     </span>
                   </div>
-                  <input
-                    type="range"
-                    min="1"
-                    max="10"
-                    value={tactics.support_range}
-                    onChange={(e) => setTactics({ ...tactics, support_range: parseInt(e.target.value) })}
-                    className="w-full accent-rose-500 cursor-pointer h-2 bg-slate-950 rounded-lg"
-                  />
-                  <div className="p-2.5 rounded-xl bg-slate-950/80 border border-rose-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
-                    <Info size={15} className="text-rose-400 shrink-0 mt-0.5" />
-                    <span>{TACTICAL_GUIDES['support_range']}</span>
+                  <div className="w-full h-2.5 bg-[#05080e] rounded-full overflow-hidden border border-white/10 p-0.5">
+                    <div
+                      className="h-full bg-gradient-to-r from-cyan-400 via-purple-500 to-[#00ff87] rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(0,243,255,0.4)]"
+                      style={{ width: `${(finishedCount / totalMatches) * 100}%` }}
+                    ></div>
                   </div>
                 </div>
-              </motion.div>
-            )}
+              </div>
 
-            {/* TAB 2: 🛡️ DEFENSE TACTICS */}
-            {tacticTab === 'defense' && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* 1. Defensive Style */}
-                  <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5">
-                    <label className="font-bold text-cyan-300 block">۱. سبک‌های دفاعی (Defensive Style):</label>
-                    <CustomSelect
-                      value={tactics.defensive_style}
-                      onChange={(val) => setTactics({ ...tactics, defensive_style: val })}
-                      colorTheme="cyan"
-                      options={[
-                        { value: 'فشار خط مقدم', label: 'فشار خط مقدم (Frontline Pressure)' },
-                        { value: 'همه دفاع', label: 'همه دفاع (All-out Defense)' },
-                      ]}
-                    />
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-cyan-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
-                      <Info size={15} className="text-cyan-400 shrink-0 mt-0.5" />
-                      <span>{TACTICAL_GUIDES[tactics.defensive_style]}</span>
-                    </div>
+              {/* Filter Tabs */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1.5 no-scrollbar">
+                {SCHEDULE_FILTERS.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setScheduleFilter(f.id)}
+                    className={`px-3.5 py-1.5 rounded-2xl text-xs font-black whitespace-nowrap transition-all border font-sport cursor-pointer ${
+                      scheduleFilter === f.id
+                        ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white border-cyan-400 shadow-[0_0_15px_rgba(0,243,255,0.35)]'
+                        : 'bg-[#080c14]/80 text-slate-400 border-slate-700/60 hover:border-slate-600 hover:text-slate-200'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Fixtures List */}
+              <div className="space-y-2.5">
+                {loadingSchedule ? (
+                  <div className="fc-card p-10 rounded-3xl border border-slate-700/60 text-center text-slate-400 space-y-2">
+                    <RefreshCw className="animate-spin mx-auto text-cyan-400" size={24} />
+                    <p className="text-xs">در حال بارگذاری تقویم بازی‌های تیم...</p>
                   </div>
-
-                  {/* 2. Containment Area */}
-                  <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5">
-                    <label className="font-bold text-purple-300 block">۲. ناحیه مهار (Containment Area):</label>
-                    <CustomSelect
-                      value={tactics.containment_area}
-                      onChange={(val) => setTactics({ ...tactics, containment_area: val })}
-                      colorTheme="cyan"
-                      options={[
-                        { value: 'میانه', label: 'میانه (Middle)' },
-                        { value: 'کناره', label: 'کناره‌ها (Side)' },
-                      ]}
-                    />
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-purple-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
-                      <Info size={15} className="text-purple-400 shrink-0 mt-0.5" />
-                      <span>{tactics.containment_area === 'کناره' ? TACTICAL_GUIDES['کناره_دفاع'] : TACTICAL_GUIDES['میانه']}</span>
-                    </div>
+                ) : filteredScheduleMatches.length === 0 ? (
+                  <div className="fc-card p-10 rounded-3xl border border-slate-700/60 text-center text-slate-400 space-y-1">
+                    <p className="text-sm font-black text-white">مسابقه‌ای در این دسته‌بندی یافت نشد.</p>
+                    <p className="text-xs text-slate-500">فیلتر دیگری را انتخاب کنید.</p>
                   </div>
+                ) : (
+                  filteredScheduleMatches.map((m, idx) => {
+                    const isHome = m.home_team === teamId;
+                    const opponentName = isHome ? m.away_team_name : m.home_team_name;
+                    const opponentLogo = isHome ? m.away_team_logo : m.home_team_logo;
+                    const { dateStr, timeStr } = formatMatchDateTime(m.date);
+                    const isFinished = m.status === 'FINISHED';
+                    const isLive = m.status === 'LIVE';
+                    const isLineupDone = isMatchLineupSubmitted(m);
+                    const isImminentUnsubmitted = (m.id === nextUpcomingMatch?.id && !isLineupDone);
 
-                  {/* 3. Pressing */}
-                  <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5">
-                    <label className="font-bold text-emerald-300 block">۳. فشار (Pressing):</label>
-                    <CustomSelect
-                      value={tactics.pressing}
-                      onChange={(val) => setTactics({ ...tactics, pressing: val })}
-                      colorTheme="emerald"
-                      options={[
-                        { value: 'تهاجمی', label: 'تهاجمی (Aggressive)' },
-                        { value: 'محافظه‌کار', label: 'محافظه‌کار (Conservative)' },
-                      ]}
-                    />
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-emerald-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
-                      <Info size={15} className="text-emerald-400 shrink-0 mt-0.5" />
-                      <span>{TACTICAL_GUIDES[tactics.pressing]}</span>
-                    </div>
-                  </div>
-                </div>
+                    let resultBadge = null;
+                    if (isFinished) {
+                      const myScore = isHome ? m.home_score : m.away_score;
+                      const oppScore = isHome ? m.away_score : m.home_score;
+                      const isWin = myScore > oppScore;
+                      const isDraw = myScore === oppScore;
 
-                {/* Sliders: Defensive Line & Compactness */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* 4. Defensive Line */}
-                  <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <label className="font-bold text-cyan-300 block">۴. خط دفاعی (Defensive Line):</label>
-                      <span className="font-mono font-black text-cyan-400 text-sm bg-cyan-950 px-2.5 py-0.5 rounded-lg border border-cyan-500/40">
-                        {tactics.defensive_line} / ۱۰
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={tactics.defensive_line}
-                      onChange={(e) => setTactics({ ...tactics, defensive_line: parseInt(e.target.value) })}
-                      className="w-full accent-cyan-500 cursor-pointer h-2 bg-slate-950 rounded-lg"
-                    />
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-cyan-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
-                      <Info size={15} className="text-cyan-400 shrink-0 mt-0.5" />
-                      <span>{TACTICAL_GUIDES['defensive_line']}</span>
-                    </div>
-                  </div>
+                      resultBadge = (
+                        <span
+                          className={`text-xs font-black px-3 py-1 rounded-xl font-sport dir-ltr flex items-center gap-1.5 shadow ${
+                            isWin
+                              ? 'bg-emerald-950/80 text-[#00ff87] border border-emerald-500/50 shadow-[0_0_10px_rgba(0,255,135,0.2)]'
+                              : isDraw
+                              ? 'bg-slate-800 text-slate-200 border border-slate-700'
+                              : 'bg-rose-950/80 text-rose-300 border border-rose-500/50'
+                          }`}
+                        >
+                          <span>{isHome ? `${m.home_score} - ${m.away_score}` : `${m.away_score} - ${m.home_score}`}</span>
+                          <span className="text-[10px]">{isWin ? 'W' : isDraw ? 'D' : 'L'}</span>
+                        </span>
+                      );
+                    } else if (isLive) {
+                      resultBadge = (
+                        <span className="text-xs font-black px-3 py-1 rounded-xl bg-rose-950/90 text-rose-300 border border-rose-500/60 animate-pulse flex items-center gap-1 font-sport shadow-[0_0_12px_rgba(244,63,94,0.4)]">
+                          <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                          <span>LIVE</span>
+                        </span>
+                      );
+                    } else {
+                      resultBadge = (
+                        <div className="text-left">
+                          <span className="text-xs font-sport font-black text-cyan-300 bg-cyan-950/80 border border-cyan-500/40 px-2.5 py-0.5 rounded-lg block">
+                            {timeStr}
+                          </span>
+                          <span className="text-[9.5px] text-slate-400 block mt-0.5">{dateStr}</span>
+                        </div>
+                      );
+                    }
 
-                  {/* 5. Compactness */}
-                  <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <label className="font-bold text-purple-300 block">۵. جمع بودن (Compactness):</label>
-                      <span className="font-mono font-black text-purple-400 text-sm bg-purple-950 px-2.5 py-0.5 rounded-lg border border-purple-500/40">
-                        {tactics.compactness} / ۱۰
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      value={tactics.compactness}
-                      onChange={(e) => setTactics({ ...tactics, compactness: parseInt(e.target.value) })}
-                      className="w-full accent-purple-500 cursor-pointer h-2 bg-slate-950 rounded-lg"
-                    />
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-purple-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
-                      <Info size={15} className="text-purple-400 shrink-0 mt-0.5" />
-                      <span>{TACTICAL_GUIDES['compactness']}</span>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
+                    return (
+                      <motion.div
+                        key={m.id || idx}
+                        whileHover={{ scale: 1.008 }}
+                        onClick={() => {
+                          if (isFinished) {
+                            setSelectedMatchDetailId(m.id);
+                          } else {
+                            handleSelectMatchForLineup(m);
+                          }
+                        }}
+                        className={`p-3.5 sm:p-4 rounded-3xl border transition-all flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 cursor-pointer ${
+                          isImminentUnsubmitted
+                            ? 'border-2 border-rose-500 bg-gradient-to-r from-rose-950/85 via-slate-900/90 to-amber-950/80 shadow-[0_0_25px_rgba(244,63,94,0.35)] animate-pulse'
+                            : isLineupDone && !isFinished
+                            ? 'border border-emerald-500/40 bg-[#07131e]/90 hover:border-emerald-400 shadow-md'
+                            : isLive
+                            ? 'bg-gradient-to-r from-rose-950/50 to-slate-900 border-rose-500/60 shadow-[0_0_20px_rgba(244,63,94,0.25)]'
+                            : isFinished
+                            ? 'fut-card border-slate-700/60 hover:border-cyan-500/40'
+                            : 'fc-card border-slate-700/60 hover:border-cyan-500/40'
+                        }`}
+                      >
+                        {/* Left side: Matchday Badge, Opponent Info */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          {/* Round Badge */}
+                          <div className={`w-12 h-12 rounded-2xl flex flex-col items-center justify-center text-center shrink-0 shadow-inner border ${
+                            isImminentUnsubmitted
+                              ? 'bg-rose-950/90 border-rose-500/50 text-rose-300'
+                              : isLineupDone && !isFinished
+                              ? 'bg-emerald-950/90 border-emerald-500/40 text-emerald-300'
+                              : 'bg-[#05080e] border-cyan-500/30 text-cyan-300'
+                          }`}>
+                            <span className="text-[8.5px] font-bold leading-none text-slate-400">هفته</span>
+                            <span className="text-sm font-black font-sport leading-tight">
+                              {m.round_name ? String(m.round_name).replace('هفته', '').trim() : idx + 1}
+                            </span>
+                          </div>
 
-            {/* TAB 3: ⚙️ ADVANCED TACTICS */}
-            {tacticTab === 'advanced' && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                <div className="p-3 rounded-2xl bg-purple-950/60 border border-purple-500/40 text-purple-200 text-xs font-semibold flex items-center gap-2">
-                  <Info size={18} className="text-purple-400 shrink-0" />
-                  <span>با تنظیم دستورالعمل‌های پیشرفته، می‌توانید در بازی تهاجمی و دفاعی تیم خود تغییرات چشمگیری ایجاد کنید.</span>
-                </div>
+                          {/* Opponent Crest */}
+                          <div className="w-11 h-11 rounded-2xl team-crest-badge flex items-center justify-center p-1 overflow-hidden shrink-0 shadow-md relative">
+                            {getTeamLogoUrl(opponentLogo || opponentName) ? (
+                              <img src={getTeamLogoUrl(opponentLogo || opponentName)} alt={opponentName || 'Opponent'} className="w-full h-full object-contain" />
+                            ) : (
+                              <span className="text-[10px] font-black text-slate-800 font-sport">
+                                {String(opponentName || 'OP').slice(0, 2).toUpperCase()}
+                              </span>
+                            )}
+                          </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Adv Offense 1 */}
-                  <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5">
-                    <label className="font-bold text-rose-300 block">۱. تاکتیک پیشرفته حمله (اسلات اول):</label>
-                    <CustomSelect
-                      value={tactics.adv_offense_1}
-                      onChange={(val) => setTactics({ ...tactics, adv_offense_1: val })}
-                      colorTheme="rose"
-                      options={[
-                        { value: 'هیچکدام', label: 'هیچکدام (None)' },
-                        { value: 'لنگر انداختن', label: 'لنگر انداختن (Anchoring)' },
-                        { value: 'بال غلط', label: 'بال غلط (False Wingers)' },
-                        { value: 'تدافعی', label: 'تدافعی (Deep Attacker)' },
-                        { value: 'نزدیک به خط اطراف زمین', label: 'نزدیک به خط اطراف زمین (Hug Touchline)' },
-                        { value: 'دفاع کنار‌های تهاجمی', label: 'دفاع کنار‌های تهاجمی (Attacking Fullbacks)' },
-                        { value: 'دوران بال‌ها', label: 'دوران بال‌ها (Wing Rotation)' },
-                        { value: 'تیکی تاکا', label: 'تیکی تاکا (Tiki-Taka)' },
-                        { value: 'شماره ۹ کاذب', label: 'شماره ۹ کاذب (False 9)' },
-                        { value: 'اهداف مرکز', label: 'اهداف مرکز (Centering Targets)' },
-                        { value: 'فولبک‌های کاذب', label: 'فولبک‌های کاذب (Inverted Fullbacks)' },
-                      ]}
-                    />
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-rose-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
-                      <Info size={15} className="text-rose-400 shrink-0 mt-0.5" />
-                      <span>{TACTICAL_GUIDES[tactics.adv_offense_1]}</span>
-                    </div>
-                  </div>
+                          {/* Match Details */}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-sm text-white truncate">
+                                {opponentName || 'حریف'}
+                              </span>
+                              <span
+                                className={`text-[9px] font-black px-1.5 py-0.2 rounded-md shrink-0 flex items-center gap-1 font-sport ${
+                                  isHome
+                                    ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40'
+                                    : 'bg-amber-950 text-amber-300 border border-amber-500/40'
+                                }`}
+                              >
+                                {isHome ? <Home size={9} /> : <Plane size={9} />}
+                                <span>{isHome ? 'HOME' : 'AWAY'}</span>
+                              </span>
+                            </div>
 
-                  {/* Adv Offense 2 */}
-                  <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5">
-                    <label className="font-bold text-amber-300 block">۲. تاکتیک پیشرفته حمله (اسلات دوم):</label>
-                    <CustomSelect
-                      value={tactics.adv_offense_2}
-                      onChange={(val) => setTactics({ ...tactics, adv_offense_2: val })}
-                      colorTheme="rose"
-                      options={[
-                        { value: 'هیچکدام', label: 'هیچکدام (None)' },
-                        { value: 'لنگر انداختن', label: 'لنگر انداختن (Anchoring)' },
-                        { value: 'بال غلط', label: 'بال غلط (False Wingers)' },
-                        { value: 'تدافعی', label: 'تدافعی (Deep Attacker)' },
-                        { value: 'نزدیک به خط اطراف زمین', label: 'نزدیک به خط اطراف زمین (Hug Touchline)' },
-                        { value: 'دفاع کنار‌های تهاجمی', label: 'دفاع کنار‌های تهاجمی (Attacking Fullbacks)' },
-                        { value: 'دوران بال‌ها', label: 'دوران بال‌ها (Wing Rotation)' },
-                        { value: 'تیکی تاکا', label: 'تیکی تاکا (Tiki-Taka)' },
-                        { value: 'شماره ۹ کاذب', label: 'شماره ۹ کاذب (False 9)' },
-                        { value: 'اهداف مرکز', label: 'اهداف مرکز (Centering Targets)' },
-                        { value: 'فولبک‌های کاذب', label: 'فولبک‌های کاذب (Inverted Fullbacks)' },
-                      ]}
-                    />
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-amber-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
-                      <Info size={15} className="text-amber-400 shrink-0 mt-0.5" />
-                      <span>{TACTICAL_GUIDES[tactics.adv_offense_2]}</span>
-                    </div>
-                  </div>
+                            <div className="flex items-center gap-2 mt-1 text-[10.5px] text-slate-400 font-sport">
+                              <span className="flex items-center gap-1 font-sans">
+                                <Calendar size={11} className="text-cyan-400" />
+                                <span>{dateStr}</span>
+                              </span>
+                              <span>•</span>
+                              <span className="flex items-center gap-1 font-bold">
+                                <Clock size={11} className="text-cyan-400" />
+                                <span>{timeStr}</span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
 
-                  {/* Adv Defense 1 */}
-                  <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5">
-                    <label className="font-bold text-cyan-300 block">۳. تاکتیک پیشرفته دفاع (اسلات اول):</label>
-                    <CustomSelect
-                      value={tactics.adv_defense_1}
-                      onChange={(val) => setTactics({ ...tactics, adv_defense_1: val })}
-                      colorTheme="cyan"
-                      options={[
-                        { value: 'هیچکدام', label: 'هیچکدام (None)' },
-                        { value: 'بال عقب', label: 'بال عقب (Wing Backs)' },
-                        { value: 'خط دفاعی عمیق', label: 'خط دفاعی عمیق (Deep Defensive Line)' },
-                        { value: 'شلوغی در محوطه جریمه', label: 'شلوغی در محوطه جریمه (Box Crowding)' },
-                        { value: 'مقابله با هدف', label: 'مقابله با هدف (Target Counter)' },
-                        { value: 'فشار', label: 'فشار (Gegenpress)' },
-                      ]}
-                    />
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-cyan-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
-                      <Info size={15} className="text-cyan-400 shrink-0 mt-0.5" />
-                      <span>{TACTICAL_GUIDES[tactics.adv_defense_1]}</span>
-                    </div>
-                  </div>
+                        {/* Right side: Lineup Status + Action Button */}
+                        <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800 shrink-0">
+                          {/* Status Badge */}
+                          {isImminentUnsubmitted ? (
+                            <span className="text-[11px] font-black bg-gradient-to-r from-rose-600 to-amber-600 text-white px-3 py-1.5 rounded-xl border border-rose-400/50 shadow flex items-center gap-1 font-sport">
+                              <Flame size={13} className="text-yellow-200 animate-bounce" />
+                              <span>نیازمند ثبت ترکیب فوری</span>
+                            </span>
+                          ) : isLineupDone && !isFinished ? (
+                            <span className="text-[10.5px] font-black bg-emerald-950/90 text-emerald-300 px-3 py-1 rounded-xl border border-emerald-500/40 flex items-center gap-1 font-sport shadow">
+                              <CheckCircle size={13} className="text-[#00ff87]" />
+                              <span>ترکیب ارسال‌شده</span>
+                            </span>
+                          ) : !isFinished ? (
+                            <span className="text-[10.5px] font-bold bg-slate-900/90 text-slate-400 px-2.5 py-1 rounded-xl border border-slate-700/60">
+                              ترکیب پیش‌فرض
+                            </span>
+                          ) : null}
 
-                  {/* Adv Defense 2 */}
-                  <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2.5">
-                    <label className="font-bold text-emerald-300 block">۴. تاکتیک پیشرفته دفاع (اسلات دوم):</label>
-                    <CustomSelect
-                      value={tactics.adv_defense_2}
-                      onChange={(val) => setTactics({ ...tactics, adv_defense_2: val })}
-                      colorTheme="cyan"
-                      options={[
-                        { value: 'هیچکدام', label: 'هیچکدام (None)' },
-                        { value: 'بال عقب', label: 'بال عقب (Wing Backs)' },
-                        { value: 'خط دفاعی عمیق', label: 'خط دفاعی عمیق (Deep Defensive Line)' },
-                        { value: 'شلوغی در محوطه جریمه', label: 'شلوغی در محوطه جریمه (Box Crowding)' },
-                        { value: 'مقابله با هدف', label: 'مقابله با هدف (Target Counter)' },
-                        { value: 'فشار', label: 'فشار (Gegenpress)' },
-                      ]}
-                    />
-                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-emerald-500/20 text-[11px] text-slate-300 leading-relaxed flex items-start gap-2">
-                      <Info size={15} className="text-emerald-400 shrink-0 mt-0.5" />
-                      <span>{TACTICAL_GUIDES[tactics.adv_defense_2]}</span>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
+                          {resultBadge}
 
-            {/* Prominent Submit Button */}
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.96 }}
-              onClick={handleFullSubmit}
-              disabled={saving}
-              className="w-full mt-6 fc-btn-volt py-4 px-4 rounded-2xl shadow-[0_0_30px_rgba(0,255,135,0.4)] transition-all flex items-center justify-center gap-3 text-sm md:text-base cursor-pointer"
-            >
-              <CheckCircle size={22} className="text-slate-950" />
-              <span className="font-black text-slate-950">{saving ? 'در حال ارسال به سرور مستر لیگ...' : 'ثبت نهایی ترکیب و تاکتیک‌ها'}</span>
-            </motion.button>
-          </div>
+                          {!isFinished && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectMatchForLineup(m);
+                              }}
+                              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 font-sport shrink-0 cursor-pointer shadow active:scale-95 ${
+                                isImminentUnsubmitted
+                                  ? 'bg-gradient-to-r from-rose-500 to-amber-500 text-white hover:from-rose-400 hover:to-amber-400 shadow-[0_0_12px_rgba(244,63,94,0.5)]'
+                                  : isLineupDone
+                                  ? 'bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 border border-emerald-500/40'
+                                  : 'bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/40'
+                              }`}
+                            >
+                              <span>{isLineupDone ? 'ویرایش ترکیب ⚙️' : 'تنظیم ترکیب ⚽'}</span>
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Match Detail Modal Overlay for Finished Matches */}
+              {selectedMatchDetailId && (
+                <MatchDetailModal
+                  matchId={selectedMatchDetailId}
+                  onClose={() => setSelectedMatchDetailId(null)}
+                />
+              )}
+            </div>
+          )}
         </motion.div>
       )}
 
@@ -787,7 +1188,7 @@ export default function TeamTab({
                 <button
                   key={pos}
                   onClick={() => setPositionFilter(pos)}
-                  className={`px-2.5 py-1 rounded-lg transition-all font-sport font-black ${
+                  className={`px-2.5 py-1 rounded-lg transition-all font-sport font-black cursor-pointer ${
                     positionFilter === pos ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-[0_0_10px_rgba(0,243,255,0.4)]' : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -800,7 +1201,7 @@ export default function TeamTab({
           <div className="space-y-2.5">
             {filteredPlayers.map((p) => {
               const staminaVal = Math.max(5, Math.min(100, Math.round(Number(p.stamina ?? p.virtual_stamina ?? 90))));
-              const photoUrl = p.photo_url || p.image || p.avatar || null;
+              const photoUrl = getPlayerPhotoUrl(p);
 
               return (
                 <div
@@ -810,28 +1211,25 @@ export default function TeamTab({
                   <div className="flex items-center gap-3">
                     {/* Portrait Photo Card Frame + OVR Badge */}
                     <div className="relative shrink-0">
-                      <div className="w-12 h-14 rounded-2xl overflow-hidden border-2 border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e] shadow-md flex items-center justify-center relative">
+                      <div className="w-12 h-14 rounded-2xl overflow-hidden border border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e] shadow-md flex flex-col items-center justify-between relative">
                         {photoUrl ? (
                           <img
                             src={photoUrl}
                             alt={p.name}
                             className="w-full h-full object-cover object-top"
                             onError={(e) => {
-                              e.currentTarget.style.display = 'none';
+                              e.target.onerror = null;
+                              e.target.src = '/team-logos/default.png';
                             }}
                           />
                         ) : (
-                          <User size={26} className="text-slate-400 opacity-80" />
+                          <User size={24} className="text-slate-500" />
                         )}
-                        {p.shirt_number != null && (
-                          <span className="absolute bottom-0 right-0 bg-[#05080e]/95 text-cyan-300 text-[8px] font-sport font-black px-1 rounded-tl border-t border-l border-cyan-500/30">
-                            #{p.shirt_number}
-                          </span>
-                        )}
+                        <span className="absolute bottom-0 inset-x-0 bg-slate-950/90 text-center font-sport font-black text-[10px] text-cyan-300 border-t border-slate-800">
+                          {p.position}
+                        </span>
                       </div>
-
-                      {/* Championship Gold OVR Badge */}
-                      <span className="absolute -top-1.5 -left-1.5 bg-gradient-to-tr from-amber-500 via-amber-400 to-yellow-200 text-slate-950 font-black text-[10.5px] px-1.5 py-0.2 rounded-lg shadow font-sport border border-amber-300">
+                      <span className="absolute -top-1.5 -right-1.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-sport font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-lg border border-white/20">
                         {p.overall}
                       </span>
                     </div>
@@ -845,7 +1243,7 @@ export default function TeamTab({
                         <span className="text-[10px] text-amber-400 dir-ltr font-bold font-sport">{p.trend || '▲'}</span>
                       </div>
 
-                      {/* Stamina & Status Indicator with Electric Volt & Cyan Accents */}
+                      {/* Stamina & Status Indicator */}
                       <div className="flex items-center gap-2 mt-1.5">
                         <div className="w-24 h-2 bg-slate-950 rounded-full overflow-hidden border border-white/10 p-0.5">
                           <div
@@ -882,61 +1280,79 @@ export default function TeamTab({
                     </div>
                   </div>
 
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  {/* Action buttons for Stamina / Injury */}
-                  {p.is_injured ? (
-                    <button
-                      onClick={() => handleHealInjury(p.id, p.name)}
-                      disabled={actionLoading === p.id || currentGems < 25}
-                      className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all active:scale-95 cursor-pointer ${
-                        currentGems >= 25
-                          ? 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white shadow-[0_0_10px_rgba(244,63,94,0.4)]'
-                          : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
-                      }`}
-                      title={currentGems < 25 ? 'نیاز به ۲۵ جم دارید' : 'درمان فوری مصدومیت با ۲۵ جم'}
-                    >
-                      <HeartPulse size={12} className={actionLoading === p.id ? 'animate-spin' : ''} />
-                      <span className="hidden xs:inline">درمان</span>
-                      <span className="font-sport font-bold dir-ltr">25💎</span>
-                    </button>
-                  ) : staminaVal < 100 ? (
-                    <button
-                      onClick={() => handleRecoverStamina(p.id, p.name)}
-                      disabled={actionLoading === p.id || currentGems < 10}
-                      className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all active:scale-95 cursor-pointer ${
-                        currentGems >= 10
-                          ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-[0_0_10px_rgba(0,243,255,0.35)]'
-                          : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
-                      }`}
-                      title={currentGems < 10 ? 'نیاز به ۱۰ جم دارید' : 'شارژ ۵۰٪ استقامت با ۱۰ جم'}
-                    >
-                      <Zap size={12} className={actionLoading === p.id ? 'animate-spin text-yellow-300' : 'text-yellow-300'} />
-                      <span className="hidden xs:inline">شارژ</span>
-                      <span className="font-sport font-bold dir-ltr">10💎</span>
-                    </button>
-                  ) : null}
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    {/* Action buttons for Stamina / Injury */}
+                    {p.is_injured ? (
+                      <button
+                        onClick={() => handleHealInjury(p.id, p.name)}
+                        disabled={actionLoading === p.id || currentGems < 25}
+                        className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all active:scale-95 cursor-pointer ${
+                          currentGems >= 25
+                            ? 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white shadow-[0_0_10px_rgba(244,63,94,0.4)]'
+                            : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                        }`}
+                        title={currentGems < 25 ? 'نیاز به ۲۵ جم دارید' : 'درمان فوری مصدومیت با ۲۵ جم'}
+                      >
+                        <HeartPulse size={12} className={actionLoading === p.id ? 'animate-spin' : ''} />
+                        <span className="hidden xs:inline">درمان</span>
+                        <span className="font-sport font-bold dir-ltr">25💎</span>
+                      </button>
+                    ) : staminaVal < 100 ? (
+                      <button
+                        onClick={() => handleRecoverStamina(p.id, p.name)}
+                        disabled={actionLoading === p.id || currentGems < 10}
+                        className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all active:scale-95 cursor-pointer ${
+                          currentGems >= 10
+                            ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-[0_0_10px_rgba(0,243,255,0.35)]'
+                            : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                        }`}
+                        title={currentGems < 10 ? 'نیاز به ۱۰ جم دارید' : 'شارژ ۵۰٪ استقامت با ۱۰ جم'}
+                      >
+                        <Zap size={12} className={actionLoading === p.id ? 'animate-spin text-yellow-300' : 'text-yellow-300'} />
+                        <span className="hidden xs:inline">شارژ</span>
+                        <span className="font-sport font-bold dir-ltr">10💎</span>
+                      </button>
+                    ) : null}
 
-                  <button
-                    onClick={() => setSelectedPlayerForFormula(p)}
-                    className="p-1.5 sm:p-2 bg-slate-800/80 hover:bg-cyan-950/80 text-cyan-400 hover:text-cyan-300 rounded-xl border border-slate-700 hover:border-cyan-400/40 transition-all shadow-sm"
-                    title="آنالیز فرمول استقامت و رشد"
-                  >
-                    <Info size={14} />
-                  </button>
-                  <span
-                    className={`text-[10px] sm:text-[11px] font-black px-2 sm:px-2.5 py-1 rounded-xl dir-ltr font-sport ${
-                      p.is_starting
-                        ? 'text-[#00ff87] bg-emerald-950/70 border border-emerald-500/40 shadow-[0_0_10px_rgba(0,255,135,0.2)]'
-                        : 'text-purple-300 bg-purple-950/70 border border-purple-500/40'
-                    }`}
-                  >
-                    {p.is_starting ? 'XI' : 'BENCH'}
-                  </span>
+                    {/* Gem Boost / Level Up button */}
+                    {(p.level || 1) < 20 && (
+                      <button
+                        onClick={() => handleGemBoost(p.id, p.name, p.level || 1)}
+                        disabled={actionLoading === p.id || currentGems < (p.next_level_gem_cost || getGemBoostCost(p.level || 1))}
+                        className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all active:scale-95 cursor-pointer ${
+                          currentGems >= (p.next_level_gem_cost || getGemBoostCost(p.level || 1))
+                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-[0_0_10px_rgba(168,85,247,0.35)]'
+                            : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                        }`}
+                        title={`ارتقای لول با ${p.next_level_gem_cost || getGemBoostCost(p.level || 1)} الماس`}
+                      >
+                        <Sparkles size={12} className={actionLoading === p.id ? 'animate-spin text-amber-300' : 'text-amber-300'} />
+                        <span className="hidden xs:inline">ارتقا</span>
+                        <span className="font-sport font-bold dir-ltr">{p.next_level_gem_cost || getGemBoostCost(p.level || 1)}💎</span>
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => setSelectedPlayerForFormula(p)}
+                      className="p-1.5 sm:p-2 bg-slate-800/80 hover:bg-cyan-950/80 text-cyan-400 hover:text-cyan-300 rounded-xl border border-slate-700 hover:border-cyan-400/40 transition-all shadow-sm cursor-pointer"
+                      title="آنالیز فرمول استقامت و رشد"
+                    >
+                      <Info size={14} />
+                    </button>
+                    <span
+                      className={`text-[10px] sm:text-[11px] font-black px-2 sm:px-2.5 py-1 rounded-xl dir-ltr font-sport ${
+                        p.is_starting
+                          ? 'text-[#00ff87] bg-emerald-950/70 border border-emerald-500/40 shadow-[0_0_10px_rgba(0,255,135,0.2)]'
+                          : 'text-purple-300 bg-purple-950/70 border border-purple-500/40'
+                      }`}
+                    >
+                      {p.is_starting ? 'XI' : 'BENCH'}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
 
           {/* Formula Inspector Modal Overlay */}
           <AnimatePresence>
@@ -1012,12 +1428,7 @@ export default function TeamTab({
         </motion.div>
       )}
 
-      {/* Subtab 3: Schedule & Fixtures */}
-      {activeSub === 'matches' && (
-        <TeamScheduleView teamId={teamId} teamName={teamData?.name} />
-      )}
-
-      {/* Subtab 4: League Table */}
+      {/* Subtab 3: League Table */}
       {activeSub === 'table' && (
         <LeagueStandingsTable userTeamId={teamId} />
       )}

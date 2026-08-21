@@ -119,6 +119,7 @@ class TransferOffer(models.Model):
         ('ACCEPTED', 'قبول شده'),
         ('REJECTED', 'رد شده'),
         ('COUNTERED', 'پیشنهاد متقابل'),
+        ('SUPERSEDED', 'جایگزین شده با پیشنهاد جدید'),
         ('CANCELLED', 'لغو شده'),
     ]
 

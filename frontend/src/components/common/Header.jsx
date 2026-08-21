@@ -13,7 +13,7 @@ export default function Header({ user: propUser, coins, unreadNotifications, onA
   const isAuthenticated = contextIsAuth || propIsAuth;
   const onLogout = contextLogout || propOnLogout;
 
-  const isAdmin = user?.role === 'admin' || user?.is_superuser || user?.isAdminAccess;
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin' || user?.is_superuser || user?.is_staff || user?.isAdminAccess;
   const userTeamName = team?.name || user?.team_name || user?.team?.name;
   const userTeamLogo = getTeamLogoUrl(team || user?.team || userTeamName);
 

@@ -27,11 +27,11 @@ class TestT3PairwiseInteractions(VMLTestHarness):
     def setUp(self):
         super().setUp()
         # Create test users & teams
-        self.user1 = User.objects.create_user(phone_number='09121111111', virtual_dollars=Decimal('1000.00'))
+        self.user1 = self.create_user(phone_number='09121111111', virtual_dollars=Decimal('1000.00'))
         self.team1 = Team.objects.create(manager=self.user1, name='Tehran Stars', budget=Decimal('5000.00'))
         self.facilities1 = ClubFacilities.objects.create(team=self.team1)
 
-        self.user2 = User.objects.create_user(phone_number='09122222222', virtual_dollars=Decimal('500.00'))
+        self.user2 = self.create_user(phone_number='09122222222', virtual_dollars=Decimal('500.00'))
         self.team2 = Team.objects.create(manager=self.user2, name='Isfahan Lions', budget=Decimal('3000.00'))
         self.facilities2 = ClubFacilities.objects.create(team=self.team2)
 
@@ -146,7 +146,7 @@ class TestT3PairwiseInteractions(VMLTestHarness):
     # -------------------------------------------------------------------------
     def test_06_zarinpal_init_and_double_verification_block(self):
         txn = Transaction.objects.create(
-            team=self.team1, amount_usd=Decimal('100.00'), amount_irr=100000,
+            team=self.team1, amount=Decimal('100.00'), amount_irr=100000,
             transaction_type='DEPOSIT', status='SUCCESS', zarinpal_authority='AUTH_TEST_123'
         )
         self.assertEqual(txn.status, 'SUCCESS')
@@ -176,7 +176,7 @@ class TestT3PairwiseInteractions(VMLTestHarness):
         # Simulate Bailout credit (10% of base initial budget e.g., $100,000 or $1,000)
         bailout = Decimal('1000.00')
         process_atomic_wallet_update(
-            team_id=self.team1.id, amount_usd=bailout,
+            team_id=self.team1.id, amount=bailout,
             transaction_type='DEPOSIT', description='Caretaker Bailout Package'
         )
         self.team1.refresh_from_db()
@@ -353,7 +353,7 @@ class TestT3PairwiseInteractions(VMLTestHarness):
         )
         log = PackOpeningLog.objects.create(
             team=self.team1, pack=pack, player_obtained=self.p1,
-            rarity_drawn='LEGENDARY', pity_applied=False, cost_usd=Decimal('200.00')
+            rarity_drawn='LEGENDARY', pity_applied=False, cost=Decimal('200.00')
         )
         self.assertEqual(log.rarity_drawn, 'LEGENDARY')
 
@@ -524,9 +524,155 @@ class TestT3PairwiseInteractions(VMLTestHarness):
     # -------------------------------------------------------------------------
     def test_32_user_wallet_atomic_update_transaction_types(self):
         res = process_atomic_wallet_update(
-            team_id=self.team1.id, amount_usd=Decimal('500.00'),
+            team_id=self.team1.id, amount=Decimal('500.00'),
             transaction_type='DEPOSIT', description='Tournament Reward'
         )
         self.assertTrue(res['success'])
         self.team1.refresh_from_db()
         self.assertEqual(self.team1.budget, Decimal('5500.00'))
+
+    # -------------------------------------------------------------------------
+    # 33. Coach GamePlan + In-Game Sub Request + Admin Arbiter Approval
+    # -------------------------------------------------------------------------
+    def test_33_coach_gameplan_and_in_game_sub_approval_interaction(self):
+        # 1. Coach submits gameplan
+        gp_url = f'/api/teams/{self.team1.id}/submit_gameplan/'
+        gp_payload = {
+            'tactics': {
+                'formation': '4-3-3',
+                'attacking_style': 'بازی مالکانه',
+                'defensive_style': 'فشار خط مقدم',
+                'pressing': 'تهاجمی',
+                'defensive_line': 7,
+                'compactness': 6
+            },
+            'players': [
+                {'id': self.p1.id, 'x_coord': 50.0, 'y_coord': 50.0, 'position': 'AMF', 'is_starting': True},
+                {'id': self.p2.id, 'x_coord': 50.0, 'y_coord': 85.0, 'position': 'CF', 'is_starting': True}
+            ]
+        }
+        res_gp = self.post(gp_url, data=gp_payload)
+        self.assert_status_code(res_gp, 200)
+
+        # 2. Match is LIVE
+        match = Match.objects.create(
+            home_team=self.team1, away_team=self.team2,
+            status='LIVE', half_status='2ND_HALF', current_minute=60
+        )
+        p_sub = Player.objects.create(
+            team=self.team1, name='Fresh Sub Striker', age=24, position='CF', overall=78, base_stamina=80
+        )
+
+        # 3. Coach submits in-game substitution request
+        sub_res = self.post('/api/matches/substitute/', data={
+            'match': match.id,
+            'team': self.team1.id,
+            'player_out': self.p2.id,
+            'player_in': p_sub.id,
+            'minute': 60
+        })
+        self.assert_status_code(sub_res, 201)
+        sub_id = sub_res.data['data']['id']
+
+        # 4. Admin reviews and approves in Control Room
+        appr_res = self.post(f'/api/matches/{match.id}/control/', data={
+            'action': 'APPROVE_SUB_REQUEST',
+            'request_id': sub_id
+        })
+        self.assert_status_code(appr_res, 200)
+
+        # 5. Verify database and live state
+        sub_req = LiveSubstitutionRequest.objects.get(id=sub_id)
+        self.assertEqual(sub_req.status, 'APPLIED')
+        self.assertTrue(MatchEvent.objects.filter(match=match, player=self.p2, event_type='SUB_OUT').exists())
+        self.assertTrue(MatchEvent.objects.filter(match=match, player=p_sub, event_type='SUB_IN').exists())
+
+        # 6. Live state view reflects substitution count
+        state_res = self.get(f'/api/matches/{match.id}/live-state/')
+        self.assert_status_code(state_res, 200)
+        self.assertEqual(state_res.data['home_subs_used'], 1)
+
+    # -------------------------------------------------------------------------
+    # 34. Coach In-Game Sub Request + Admin Arbiter Rejection
+    # -------------------------------------------------------------------------
+    def test_34_coach_sub_request_admin_rejection_interaction(self):
+        match = Match.objects.create(
+            home_team=self.team1, away_team=self.team2,
+            status='LIVE', half_status='1ST_HALF', current_minute=35
+        )
+        p_sub = Player.objects.create(
+            team=self.team1, name='Tactical Sub', age=24, position='CMF', overall=75, base_stamina=80
+        )
+
+        sub_res = self.post('/api/matches/substitute/', data={
+            'match': match.id,
+            'team': self.team1.id,
+            'player_out': self.p1.id,
+            'player_in': p_sub.id,
+            'minute': 35
+        })
+        self.assert_status_code(sub_res, 201)
+        sub_id = sub_res.data['data']['id']
+
+        # Admin rejects request
+        rej_res = self.post(f'/api/matches/{match.id}/control/', data={
+            'action': 'REJECT_SUB_REQUEST',
+            'request_id': sub_id
+        })
+        self.assert_status_code(rej_res, 200)
+
+        sub_req = LiveSubstitutionRequest.objects.get(id=sub_id)
+        self.assertEqual(sub_req.status, 'REJECTED')
+        self.assertFalse(MatchEvent.objects.filter(match=match, event_type='SUB_IN').exists())
+
+    # -------------------------------------------------------------------------
+    # 35. Match Conclusion + Team Stats + Player Ratings & XP Leveling
+    # -------------------------------------------------------------------------
+    def test_35_match_conclusion_team_stats_player_ratings_xp_and_standings(self):
+        self.authenticate_as_admin()
+        tournament = Tournament.objects.create(name='Pro Championship', tournament_type='LEAGUE')
+        match = Match.objects.create(
+            tournament=tournament, home_team=self.team1, away_team=self.team2,
+            status='LIVE', half_status='2ND_HALF', home_score=2, away_score=1
+        )
+
+        # 1. Conclude Match at Full Time
+        fin_res = self.post(f'/api/matches/{match.id}/control/', data={'action': 'CONCLUDE_FULL_TIME'})
+        self.assert_status_code(fin_res, 200)
+        match.refresh_from_db()
+        self.assertEqual(match.status, 'FINISHED')
+
+        # 2. Submit Match Team Stats
+        stats_payload = {
+            'team_id': self.team1.id,
+            'possession_percent': 58,
+            'shots': 12,
+            'shots_on_target': 6,
+            'corners': 5,
+            'fouls': 7,
+            'offsides': 1,
+            'saves': 3
+        }
+        stats_res = self.post(f'/api/matches/{match.id}/team-stats/', data=stats_payload)
+        self.assert_status_code(stats_res, 201)
+
+        # 3. Submit Player Ratings & Minutes
+        ratings_payload = {
+            'players': [
+                {'player_id': self.p1.id, 'minutes_played': 90, 'rating': 9.0, 'was_starter': True},
+                {'player_id': self.p2.id, 'minutes_played': 80, 'rating': 8.0, 'was_starter': True}
+            ]
+        }
+        ratings_res = self.post(f'/api/matches/{match.id}/player-ratings/', data=ratings_payload)
+        self.assert_status_code(ratings_res, 200)
+
+        # 4. Verify Player XP was granted
+        self.p1.refresh_from_db()
+        self.assertTrue(self.p1.total_xp > 0)
+
+        # 5. Consolidated Match Detail Verification
+        detail_res = self.get(f'/api/matches/{match.id}/detail/')
+        self.assert_status_code(detail_res, 200)
+        self.assertIn('team_stats', detail_res.data)
+        self.assertIn('player_stats', detail_res.data)
+        self.assertEqual(len(detail_res.data['player_stats']), 2)

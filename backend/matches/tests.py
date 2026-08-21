@@ -245,3 +245,103 @@ class LiveMatchControlRoomTestCase(TestCase):
         self.assertEqual(self.match.status, 'FINISHED')
 
 
+class GameweekFilteringAndStatsTestCase(TestCase):
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        self.admin = User.objects.create_superuser(username='admin_gw', password='password123', email='admin_gw@vml.com')
+        self.team1 = Team.objects.create(name="Team A", budget=1000)
+        self.team2 = Team.objects.create(name="Team B", budget=1000)
+
+        # Create matches for Week 1, Week 10, Week 11, Week 19
+        self.m_w1 = Match.objects.create(home_team=self.team1, away_team=self.team2, round_name="هفته 1", status="SCHEDULED")
+        self.m_w1_persian = Match.objects.create(home_team=self.team1, away_team=self.team2, round_name="هفته ۱", status="SCHEDULED")
+        self.m_w10 = Match.objects.create(home_team=self.team1, away_team=self.team2, round_name="هفته 10", status="SCHEDULED")
+        self.m_w11 = Match.objects.create(home_team=self.team1, away_team=self.team2, round_name="هفته 11", status="SCHEDULED")
+        self.m_w19 = Match.objects.create(home_team=self.team1, away_team=self.team2, round_name="هفته 19", status="SCHEDULED")
+
+    def test_normalize_round_query(self):
+        from matches.views import normalize_round_query
+        is_gw, r_num, names = normalize_round_query("1")
+        self.assertTrue(is_gw)
+        self.assertEqual(r_num, 1)
+        self.assertIn("هفته 1", names)
+        self.assertIn("هفته ۱", names)
+
+        is_gw_p, r_num_p, names_p = normalize_round_query("هفته ۱")
+        self.assertTrue(is_gw_p)
+        self.assertEqual(r_num_p, 1)
+
+        is_gw_cup, r_num_cup, names_cup = normalize_round_query("Quarter-Finals")
+        self.assertFalse(is_gw_cup)
+        self.assertEqual(names_cup, ["Quarter-Finals"])
+
+    def test_admin_match_list_gameweek_filtering_no_overlap(self):
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+
+        # Querying Week 1 (using ASCII "1")
+        res = client.get('/api/matches/admin-list/?round=1')
+        self.assertEqual(res.status_code, 200)
+        match_ids = [m['id'] for m in res.data]
+        self.assertIn(self.m_w1.id, match_ids)
+        self.assertIn(self.m_w1_persian.id, match_ids)
+        # CRITICAL: Must not contain Week 10, 11, 19
+        self.assertNotIn(self.m_w10.id, match_ids)
+        self.assertNotIn(self.m_w11.id, match_ids)
+        self.assertNotIn(self.m_w19.id, match_ids)
+
+        # Querying Week 1 (using Persian "هفته ۱")
+        res_p = client.get('/api/matches/admin-list/?round=هفته ۱')
+        self.assertEqual(res_p.status_code, 200)
+        match_ids_p = [m['id'] for m in res_p.data]
+        self.assertIn(self.m_w1.id, match_ids_p)
+        self.assertIn(self.m_w1_persian.id, match_ids_p)
+        self.assertNotIn(self.m_w10.id, match_ids_p)
+        self.assertNotIn(self.m_w11.id, match_ids_p)
+
+    def test_submit_team_stats_includes_saves(self):
+        from rest_framework.test import APIClient
+        from matches.models import MatchTeamStat
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+
+        self.m_w1.status = 'FINISHED'
+        self.m_w1.save()
+
+        payload = {
+            'team_id': self.team1.id,
+            'possession_percent': 55,
+            'shots': 12,
+            'shots_on_target': 6,
+            'corners': 4,
+            'fouls': 8,
+            'offsides': 2,
+            'saves': 5,
+        }
+        res = client.post(f'/api/matches/{self.m_w1.id}/stats/team/', payload, format='json')
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data['saves'], 5)
+
+        stat = MatchTeamStat.objects.get(match=self.m_w1, team=self.team1)
+        self.assertEqual(stat.saves, 5)
+
+    def test_active_live_match_context_retains_recent_finished_match(self):
+        from rest_framework.test import APIClient
+        client = APIClient()
+
+        self.m_w1.status = 'FINISHED'
+        self.m_w1.home_score = 3
+        self.m_w1.away_score = 1
+        self.m_w1.save()
+
+        res = client.get('/api/matches/live-context/')
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIsNotNone(data['recent_finished_match'])
+        self.assertEqual(data['recent_finished_match']['id'], self.m_w1.id)
+        self.assertEqual(data['last_finished_match']['id'], self.m_w1.id)
+
+
+

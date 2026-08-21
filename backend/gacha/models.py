@@ -58,6 +58,14 @@ class GachaPity(models.Model):
     )
     updated_at = models.DateTimeField(auto_now=True)
 
+    @property
+    def counter(self):
+        return self.counter_gems
+
+    @counter.setter
+    def counter(self, val):
+        self.counter_gems = val
+
     class Meta:
         verbose_name = "شمارنده Pity تیم"
         verbose_name_plural = "شمارنده‌های Pity تیم‌ها"

@@ -1,8 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Shield, Users, AlertCircle, ArrowLeftRight, User, Sliders } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { Shield, Users, AlertCircle, ArrowLeftRight, User, Sliders, Plus, Zap, Sparkles, Gem, HeartPulse, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import CustomSelect from '../common/CustomSelect';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
+import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
+import { playerApi } from '../../services/api';
+import { useTeam } from '../../context/TeamContext';
+import ConfirmModal from '../common/ConfirmModal';
 
 // Color map for position badges matching eFootball standard (13 official positions)
 const POSITION_COLORS = {
@@ -38,8 +43,69 @@ export const POSITION_INFO = {
   CF: { title: 'مهاجم هدف (نوک)', englishTitle: 'Center Forward', desc: 'گلزن اصلی تیم، مسئول ضربات تمام‌کننده، حفظ توپ تحت فشار و سرزنی در محوطه جریمه.' },
 };
 
+// Tiered Escalating Gem Upgrade Costs (پلکانی سناریو ۱: مجموع ~۵,۰۰۰ الماس)
+export const GEM_BOOST_TIER_COSTS = {
+  1: 10, 2: 15, 3: 20, 4: 25, 5: 35,
+  6: 50, 7: 70, 8: 95, 9: 125, 10: 160,
+  11: 200, 12: 250, 13: 310, 14: 380, 15: 460,
+  16: 550, 17: 650, 18: 760, 19: 880,
+};
+
+export const getGemBoostCost = (level) => {
+  return GEM_BOOST_TIER_COSTS[level] || 880;
+};
+
+export const getGemBoostTargetOvr = (player) => {
+  if (!player) return 99;
+  const nextLvl = (player.level || 1) + 1;
+  if (nextLvl >= 20) return 99;
+  const base = player.base_overall || player.overall;
+  const fraction = (nextLvl - 1) / 19.0;
+  const target = base + Math.round((99 - base) * fraction);
+  return Math.min(99, Math.max((player.overall || base) + 1, target));
+};
+
 // 14 Tactical Formations Presets
 export const FORMATION_PRESETS = {
+  '4-3-3 (4-3-3)': [
+    { pos: 'GK', x: 50, y: 90 },
+    { pos: 'LB', x: 15, y: 72 },
+    { pos: 'CB', x: 35, y: 75 },
+    { pos: 'CB', x: 65, y: 75 },
+    { pos: 'RB', x: 85, y: 72 },
+    { pos: 'CMF', x: 30, y: 52 },
+    { pos: 'CMF', x: 50, y: 56 },
+    { pos: 'CMF', x: 70, y: 52 },
+    { pos: 'LWF', x: 18, y: 20 },
+    { pos: 'RWF', x: 82, y: 20 },
+    { pos: 'CF', x: 50, y: 15 },
+  ],
+  '4-3-3 (4-1-2-3)': [
+    { pos: 'GK', x: 50, y: 90 },
+    { pos: 'LB', x: 15, y: 72 },
+    { pos: 'CB', x: 35, y: 75 },
+    { pos: 'CB', x: 65, y: 75 },
+    { pos: 'RB', x: 85, y: 72 },
+    { pos: 'DMF', x: 50, y: 60 },
+    { pos: 'AMF', x: 35, y: 42 },
+    { pos: 'AMF', x: 65, y: 42 },
+    { pos: 'LWF', x: 18, y: 20 },
+    { pos: 'RWF', x: 82, y: 20 },
+    { pos: 'CF', x: 50, y: 15 },
+  ],
+  '4-3-3 (4-2-1-3)': [
+    { pos: 'GK', x: 50, y: 90 },
+    { pos: 'LB', x: 15, y: 72 },
+    { pos: 'CB', x: 35, y: 75 },
+    { pos: 'CB', x: 65, y: 75 },
+    { pos: 'RB', x: 85, y: 72 },
+    { pos: 'DMF', x: 35, y: 56 },
+    { pos: 'CMF', x: 65, y: 56 },
+    { pos: 'AMF', x: 50, y: 38 },
+    { pos: 'LWF', x: 18, y: 20 },
+    { pos: 'RWF', x: 82, y: 20 },
+    { pos: 'CF', x: 50, y: 15 },
+  ],
   '4-5-1 (4-2-3-1)': [
     { pos: 'GK', x: 50, y: 90 },
     { pos: 'LB', x: 15, y: 72 },
@@ -79,6 +145,19 @@ export const FORMATION_PRESETS = {
     { pos: 'AMF', x: 64, y: 35 },
     { pos: 'CF', x: 50, y: 15 },
   ],
+  '4-4-2 (4-4-2)': [
+    { pos: 'GK', x: 50, y: 90 },
+    { pos: 'LB', x: 15, y: 72 },
+    { pos: 'CB', x: 35, y: 75 },
+    { pos: 'CB', x: 65, y: 75 },
+    { pos: 'RB', x: 85, y: 72 },
+    { pos: 'LMF', x: 15, y: 45 },
+    { pos: 'CMF', x: 38, y: 48 },
+    { pos: 'CMF', x: 62, y: 48 },
+    { pos: 'RMF', x: 85, y: 45 },
+    { pos: 'CF', x: 38, y: 18 },
+    { pos: 'CF', x: 62, y: 18 },
+  ],
   '4-4-2 (4-2-2-2)': [
     { pos: 'GK', x: 50, y: 90 },
     { pos: 'LB', x: 15, y: 72 },
@@ -105,44 +184,18 @@ export const FORMATION_PRESETS = {
     { pos: 'CF', x: 38, y: 18 },
     { pos: 'CF', x: 62, y: 18 },
   ],
-  '4-3-3 (4-1-2-3)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'LB', x: 15, y: 72 },
-    { pos: 'CB', x: 35, y: 75 },
-    { pos: 'CB', x: 65, y: 75 },
-    { pos: 'RB', x: 85, y: 72 },
-    { pos: 'DMF', x: 50, y: 60 },
-    { pos: 'AMF', x: 35, y: 42 },
-    { pos: 'AMF', x: 65, y: 42 },
-    { pos: 'LWF', x: 18, y: 20 },
-    { pos: 'RWF', x: 82, y: 20 },
-    { pos: 'CF', x: 50, y: 15 },
-  ],
-  '4-3-3 (4-2-1-3)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'LB', x: 15, y: 72 },
-    { pos: 'CB', x: 35, y: 75 },
-    { pos: 'CB', x: 65, y: 75 },
-    { pos: 'RB', x: 85, y: 72 },
-    { pos: 'DMF', x: 35, y: 56 },
-    { pos: 'CMF', x: 65, y: 56 },
-    { pos: 'AMF', x: 50, y: 38 },
-    { pos: 'LWF', x: 18, y: 20 },
-    { pos: 'RWF', x: 82, y: 20 },
-    { pos: 'CF', x: 50, y: 15 },
-  ],
-  '3-6-1 (3-2-4-1)': [
+  '3-5-2 (3-5-2)': [
     { pos: 'GK', x: 50, y: 90 },
     { pos: 'CB', x: 25, y: 75 },
     { pos: 'CB', x: 50, y: 78 },
     { pos: 'CB', x: 75, y: 75 },
-    { pos: 'DMF', x: 38, y: 58 },
-    { pos: 'DMF', x: 62, y: 58 },
-    { pos: 'LMF', x: 15, y: 38 },
-    { pos: 'AMF', x: 38, y: 35 },
-    { pos: 'AMF', x: 62, y: 35 },
-    { pos: 'RMF', x: 85, y: 38 },
-    { pos: 'CF', x: 50, y: 15 },
+    { pos: 'LMF', x: 15, y: 45 },
+    { pos: 'CMF', x: 33, y: 52 },
+    { pos: 'CMF', x: 50, y: 55 },
+    { pos: 'CMF', x: 67, y: 52 },
+    { pos: 'RMF', x: 85, y: 45 },
+    { pos: 'CF', x: 38, y: 18 },
+    { pos: 'CF', x: 62, y: 18 },
   ],
   '3-5-2 (3-2-3-2)': [
     { pos: 'GK', x: 50, y: 90 },
@@ -169,6 +222,19 @@ export const FORMATION_PRESETS = {
     { pos: 'AMF', x: 62, y: 35 },
     { pos: 'CF', x: 38, y: 18 },
     { pos: 'CF', x: 62, y: 18 },
+  ],
+  '3-6-1 (3-2-4-1)': [
+    { pos: 'GK', x: 50, y: 90 },
+    { pos: 'CB', x: 25, y: 75 },
+    { pos: 'CB', x: 50, y: 78 },
+    { pos: 'CB', x: 75, y: 75 },
+    { pos: 'DMF', x: 38, y: 58 },
+    { pos: 'DMF', x: 62, y: 58 },
+    { pos: 'LMF', x: 15, y: 38 },
+    { pos: 'AMF', x: 38, y: 35 },
+    { pos: 'AMF', x: 62, y: 35 },
+    { pos: 'RMF', x: 85, y: 38 },
+    { pos: 'CF', x: 50, y: 15 },
   ],
   '3-4-3 (3-2-2-3)': [
     { pos: 'GK', x: 50, y: 90 },
@@ -236,7 +302,7 @@ const DEFAULT_RESERVES = [];
 
 export default function EFootballGamePlan({
   teamName = 'تیم شما',
-  formation: initialFormationProp = '4-3-3 (4-2-1-3)',
+  formation: initialFormationProp = '4-3-3 (4-3-3)',
   readOnly = false,
   hideReserves = false,
   initialStartingXi = DEFAULT_STARTING_XI,
@@ -250,6 +316,7 @@ export default function EFootballGamePlan({
   subsUsed = 0,
   maxSubs = 5,
   onSave,
+  onSaveGamePlan,
   isAdminMode = false,
   onPushLiveEvent,
 }) {
@@ -313,29 +380,60 @@ export default function EFootballGamePlan({
     return newXi.map((p, idx) => p || { ...players[idx], naturalPosition: players[idx].naturalPosition || players[idx].position });
   };
 
-  const resolvedInitialFormation = getResolvedFormation(initialFormationProp);
-  const [currentFormation, setCurrentFormation] = useState(resolvedInitialFormation);
+  // Helper to ensure 11 starters are populated from bench if starters departed
+  const buildFullSquad = (starters = [], subs = [], res = [], formPreset) => {
+    let currentStarters = [...(starters || [])];
+    let currentSubs = [...(subs || [])];
+    let currentRes = [...(res || [])];
 
-  const [startingXi, setStartingXi] = useState(() => {
-    const preset = FORMATION_PRESETS[resolvedInitialFormation];
-    // If any player lacks valid coordinates, auto-layout the entire squad
-    const needsAutoLayout = initialStartingXi.some(p => p.x_coord == null || p.y_coord == null || (p.x_coord === 0 && p.y_coord === 0));
-    
-    if (!needsAutoLayout) {
-      return initialStartingXi.map(p => ({
+    // Auto-promote bench players if starters are fewer than 11
+    if (currentStarters.length < 11 && (currentSubs.length > 0 || currentRes.length > 0)) {
+      const needed = 11 - currentStarters.length;
+      const fromSubs = currentSubs.splice(0, needed);
+      currentStarters.push(...fromSubs);
+      if (fromSubs.length < needed && currentRes.length > 0) {
+        const stillNeeded = needed - fromSubs.length;
+        const fromRes = currentRes.splice(0, stillNeeded);
+        currentStarters.push(...fromRes);
+      }
+    }
+
+    const needsAutoLayout = currentStarters.length < 11 || currentStarters.some(
+      p => p.x_coord == null || p.y_coord == null || (p.x_coord === 0 && p.y_coord === 0)
+    );
+
+    let alignedStarters;
+    if (!needsAutoLayout && formPreset) {
+      alignedStarters = currentStarters.map(p => ({
         ...p,
         naturalPosition: p.naturalPosition || p.position,
       }));
+    } else if (formPreset) {
+      alignedStarters = matchPlayersToFormation(currentStarters, formPreset);
+    } else {
+      alignedStarters = currentStarters;
     }
 
-    return matchPlayersToFormation(initialStartingXi, preset);
-  });
-  const [substitutes, setSubstitutes] = useState(() =>
-    initialSubstitutes.map((p) => ({ ...p, naturalPosition: p.naturalPosition || p.position }))
+    return {
+      startingXi: alignedStarters,
+      substitutes: currentSubs.map(p => ({ ...p, naturalPosition: p.naturalPosition || p.position })),
+      reserves: currentRes.map(p => ({ ...p, naturalPosition: p.naturalPosition || p.position })),
+    };
+  };
+
+  const resolvedInitialFormation = getResolvedFormation(initialFormationProp);
+  const [currentFormation, setCurrentFormation] = useState(resolvedInitialFormation);
+
+  const initialSquad = buildFullSquad(
+    initialStartingXi,
+    initialSubstitutes,
+    initialReserves,
+    FORMATION_PRESETS[resolvedInitialFormation]
   );
-  const [reserves, setReserves] = useState(() =>
-    initialReserves.map((p) => ({ ...p, naturalPosition: p.naturalPosition || p.position }))
-  );
+
+  const [startingXi, setStartingXi] = useState(initialSquad.startingXi);
+  const [substitutes, setSubstitutes] = useState(initialSquad.substitutes);
+  const [reserves, setReserves] = useState(initialSquad.reserves);
 
   // Sync formation prop changes if any
   useEffect(() => {
@@ -345,33 +443,16 @@ export default function EFootballGamePlan({
     }
   }, [initialFormationProp]);
 
-  // Sync squad props when loaded asynchronously
+  // Sync squad props when loaded asynchronously or when roster changes
   useEffect(() => {
     if (initialStartingXi && initialStartingXi.length > 0) {
       const preset = FORMATION_PRESETS[getResolvedFormation(initialFormationProp)];
-      const needsAutoLayout = initialStartingXi.some(p => p.x_coord == null || p.y_coord == null || (p.x_coord === 0 && p.y_coord === 0));
-      if (!needsAutoLayout) {
-        setStartingXi(initialStartingXi.map(p => ({
-          ...p,
-          naturalPosition: p.naturalPosition || p.position,
-        })));
-      } else if (preset) {
-        setStartingXi(matchPlayersToFormation(initialStartingXi, preset));
-      }
+      const updated = buildFullSquad(initialStartingXi, initialSubstitutes || [], initialReserves || [], preset);
+      setStartingXi(updated.startingXi);
+      setSubstitutes(updated.substitutes);
+      setReserves(updated.reserves);
     }
-  }, [initialStartingXi]);
-
-  useEffect(() => {
-    if (initialSubstitutes) {
-      setSubstitutes(initialSubstitutes.map((p) => ({ ...p, naturalPosition: p.naturalPosition || p.position })));
-    }
-  }, [initialSubstitutes]);
-
-  useEffect(() => {
-    if (initialReserves) {
-      setReserves(initialReserves.map((p) => ({ ...p, naturalPosition: p.naturalPosition || p.position })));
-    }
-  }, [initialReserves]);
+  }, [initialStartingXi, initialSubstitutes, initialReserves, initialFormationProp]);
 
   // Interactive Swap & Admin Event Modal States
   const [selectedPitchPlayerId, setSelectedPitchPlayerId] = useState(null);
@@ -380,19 +461,95 @@ export default function EFootballGamePlan({
   const [subModalBenchSelect, setSubModalBenchSelect] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
 
+  // Gem Player Actions (Stamina Recovery & Boost)
+  const { team, updateTeamGems, updatePlayerState } = useTeam();
+  const [actionPlayerToRecover, setActionPlayerToRecover] = useState(null);
+  const [actionPlayerToBoost, setActionPlayerToBoost] = useState(null);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+
   const showNotification = (msg) => {
     setStatusMsg(msg);
     setTimeout(() => setStatusMsg(''), 4000);
   };
 
-  const isTacticsDisabled = isLiveMode && matchState !== 'HALF_TIME';
+  const handleRecoverStamina = async (player) => {
+    if (!player) return;
+    setIsActionLoading(true);
+    try {
+      const res = await playerApi.recoverStamina(player.id);
+      const newStamina = res.data?.new_stamina || Math.min(100, (player.virtual_stamina || player.stamina || 50) + 50);
+
+      const updateList = (list) =>
+        list.map((p) => (p.id === player.id ? { ...p, virtual_stamina: newStamina, stamina: newStamina, is_locked: false } : p));
+
+      const newXi = updateList(startingXi);
+      const newSubs = updateList(substitutes);
+      const newRes = updateList(reserves);
+
+      setStartingXi(newXi);
+      setSubstitutes(newSubs);
+      setReserves(newRes);
+
+      if (updatePlayerState) {
+        updatePlayerState(player.id, { virtual_stamina: newStamina, stamina: newStamina, is_locked: false });
+      }
+      if (updateTeamGems && res.data?.remaining_gems !== undefined) {
+        updateTeamGems(res.data.remaining_gems);
+      }
+      showNotification(`⚡ استقامت «${player.name}» با موفقیت ۵۰٪ شارژ شد! (استقامت فعلی: ${Math.round(newStamina)}٪)`);
+      setActionPlayerToRecover(null);
+      if (onLineupChange) {
+        onLineupChange({ startingXi: newXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
+      }
+    } catch (err) {
+      showNotification('خطا در شارژ استقامت: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleGemBoost = async (player) => {
+    if (!player) return;
+    setIsActionLoading(true);
+    try {
+      const res = await playerApi.gemBoost(player.id);
+      const updatedP = res.data?.player;
+      const newLevel = updatedP?.level || (player.level || 1) + 1;
+      const newOvr = updatedP?.overall || player.overall + 1;
+
+      const updateList = (list) =>
+        list.map((p) => (p.id === player.id ? { ...p, level: newLevel, overall: newOvr } : p));
+
+      const newXi = updateList(startingXi);
+      const newSubs = updateList(substitutes);
+      const newRes = updateList(reserves);
+
+      setStartingXi(newXi);
+      setSubstitutes(newSubs);
+      setReserves(newRes);
+
+      if (updatePlayerState) {
+        updatePlayerState(player.id, { level: newLevel, overall: newOvr });
+      }
+      if (updateTeamGems && res.data?.remaining_gems !== undefined) {
+        updateTeamGems(res.data.remaining_gems);
+      }
+      showNotification(`💎 سطح «${player.name}» با موفقیت به لول ${newLevel} و OVR ${newOvr} ارتقا یافت! ✨`);
+      setActionPlayerToBoost(null);
+      if (onLineupChange) {
+        onLineupChange({ startingXi: newXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
+      }
+    } catch (err) {
+      showNotification('خطا در ارتقای بازیکن: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const isTacticsDisabled = false;
 
   // Change Formation Handler
   const handleFormationChange = (newFormation, notify = true) => {
-    if (isTacticsDisabled && notify) {
-      showNotification('تغییر تاکتیک کلی در جریان بازی قفل است. فقط در زمان استراحت مجاز است.');
-      return;
-    }
     const preset = FORMATION_PRESETS[newFormation];
     if (!preset) return;
 
@@ -412,6 +569,32 @@ export default function EFootballGamePlan({
   };
 
   // Admin Quick Event Handlers
+  const handleAdminSetRating = (ratingVal) => {
+    if (!adminModalPlayer) return;
+    const targetId = adminModalPlayer.id;
+    setStartingXi((prev) =>
+      prev.map((p) => (p.id === targetId ? { ...p, rating: ratingVal } : p))
+    );
+    setSubstitutes((prev) =>
+      prev.map((p) => (p.id === targetId ? { ...p, rating: ratingVal } : p))
+    );
+    const text = `نمره مسابقه برای ${adminModalPlayer.name} (${teamName}) روی ${ratingVal} ★ ثبت شد ⭐`;
+    if (onPushLiveEvent) {
+      onPushLiveEvent({
+        id: Date.now(),
+        type: 'RATING',
+        text,
+        team: teamName,
+        player_id: adminModalPlayer.id,
+        player_name: adminModalPlayer.name,
+        icon: '⭐',
+        color: 'text-sky-300 border-sky-500/40 bg-sky-950/40',
+      });
+    }
+    showNotification(text);
+    setAdminModalPlayer(null);
+  };
+
   const handleAdminGoal = () => {
     if (!adminModalPlayer) return;
     const targetId = adminModalPlayer.id;
@@ -427,6 +610,8 @@ export default function EFootballGamePlan({
         type: 'GOAL',
         text,
         team: teamName,
+        player_id: adminModalPlayer.id,
+        player_name: adminModalPlayer.name,
         icon: '⚽🔥',
         color: 'text-emerald-400 border-emerald-500/40 bg-emerald-950/40',
       });
@@ -450,9 +635,11 @@ export default function EFootballGamePlan({
     if (onPushLiveEvent) {
       onPushLiveEvent({
         id: Date.now(),
-        type: 'UNDO_EVENT',
+        type: 'UNDO_GOAL',
         text,
         team: teamName,
+        player_id: adminModalPlayer.id,
+        player_name: adminModalPlayer.name,
         icon: '↩️',
         color: 'text-amber-300 border-amber-500/40 bg-amber-950/40',
       });
@@ -476,6 +663,8 @@ export default function EFootballGamePlan({
         type: 'ASSIST',
         text,
         team: teamName,
+        player_id: adminModalPlayer.id,
+        player_name: adminModalPlayer.name,
         icon: '🅰️🎯',
         color: 'text-cyan-400 border-cyan-500/40 bg-cyan-950/40',
       });
@@ -502,6 +691,8 @@ export default function EFootballGamePlan({
         type: 'UNDO_EVENT',
         text,
         team: teamName,
+        player_id: adminModalPlayer.id,
+        player_name: adminModalPlayer.name,
         icon: '↩️',
         color: 'text-amber-300 border-amber-500/40 bg-amber-950/40',
       });
@@ -584,6 +775,8 @@ export default function EFootballGamePlan({
         type: 'ADMIN_EVENT',
         text,
         team: teamName,
+        player_id: adminModalPlayer.id,
+        player_name: adminModalPlayer.name,
         icon,
         color,
       });
@@ -595,11 +788,6 @@ export default function EFootballGamePlan({
   // Pitch Player Click Handler
   const handlePitchPlayerClick = (clickedPlayer) => {
     if (isAdminMode) {
-      if (selectedBenchPlayerId) {
-        swapPitchWithBench(clickedPlayer.id, selectedBenchPlayerId);
-        setSelectedBenchPlayerId(null);
-        return;
-      }
       setAdminModalPlayer(clickedPlayer);
       setSubModalBenchSelect(false);
       return;
@@ -633,13 +821,12 @@ export default function EFootballGamePlan({
 
   // Bench / Reserve Player Click Handler
   const handleBenchPlayerClick = (clickedBenchPlayer, isFromSubstitutes = true) => {
-    if (readOnly) return;
-
-    // Official Football Rule: Once subbed out, a player cannot re-enter the pitch
-    if (isLiveMode && clickedBenchPlayer.isSubbedOut) {
-      showNotification(`🚫 بازیکن «${clickedBenchPlayer.name}» تعویض شده است و طبق قوانین رسمی فوتبال دیگر نمی‌تواند به زمین بازی بازگردد.`);
+    if (isAdminMode) {
+      setAdminModalPlayer(clickedBenchPlayer);
       return;
     }
+
+    if (readOnly) return;
 
     // Scenario 1: A pitch player was pre-selected -> Swap pitch player with clicked bench player
     if (selectedPitchPlayerId) {
@@ -763,11 +950,6 @@ export default function EFootballGamePlan({
 
   // Swap a pitch player with a bench/reserve player
   const swapPitchWithBench = (pitchId, benchId, isFromSubstitutes = true) => {
-    if (isLiveMode && subsUsed >= maxSubs) {
-      showNotification(`🚫 حداکثر تعداد تعویض‌های مجاز (${maxSubs} تعویض در این مسابقه) انجام شده است.`);
-      return;
-    }
-
     const pitchPlayer = startingXi.find((p) => p.id === pitchId);
     const benchSourceList = isFromSubstitutes ? substitutes : reserves;
     const benchPlayer = benchSourceList.find((b) => b.id === benchId) || substitutes.find((b) => b.id === benchId) || reserves.find((b) => b.id === benchId);
@@ -791,7 +973,7 @@ export default function EFootballGamePlan({
     const updatedXi = startingXi.map((p) => (p.id === pitchId ? newPitchPlayer : p));
     setStartingXi(updatedXi);
 
-    // 2. Move pitch player to bench: RESTORED to their naturalPosition and marked as permanently subbed out (ONLY in live mode)!
+    // 2. Move pitch player to bench: RESTORED to their naturalPosition
     const newBenchPlayer = {
       ...pitchPlayer,
       naturalPosition: pitchNaturalPos,
@@ -800,7 +982,7 @@ export default function EFootballGamePlan({
       y_coord: undefined,
       face: pitchPlayer.face,
       is_starting: false,
-      isSubbedOut: isLiveMode ? true : false, // Official football rule: once subbed out, cannot re-enter pitch (only in match mode)
+      isSubbedOut: false,
     };
 
     let newSubs = substitutes;
@@ -817,6 +999,49 @@ export default function EFootballGamePlan({
     showNotification(`تعویض تاکتیکی: ورود ${benchPlayer.name} به جای ${pitchPlayer.name} 🔄`);
     if (onLineupChange) {
       onLineupChange({ startingXi: updatedXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
+    }
+  };
+
+  // Helper to calculate any unoccupied slots in current formation
+  const currentPreset = FORMATION_PRESETS[currentFormation] || [];
+  const unoccupiedSlots = useMemo(() => {
+    if (startingXi.length >= 11) return [];
+    const occupiedCoords = new Set(
+      startingXi.map((p) => `${Math.round(p.x_coord || 0)}_${Math.round(p.y_coord || 0)}`)
+    );
+    return currentPreset.filter((slot) => !occupiedCoords.has(`${Math.round(slot.x)}_${Math.round(slot.y)}`));
+  }, [startingXi, currentPreset]);
+
+  // Click handler for empty pitch slots
+  const handleEmptySlotClick = (slot) => {
+    if (readOnly) return;
+    if (selectedBenchPlayerId) {
+      const benchPlayer = substitutes.find((b) => b.id === selectedBenchPlayerId) || reserves.find((r) => r.id === selectedBenchPlayerId);
+      if (!benchPlayer) return;
+
+      const newPitchPlayer = {
+        ...benchPlayer,
+        naturalPosition: benchPlayer.naturalPosition || benchPlayer.position,
+        position: slot.pos,
+        x_coord: slot.x,
+        y_coord: slot.y,
+        is_starting: true,
+      };
+
+      const updatedXi = [...startingXi, newPitchPlayer];
+      const newSubs = substitutes.filter((b) => b.id !== selectedBenchPlayerId);
+      const newRes = reserves.filter((r) => r.id !== selectedBenchPlayerId);
+
+      setStartingXi(updatedXi);
+      setSubstitutes(newSubs);
+      setReserves(newRes);
+      setSelectedBenchPlayerId(null);
+      showNotification(`بازیکن «${benchPlayer.name}» در پست ${slot.pos} در ترکیب اصلی قرار گرفت ✅`);
+      if (onLineupChange) {
+        onLineupChange({ startingXi: updatedXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
+      }
+    } else {
+      showNotification(`جایگاه «${slot.pos}» خالی است. لطفاً بازیکنی از نیمکت یا رختکن انتخاب کرده و روی این جایگاه کلیک کنید.`);
     }
   };
 
@@ -866,36 +1091,38 @@ export default function EFootballGamePlan({
       <div className="p-3 md:p-5 space-y-4">
         {/* LIVE MODE NOTICE BANNER */}
         {isLiveMode && (
-          <div className={`p-3.5 rounded-2xl border text-xs font-bold flex flex-col sm:flex-row items-center justify-between gap-2 shadow-lg ${
-            isTacticsDisabled
-              ? 'bg-amber-950/80 border-amber-500/50 text-amber-200'
-              : 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200'
-          }`}>
-            <div className="flex items-center gap-2">
-              <span className="text-base">{isTacticsDisabled ? '⚠️' : '🟢'}</span>
+          <div className="p-3.5 rounded-2xl border text-xs font-bold flex flex-col sm:flex-row items-center justify-between gap-2 shadow-lg bg-[#080c14]/90 border-cyan-500/40 text-cyan-200">
+            <div className="flex items-center gap-2.5">
+              <span className="text-base">{matchState === 'HALF_TIME' ? '⏸️' : matchState === 'FINISHED' ? '🏁' : '🟢'}</span>
               <div>
                 <p className="font-black text-white text-xs md:text-sm flex items-center gap-2">
-                  <span>{isTacticsDisabled ? 'حالت بازی: در جریان مسابقه (Live Match)' : 'حالت بازی: استراحت بین دو نیمه (Half Time)'}</span>
+                  <span>
+                    وضعیت مسابقه:{' '}
+                    {matchState === 'FIRST_HALF' || matchState === '1ST_HALF'
+                      ? 'شروع نیمه اول'
+                      : matchState === 'HALF_TIME'
+                      ? 'بین دو نیمه'
+                      : matchState === 'SECOND_HALF' || matchState === '2ND_HALF'
+                      ? 'شروع نیمه دوم'
+                      : matchState === 'FINISHED'
+                      ? 'پایان بازی'
+                      : 'در انتظار شروع مسابقه'}
+                  </span>
                   {matchState === 'HALF_TIME' && (
-                    <span className="bg-amber-500 text-slate-950 px-2 py-0.5 rounded-md font-mono font-black text-xs animate-pulse">
+                    <span className="bg-amber-500 text-slate-950 px-2 py-0.5 rounded-md font-sport font-black text-xs animate-pulse">
                       ⏱️ {halfTimeSeconds} ثانیه
                     </span>
                   )}
                 </p>
-                <p className="text-[11px] opacity-90 font-medium">
-                  {isTacticsDisabled
-                    ? 'تغییر تاکتیک کلی فقط بین دو نیمه امکان‌پذیر است. تعویض بازیکنان مجاز است.'
-                    : 'امکان تغییر کامل ترکیب و تاکتیک در استراحت بین دو نیمه فعال است.'}
+                <p className="text-[11px] text-slate-300 font-medium mt-0.5">
+                  ارسال و اعمال تغییرات تاکتیکی و جابجایی بازیکنان بدون محدودیت تعداد فعال است.
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-[10px] font-mono font-black bg-cyan-950 text-cyan-300 px-2.5 py-1 rounded-lg border border-cyan-500/40">
-                تعویض‌های استفاده شده: {subsUsed} از {maxSubs}
-              </span>
-              <span className="text-[10px] font-mono font-black bg-black/40 px-2.5 py-1 rounded-lg border border-white/10">
-                {matchState === 'FIRST_HALF' ? 'نیمه اول' : matchState === 'HALF_TIME' ? 'بین دو نیمه' : matchState === 'SECOND_HALF' ? 'نیمه دوم' : 'پایان بازی'}
+              <span className="text-[10.5px] font-sport font-black bg-cyan-950 text-cyan-300 px-3 py-1 rounded-xl border border-cyan-500/40">
+                ارسال تغییرات: نامحدود ⚡
               </span>
             </div>
           </div>
@@ -920,32 +1147,119 @@ export default function EFootballGamePlan({
           </div>
         )}
 
-        {/* SELECTED PLAYER POSITION INFO CARD */}
-        {activeSelectedPlayer && POSITION_INFO[displayPosCode] && (
+        {/* SELECTED PLAYER POSITION & QUICK GEM ACTIONS BAR */}
+        {activeSelectedPlayer && (
           <motion.div
             initial={{ opacity: 0, y: -5 }}
             animate={{ opacity: 1, y: 0 }}
-            className="fc-card-elevated p-3.5 rounded-2xl border border-cyan-500/30 text-white space-y-1.5 shadow-xl"
+            className="fc-card-elevated p-3 sm:p-4 rounded-3xl border border-cyan-500/40 text-white space-y-2.5 shadow-2xl bg-gradient-to-b from-[#0f172a] via-[#0b1120] to-[#05080e]"
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className={`text-[9.5px] font-black px-2 py-0.5 rounded shadow ${POSITION_COLORS[displayPosCode] || 'bg-purple-600'}`}>
-                  {displayPosCode}
-                </span>
-                <span className="font-black text-xs text-white">
-                  {POSITION_INFO[displayPosCode].title} ({POSITION_INFO[displayPosCode].englishTitle})
-                </span>
+            {/* Top Row: Photo + Details + Quick Action Buttons */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                {/* Portrait Photo */}
+                <div className="w-12 h-14 rounded-2xl overflow-hidden border border-slate-700 bg-gradient-to-b from-[#1e293b] to-[#0f172a] shrink-0 flex items-center justify-center relative shadow-inner">
+                  {getPlayerPhotoUrl(activeSelectedPlayer) ? (
+                    <img
+                      src={getPlayerPhotoUrl(activeSelectedPlayer)}
+                      alt={activeSelectedPlayer.name}
+                      className="w-full h-full object-cover object-top"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <User size={22} className="text-slate-400 opacity-75" />
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="space-y-0.5 font-sport">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[9.5px] font-black px-2 py-0.5 rounded shadow ${POSITION_COLORS[displayPosCode] || 'bg-purple-600'}`}>
+                      {displayPosCode}
+                    </span>
+                    <span className="font-black text-xs sm:text-sm text-white font-sans">
+                      {activeSelectedPlayer.name}
+                    </span>
+                    <span className="text-[10px] text-amber-300 font-bold bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-500/40">
+                      OVR {activeSelectedPlayer.overall}
+                    </span>
+                    <span className="text-[9.5px] text-cyan-300 font-bold bg-cyan-950/80 px-1.5 py-0.2 rounded border border-cyan-500/40">
+                      لول {activeSelectedPlayer.level || 1}/۲۰
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-[11px] text-slate-300">
+                    <span>
+                      استقامت:{' '}
+                      <strong
+                        className={
+                          Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) < 50
+                            ? 'text-rose-400 font-bold'
+                            : 'text-[#00ff87] font-bold'
+                        }
+                      >
+                        {Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90))}%
+                      </strong>
+                    </span>
+                    {activeSelectedPlayer.potential_ovr && (
+                      <span>
+                        پتانسیل: <strong className="text-purple-300 font-bold">{activeSelectedPlayer.potential_ovr}</strong>
+                      </span>
+                    )}
+                    {activeSelectedPlayer.is_injured && (
+                      <span className="text-rose-400 font-bold bg-rose-950/80 px-1.5 py-0.2 rounded border border-rose-500/40">
+                        مصدوم
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-              <span className="text-[11px] text-cyan-300 font-bold font-sport">
-                {activeSelectedPlayer.name} — OVR: <strong className="text-amber-300 font-black">{activeSelectedPlayer.overall}</strong>
-                {activeSelectedPlayer.naturalPosition && activeSelectedPlayer.naturalPosition !== activeSelectedPlayer.position && selectedPitchPlayerId && (
-                  <span className="text-purple-300 font-normal mr-2"> (پست اصلی: {activeSelectedPlayer.naturalPosition})</span>
-                )}
-              </span>
+
+              {/* Gem Quick Action Buttons (Compact, non-intrusive) */}
+              {!readOnly && (
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Recover Stamina Button */}
+                  <button
+                    onClick={() => setActionPlayerToRecover(activeSelectedPlayer)}
+                    disabled={Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) >= 100}
+                    className={`px-3 py-2 rounded-2xl font-sport text-xs font-black flex items-center gap-1.5 shadow-md transition-all cursor-pointer ${
+                      Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) >= 100
+                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                        : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 border border-emerald-400/50 active:scale-95'
+                    }`}
+                    title="شارژ فوری ۵۰٪ استقامت بازیکن با ۱۵ جم"
+                  >
+                    <Zap size={14} className={Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) >= 100 ? 'text-slate-500' : 'text-slate-950 fill-slate-950'} />
+                    <span>ریکاوری استقامت (۱۵ 💎)</span>
+                  </button>
+
+                  {/* Gem Boost / Level Up Button */}
+                  <button
+                    onClick={() => setActionPlayerToBoost(activeSelectedPlayer)}
+                    disabled={(activeSelectedPlayer.level || 1) >= 20}
+                    className={`px-3 py-2 rounded-2xl font-sport text-xs font-black flex items-center gap-1.5 shadow-md transition-all cursor-pointer ${
+                      (activeSelectedPlayer.level || 1) >= 20
+                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                        : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border border-purple-400/50 active:scale-95 shadow-[0_0_15px_rgba(168,85,247,0.3)]'
+                    }`}
+                    title={`ارتقای لول و قدرت با ${activeSelectedPlayer.next_level_gem_cost || getGemBoostCost(activeSelectedPlayer.level || 1)} الماس`}
+                  >
+                    <Sparkles size={14} className="text-amber-300 animate-pulse" />
+                    <span>ارتقای بازیکن ({activeSelectedPlayer.next_level_gem_cost || getGemBoostCost(activeSelectedPlayer.level || 1)} 💎)</span>
+                  </button>
+                </div>
+              )}
             </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed pt-0.5">
-              {POSITION_INFO[displayPosCode].desc}
-            </p>
+
+            {/* Tactical Position Description */}
+            {POSITION_INFO[displayPosCode] && (
+              <p className="text-[10.5px] text-slate-400 leading-relaxed border-t border-slate-800/80 pt-1.5">
+                <strong className="text-cyan-300">{POSITION_INFO[displayPosCode].title}: </strong>
+                {POSITION_INFO[displayPosCode].desc}
+              </p>
+            )}
           </motion.div>
         )}
 
@@ -997,7 +1311,7 @@ export default function EFootballGamePlan({
                   ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'
                   : 'bg-rose-500 shadow-[0_0_8px_#f43f5e] animate-pulse';
 
-              const photoUrl = player.photo_url || player.image || player.avatar || null;
+              const photoUrl = getPlayerPhotoUrl(player);
 
               return (
                 <motion.div
@@ -1020,53 +1334,24 @@ export default function EFootballGamePlan({
                     isSelected ? 'ring-4 ring-cyan-400 rounded-2xl p-1 bg-cyan-950/90 shadow-[0_0_30px_rgba(0,243,255,0.7)] animate-pulse' : ''
                   }`}
                 >
-                  {/* Player Avatar Container + Floating Event Badges Next To Photo */}
+                  {/* Player Avatar Container + Floating Event Badges */}
                   <div className="relative flex items-center justify-center">
-                    {/* Floating Event Badges Next To Avatar (Top-Right / Beside Avatar) */}
-                    {(player.goals > 0 || player.assists > 0 || player.yellowCards > 0 || player.isRed || player.isInjured) && (
-                      <div className="absolute -top-2 -right-6 flex flex-col items-start gap-0.5 pointer-events-none z-30 drop-shadow-md">
-                        {player.goals > 0 && (
-                          <motion.span
-                            initial={{ scale: 0, x: -5 }}
-                            animate={{ scale: 1, x: 0 }}
-                            className="text-[9px] bg-emerald-950/95 text-emerald-300 px-1.5 py-0.2 rounded-full border border-emerald-400 font-black font-sport shadow-lg flex items-center gap-0.5 whitespace-nowrap"
-                          >
-                            ⚽🔥{player.goals > 1 ? `x${player.goals}` : ''}
-                          </motion.span>
-                        )}
-                        {player.assists > 0 && (
-                          <motion.span
-                            initial={{ scale: 0, x: -5 }}
-                            animate={{ scale: 1, x: 0 }}
-                            className="text-[9px] bg-cyan-950/95 text-cyan-300 px-1.5 py-0.2 rounded-full border border-cyan-400 font-black font-sport shadow-lg flex items-center gap-0.5 whitespace-nowrap"
-                          >
-                            🅰️🎯{player.assists > 1 ? `x${player.assists}` : ''}
-                          </motion.span>
-                        )}
-                        {player.yellowCards === 1 && (
-                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-[10px] drop-shadow-lg">
-                            🟨⚠️
-                          </motion.span>
-                        )}
-                        {player.yellowCards === 2 && (
-                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-[10px] drop-shadow-lg">
-                            🟨🟨 🟥⛔
-                          </motion.span>
-                        )}
-                        {player.isRed && (
-                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-[10px] drop-shadow-lg">
-                            🟥⛔
-                          </motion.span>
-                        )}
-                        {player.isInjured && (
-                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-[10px] drop-shadow-lg animate-pulse">
-                            🚑🩹
-                          </motion.span>
-                        )}
-                      </div>
+                    {/* Top-Right Blue Rating Pill Badge (Haaland style: 10.0 ★) */}
+                    {(player.rating != null || (isAdminMode && player.goals > 0)) && (
+                      <span className="absolute -top-2 -right-2.5 z-30 bg-sky-500 text-slate-950 font-black text-[9px] md:text-[10px] px-1.5 py-0.5 rounded-full shadow-md border border-sky-300 flex items-center gap-0.5 font-sport leading-none pointer-events-none">
+                        {player.rating || (player.goals >= 3 ? '10.0' : player.goals >= 1 ? '8.5' : '7.0')} ★
+                      </span>
                     )}
 
-                    {/* FUT Portrait Photo Card Frame (1:1.15 Ratio) */}
+                    {/* Top-Left Subbed-Off / Booked Minute Badge */}
+                    {player.subMinute && (
+                      <span className="absolute -top-2 -left-2.5 z-30 bg-black/95 text-white font-black text-[8.5px] md:text-[9.5px] px-1.5 py-0.5 rounded-full border border-rose-500 shadow-md flex items-center gap-1 font-sport leading-none pointer-events-none">
+                        <span>{player.subMinute}'</span>
+                        <span className="text-rose-400 font-black">←</span>
+                      </span>
+                    )}
+
+                    {/* FUT Portrait Photo Card Frame (Circular/Pill Frame) */}
                     <div className={`relative flex items-center justify-center w-12 h-14 md:w-14 md:h-16 rounded-2xl overflow-hidden border-2 shadow-xl transition-all ${
                       player.isRed
                         ? 'border-rose-600 ring-2 ring-rose-600/80 bg-rose-950/90 text-rose-300 opacity-60 grayscale'
@@ -1104,6 +1389,48 @@ export default function EFootballGamePlan({
                         </span>
                       )}
                     </div>
+
+                    {/* Bottom Overlapping Event Badges (Horizontal Stacked Discs matching Haaland FotMob screenshot) */}
+                    {((player.goals || 0) > 0 || (player.assists || 0) > 0 || player.yellowCards > 0 || player.isRed || player.isInjured) && (
+                      <div className="absolute -bottom-2.5 z-30 flex items-center justify-center -space-x-1.5 drop-shadow-md pointer-events-none">
+                        {/* Assist Badges (Shoes) */}
+                        {Array.from({ length: player.assists || 0 }).map((_, aIdx) => (
+                          <div key={`ast-${aIdx}`} className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-white border border-slate-400 shadow-md flex items-center justify-center text-[10px] md:text-[11px] shrink-0" title="پاس گل">
+                            👟
+                          </div>
+                        ))}
+                        {/* Goal Badges (Soccer Balls) */}
+                        {Array.from({ length: player.goals || 0 }).map((_, gIdx) => (
+                          <div key={`goal-${gIdx}`} className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-white border border-slate-400 shadow-md flex items-center justify-center text-[10px] md:text-[11px] shrink-0" title="گل">
+                            ⚽
+                          </div>
+                        ))}
+                        {/* Yellow Card Badge */}
+                        {player.yellowCards === 1 && (
+                          <div className="w-4 h-5 rounded bg-amber-400 border border-amber-300 shadow flex items-center justify-center text-[9px] font-bold text-black shrink-0" title="کارت زرد">
+                            🟨
+                          </div>
+                        )}
+                        {/* Second Yellow / Red Card */}
+                        {player.yellowCards === 2 && (
+                          <div className="w-4 h-5 rounded bg-rose-600 border border-rose-400 shadow flex items-center justify-center text-[9px] font-bold text-white shrink-0" title="کارت قرمز (دو کارته)">
+                            🟥
+                          </div>
+                        )}
+                        {/* Direct Red Card */}
+                        {player.isRed && player.yellowCards !== 2 && (
+                          <div className="w-4 h-5 rounded bg-rose-600 border border-rose-400 shadow flex items-center justify-center text-[9px] font-bold text-white shrink-0" title="کارت قرمز مستقیم">
+                            🟥
+                          </div>
+                        )}
+                        {/* Injury Badge */}
+                        {player.isInjured && (
+                          <div className="w-5 h-5 rounded-full bg-rose-950 border border-rose-400 shadow flex items-center justify-center text-[9px] shrink-0 animate-pulse" title="مصدوم">
+                            🩹
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Badge Pill: Position + Championship Gold OVR Rating */}
@@ -1143,6 +1470,35 @@ export default function EFootballGamePlan({
                 </motion.div>
               );
             })}
+
+            {/* Render Empty Formation Slots if fewer than 11 players on pitch */}
+            {unoccupiedSlots.map((slot, sIdx) => (
+              <motion.div
+                key={`empty-slot-${sIdx}-${slot.pos}`}
+                onClick={() => handleEmptySlotClick(slot)}
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{
+                  left: `${slot.x}%`,
+                  top: `${slot.y}%`,
+                  scale: 1,
+                  opacity: 1,
+                }}
+                className="absolute -translate-x-1/2 -translate-y-1/2 w-[86px] md:w-[96px] flex flex-col items-center cursor-pointer group z-10 hover:z-30 transition-all"
+              >
+                <div className="relative flex items-center justify-center w-12 h-14 md:w-14 md:h-16 rounded-2xl border-2 border-dashed border-cyan-400/80 bg-cyan-950/40 hover:bg-cyan-900/60 shadow-lg flex-col gap-1 transition-all group-hover:scale-105 group-hover:border-cyan-300">
+                  <Plus size={20} className="text-cyan-300 animate-pulse" />
+                  <span className="text-[8px] font-black text-cyan-200">افزودن</span>
+                </div>
+                <div className="flex items-center gap-1 mt-1 shadow-lg z-10">
+                  <span className={`text-[8px] md:text-[9px] px-1.5 py-0.2 rounded-md shadow ${POSITION_COLORS[slot.pos] || 'bg-purple-600 text-white font-bold'}`}>
+                    {slot.pos}
+                  </span>
+                  <span className="text-[9px] text-cyan-300 bg-cyan-950/90 border border-cyan-500/40 px-1 rounded-md font-black">
+                    خالی
+                  </span>
+                </div>
+              </motion.div>
+            ))}
           </div>
 
           {/* Formation Label */}
@@ -1200,9 +1556,9 @@ export default function EFootballGamePlan({
                     )}
 
                     <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-slate-600 mb-1 bg-[#05080e] relative overflow-hidden shadow-inner">
-                      {sub.photo_url || sub.image || sub.avatar ? (
+                      {getPlayerPhotoUrl(sub) ? (
                         <img
-                          src={sub.photo_url || sub.image || sub.avatar}
+                          src={getPlayerPhotoUrl(sub)}
                           alt={sub.name}
                           className="w-full h-full object-cover object-top"
                           onError={(e) => {
@@ -1240,8 +1596,8 @@ export default function EFootballGamePlan({
             </div>
           </div>
 
-          {/* VISUAL SEPARATOR DIVIDER */}
-          {!hideReserves && (
+          {/* VISUAL SEPARATOR DIVIDER & SECTION 2: RESERVES / OUT OF SQUAD */}
+          {!hideReserves && !isLiveMode && (
             <>
               <div className="my-4 flex items-center gap-3">
                 <div className="h-0.5 flex-1 bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent"></div>
@@ -1271,6 +1627,20 @@ export default function EFootballGamePlan({
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate">
+                          <div className="w-6 h-6 rounded-lg flex items-center justify-center border border-slate-700 bg-[#05080e] relative overflow-hidden shrink-0 shadow-inner">
+                            {getPlayerPhotoUrl(res) ? (
+                              <img
+                                src={getPlayerPhotoUrl(res)}
+                                alt={res.name}
+                                className="w-full h-full object-cover object-top"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <User size={12} className="text-slate-500" />
+                            )}
+                          </div>
                           {res.shirt_number != null && (
                             <span className="text-[8.5px] font-sport text-cyan-400 font-black">#{res.shirt_number}</span>
                           )}
@@ -1293,215 +1663,347 @@ export default function EFootballGamePlan({
         </div>
       </div>
 
-      {/* LIVE MODE SAVE BUTTON FOOTER */}
-      {isLiveMode && onSave && (
-        <div className="bg-[#180026] p-4 border-t-2 border-purple-800 flex justify-between items-center gap-3 sticky bottom-0 z-30 shadow-2xl">
-          <div className="text-xs text-purple-200 hidden sm:block">
-            <span className="font-bold text-white block">آماده ارسال به سرور</span>
-            <span className="text-[10.5px] text-purple-300">برای اعمال تغییرات تعویض یا تاکتیک کلیک کنید.</span>
+      {/* LIVE MODE UNIFIED SAVE BUTTON FOOTER */}
+      {isLiveMode && (onSave || onSaveGamePlan) && (
+        <div className="bg-[#0b101d] p-4 border-t-2 border-cyan-500/40 flex justify-between items-center gap-3 sticky bottom-0 z-30 shadow-2xl backdrop-blur-xl">
+          <div className="text-xs text-cyan-200 hidden sm:block">
+            <span className="font-bold text-white block">آماده ارسال ترکیب و تغییرات تاکتیکی به اتاق داوری</span>
+            <span className="text-[10.5px] text-cyan-300">تغییرات شما به صورت آنی به پنل داوری و نظارت مسابقه ارسال می‌گردد.</span>
           </div>
           <button
-            onClick={() => onSave({ startingXi, substitutes, reserves, currentFormation })}
-            className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black px-8 py-3 rounded-2xl shadow-xl hover:shadow-cyan-500/20 transition-all text-xs md:text-sm flex items-center justify-center gap-2 border border-emerald-300"
+            onClick={() => (onSave || onSaveGamePlan)({ startingXi, substitutes, reserves, currentFormation })}
+            className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black px-8 py-3 rounded-2xl shadow-xl hover:shadow-cyan-500/20 transition-all text-xs md:text-sm flex items-center justify-center gap-2 border border-emerald-300 cursor-pointer active:scale-95 font-sport"
           >
-            <span>ثبت و اعمال تغییرات به سرور</span>
+            <span>ارسال ترکیب و تاکتیک به داوری</span>
             <span className="text-base">⚡</span>
           </button>
         </div>
       )}
 
       {/* ADMIN QUICK MATCH EVENT REGISTRATION MODAL */}
-      {isAdminMode && adminModalPlayer && (
-        <div className="fixed top-0 left-0 w-screen h-screen z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md font-sans dir-rtl text-xs">
-          <div className="w-full max-w-md glass-panel p-5 rounded-3xl border-2 border-cyan-500/60 space-y-4 shadow-2xl bg-slate-950">
-            <div className="border-b border-slate-800 pb-3 flex justify-between items-center">
-              <div>
-                <h3 className="font-black text-white text-sm">ثبت سریع اتفاقات مسابقه (داور / ادمین)</h3>
-                <p className="text-[11px] text-cyan-300 mt-0.5">
-                  بازیکن انتخابی: <span className="font-bold text-white">{adminModalPlayer.name} ({adminModalPlayer.position})</span> — تیم: <span className="text-purple-300 font-bold">{teamName}</span>
-                </p>
+      {isAdminMode && adminModalPlayer && createPortal(
+        <div 
+          className="fixed inset-0 w-screen h-screen z-[10000] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md font-sans dir-rtl select-none"
+          onClick={() => {
+            setAdminModalPlayer(null);
+            setSubModalBenchSelect(false);
+          }}
+        >
+          <div 
+            className="w-full max-w-sm sm:max-w-md bg-[#0a1222] border-2 border-cyan-500/60 rounded-3xl p-4 sm:p-5 shadow-[0_0_50px_rgba(6,182,212,0.25)] flex flex-col max-h-[88vh] relative my-auto animate-in fade-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="border-b border-slate-800/80 pb-3 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/30 border border-cyan-400/40 flex items-center justify-center text-cyan-300 font-bold text-sm shrink-0">
+                  {adminModalPlayer.photo_url ? (
+                    <img src={getPlayerPhotoUrl(adminModalPlayer.photo_url)} alt="" className="w-full h-full object-cover rounded-2xl" />
+                  ) : (
+                    <span>{adminModalPlayer.position}</span>
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-white text-sm sm:text-base">{adminModalPlayer.name}</span>
+                    <span className="text-[10px] font-mono font-bold bg-cyan-950 text-cyan-400 border border-cyan-500/30 px-1.5 py-0.2 rounded">
+                      #{adminModalPlayer.shirt_number || 10}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                    <span className="text-cyan-400 font-bold">{adminModalPlayer.position}</span>
+                    <span>•</span>
+                    <span className="text-purple-300 font-bold">{teamName}</span>
+                  </p>
+                </div>
               </div>
+
               <button
-                onClick={() => setAdminModalPlayer(null)}
-                className="w-7 h-7 rounded-full bg-slate-800 text-slate-300 hover:text-white flex items-center justify-center border border-slate-700"
+                onClick={() => {
+                  setAdminModalPlayer(null);
+                  setSubModalBenchSelect(false);
+                }}
+                className="w-8 h-8 rounded-xl bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center border border-slate-800 transition-colors cursor-pointer"
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
 
-            {!subModalBenchSelect ? (
-              <div className="grid grid-cols-2 gap-2.5">
-                {/* 1. Goal Add & Undo */}
-                <div className="col-span-2 flex gap-2">
-                  <button
-                    onClick={handleAdminGoal}
-                    className="flex-1 p-3 rounded-2xl bg-emerald-950/80 hover:bg-emerald-900/90 border border-emerald-500/60 text-emerald-200 font-bold flex items-center justify-between transition-all shadow-md"
-                  >
-                    <span className="flex items-center gap-1.5">⚽🔥 ثبت گل (+۱)</span>
-                    <span className="text-[10.5px] bg-emerald-900 px-2 py-0.5 rounded font-mono font-bold">
-                      {adminModalPlayer.goals || 0} گل
-                    </span>
-                  </button>
-                  {adminModalPlayer.goals > 0 && (
-                    <button
-                      onClick={handleAdminGoalUndo}
-                      className="px-3 py-3 rounded-2xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 text-rose-200 font-bold flex items-center justify-center gap-1 transition-all"
-                      title="لغو ثبت ۱ گل"
-                    >
-                      <span>↩️</span>
-                      <span className="text-[11px]">لغو گل (-۱)</span>
-                    </button>
-                  )}
-                </div>
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-0.5 py-3 space-y-3">
+              {!subModalBenchSelect ? (
+                <>
+                  {/* FotMob Match Rating Chip Bar */}
+                  <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-slate-800/90 space-y-1.5">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="font-bold text-slate-300">⭐ نمره عملکرد بازیکن (FotMob Rating):</span>
+                      <span className="font-black text-sky-400 font-sport text-xs">{adminModalPlayer.rating || '7.0'} ★</span>
+                    </div>
+                    <div className="grid grid-cols-6 gap-1 font-sport">
+                      {[10.0, 9.5, 9.0, 8.5, 7.5, 6.0].map((r) => (
+                        <button
+                          key={r}
+                          onClick={() => handleAdminSetRating(r)}
+                          className={`py-1 rounded-xl text-[11px] font-black transition-all cursor-pointer ${
+                            adminModalPlayer.rating === r
+                              ? 'bg-sky-500 text-slate-950 shadow-md ring-2 ring-sky-300'
+                              : 'bg-slate-950 text-slate-300 hover:bg-slate-800 border border-slate-800'
+                          }`}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-                {/* 2. Assist Add & Undo */}
-                <div className="col-span-2 flex gap-2">
-                  <button
-                    onClick={handleAdminAssist}
-                    className="flex-1 p-3 rounded-2xl bg-cyan-950/80 hover:bg-cyan-900/90 border border-cyan-500/60 text-cyan-200 font-bold flex items-center justify-between transition-all shadow-md"
-                  >
-                    <span className="flex items-center gap-1.5">🅰️🎯 ثبت پاس گل (+۱)</span>
-                    <span className="text-[10.5px] bg-cyan-900 px-2 py-0.5 rounded font-mono font-bold">
-                      {adminModalPlayer.assists || 0} پاس
-                    </span>
-                  </button>
-                  {adminModalPlayer.assists > 0 && (
-                    <button
-                      onClick={handleAdminAssistUndo}
-                      className="px-3 py-3 rounded-2xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/50 text-rose-200 font-bold flex items-center justify-center gap-1 transition-all"
-                      title="لغو ثبت پاس گل"
-                    >
-                      <span>↩️</span>
-                      <span className="text-[11px]">لغو پاس (-۱)</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* 3. Yellow Card 1 */}
-                <button
-                  onClick={() => handleAdminCardOrInjury('TOGGLE_YELLOW_1')}
-                  className={`p-3 rounded-2xl border font-bold flex items-center justify-between transition-all ${
-                    adminModalPlayer.yellowCards === 1
-                      ? 'bg-amber-900/90 border-amber-400 text-amber-100 shadow-md ring-1 ring-amber-400'
-                      : 'bg-amber-950/40 hover:bg-amber-950/70 border-amber-500/50 text-amber-200'
-                  }`}
-                >
-                  <span className="flex items-center gap-1">🟨⚠️ {adminModalPlayer.yellowCards === 1 ? 'لغو زرد اول' : 'کارت زرد اول'}</span>
-                  {adminModalPlayer.yellowCards === 1 && <span className="text-[10px] bg-amber-950 px-1.5 py-0.5 rounded text-amber-300 font-bold">فعال ↩️</span>}
-                </button>
-
-                {/* 4. Yellow Card 2 */}
-                <button
-                  onClick={() => handleAdminCardOrInjury('TOGGLE_YELLOW_2')}
-                  className={`p-3 rounded-2xl border font-bold flex items-center justify-between transition-all ${
-                    adminModalPlayer.yellowCards === 2
-                      ? 'bg-rose-900/90 border-rose-500 text-rose-100 shadow-md ring-1 ring-rose-500'
-                      : 'bg-amber-950/40 hover:bg-amber-950/70 border-amber-500/50 text-amber-200'
-                  }`}
-                >
-                  <span className="flex items-center gap-1">🟨🟨 {adminModalPlayer.yellowCards === 2 ? 'لغو زرد دوم' : 'زرد دوم (اخراج)'}</span>
-                  {adminModalPlayer.yellowCards === 2 && <span className="text-[10px] bg-rose-950 px-1.5 py-0.5 rounded text-rose-300 font-bold">اخراج ↩️</span>}
-                </button>
-
-                {/* 5. Direct Red */}
-                <button
-                  onClick={() => handleAdminCardOrInjury('TOGGLE_RED')}
-                  className={`p-3 rounded-2xl border font-bold flex items-center justify-between transition-all ${
-                    adminModalPlayer.isRed
-                      ? 'bg-rose-900/90 border-rose-500 text-rose-100 shadow-md ring-1 ring-rose-500'
-                      : 'bg-rose-950/40 hover:bg-rose-950/70 border-rose-500/50 text-rose-200'
-                  }`}
-                >
-                  <span className="flex items-center gap-1">🟥⛔ {adminModalPlayer.isRed ? 'لغو قرمز مستقیم' : 'کارت قرمز مستقیم'}</span>
-                  {adminModalPlayer.isRed && <span className="text-[10px] bg-rose-950 px-1.5 py-0.5 rounded text-rose-300 font-bold">اخراج ↩️</span>}
-                </button>
-
-                {/* 6. Injury */}
-                <button
-                  onClick={() => handleAdminCardOrInjury('TOGGLE_INJURY')}
-                  className={`p-3 rounded-2xl border font-bold flex items-center justify-between transition-all ${
-                    adminModalPlayer.isInjured
-                      ? 'bg-purple-900/90 border-purple-400 text-purple-100 shadow-md ring-1 ring-purple-400'
-                      : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-purple-300'
-                  }`}
-                >
-                  <span className="flex items-center gap-1">🚑🩹 {adminModalPlayer.isInjured ? 'لغو مصدومیت' : 'ثبت مصدومیت'}</span>
-                  {adminModalPlayer.isInjured && <span className="text-[10px] bg-rose-950 px-1.5 py-0.5 rounded text-rose-300 font-bold">مصدوم ↩️</span>}
-                </button>
-
-                {/* 7. Substitution trigger */}
-                <button
-                  onClick={() => setSubModalBenchSelect(true)}
-                  className="col-span-2 mt-1 p-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold flex items-center justify-center gap-2 shadow-lg transition-all border border-purple-400/30"
-                >
-                  <ArrowLeftRight size={16} />
-                  <span>انجام تعویض زنده با بازیکنان نیمکت 🔄⚡</span>
-                </button>
-              </div>
-            ) : (
-              /* Bench selector mode inside modal */
-              <div className="space-y-3">
-                <span className="text-slate-300 font-bold block">
-                  انتخاب بازیکن جایگزین از نیمکت برای تعویض با «{adminModalPlayer.name}»:
-                </span>
-
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
-                  {substitutes.map((bPlayer) => {
-                    const natPos = bPlayer.naturalPosition || bPlayer.position;
-                    const isOut = bPlayer.isSubbedOut;
-
-                    return (
-                      <div
-                        key={bPlayer.id}
-                        onClick={() => {
-                          if (isOut) {
-                            showNotification(`🚫 بازیکن «${bPlayer.name}» قبلاً تعویض شده و طبق قوانین فوتبال دیگر نمی‌تواند به زمین برگردد.`);
-                            return;
-                          }
-                          swapPitchWithBench(adminModalPlayer.id, bPlayer.id, true);
-                          const text = `تعویض زنده ادمین: ورود ${bPlayer.name} (${natPos}) به جای ${adminModalPlayer.name} (${adminModalPlayer.position}) 🔄`;
-                          if (onPushLiveEvent) {
-                            onPushLiveEvent({
-                              id: Date.now(),
-                              type: 'SUB',
-                              text,
-                              team: teamName,
-                              icon: '🔄',
-                              color: 'text-purple-400 border-purple-500/40 bg-purple-950/40',
-                            });
-                          }
-                          setAdminModalPlayer(null);
-                          setSubModalBenchSelect(false);
-                        }}
-                        className={`p-3 rounded-2xl border flex justify-between items-center transition-all ${
-                          isOut
-                            ? 'bg-rose-950/30 border-rose-900/50 opacity-60 cursor-not-allowed'
-                            : 'bg-slate-900 border-slate-800 hover:border-cyan-400 cursor-pointer'
-                        }`}
+                  {/* Goal & Assist Row */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Goal */}
+                    <div className="flex flex-col gap-1.5 p-2 rounded-2xl bg-emerald-950/30 border border-emerald-500/30">
+                      <button
+                        onClick={handleAdminGoal}
+                        className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-slate-950 font-black text-xs flex items-center justify-between transition-all cursor-pointer shadow-md shadow-emerald-900/30"
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-black bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded">
-                            {natPos}
-                          </span>
-                          <span className={`font-bold ${isOut ? 'line-through text-slate-400' : 'text-white'}`}>{bPlayer.name}</span>
-                          {isOut && <span className="text-[9px] bg-rose-600 text-white font-black px-1.5 py-0.2 rounded-full">↩️ OUT</span>}
-                        </div>
-                        <span className="font-mono text-cyan-300 font-bold">OVR {bPlayer.overall}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                        <span className="flex items-center gap-1">⚽ ثبت گل</span>
+                        <span className="text-[10px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded font-mono font-bold">+۱</span>
+                      </button>
+                      {adminModalPlayer.goals > 0 && (
+                        <button
+                          onClick={handleAdminGoalUndo}
+                          className="w-full py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-[10px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                        >
+                          <span>↩️ لغو ۱ گل ({adminModalPlayer.goals})</span>
+                        </button>
+                      )}
+                    </div>
 
-                <button
-                  onClick={() => setSubModalBenchSelect(false)}
-                  className="w-full bg-slate-800 text-slate-300 font-bold py-2 rounded-xl"
-                >
-                  بازگشت به گزینه اتفاقات
-                </button>
-              </div>
-            )}
+                    {/* Assist */}
+                    <div className="flex flex-col gap-1.5 p-2 rounded-2xl bg-cyan-950/30 border border-cyan-500/30">
+                      <button
+                        onClick={handleAdminAssist}
+                        className="w-full py-2 px-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 active:scale-95 text-slate-950 font-black text-xs flex items-center justify-between transition-all cursor-pointer shadow-md shadow-cyan-900/30"
+                      >
+                        <span className="flex items-center gap-1">🅰️ پاس گل</span>
+                        <span className="text-[10px] bg-cyan-950 text-cyan-300 px-1.5 py-0.5 rounded font-mono font-bold">+۱</span>
+                      </button>
+                      {adminModalPlayer.assists > 0 && (
+                        <button
+                          onClick={handleAdminAssistUndo}
+                          className="w-full py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-[10px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                        >
+                          <span>↩️ لغو پاس ({adminModalPlayer.assists})</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Cards & Status: 2x2 Grid */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Yellow 1 */}
+                    <button
+                      onClick={() => handleAdminCardOrInjury('TOGGLE_YELLOW_1')}
+                      className={`p-2.5 rounded-2xl border font-bold flex items-center justify-between text-xs transition-all cursor-pointer ${
+                        adminModalPlayer.yellowCards === 1
+                          ? 'bg-amber-900/90 border-amber-400 text-amber-100 ring-1 ring-amber-400'
+                          : 'bg-slate-900/90 hover:bg-amber-950/40 border-slate-800 hover:border-amber-500/40 text-amber-300'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1">🟨 {adminModalPlayer.yellowCards === 1 ? 'لغو زرد اول' : 'کارت زرد اول'}</span>
+                      {adminModalPlayer.yellowCards === 1 && <span className="text-[9px] bg-amber-950 px-1.5 py-0.5 rounded text-amber-300 font-bold">فعال ↩️</span>}
+                    </button>
+
+                    {/* Yellow 2 */}
+                    <button
+                      onClick={() => handleAdminCardOrInjury('TOGGLE_YELLOW_2')}
+                      className={`p-2.5 rounded-2xl border font-bold flex items-center justify-between text-xs transition-all cursor-pointer ${
+                        adminModalPlayer.yellowCards === 2
+                          ? 'bg-rose-900/90 border-rose-500 text-rose-100 ring-1 ring-rose-500'
+                          : 'bg-slate-900/90 hover:bg-amber-950/40 border-slate-800 hover:border-amber-500/40 text-amber-300'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1">🟨🟨 {adminModalPlayer.yellowCards === 2 ? 'لغو زرد دوم' : 'زرد دوم (اخراج)'}</span>
+                      {adminModalPlayer.yellowCards === 2 && <span className="text-[9px] bg-rose-950 px-1.5 py-0.5 rounded text-rose-300 font-bold">اخراج ↩️</span>}
+                    </button>
+
+                    {/* Direct Red */}
+                    <button
+                      onClick={() => handleAdminCardOrInjury('TOGGLE_RED')}
+                      className={`p-2.5 rounded-2xl border font-bold flex items-center justify-between text-xs transition-all cursor-pointer ${
+                        adminModalPlayer.isRed
+                          ? 'bg-rose-900/90 border-rose-500 text-rose-100 ring-1 ring-rose-500'
+                          : 'bg-slate-900/90 hover:bg-rose-950/40 border-slate-800 hover:border-rose-500/40 text-rose-300'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1">🟥 {adminModalPlayer.isRed ? 'لغو قرمز مستقیم' : 'قرمز مستقیم'}</span>
+                      {adminModalPlayer.isRed && <span className="text-[9px] bg-rose-950 px-1.5 py-0.5 rounded text-rose-300 font-bold">اخراج ↩️</span>}
+                    </button>
+
+                    {/* Injury */}
+                    <button
+                      onClick={() => handleAdminCardOrInjury('TOGGLE_INJURY')}
+                      className={`p-2.5 rounded-2xl border font-bold flex items-center justify-between text-xs transition-all cursor-pointer ${
+                        adminModalPlayer.isInjured
+                          ? 'bg-purple-900/90 border-purple-400 text-purple-100 ring-1 ring-purple-400'
+                          : 'bg-slate-900/90 hover:bg-purple-950/40 border-slate-800 hover:border-purple-500/40 text-purple-300'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1">🚑 {adminModalPlayer.isInjured ? 'لغو مصدومیت' : 'ثبت مصدومیت'}</span>
+                      {adminModalPlayer.isInjured && <span className="text-[9px] bg-rose-950 px-1.5 py-0.5 rounded text-rose-300 font-bold">مصدوم ↩️</span>}
+                    </button>
+                  </div>
+
+                  {/* Substitution Trigger Button */}
+                  <button
+                    onClick={() => setSubModalBenchSelect(true)}
+                    className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold flex items-center justify-center gap-2 shadow-lg transition-all border border-purple-400/30 cursor-pointer active:scale-98 text-xs"
+                  >
+                    <ArrowLeftRight size={15} />
+                    <span>انجام تعویض زنده با بازیکنان نیمکت 🔄⚡</span>
+                  </button>
+                </>
+              ) : (
+                /* Bench selector mode */
+                <div className="space-y-2.5">
+                  <span className="text-slate-300 font-bold text-xs block">
+                    انتخاب بازیکن جایگزین از نیمکت برای تعویض با «{adminModalPlayer.name}»:
+                  </span>
+
+                  <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
+                    {substitutes.map((bPlayer) => {
+                      const natPos = bPlayer.naturalPosition || bPlayer.position;
+                      const isOut = bPlayer.isSubbedOut;
+
+                      return (
+                        <div
+                          key={bPlayer.id}
+                          onClick={() => {
+                            if (isOut) {
+                              showNotification(`🚫 بازیکن «${bPlayer.name}» قبلاً تعویض شده و طبق قوانین فوتبال دیگر نمی‌تواند به زمین برگردد.`);
+                              return;
+                            }
+                            swapPitchWithBench(adminModalPlayer.id, bPlayer.id, true);
+                            const text = `تعویض زنده ادمین: ورود ${bPlayer.name} (${natPos}) به جای ${adminModalPlayer.name} (${adminModalPlayer.position}) 🔄`;
+                            if (onPushLiveEvent) {
+                              onPushLiveEvent({
+                                id: Date.now(),
+                                type: 'SUB',
+                                text,
+                                team: teamName,
+                                icon: '🔄',
+                                color: 'text-purple-400 border-purple-500/40 bg-purple-950/40',
+                              });
+                            }
+                            setAdminModalPlayer(null);
+                            setSubModalBenchSelect(false);
+                          }}
+                          className={`p-2.5 rounded-2xl border flex justify-between items-center transition-all ${
+                            isOut
+                              ? 'bg-rose-950/30 border-rose-900/50 opacity-60 cursor-not-allowed'
+                              : 'bg-slate-900 border-slate-800 hover:border-cyan-400 cursor-pointer'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded">
+                              {natPos}
+                            </span>
+                            <span className={`font-bold text-xs ${isOut ? 'line-through text-slate-400' : 'text-white'}`}>{bPlayer.name}</span>
+                            {isOut && <span className="text-[9px] bg-rose-600 text-white font-black px-1.5 py-0.2 rounded-full">↩️ OUT</span>}
+                          </div>
+                          <span className="font-mono text-cyan-300 font-bold text-xs">OVR {bPlayer.overall}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setSubModalBenchSelect(false)}
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold py-2 rounded-xl border border-slate-800 transition-colors text-xs cursor-pointer"
+                  >
+                    بازگشت به گزینه اتفاقات
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* CONFIRM MODAL: STAMINA RECOVERY */}
+      {actionPlayerToRecover && (
+        <ConfirmModal
+          isOpen={!!actionPlayerToRecover}
+          title="شارژ فوری استقامت بازیکن (Stamina Recovery)"
+          message={`آیا از شارژ ۵۰٪ استقامت «${actionPlayerToRecover.name}» با استفاده از ۱۵ الماس (جم 💎) اطمینان دارید؟`}
+          details={
+            <div className="space-y-1.5 font-sport text-xs">
+              <div className="flex justify-between text-slate-300">
+                <span>استقامت فعلی:</span>
+                <span className="text-amber-400 font-bold dir-ltr">
+                  {Math.round(Number(actionPlayerToRecover.virtual_stamina || actionPlayerToRecover.stamina || 50))}%
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-300">
+                <span>استقامت پس از شارژ:</span>
+                <span className="text-[#00ff87] font-black dir-ltr">
+                  {Math.min(100, Math.round(Number(actionPlayerToRecover.virtual_stamina || actionPlayerToRecover.stamina || 50)) + 50)}% (+۵۰٪)
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-300">
+                <span>هزینه الماس:</span>
+                <span className="text-cyan-300 font-black">۱۵ 💎</span>
+              </div>
+            </div>
+          }
+          confirmText="بله، شارژ استقامت ⚡"
+          cancelText="خیر، انصراف"
+          onConfirm={() => handleRecoverStamina(actionPlayerToRecover)}
+          onCancel={() => setActionPlayerToRecover(null)}
+          loading={isActionLoading}
+        />
+      )}
+
+      {/* CONFIRM MODAL: GEM BOOST / LEVEL UP */}
+      {actionPlayerToBoost && (
+        <ConfirmModal
+          isOpen={!!actionPlayerToBoost}
+          title="ارتقای بازیکن با الماس (Gem Boost)"
+          message={`آیا از ارتقای مستقیم سطح و قدرت «${actionPlayerToBoost.name}» با الماس اطمینان دارید؟`}
+          details={
+            <div className="space-y-2 font-sport text-xs">
+              <div className="flex justify-between text-slate-300">
+                <span>لول فعلی ➔ لول جدید:</span>
+                <span className="text-cyan-300 font-bold dir-ltr">
+                  سطح {actionPlayerToBoost.level || 1} ➔ سطح {(actionPlayerToBoost.level || 1) + 1}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-300">
+                <span>قدرت کلی (OVR):</span>
+                <span className="text-[#00ff87] font-black dir-ltr">
+                  {actionPlayerToBoost.overall} ➔ {actionPlayerToBoost.next_level_target_ovr || getGemBoostTargetOvr(actionPlayerToBoost)}
+                  {(actionPlayerToBoost.level || 1) + 1 >= 20 ? ' (حداکثر PES 99 ⭐)' : ''}
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-300">
+                <span>سقف پتانسیل عادی:</span>
+                <span className="text-purple-300 font-bold dir-ltr">
+                  {actionPlayerToBoost.potential_ovr} (با الماس تا ۹۹ شکسته می‌شود)
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-300 border-t border-slate-700/80 pt-1.5">
+                <span className="text-amber-400 font-bold">هزینه ارتقای این مرحله:</span>
+                <span className="text-amber-300 font-black text-sm">
+                  {actionPlayerToBoost.next_level_gem_cost || getGemBoostCost(actionPlayerToBoost.level || 1)} 💎
+                </span>
+              </div>
+            </div>
+          }
+          confirmText="بله، ارتقای لول ✨"
+          cancelText="خیر، انصراف"
+          onConfirm={() => handleGemBoost(actionPlayerToBoost)}
+          onCancel={() => setActionPlayerToBoost(null)}
+          loading={isActionLoading}
+        />
       )}
     </div>
   );

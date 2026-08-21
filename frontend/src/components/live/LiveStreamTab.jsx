@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Tv, Radio, Activity, CheckCircle2, Sliders, X, Shield, Clock, Timer, Lock, Info, Play, AlertCircle, RefreshCw } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Tv, Radio, Activity, CheckCircle2, Sliders, X, Shield, Clock, Timer, Lock, Info, Play, AlertCircle, RefreshCw, ArrowLeftRight, Check, CheckCircle, AlertTriangle, Layers, ListChecks } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import EFootballGamePlan from '../team/EFootballGamePlan';
 import LiveMatchStandby from './LiveMatchStandby';
+import PostMatchRecapView from './PostMatchRecapView';
 import { matchApi, teamApi } from '../../services/api';
 import CustomSelect from '../common/CustomSelect';
-import { TACTICAL_GUIDES } from '../team/TeamTab';
+import { TACTICAL_GUIDES } from '../../utils/tacticalGuides';
 import notificationSoundService from '../../services/notificationSound';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 
@@ -24,21 +26,28 @@ export default function LiveStreamTab({
   const [liveContext, setLiveContext] = useState(null);
   const [loadingContext, setLoadingContext] = useState(true);
   const [isStandbyBypassed, setIsStandbyBypassed] = useState(false);
+  const [isRecapFinished, setIsRecapFinished] = useState(false);
 
   // Active Match State
   const [activeMatch, setActiveMatch] = useState(null);
   const [events, setEvents] = useState(liveEvents);
-  const [matchState, setMatchState] = useState(currentMatchStatus || 'FIRST_HALF');
+  const [matchState, setMatchState] = useState(currentMatchStatus || 'SCHEDULED');
   const [halfTimeSeconds, setHalfTimeSeconds] = useState(30);
   const [subsCount, setSubsCount] = useState(0);
   const [saveToast, setSaveToast] = useState('');
   const [stoppageTime, setStoppageTime] = useState(0);
   const [matchTelemetryStats, setMatchTelemetryStats] = useState([]);
+  
+  // Event Deduplication Ref
+  const seenEventKeysRef = useRef(new Set());
 
-  // Live Match Stopwatch Clock (MM:SS)
-  const [matchMinutes, setMatchMinutes] = useState(14);
-  const [matchSeconds, setMatchSeconds] = useState(25);
-  const [isClockRunning, setIsClockRunning] = useState(true);
+  // In-Game Changes & Smart Diff State
+  const [inGameChangesList, setInGameChangesList] = useState([]);
+  const [showInGameChangesModal, setShowInGameChangesModal] = useState(false);
+  const [inGameChangesFilter, setInGameChangesFilter] = useState('all');
+  const [isSubmittingChanges, setIsSubmittingChanges] = useState(false);
+  const [liveWorkingLineup, setLiveWorkingLineup] = useState(null);
+  const initialBaselineRef = useRef({ tactics: null, formation: null, startingXi: null });
   
   // Tactical GamePlan State
   const [isTacticsExpanded, setIsTacticsExpanded] = useState(false);
@@ -75,6 +84,10 @@ export default function LiveStreamTab({
         if (res.data.active_match.half_status) {
           setMatchState(res.data.active_match.half_status);
         }
+      } else if (res.data?.next_match) {
+        setMatchState(res.data.next_match.half_status || 'SCHEDULED');
+      } else {
+        setMatchState('SCHEDULED');
       }
     } catch (err) {
       console.warn('Failed to fetch live context:', err);
@@ -106,6 +119,14 @@ export default function LiveStreamTab({
               ...prev,
               ...res.data.gameplan,
             }));
+
+            // Initialize baseline snapshot for smart diffing
+            const starters = (res.data.team?.players || []).filter((p) => p.is_starting);
+            initialBaselineRef.current = {
+              tactics: { ...res.data.gameplan },
+              formation: res.data.gameplan.formation || '4-3-3 (4-2-1-3)',
+              startingXi: starters.map((p) => ({ ...p })),
+            };
           }
         }
       }).catch((err) => console.log('Failed to fetch live gameplan', err));
@@ -153,14 +174,102 @@ export default function LiveStreamTab({
     }
   }, [teamData?.id, teamData?.name, teamData?.logo]);
 
+  // Helper to process & deduplicate live events with sensory chimes
+  const handleProcessLiveEvent = (data) => {
+    if (!data) return;
+    const ev = data.event;
+    const evType = ev?.event_type || data.type || 'LIVE_EVENT';
+    const uniqueKey = data.event_id || ev?.id || data.id || `${evType}_${ev?.minute || ''}_${ev?.player_name || ''}_${data.message || data.custom_text || ''}`;
+
+    if (seenEventKeysRef.current.has(uniqueKey)) {
+      return;
+    }
+    seenEventKeysRef.current.add(uniqueKey);
+
+    // Audio chime for Goals and Red Cards using Web Audio API
+    const isGoal = ['GOAL', 'OWN_GOAL', 'PENALTY_SCORED'].includes(evType);
+    const isRedCard = ['RED', 'SECOND_YELLOW'].includes(evType);
+    if (isGoal || isRedCard) {
+      notificationSoundService.playMatchAlertChime(true);
+    }
+
+    const icon = evType === 'GOAL' ? '⚽'
+      : evType === 'OWN_GOAL' ? '🤦‍♂️'
+      : evType === 'PENALTY_SCORED' ? '🎯'
+      : evType === 'PENALTY_MISSED' ? '❌'
+      : evType === 'YELLOW' ? '🟨'
+      : evType === 'SECOND_YELLOW' ? '🟨🟥'
+      : evType === 'RED' ? '🟥'
+      : evType === 'SUB_IN' || data.type === 'substitution' ? '🔄'
+      : evType === 'VAR' ? '🖥️'
+      : '📢';
+
+    const evText = data.custom_text || data.message || (ev ? `${ev.player_name || ''}: ${ev.detail || ev.event_type_display || ev.event_type}` : 'رویداد زنده مسابقه');
+
+    const newEv = {
+      id: uniqueKey,
+      type: evType,
+      text: evText,
+      team: ev?.player_team_name || data.team_name || 'سیستم داوری',
+      icon: icon,
+      minute: ev?.minute || (matchState === '2ND_HALF' ? 65 : 25),
+      color: isGoal
+        ? 'text-[#00ff87] border-emerald-500/60 bg-emerald-950/70 shadow-[0_0_15px_rgba(0,255,135,0.25)]'
+        : isRedCard
+        ? 'text-rose-300 border-rose-500/70 bg-rose-950/80 shadow-[0_0_15px_rgba(244,63,94,0.25)]'
+        : evType === 'VAR'
+        ? 'text-amber-300 border-amber-500/70 bg-amber-950/80 shadow-[0_0_15px_rgba(245,158,11,0.25)]'
+        : evType === 'SUB_IN' || data.type === 'substitution'
+        ? 'text-cyan-300 border-cyan-500/60 bg-cyan-950/70 shadow-[0_0_15px_rgba(0,243,255,0.2)]'
+        : 'text-cyan-400 border-cyan-500/40 bg-cyan-950/40',
+    };
+
+    setEvents((prev) => [newEv, ...prev]);
+    if (onAddEvent) onAddEvent(newEv);
+  };
+
   // 3. Real-Time WebSocket Connection to Match Channel
   useEffect(() => {
     const matchId = activeMatch?.id || teamNextMatch?.id || liveContext?.active_match?.id || liveContext?.next_match?.id;
     if (!matchId) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.hostname === 'localhost' ? 'localhost:8000' : window.location.host;
+    const host = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? '127.0.0.1:8000'
+      : window.location.host;
     const wsUrl = `${protocol}//${host}/ws/match/${matchId}/`;
+
+    // Fetch initial in-game changes list
+    if (teamData?.id) {
+      matchApi.getInGameChanges(matchId, teamData.id).then((res) => {
+        if (res.data) setInGameChangesList(res.data);
+      }).catch(() => {});
+    }
+
+    // Background fallback sync interval (every 6s) to ensure resilience
+    const syncInterval = setInterval(async () => {
+      try {
+        const res = await matchApi.getMatchLiveState(matchId);
+        if (res.data?.match) {
+          setActiveMatch((prev) => ({ ...prev, ...res.data.match }));
+          if (res.data.match.half_status) {
+            setMatchState(res.data.match.half_status);
+          }
+          if (res.data.match.stoppage_time !== undefined) {
+            setStoppageTime(res.data.match.stoppage_time);
+          }
+          if (res.data.match.team_stats) {
+            setMatchTelemetryStats(res.data.match.team_stats);
+          }
+          if (res.data.match.in_game_changes) {
+            setInGameChangesList(res.data.match.in_game_changes);
+          }
+        }
+        if (res.data?.events && Array.isArray(res.data.events)) {
+          res.data.events.forEach((ev) => handleProcessLiveEvent({ event: ev }));
+        }
+      } catch (_e) {}
+    }, 6000);
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -177,6 +286,40 @@ export default function LiveStreamTab({
             }
             if (data.match.team_stats) {
               setMatchTelemetryStats(data.match.team_stats);
+            }
+            if (data.match.in_game_changes) {
+              setInGameChangesList(data.match.in_game_changes);
+            }
+          }
+
+          // Handle In-Game Changes broadcast events
+          if (data.type === 'new_in_game_change') {
+            if (data.team_id === teamData?.id && Array.isArray(data.changes)) {
+              setInGameChangesList((prev) => [
+                ...data.changes.filter((c) => !prev.some((p) => p.id === c.id)),
+                ...prev,
+              ]);
+            }
+          } else if (data.type === 'in_game_change_applied') {
+            if (data.team_id === teamData?.id) {
+              setInGameChangesList((prev) =>
+                prev.map((c) =>
+                  c.id === data.change_id
+                    ? { ...c, status: 'APPLIED', applied_at: new Date().toISOString() }
+                    : c
+                )
+              );
+              notificationSoundService.playMatchAlertChime();
+              setSaveToast(data.message || data.custom_text || 'پیغام انجام شد: تغییرات شما با موفقیت توسط داور در زمین مسابقه اعمال و تیک خورد ✅');
+              setTimeout(() => setSaveToast(''), 7000);
+            }
+          } else if (data.type === 'in_game_change_rejected') {
+            if (data.team_id === teamData?.id) {
+              setInGameChangesList((prev) =>
+                prev.map((c) =>
+                  c.id === data.change_id ? { ...c, status: 'REJECTED' } : c
+                )
+              );
             }
           }
 
@@ -199,43 +342,17 @@ export default function LiveStreamTab({
             notificationSoundService.playMatchAlertChime();
           } else if (data.type === 'stoppage_time_update') {
             setStoppageTime(data.stoppage_time || 0);
-          } else if (data.type === 'clock_sync') {
-            if (data.current_minute !== undefined) setMatchMinutes(data.current_minute);
-            if (data.stoppage_time !== undefined) setStoppageTime(data.stoppage_time);
+          }
+
+          if (data.type === 'coach_tactics_applied' || data.custom_text?.includes('پیغام انجام شد') || data.message?.includes('پیغام انجام شد')) {
+            const toastMsg = data.message || data.custom_text || 'پیغام انجام شد: تعویض و تغییرات تاکتیکی شما با موفقیت توسط داور در زمین مسابقه اعمال گردید ✅';
+            setSaveToast(toastMsg);
+            notificationSoundService.playMatchAlertChime();
+            setTimeout(() => setSaveToast(''), 7000);
           }
 
           if (data.message || data.event || data.custom_text) {
-            const ev = data.event;
-            const evType = ev?.event_type || data.type;
-            const icon = evType === 'GOAL' ? '⚽' 
-              : evType === 'OWN_GOAL' ? '🤦‍♂️' 
-              : evType === 'PENALTY_SCORED' ? '🎯'
-              : evType === 'PENALTY_MISSED' ? '❌'
-              : evType === 'YELLOW' ? '🟨'
-              : evType === 'SECOND_YELLOW' ? '🟨🟥'
-              : evType === 'RED' ? '🟥'
-              : evType === 'SUB_IN' || data.type === 'substitution' ? '🔄'
-              : evType === 'VAR' ? '🖥️'
-              : '📢';
-
-            const evText = data.custom_text || data.message || (ev ? `${ev.player_name}: ${ev.detail || ev.event_type_display || ev.event_type}` : 'رویداد زنده مسابقه');
-            const newEv = {
-              id: Date.now() + Math.random(),
-              type: data.type || 'LIVE_EVENT',
-              text: evText,
-              team: ev?.player_team_name || data.team_name || 'سیستم داوری',
-              icon: icon,
-              minute: ev?.minute || matchMinutes,
-              color: evType.includes('GOAL') 
-                ? 'text-[#00ff87] border-emerald-500/40 bg-emerald-950/40' 
-                : evType.includes('RED') || evType === 'SECOND_YELLOW'
-                ? 'text-rose-400 border-rose-500/40 bg-rose-950/40'
-                : evType === 'VAR'
-                ? 'text-amber-300 border-amber-500/40 bg-amber-950/40'
-                : 'text-cyan-400 border-cyan-500/40 bg-cyan-950/40',
-            };
-            setEvents((prev) => [newEv, ...prev]);
-            if (onAddEvent) onAddEvent(newEv);
+            handleProcessLiveEvent(data);
           }
 
           // Update scores if provided
@@ -255,33 +372,12 @@ export default function LiveStreamTab({
     }
 
     return () => {
+      clearInterval(syncInterval);
       if (wsRef.current) {
         wsRef.current.close();
       }
     };
-  }, [activeMatch?.id, teamNextMatch?.id, liveContext?.active_match?.id, liveContext?.next_match?.id, onAddEvent, onMatchStatusChange, matchMinutes]);
-
-  // 4. Reactive Polling Fallback (every 4s during live match)
-  useEffect(() => {
-    const matchId = activeMatch?.id || teamNextMatch?.id || liveContext?.active_match?.id;
-    if (!matchId) return;
-
-    const pollTimer = setInterval(async () => {
-      try {
-        const res = await matchApi.getMatchLiveState(matchId);
-        if (res.data?.match) {
-          setActiveMatch(res.data.match);
-          if (res.data.match.half_status && res.data.match.half_status !== matchState) {
-            setMatchState(res.data.match.half_status);
-          }
-        }
-      } catch (_e) {
-        // quiet fallback
-      }
-    }, 4000);
-
-    return () => clearInterval(pollTimer);
-  }, [activeMatch?.id, teamNextMatch?.id, liveContext?.active_match?.id, matchState]);
+  }, [activeMatch?.id, teamNextMatch?.id, liveContext?.active_match?.id, liveContext?.next_match?.id, onAddEvent, onMatchStatusChange, teamData?.id]);
 
   // 5. Half-Time 30-Second Countdown Timer Logic
   useEffect(() => {
@@ -292,8 +388,6 @@ export default function LiveStreamTab({
         setHalfTimeSeconds((prev) => {
           if (prev <= 1) {
             clearInterval(interval);
-            setMatchState('SECOND_HALF');
-            if (onMatchStatusChange) onMatchStatusChange('SECOND_HALF');
             return 0;
           }
           return prev - 1;
@@ -303,70 +397,30 @@ export default function LiveStreamTab({
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [matchState, onMatchStatusChange]);
-
-  // 6. Real-Time Active Match Clock (00:00 -> 90:00)
-  useEffect(() => {
-    if (matchState === 'FIRST_HALF' || matchState === '1ST_HALF') {
-      setIsClockRunning(true);
-      setMatchMinutes((prev) => (prev >= 45 ? 18 : Math.max(1, prev)));
-    } else if (matchState === 'HALF_TIME') {
-      setIsClockRunning(false);
-      setMatchMinutes(45);
-      setMatchSeconds(0);
-    } else if (matchState === 'SECOND_HALF' || matchState === '2ND_HALF') {
-      setIsClockRunning(true);
-      setMatchMinutes((prev) => (prev < 45 ? 46 : prev));
-    } else if (matchState === 'FINISHED') {
-      setIsClockRunning(false);
-      setMatchMinutes(90);
-      setMatchSeconds(0);
-    }
   }, [matchState]);
 
-  useEffect(() => {
-    if (!isClockRunning) return;
-
-    const timer = setInterval(() => {
-      setMatchSeconds((sec) => {
-        if (sec >= 59) {
-          setMatchMinutes((min) => {
-            if ((matchState === 'FIRST_HALF' || matchState === '1ST_HALF') && min >= 45) {
-              return 45;
-            }
-            if ((matchState === 'SECOND_HALF' || matchState === '2ND_HALF') && min >= 90) {
-              return 90;
-            }
-            return min + 1;
-          });
-          return 0;
-        }
-        return sec + 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [isClockRunning, matchState]);
-
-  const formattedMatchTimer = useMemo(() => {
-    const mm = String(matchMinutes).padStart(2, '0');
-    const ss = String(matchSeconds).padStart(2, '0');
+  // Official Match Status Display Text (Persian)
+  const officialMatchStatusText = useMemo(() => {
+    if (matchState === 'FIRST_HALF' || matchState === '1ST_HALF') {
+      return 'شروع نیمه اول';
+    }
     if (matchState === 'HALF_TIME') {
-      return `HT 45:00 (${halfTimeSeconds}s)`;
+      return `بین دو نیمه (${halfTimeSeconds} ثانیه)`;
+    }
+    if (matchState === 'SECOND_HALF' || matchState === '2ND_HALF') {
+      return 'شروع نیمه دوم';
+    }
+    if (matchState === 'EXTRA_TIME') {
+      return 'وقت اضافه';
+    }
+    if (matchState === 'PENALTIES') {
+      return 'ضربات پنالتی';
     }
     if (matchState === 'FINISHED') {
-      return 'FT 90:00';
+      return 'پایان بازی';
     }
-    if (stoppageTime > 0) {
-      if (matchMinutes >= 45 && (matchState === 'FIRST_HALF' || matchState === '1ST_HALF')) {
-        return `45'+${matchMinutes - 45}:${ss}`;
-      }
-      if (matchMinutes >= 90 && (matchState === 'SECOND_HALF' || matchState === '2ND_HALF')) {
-        return `90'+${matchMinutes - 90}:${ss}`;
-      }
-    }
-    return `${mm}:${ss}'`;
-  }, [matchMinutes, matchSeconds, matchState, halfTimeSeconds, stoppageTime]);
+    return 'در انتظار شروع مسابقه';
+  }, [matchState, halfTimeSeconds]);
 
   const homeStatsObj = useMemo(() => {
     const sList = matchTelemetryStats.length > 0 ? matchTelemetryStats : (activeMatch?.team_stats || []);
@@ -388,12 +442,12 @@ export default function LiveStreamTab({
     return sourcePlayers.map((p) => ({
       ...p,
       id: p.id.toString(),
-      stamina: p.virtual_stamina || 90,
-      status: p.is_injured ? 'مصدوم' : (p.virtual_stamina || 90) < 50 ? 'خسته' : 'سالم',
+      stamina: p.virtual_stamina != null ? Math.round(Number(p.virtual_stamina)) : 100,
+      status: p.is_injured ? 'مصدوم' : (Number(p.virtual_stamina ?? 100)) < 40 ? 'خسته' : 'سالم',
       trend: '▲',
       age: p.age || 26,
-      consecutive_games: p.consecutive_games || 3,
-      base_stamina: p.base_stamina || 80,
+      consecutive_games: p.consecutive_games || 0,
+      base_stamina: p.base_stamina || 85,
       position_group: p.position_group || 'CMF',
     }));
   }, [initialPlayers, serverPlayers]);
@@ -406,21 +460,231 @@ export default function LiveStreamTab({
 
   const aparatEmbedSrc = liveStreamUrl || "https://www.aparat.com/embed/live/VML.Emad";
 
+  // Smart Diff Lineup & Tactics Submission Handler (Only sends actual modifications)
   const handleSaveGamePlan = async (updatedPlan) => {
-    const newSubsCount = Math.min(5, subsCount + 1);
-    try {
-      await matchApi.updateLiveTactics({
-        formation: updatedPlan.currentFormation,
-        subsUsed: newSubsCount,
-        startingXi: updatedPlan.startingXi.map((p) => p.id),
-      });
+    const targetFormation = updatedPlan?.currentFormation || liveWorkingLineup?.formation || serverFormation || formation;
+    const targetStartingXi = updatedPlan?.startingXi || liveWorkingLineup?.startingXi || startingXi;
+    const targetSubs = updatedPlan?.substitutes || liveWorkingLineup?.substitutes || substitutes;
+    const currentMatchId = activeMatch?.id || teamNextMatch?.id;
 
-      setSubsCount(newSubsCount);
+    // 1. Smart Tactical Diffing: Compare current tactics vs baseline tactics
+    const baselineTactics = initialBaselineRef.current?.tactics || {};
+    const tacticKeyTitles = {
+      attacking_style: 'سبک حمله',
+      build_up: 'بازیسازی (Build Up)',
+      attacking_area: 'منطقه حمله',
+      positioning: 'جای‌گیری',
+      support_range: 'محدوده پشتیبانی',
+      defensive_style: 'سبک دفاعی',
+      containment_area: 'منطقه مهار',
+      pressing: 'فشار (Pressing)',
+      defensive_line: 'خط دفاعی',
+      compactness: 'تراکم دفاعی',
+      adv_offense_1: 'تاکتیک پیشرفته حمله ۱',
+      adv_offense_2: 'تاکتیک پیشرفته حمله ۲',
+      adv_defense_1: 'تاکتیک پیشرفته دفاع ۱',
+      adv_defense_2: 'تاکتیک پیشرفته دفاع ۲',
+    };
+
+    const changesToSubmit = [];
+
+    // Check changed tactics ONLY
+    Object.keys(tacticKeyTitles).forEach((key) => {
+      const newVal = tactics[key];
+      const oldVal = baselineTactics[key];
+      if (newVal !== undefined && oldVal !== undefined && String(newVal) !== String(oldVal)) {
+        changesToSubmit.push({
+          category: 'TACTIC',
+          title: `تغییر ${tacticKeyTitles[key]}`,
+          detail: `تغییر ${tacticKeyTitles[key]}: از «${oldVal}» به «${newVal}»`,
+          diff_data: { key, oldVal, newVal }
+        });
+      }
+    });
+
+    // Check formation change
+    const oldFormation = initialBaselineRef.current?.formation || formation;
+    if (targetFormation && oldFormation && targetFormation !== oldFormation) {
+      changesToSubmit.push({
+        category: 'FORMATION',
+        title: 'تغییر سیستم بازی',
+        detail: `تغییر سیستم آرایش تیمی از ${oldFormation} به ${targetFormation}`,
+        diff_data: { oldFormation, newFormation: targetFormation }
+      });
+    }
+
+    // Check player substitutions & position/coordinate changes
+    const baselinePlayers = initialBaselineRef.current?.startingXi || startingXi;
+    const baselineStartersMap = new Map(baselinePlayers.map((p) => [String(p.id), p]));
+    const newStartersMap = new Map(targetStartingXi.map((p) => [String(p.id), p]));
+
+    // Substitutions: Players in baselineStarters but missing in newStarters
+    const subbedOutList = baselinePlayers.filter((p) => !newStartersMap.has(String(p.id)));
+    const subbedInList = targetStartingXi.filter((p) => !baselineStartersMap.has(String(p.id)));
+
+    for (let i = 0; i < Math.min(subbedOutList.length, subbedInList.length); i++) {
+      const pOut = subbedOutList[i];
+      const pIn = subbedInList[i];
+      changesToSubmit.push({
+        category: 'SUBSTITUTION',
+        title: `تعویض بازیکن: ورود ${pIn.name}`,
+        detail: `خروج: ${pOut.name} (${pOut.position || 'بازیکن'}) ⬅️ ورود: ${pIn.name} (${pIn.position || 'بازیکن'})`,
+        diff_data: {
+          player_out_id: parseInt(pOut.id),
+          player_out_name: pOut.name,
+          player_in_id: parseInt(pIn.id),
+          player_in_name: pIn.name
+        }
+      });
+    }
+
+    // Detect positional / coordinate moves for players who stayed in starting XI
+    const movedPlayers = [];
+    targetStartingXi.forEach((p) => {
+      const oldP = baselineStartersMap.get(String(p.id));
+      if (oldP) {
+        const posChanged = p.position && oldP.position && p.position !== oldP.position;
+        const xDiff = Math.abs((p.x_coord || 50) - (oldP.x_coord || 50));
+        const yDiff = Math.abs((p.y_coord || 50) - (oldP.y_coord || 50));
+        if (posChanged || xDiff > 6 || yDiff > 6) {
+          movedPlayers.push({
+            current: p,
+            old: oldP,
+            posChanged,
+            xDiff,
+            yDiff,
+          });
+        }
+      }
+    });
+
+    // Pair up direct position / coordinate swaps between 2 players
+    const pairedPlayerIds = new Set();
+
+    for (let i = 0; i < movedPlayers.length; i++) {
+      const p1 = movedPlayers[i];
+      if (pairedPlayerIds.has(String(p1.current.id))) continue;
+
+      for (let j = i + 1; j < movedPlayers.length; j++) {
+        const p2 = movedPlayers[j];
+        if (pairedPlayerIds.has(String(p2.current.id))) continue;
+
+        // Check if p1 and p2 swapped positions or took each other's coordinates
+        const isPositionSwap = (p1.old.position && p2.old.position) &&
+          (p1.old.position === p2.current.position && p2.old.position === p1.current.position);
+
+        const coordDist1 = Math.hypot((p1.current.x_coord || 50) - (p2.old.x_coord || 50), (p1.current.y_coord || 50) - (p2.old.y_coord || 50));
+        const coordDist2 = Math.hypot((p2.current.x_coord || 50) - (p1.old.x_coord || 50), (p2.current.y_coord || 50) - (p1.old.y_coord || 50));
+        const isCoordSwap = coordDist1 < 12 && coordDist2 < 12;
+
+        if (isPositionSwap || isCoordSwap) {
+          pairedPlayerIds.add(String(p1.current.id));
+          pairedPlayerIds.add(String(p2.current.id));
+
+          changesToSubmit.push({
+            category: 'POSITION',
+            title: `جابجایی بازیکن ${p1.current.name} با بازیکن ${p2.current.name}`,
+            detail: `جابجایی بازیکن ${p1.current.name} (${p1.old.position || 'پست سابق'} ⬅️ ${p1.current.position || 'پست جدید'}) با بازیکن ${p2.current.name} (${p2.old.position || 'پست سابق'} ⬅️ ${p2.current.position || 'پست جدید'})`,
+            diff_data: {
+              swap: true,
+              player_a_id: parseInt(p1.current.id),
+              player_a_name: p1.current.name,
+              player_a_old_pos: p1.old.position,
+              player_a_new_pos: p1.current.position,
+              player_b_id: parseInt(p2.current.id),
+              player_b_name: p2.current.name,
+              player_b_old_pos: p2.old.position,
+              player_b_new_pos: p2.current.position,
+            }
+          });
+          break;
+        }
+      }
+    }
+
+    // Add remaining solo moved players (not part of a pair swap)
+    movedPlayers.forEach((item) => {
+      if (!pairedPlayerIds.has(String(item.current.id))) {
+        const p = item.current;
+        const oldP = item.old;
+        changesToSubmit.push({
+          category: 'POSITION',
+          title: `جابجایی پستی «${p.name}»`,
+          detail: item.posChanged
+            ? `تغییر پست ${p.name} از ${oldP.position} به ${p.position}`
+            : `جابجایی مختصات ${p.name} در زمین به (X: ${Math.round(p.x_coord)}%, Y: ${Math.round(p.y_coord)}%)`,
+          diff_data: {
+            player_id: parseInt(p.id),
+            player_name: p.name,
+            old_pos: oldP.position,
+            new_pos: p.position,
+            x_coord: p.x_coord,
+            y_coord: p.y_coord
+          }
+        });
+      }
+    });
+
+    if (changesToSubmit.length === 0) {
+      setSaveToast('⚠️ هیچ تغییری در تاکتیک‌ها، سیستم یا ترکیب بازیکنان ایجاد نشده است.');
+      setTimeout(() => setSaveToast(''), 4500);
+      return;
+    }
+
+    try {
+      setIsSubmittingChanges(true);
+
+      // Save Gameplan to Team in DB
+      if (teamData?.id) {
+        await teamApi.submitGameplan(teamData.id, {
+          tactics: {
+            ...tactics,
+            formation: targetFormation,
+          },
+          players: [
+            ...targetStartingXi.map((p) => ({
+              player_id: parseInt(p.id),
+              x_coord: p.x_coord,
+              y_coord: p.y_coord,
+              position: p.position,
+              is_starting: true,
+            })),
+            ...targetSubs.map((p) => ({
+              player_id: parseInt(p.id),
+              position: p.naturalPosition || p.position,
+              is_starting: false,
+            })),
+          ],
+        });
+      }
+
+      // Submit In-Game Changes to Match Referee Room
+      if (currentMatchId) {
+        const res = await matchApi.submitInGameChanges(currentMatchId, {
+          team_id: teamData?.id,
+          minute: activeMatch?.current_minute || 45,
+          changes: changesToSubmit,
+        });
+
+        if (res.data?.changes) {
+          setInGameChangesList((prev) => [
+            ...res.data.changes.filter((c) => !prev.some((p) => p.id === c.id)),
+            ...prev,
+          ]);
+        }
+      }
+
+      // Update baseline snapshot
+      initialBaselineRef.current = {
+        tactics: { ...tactics },
+        formation: targetFormation,
+        startingXi: targetStartingXi.map((p) => ({ ...p })),
+      };
 
       const newEv = {
         id: Date.now(),
         type: 'TACTICS',
-        text: `بروزرسانی تاکتیک مربی: چیدمان (${updatedPlan.currentFormation}) اعمال شد (تعویض ${newSubsCount} از ۵) ⚡`,
+        text: `ثبت تغییرات مربی: تعداد ${changesToSubmit.length} مورد تغییر تاکتیکی/ترکیب برای اتاق داوری ارسال شد ⚡`,
         team: teamData?.name || 'تیم شما',
         icon: '⚡',
         color: 'text-cyan-400 border-cyan-500/40 bg-cyan-950/40',
@@ -429,20 +693,36 @@ export default function LiveStreamTab({
       setEvents((prev) => [newEv, ...prev]);
       if (onAddEvent) onAddEvent(newEv);
 
-      setSaveToast(`تغییرات ترکیبی با موفقیت ثبت شد (تعویض‌های مصرف‌شده: ${newSubsCount} از ۵).`);
-      setTimeout(() => setSaveToast(''), 4500);
-      setIsTacticsExpanded(false);
+      setSaveToast(`✅ تعداد ${changesToSubmit.length} مورد تغییر با موفقیت به اتاق داوری ارسال شد.`);
+      notificationSoundService.playMatchAlertChime();
+      setTimeout(() => setSaveToast(''), 6000);
     } catch (_error) {
-      setSaveToast('خطا در ارتباط با سرور. لطفاً دوباره تلاش کنید.');
+      setSaveToast('خطا در ارسال تغییرات به داوری. لطفاً دوباره تلاش کنید.');
       setTimeout(() => setSaveToast(''), 4500);
+    } finally {
+      setIsSubmittingChanges(false);
     }
   };
 
   // -------------------------------------------------------------
-  // TIME-GATING CHECK: Render Standby Screen if not active & not bypassed
+  // CURRENT MATCH SELECTION & 3-PHASE SMART STATE MACHINE
   // -------------------------------------------------------------
-  const isMatchLive = isStandbyBypassed || Boolean(liveContext?.has_active_match) || activeMatch?.status === 'LIVE';
-  
+  const currentMatch = activeMatch || teamNextMatch || liveContext?.active_match || liveContext?.next_match;
+  const displayMatch = currentMatch;
+
+  let displaySeconds = liveContext?.time_to_kickoff_seconds;
+  if (displayMatch?.date) {
+    displaySeconds = Math.max(0, Math.floor((new Date(displayMatch.date).getTime() - Date.now()) / 1000));
+  }
+
+  const isMatchFinished = matchState === 'FINISHED' || currentMatch?.status === 'FINISHED' || currentMatch?.half_status === 'FINISHED';
+  // A match is LIVE strictly when admin has started it (status === 'LIVE' or active half_status). Never auto-start on time reached!
+  const isMatchLive = !isMatchFinished && (
+    currentMatch?.status === 'LIVE' ||
+    ['1ST_HALF', 'HALF_TIME', '2ND_HALF', 'EXTRA_TIME', 'PENALTIES'].includes(matchState) ||
+    ['1ST_HALF', 'HALF_TIME', '2ND_HALF', 'EXTRA_TIME', 'PENALTIES'].includes(currentMatch?.half_status)
+  );
+
   if (loadingContext && !liveContext) {
     return (
       <div className="p-16 text-center text-cyan-400 font-bold flex flex-col items-center justify-center gap-3">
@@ -452,19 +732,48 @@ export default function LiveStreamTab({
     );
   }
 
-  if (!isMatchLive && !isStandbyBypassed) {
-    const displayMatch = teamNextMatch || liveContext?.next_match;
-    let displaySeconds = liveContext?.time_to_kickoff_seconds;
-    if (teamNextMatch?.date) {
-      displaySeconds = Math.max(0, Math.floor((new Date(teamNextMatch.date).getTime() - Date.now()) / 1000));
-    }
+  // -------------------------------------------------------------
+  // PHASE 3: POST-MATCH 10-MINUTE RECAP COUNTDOWN & FULL-TIME STATS
+  // -------------------------------------------------------------
+  if (isMatchFinished && !isRecapFinished) {
+    return (
+      <PostMatchRecapView
+        match={currentMatch}
+        userTeamData={teamData}
+        initialCountdownSeconds={600}
+        onReturnToStandby={() => {
+          setIsRecapFinished(true);
+          setIsStandbyBypassed(false);
+          setMatchState('SCHEDULED');
+          if (teamData?.id) {
+            matchApi.getTeamSchedule(teamData.id).then((res) => {
+              const matches = res.data || [];
+              const nextSched = matches.find((m) => m.status === 'SCHEDULED' && m.id !== currentMatch?.id) || matches[0];
+              if (nextSched) {
+                setActiveMatch(nextSched);
+                setTeamNextMatch(nextSched);
+              }
+            }).catch(() => {});
+          }
+        }}
+      />
+    );
+  }
 
+  // -------------------------------------------------------------
+  // PHASE 1: PRE-MATCH STANDBY COUNTDOWN SCREEN
+  // -------------------------------------------------------------
+  if (!isMatchLive && !isStandbyBypassed) {
     return (
       <LiveMatchStandby
         nextMatch={displayMatch}
         initialSeconds={displaySeconds}
         isWithinReminder={displaySeconds != null && displaySeconds <= 900 && displaySeconds > 0}
-        onUnlockLive={() => setIsStandbyBypassed(true)}
+        onUnlockLive={() => {
+          if (currentMatch?.status === 'LIVE') {
+            setIsStandbyBypassed(true);
+          }
+        }}
         isAdmin={isAdmin}
         teamName={teamData?.name}
         onAdminOverride={() => {
@@ -479,9 +788,8 @@ export default function LiveStreamTab({
   }
 
   // -------------------------------------------------------------
-  // ACTIVE LIVE MATCH BROADCAST VIEW
+  // PHASE 2: ACTIVE LIVE MATCH BROADCAST & TACTICS VIEW
   // -------------------------------------------------------------
-  const currentMatch = activeMatch || teamNextMatch || liveContext?.active_match || liveContext?.next_match;
 
   const isUserHome = teamData?.id ? (currentMatch?.home_team === teamData.id || currentMatch?.home_team_name === teamData.name) : true;
 
@@ -534,16 +842,39 @@ export default function LiveStreamTab({
           </div>
         </div>
 
-        {/* Dynamic Match Clock and Live Indicator */}
+        {/* Official Match Status Badge and Live Indicator */}
         <div className="flex items-center gap-2.5 self-end md:self-auto font-sport">
-          {/* Active Live Match Clock */}
-          <div className="flex items-center gap-2 bg-[#05080e]/95 px-4 py-2 rounded-2xl border border-amber-400/40 shadow-[0_0_15px_rgba(245,158,11,0.25)]">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
-            <span className="text-sm sm:text-base font-black text-amber-300 tracking-wider">
-              {formattedMatchTimer}
-            </span>
-            <span className="text-[10px] text-cyan-300 font-black font-sans px-1.5 py-0.5 bg-cyan-950/80 rounded-md border border-cyan-500/30">
-              {matchState === 'FIRST_HALF' || matchState === '1ST_HALF' ? 'نیمه اول' : matchState === 'HALF_TIME' ? 'بین دو نیمه' : matchState === 'SECOND_HALF' || matchState === '2ND_HALF' ? 'نیمه دوم' : 'پایان بازی'}
+          {/* Coach In-Game Changes Desk Modal Trigger */}
+          <button
+            onClick={() => setShowInGameChangesModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 text-xs font-black transition-all shadow-lg active:scale-95 cursor-pointer font-sans"
+          >
+            <ListChecks size={16} className="text-cyan-400" />
+            <span>تغییرات حین بازی</span>
+            {inGameChangesList.length > 0 && (
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-sport font-black ${
+                inGameChangesList.some((c) => c.status === 'PENDING')
+                  ? 'bg-amber-400 text-slate-950 animate-pulse'
+                  : 'bg-emerald-400 text-slate-950'
+              }`}>
+                {inGameChangesList.length}
+              </span>
+            )}
+          </button>
+
+          {/* Active Live Match Status */}
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl border shadow-lg ${
+            matchState === 'HALF_TIME'
+              ? 'bg-amber-950/90 border-amber-400/60 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.3)]'
+              : matchState === 'FINISHED'
+              ? 'bg-emerald-950/90 border-emerald-500/50 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+              : 'bg-[#05080e]/95 border-cyan-400/40 text-cyan-300 shadow-[0_0_15px_rgba(0,243,255,0.25)]'
+          }`}>
+            <span className={`w-2.5 h-2.5 rounded-full ${
+              matchState === 'HALF_TIME' ? 'bg-amber-400 animate-ping' : matchState === 'FINISHED' ? 'bg-emerald-400' : 'bg-rose-500 animate-ping'
+            }`}></span>
+            <span className="text-xs sm:text-sm font-black font-sans tracking-wide">
+              {officialMatchStatusText}
             </span>
           </div>
 
@@ -571,8 +902,8 @@ export default function LiveStreamTab({
           <span className="font-black text-white flex items-center gap-2">
             <Radio size={16} className="animate-pulse text-rose-500" />
             <span>استریم زنده مسابقه مستر لیگ</span>
-            <span className="text-amber-300 font-sport font-black bg-amber-950/80 px-2 py-0.5 rounded-lg border border-amber-500/40 text-[11px]">
-              ⏱️ {formattedMatchTimer}
+            <span className="text-cyan-300 font-sans font-black bg-cyan-950/80 px-2.5 py-0.5 rounded-lg border border-cyan-500/40 text-[11px]">
+              📢 {officialMatchStatusText}
             </span>
           </span>
           <span className="text-[10.5px] text-cyan-300 font-sport font-bold bg-cyan-950/80 px-2.5 py-0.5 rounded-full border border-cyan-500/30">
@@ -896,6 +1227,18 @@ export default function LiveStreamTab({
                     </div>
                   </div>
                 )}
+
+                {/* Unified Single Tactics & Lineup Submit Button */}
+                <div className="flex justify-end pt-1">
+                  <button
+                    onClick={() => handleSaveGamePlan({ currentFormation: liveWorkingLineup?.formation || serverFormation || formation, startingXi: liveWorkingLineup?.startingXi || startingXi, substitutes: liveWorkingLineup?.substitutes || substitutes })}
+                    disabled={isSubmittingChanges}
+                    className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black px-7 py-3 rounded-2xl shadow-xl transition-all text-xs flex items-center justify-center gap-2 cursor-pointer active:scale-95 border border-emerald-300 font-sport disabled:opacity-50"
+                  >
+                    <span className="text-sm">⚡</span>
+                    <span>{isSubmittingChanges ? 'در حال بررسی تفاوت‌ها و ارسال...' : 'ارسال ترکیب و تاکتیک به داوری'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Full Interactive Pitch with Live Sub Capabilities */}
@@ -906,7 +1249,9 @@ export default function LiveStreamTab({
                 initialSubstitutes={substitutes}
                 initialReserves={reserves}
                 onSaveGamePlan={handleSaveGamePlan}
+                onLineupChange={(lineupData) => setLiveWorkingLineup(lineupData)}
                 readOnly={false}
+                hideReserves={true}
                 isAdminMode={false}
                 isLiveMode={true}
                 matchState={matchState}
@@ -919,6 +1264,151 @@ export default function LiveStreamTab({
           )}
         </AnimatePresence>
       </div>
+
+      {/* ------------------------------------------------------------- */}
+      {/* 4. MODAL: COACH IN-GAME CHANGES LIVE MONITOR                  */}
+      {/* ------------------------------------------------------------- */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showInGameChangesModal && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md overflow-y-auto">
+              <div
+                className="fixed inset-0"
+                onClick={() => setShowInGameChangesModal(false)}
+              />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                className="relative z-10 bg-slate-950 border-2 border-cyan-500/40 rounded-3xl w-full max-w-2xl overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.9)] space-y-4 max-h-[85vh] flex flex-col p-5 my-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-cyan-950 text-cyan-400 border border-cyan-500/40">
+                      <ListChecks size={20} />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-sm sm:text-base text-white">تغییرات حین بازی و وضعیت داوری</h3>
+                      <p className="text-[11px] text-slate-400">پیگیری لحظه‌ای وضعیت تایید تعویض‌ها، جابجایی‌ها و تاکتیک‌های ارسالی</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowInGameChangesModal(false)}
+                    className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-700 transition-all cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Status Filters */}
+                <div className="flex gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 text-xs">
+                  {[
+                    { key: 'all', label: 'همه درخواست‌ها', count: inGameChangesList.length },
+                    { key: 'pending', label: 'در انتظار داور', count: inGameChangesList.filter(c => c.status === 'PENDING').length },
+                    { key: 'applied', label: 'تایید و اعمال شده ✓', count: inGameChangesList.filter(c => c.status === 'APPLIED').length },
+                    { key: 'rejected', label: 'رد شده ✗', count: inGameChangesList.filter(c => c.status === 'REJECTED').length },
+                  ].map(tab => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setInGameChangesFilter(tab.key)}
+                      className={`flex-1 py-1.5 rounded-xl font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
+                        inGameChangesFilter === tab.key
+                          ? 'bg-cyan-600 text-white shadow-md'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      <span className="text-[10px] font-sport px-1.5 py-0.2 rounded-full bg-black/40 text-cyan-200">
+                        {tab.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Changes Feed List */}
+                <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
+                  {inGameChangesList
+                    .filter(item => {
+                      if (inGameChangesFilter === 'pending') return item.status === 'PENDING';
+                      if (inGameChangesFilter === 'applied') return item.status === 'APPLIED';
+                      if (inGameChangesFilter === 'rejected') return item.status === 'REJECTED';
+                      return true;
+                    })
+                    .map((change) => {
+                      const isApplied = change.status === 'APPLIED';
+                      const isPending = change.status === 'PENDING';
+                      const isRejected = change.status === 'REJECTED';
+
+                      const categoryIcon = change.change_category === 'SUBSTITUTION' ? '🔄'
+                        : change.change_category === 'POSITION' ? '📍'
+                        : change.change_category === 'FORMATION' ? '⚡'
+                        : '⚙️';
+
+                      return (
+                        <div
+                          key={change.id}
+                          className={`p-3.5 rounded-2xl border-2 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md ${
+                            isApplied
+                              ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-200'
+                              : isPending
+                              ? 'bg-amber-950/20 border-amber-500/50 text-amber-200'
+                              : 'bg-rose-950/20 border-rose-500/40 text-rose-200'
+                          }`}
+                        >
+                          <div className="space-y-1 overflow-hidden">
+                            <div className="flex items-center gap-2">
+                              <span className="text-base shrink-0">{categoryIcon}</span>
+                              <span className="font-black text-xs text-white truncate">{change.title}</span>
+                              <span className="text-[10px] font-sport text-slate-400">
+                                {change.minute ? `دقیقه '${change.minute}` : ''}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-300 leading-relaxed pr-6">
+                              {change.detail}
+                            </p>
+                          </div>
+
+                          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-1 shrink-0">
+                            <span className={`px-2.5 py-1 rounded-xl text-[10px] font-black border flex items-center gap-1 ${
+                              isApplied
+                                ? 'bg-emerald-900/90 text-emerald-200 border-emerald-400'
+                                : isPending
+                                ? 'bg-amber-900/90 text-amber-200 border-amber-400 animate-pulse'
+                                : 'bg-rose-900/90 text-rose-200 border-rose-400'
+                            }`}>
+                              {isApplied && <Check size={12} className="text-emerald-300" />}
+                              {isPending && <Clock size={12} className="text-amber-300" />}
+                              {isRejected && <X size={12} className="text-rose-300" />}
+                              <span>{change.status_display || (isApplied ? 'تایید و اعمال شد ✓' : isPending ? 'در انتظار تایید داور ⏳' : 'رد شده ✗')}</span>
+                            </span>
+
+                            <span className="text-[9px] text-slate-500 font-sport">
+                              {change.created_at ? new Date(change.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {inGameChangesList.length === 0 && (
+                    <div className="p-8 text-center text-slate-400 space-y-2 bg-slate-900/40 rounded-2xl border border-slate-800">
+                      <Info size={28} className="text-cyan-400 mx-auto" />
+                      <h4 className="font-bold text-white text-xs">هنوز تغییری ارسال نشده است</h4>
+                      <p className="text-[11px] text-slate-500">
+                        هرگونه تعویض، جابجایی بازیکن یا تغییر تاکتیکی که در جریان بازی ارسال کنید، در این قسمت وضعیت تایید داور را نشان می‌دهد.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

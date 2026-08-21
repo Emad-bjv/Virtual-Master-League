@@ -15,6 +15,11 @@ class Team(models.Model):
     gems = models.PositiveIntegerField(default=0, verbose_name="جم (ارز ارتقا/گاچا)")
     wage_cap = models.DecimalField(max_digits=15, decimal_places=2, default=10000.00, verbose_name="سقف دستمزد")
     default_formation = models.CharField(max_length=20, default='4-3-3', verbose_name="ترکیب پیش‌فرض")
+    star_rating = models.DecimalField(
+        max_digits=2, decimal_places=1, default=Decimal('4.5'),
+        validators=[MinValueValidator(Decimal('0.5')), MaxValueValidator(Decimal('5.0'))],
+        verbose_name="قدرت ستاره تیم (۰.۵ تا ۵)"
+    )
 
     class Meta:
         verbose_name = "تیم"
@@ -22,6 +27,37 @@ class Team(models.Model):
 
     def __str__(self):
         return self.name
+
+    def calculate_star_rating(self) -> Decimal:
+        starters = list(self.players.filter(is_starting=True).order_by('-overall'))
+        if not starters:
+            starters = list(self.players.all().order_by('-overall')[:11])
+        if not starters:
+            return Decimal('3.0')
+        
+        avg_ovr = sum(p.overall for p in starters) / len(starters)
+        if avg_ovr >= 86.0:
+            return Decimal('5.0')
+        elif avg_ovr >= 84.5:
+            return Decimal('4.5')
+        elif avg_ovr >= 82.5:
+            return Decimal('4.0')
+        elif avg_ovr >= 80.5:
+            return Decimal('3.5')
+        elif avg_ovr >= 78.5:
+            return Decimal('3.0')
+        elif avg_ovr >= 75.5:
+            return Decimal('2.5')
+        elif avg_ovr >= 72.5:
+            return Decimal('2.0')
+        return Decimal('1.5')
+
+    def update_star_rating(self, save=True) -> Decimal:
+        stars = self.calculate_star_rating()
+        self.star_rating = stars
+        if save:
+            self.save(update_fields=['star_rating'])
+        return stars
 
 
 class ClubFacilities(models.Model):
@@ -33,7 +69,6 @@ class ClubFacilities(models.Model):
     pool_level = models.PositiveIntegerField(default=0, verbose_name="سطح استخر بازیابی")
     stadium_level = models.PositiveIntegerField(default=0, verbose_name="سطح استادیوم")
     academy_level = models.PositiveIntegerField(default=0, verbose_name="سطح آکادمی جوانان")
-    scouting_level = models.PositiveIntegerField(default=0, verbose_name="سطح استعدادیابی بین‌المللی")
 
     class Meta:
         verbose_name = "تسهیلات باشگاه"
@@ -78,10 +113,13 @@ class Player(models.Model):
     ]
 
     team = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='players', verbose_name="تیم فعلی")
+    loan_owner_team = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='loaned_out_players', verbose_name="تیم اصلی (مالک)")
+    loan_matches_left = models.PositiveIntegerField(default=0, verbose_name="بازی‌های باقیمانده از قرارداد قرضی")
     name = models.CharField(max_length=100, verbose_name="نام بازیکن")
     age = models.PositiveIntegerField(verbose_name="سن")
     position = models.CharField(max_length=3, choices=POSITIONS, verbose_name="پست اصلی")
     overall = models.PositiveIntegerField(verbose_name="اورال (OVR)")
+    base_overall = models.PositiveIntegerField(null=True, blank=True, default=None, verbose_name="اورال اولیه/پایه")
     potential_ovr = models.PositiveIntegerField(default=99, verbose_name="سقف پتانسیل (Potential OVR)")
     base_stamina = models.PositiveIntegerField(verbose_name="استقامت پایه PES", help_text="مقدار Stamina ability بازیکن در PES (0-99)")
     virtual_stamina = models.DecimalField(
@@ -98,7 +136,8 @@ class Player(models.Model):
     suspension_matches = models.PositiveIntegerField(default=0, verbose_name="بازی‌های محرومیت")
     yellow_card_accumulator = models.PositiveIntegerField(default=0, verbose_name="کارت زرد تجمیعی")
     training_points = models.PositiveIntegerField(default=0, verbose_name="امتیاز تمرین")
-    wage = models.DecimalField(max_digits=10, decimal_places=2, default=100.0, verbose_name="دستمزد")
+    wage = models.DecimalField(max_digits=12, decimal_places=2, default=100.0, verbose_name="دستمزد")
+    market_value = models.DecimalField(max_digits=15, decimal_places=2, default=Decimal('1000000.00'), verbose_name="ارزش پایه / ارزش بازار (EUR)")
     rarity = models.CharField(max_length=20, default='REGULAR', verbose_name="درجه کارت (Rarity)")
     growth_buffer = models.DecimalField(
         max_digits=6, decimal_places=2, default=Decimal('0.00'),
@@ -110,6 +149,20 @@ class Player(models.Model):
     x_coord = models.FloatField(default=0.0, verbose_name="مختصات X در ترکیب")
     y_coord = models.FloatField(default=0.0, verbose_name="مختصات Y در ترکیب")
     is_starting = models.BooleanField(default=False, verbose_name="فیکس است؟")
+
+    # --- Player Level Progression System ---
+    level = models.PositiveIntegerField(
+        default=1, verbose_name="لول بازیکن",
+        help_text="سطح فعلی بازیکن (۱ تا ۲۰). هر لول ability‌های پست‌محور را تقویت می‌کند."
+    )
+    xp = models.PositiveIntegerField(
+        default=0, verbose_name="XP فعلی",
+        help_text="تجربه جمع‌شده در لول فعلی. با رسیدن به حد نصاب، لول‌آپ اتفاق می‌افتد."
+    )
+    total_xp = models.PositiveIntegerField(
+        default=0, verbose_name="XP کل (تجمیعی)",
+        help_text="مجموع کل XP کسب‌شده از ابتدا (برای آمار و رتبه‌بندی)."
+    )
 
     class Meta:
         verbose_name = "بازیکن"
@@ -217,3 +270,78 @@ class TeamGamePlan(models.Model):
     def __str__(self):
         status = "ارسال شده" if self.is_submitted else "پیش‌نویس"
         return f"ترکیب {self.team.name} ({status})"
+
+
+class PlayerLevelConfig(models.Model):
+    """
+    جدول XP مورد نیاز هر لول — توسط ادمین قابل تنظیم.
+    هر ردیف مشخص می‌کند از لول N به N+1 چقدر XP لازم است.
+    """
+    level = models.PositiveIntegerField(unique=True, verbose_name="لول")
+    xp_required = models.PositiveIntegerField(verbose_name="XP مورد نیاز برای رسیدن به این لول")
+
+    class Meta:
+        verbose_name = "تنظیمات لول بازیکن"
+        verbose_name_plural = "تنظیمات لول‌های بازیکن"
+        ordering = ['level']
+
+    def __str__(self):
+        return f"لول {self.level} → {self.xp_required} XP"
+
+
+class PlayerLevelUpLog(models.Model):
+    """
+    تاریخچه هر لول‌آپ بازیکن — شامل منبع XP و جزئیات.
+    """
+    XP_SOURCE_CHOICES = [
+        ('MATCH', 'عملکرد در بازی'),
+        ('FACILITY', 'ارتقای تسهیلات باشگاه'),
+        ('GEM_BOOST', 'ارتقا با جم'),
+    ]
+
+    player = models.ForeignKey(
+        Player, on_delete=models.CASCADE,
+        related_name='level_up_logs', verbose_name="بازیکن"
+    )
+    old_level = models.PositiveIntegerField(verbose_name="لول قبلی")
+    new_level = models.PositiveIntegerField(verbose_name="لول جدید")
+    xp_source = models.CharField(
+        max_length=15, choices=XP_SOURCE_CHOICES,
+        verbose_name="منبع XP"
+    )
+    xp_amount = models.PositiveIntegerField(verbose_name="مقدار XP اعطا شده")
+    details = models.TextField(blank=True, verbose_name="جزئیات")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="زمان لول‌آپ")
+
+    class Meta:
+        verbose_name = "تاریخچه لول‌آپ بازیکن"
+        verbose_name_plural = "تاریخچه لول‌آپ‌های بازیکنان"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.player.name}: لول {self.old_level} → {self.new_level} ({self.get_xp_source_display()})"
+
+
+# ==========================================
+# Automatic Team Star Rating Update Signals
+# ==========================================
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+
+@receiver(post_save, sender=Player)
+def auto_update_team_stars_on_player_save(sender, instance, update_fields=None, **kwargs):
+    """Automatically recalculates and updates team star rating whenever players are edited or transferred."""
+    if instance.team_id:
+        try:
+            instance.team.update_star_rating(save=True)
+        except Exception:
+            pass
+
+@receiver(post_delete, sender=Player)
+def auto_update_team_stars_on_player_delete(sender, instance, **kwargs):
+    """Automatically recalculates and updates team star rating when a player is removed."""
+    if instance.team_id:
+        try:
+            instance.team.update_star_rating(save=True)
+        except Exception:
+            pass

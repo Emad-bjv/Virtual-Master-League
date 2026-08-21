@@ -23,7 +23,9 @@ class TransferMarketListView(generics.ListAPIView):
     serializer_class = TransferListingSerializer
 
     def get_queryset(self):
-        queryset = TransferListing.objects.filter(status='ACTIVE')
+        queryset = TransferListing.objects.filter(status='ACTIVE').select_related(
+            'player', 'seller_team', 'buyer_team', 'highest_bidder'
+        )
         position = self.request.query_params.get('position')
         min_price = self.request.query_params.get('min_price')
         max_price = self.request.query_params.get('max_price')
@@ -68,7 +70,7 @@ class CreateListingView(views.APIView):
 
 class BuyPlayerDirectView(views.APIView):
     """
-    Buys a fixed-price player directly.
+    Buys a listed player directly at the fixed asking price.
     """
     def post(self, request):
         if not hasattr(request.user, 'team') or request.user.team is None:
@@ -79,7 +81,10 @@ class BuyPlayerDirectView(views.APIView):
         if not listing_id:
             return Response({'error': 'listing_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        result = buy_player_direct(buyer_team_id=int(buyer_team_id), listing_id=int(listing_id))
+        result = buy_player_direct(
+            buyer_team_id=int(buyer_team_id),
+            listing_id=int(listing_id)
+        )
 
         if result['success']:
             return Response(result, status=status.HTTP_200_OK)
@@ -89,7 +94,7 @@ class BuyPlayerDirectView(views.APIView):
 
 class PlaceBidView(views.APIView):
     """
-    Places a bid on an auction listing.
+    Places a bid on an auction-style listing.
     """
     throttle_scope = 'transfer_bid'
     
@@ -133,47 +138,97 @@ class TransferHistoryListView(generics.ListAPIView):
     """
     Returns global transfer history.
     """
-    queryset = TransferHistory.objects.all()
+    queryset = TransferHistory.objects.all().select_related('player', 'seller_team', 'buyer_team')
     serializer_class = TransferHistorySerializer
 
 
 class LeagueDirectoryAPIView(generics.ListAPIView):
     serializer_class = LeagueTeamSerializer
-    queryset = Team.objects.all()
+    queryset = Team.objects.all().prefetch_related('players')
+
+def get_authenticated_user_team(request):
+    user = request.user
+    if not user or not user.is_authenticated:
+        return None
+    # 1. From explicit sender_team_id if sent
+    sender_id = request.data.get('sender_team_id') if hasattr(request, 'data') else None
+    if sender_id:
+        t = Team.objects.filter(id=sender_id).first()
+        if t and (t.manager == user or user.is_staff or user.is_superuser or getattr(user, 'role', '') == 'admin'):
+            return t
+    # 2. From team where user is manager
+    t = Team.objects.filter(manager=user).first()
+    if t:
+        return t
+    # 3. From user.team reverse relation safely
+    try:
+        if hasattr(user, 'team') and user.team:
+            return user.team
+    except Exception:
+        pass
+    # 4. If superuser or admin, fallback to first team (e.g. Milan)
+    if user.is_staff or user.is_superuser or getattr(user, 'role', '') == 'admin':
+        return Team.objects.filter(name__icontains='Milan').first() or Team.objects.first()
+    return None
+
 
 class TransferOfferCreateView(views.APIView):
     def post(self, request):
-        if not hasattr(request.user, 'team') or not request.user.team:
-            return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+        user_team = get_authenticated_user_team(request)
+        if not user_team:
+            return Response({'error': 'تیم شما مشخص نیست. لطفاً مجدداً وارد حساب کاربری خود شوید.'}, status=status.HTTP_403_FORBIDDEN)
             
-        target_player_id = request.data.get('target_player_id')
+        sender_team_id = user_team.id
         receiver_team_id = request.data.get('receiver_team_id')
+        player_id = request.data.get('player_id')
+        offer_type = request.data.get('offer_type', 'PERMANENT')
+        cash_amount = request.data.get('cash_amount', 0)
+        offered_player_id = request.data.get('offered_player_id')
+        loan_matches = request.data.get('loan_matches')
+        loan_wage_percentage = request.data.get('loan_wage_percentage', 100)
+        message = request.data.get('message', '')
         
         result = create_transfer_offer(
-            sender_team_id=request.user.team.id,
+            sender_team_id=sender_team_id,
             receiver_team_id=receiver_team_id,
-            target_player_id=target_player_id,
-            data=request.data
+            player_id=player_id,
+            offer_type=offer_type,
+            cash_amount=cash_amount,
+            offered_player_id=offered_player_id,
+            loan_matches=loan_matches,
+            loan_wage_percentage=loan_wage_percentage,
+            message=message
         )
-        if result['success']:
+        
+        if result.get('success'):
             return Response(result, status=status.HTTP_201_CREATED)
         return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
-class TransferInboxAPIView(generics.ListAPIView):
+class TransferOfferListView(generics.ListAPIView):
     serializer_class = TransferOfferSerializer
     
     def get_queryset(self):
-        if not hasattr(self.request.user, 'team') or not self.request.user.team:
+        user_team = get_authenticated_user_team(self.request)
+        if not user_team:
             return TransferOffer.objects.none()
-        team = self.request.user.team
-        return TransferOffer.objects.filter(Q(sender_team=team) | Q(receiver_team=team)).order_by('-created_at')
+        # Exclude superseded offers so only latest active / completed offers are displayed
+        return TransferOffer.objects.filter(
+            Q(sender_team=user_team) | Q(receiver_team=user_team)
+        ).select_related(
+            'player', 'sender_team', 'receiver_team', 'offered_player'
+        ).exclude(
+            status='SUPERSEDED'
+        ).order_by('-updated_at')
+
+TransferInboxAPIView = TransferOfferListView
 
 class TransferOfferActionView(views.APIView):
     def post(self, request, pk, action):
-        if not hasattr(request.user, 'team') or not request.user.team:
+        user_team = get_authenticated_user_team(request)
+        if not user_team:
             return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
             
-        team_id = request.user.team.id
+        team_id = user_team.id
         if action == 'accept':
             result = accept_transfer_offer(pk, team_id)
         elif action == 'reject':
@@ -181,20 +236,74 @@ class TransferOfferActionView(views.APIView):
         else:
             return Response({'error': 'Invalid action'}, status=status.HTTP_400_BAD_REQUEST)
             
-        if result['success']:
+        if result.get('success'):
             return Response(result)
         return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
 class PlayerReleaseAPIView(views.APIView):
     def post(self, request, pk):
-        if not hasattr(request.user, 'team') or not request.user.team:
+        user_team = get_authenticated_user_team(request)
+        if not user_team:
             return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
             
-        result = release_player(pk, request.user.team.id)
-        if result['success']:
+        result = release_player(pk, user_team.id)
+        if result.get('success'):
             return Response(result)
         return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
 class TransferLogListView(generics.ListAPIView):
     serializer_class = TransferLogSerializer
     queryset = TransferLog.objects.all().order_by('-timestamp')
+
+
+class FreeAgentsAPIView(generics.ListAPIView):
+    """
+    Returns the list of unassigned / free agent players.
+    """
+    from .serializers import SimplePlayerSerializer
+    serializer_class = SimplePlayerSerializer
+    queryset = Player.objects.filter(team__isnull=True).order_by('-overall')
+
+
+class SignFreeAgentAPIView(views.APIView):
+    """
+    Signs a free agent player to the user's club.
+    """
+    def post(self, request, pk):
+        user_team = get_authenticated_user_team(request)
+        if not user_team:
+            return Response({'error': 'باشگاه شما مشخص نیست. لطفاً وارد شوید.'}, status=status.HTTP_403_FORBIDDEN)
+            
+        player = Player.objects.filter(id=pk, team__isnull=True).first()
+        if not player:
+            return Response({'error': 'این بازیکن یافت نشد یا دیگر بازیکن آزاد نیست.'}, status=status.HTTP_404_NOT_FOUND)
+            
+        signing_fee = Decimal(str(player.market_value if player.market_value > 0 else player.wage * Decimal('50.0')))
+        if user_team.budget < signing_fee:
+            return Response({'error': f'بودجه باشگاه ({float(user_team.budget):,.0f} $) برای جذب این بازیکن آزاد ({float(signing_fee):,.0f} $) کافی نیست.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        from django.db import transaction
+        from economy.services import process_atomic_wallet_update
+        from realtime.events import notify_admin
+        from notifications.services import create_notification
+        from .negotiation_services import ensure_team_starting_eleven
+
+        with transaction.atomic():
+            process_atomic_wallet_update(user_team.id, -signing_fee, 'BUDGET', 'FREE_AGENT_SIGNING', f"جذب بازیکن آزاد {player.name}")
+            player.team = user_team
+            player.save()
+            ensure_team_starting_eleven(user_team)
+            user_team.update_star_rating(save=True)
+            
+            TransferLog.objects.create(
+                event_type='FREE_AGENT_SIGNED',
+                description=f"تیم {user_team.name} بازیکن آزاد «{player.name}» را با مبلغ {float(signing_fee):,.0f} $ جذب کرد."
+            )
+            notify_admin(f"🌟 جذب بازیکن آزاد: تیم {user_team.name} بازیکن {player.name} را جذب کرد.")
+            create_notification(
+                team=user_team,
+                category='TRANSFER',
+                title='🎉 جذب بازیکن آزاد',
+                message=f"بازیکن آزاد «{player.name}» با موفقیت به ترکیب باشگاه شما پیوست."
+            )
+            return Response({'success': True, 'message': f'بازیکن «{player.name}» با موفقیت جذب شد.'})

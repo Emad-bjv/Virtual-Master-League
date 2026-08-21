@@ -1,22 +1,57 @@
+import re
+
 from rest_framework import generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from django.db import transaction
+from django.db.models import Q
 
+from django.utils import timezone
 from teams.models import Team, Player
 from .models import (
-    LiveSubstitutionRequest, Match, MatchEvent,
+    LiveSubstitutionRequest, LiveInGameChangeRequest, Match, MatchEvent,
     MatchTeamStat, PlayerMatchStat, LeagueStanding, Tournament
 )
 from .serializers import (
-    LiveSubstitutionRequestSerializer, MatchSerializer,
+    LiveSubstitutionRequestSerializer, LiveInGameChangeSerializer, MatchSerializer,
     MatchEventSerializer, PlayerMatchStatSerializer,
     MatchTeamStatSerializer, MatchDetailSerializer,
     MatchSummarySerializer, LeagueStandingSerializer
 )
-from realtime.events import broadcast_match_event
+from realtime.events import broadcast_match_event, notify_admin
+
+
+PERSIAN_ARABIC_TO_ASCII = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+ASCII_TO_PERSIAN = str.maketrans("0123456789", "۰۱۲۳۴۵۶۷۸۹")
+
+
+def normalize_round_query(round_param):
+    """
+    Given '1', '۱', 'هفته 1', 'هفته ۱', or 'Quarter-Finals', returns:
+    (is_gameweek: bool, round_num: int or None, exact_names: list[str])
+    """
+    if not round_param:
+        return False, None, []
+
+    clean = str(round_param).strip().translate(PERSIAN_ARABIC_TO_ASCII)
+    digits = re.findall(r'\d+', clean)
+
+    if digits:
+        r_num = int(digits[0])
+        p_num = str(r_num).translate(ASCII_TO_PERSIAN)
+        exact_names = [
+            f"هفته {r_num}",
+            f"هفته {p_num}",
+            f"هفته {r_num} ",
+            f"هفته {p_num} ",
+            str(r_num),
+            p_num,
+        ]
+        return True, r_num, exact_names
+
+    return False, None, [str(round_param).strip()]
 
 
 # ─────────────────────────────────────────────────────────
@@ -35,6 +70,15 @@ class LiveSubstitutionCreateView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
+        
+        # Real-time notify admin of new coach sub request
+        notify_admin(f"درخواست تعویض جدید توسط مربی ثبت شد.")
+        if serializer.data.get('match'):
+            broadcast_match_event(serializer.data.get('match'), {
+                'type': 'coach_sub_request',
+                'data': serializer.data
+            })
+            
         return Response(
             {"message": "درخواست تعویض با موفقیت ثبت شد و در انتظار تایید ادمین است.", "data": serializer.data},
             status=status.HTTP_201_CREATED, headers=headers
@@ -44,14 +88,36 @@ class LiveSubstitutionCreateView(generics.CreateAPIView):
 class LiveMatchTacticsUpdateView(APIView):
     """
     API endpoint for handling live match tactical changes (formations, live subs).
-    This acts as a dedicated bridge for in-match events so it does not overwrite the permanent team setup.
+    Broadcasts real-time tactical updates to Admin and Match Channel.
     """
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
-        # We simulate successful processing and logging of the live match tactics payload.
-        # In a fully fleshed out system, this might save the state to a LiveMatchState model.
         data = request.data
+        user = request.user
+        team_name = getattr(user, 'managed_team', None)
+        team_name_str = team_name.name if team_name else "مربی"
+        formation = data.get('formation', '')
+        
+        # Real-time notify admin and match room
+        notify_msg = f"مربی تیم {team_name_str} ترکیب و تاکتیک خود را بروزرسانی کرد (چیدمان: {formation}) ⚡"
+        notify_admin(notify_msg)
+        
+        # Find active match for this team if any
+        match_id = data.get('match_id')
+        if not match_id and team_name:
+            active_m = Match.objects.filter(status='LIVE').filter(Q(home_team=team_name) | Q(away_team=team_name)).first()
+            if active_m:
+                match_id = active_m.id
+                
+        if match_id:
+            broadcast_match_event(match_id, {
+                'type': 'coach_tactics_updated',
+                'team_name': team_name_str,
+                'formation': formation,
+                'data': data
+            })
+
         return Response(
             {"message": "Live tactics updated successfully.", "data": data},
             status=status.HTTP_200_OK
@@ -88,16 +154,21 @@ class LeagueStandingsView(generics.GenericAPIView):
         if not tournament:
             return Response([])
 
-        from teams.models import Team
-        teams = Team.objects.all()
-        for t in teams:
-            LeagueStanding.objects.get_or_create(
-                tournament=tournament, team=t,
-                defaults={'played': 0, 'won': 0, 'drawn': 0, 'lost': 0,
-                          'goals_for': 0, 'goals_against': 0, 'points': 0}
-            )
-
         qs = LeagueStanding.objects.filter(tournament=tournament).select_related('team')
+        
+        # Only seed missing standings if count doesn't match total teams (avoids 16 get_or_create queries per request)
+        from teams.models import Team
+        total_teams_count = Team.objects.count()
+        if qs.count() < total_teams_count:
+            teams = Team.objects.all()
+            for t in teams:
+                LeagueStanding.objects.get_or_create(
+                    tournament=tournament, team=t,
+                    defaults={'played': 0, 'won': 0, 'drawn': 0, 'lost': 0,
+                              'goals_for': 0, 'goals_against': 0, 'points': 0}
+                )
+            qs = LeagueStanding.objects.filter(tournament=tournament).select_related('team')
+
         standings = []
         for row in qs:
             standings.append({
@@ -124,17 +195,80 @@ class LeagueStandingsView(generics.GenericAPIView):
 class MatchEventCreateView(APIView):
     def post(self, request, match_id):
         match = get_object_or_404(Match, id=match_id)
-        serializer = MatchEventSerializer(data=request.data)
+        player_id = request.data.get('player_id') or request.data.get('player')
+        target_team_id = request.data.get('team_id') or match.home_team_id
+
+        player_obj = None
+        if player_id:
+            player_obj = Player.objects.filter(id=player_id).first()
+        if not player_obj and target_team_id:
+            player_obj = Player.objects.filter(team_id=target_team_id).first()
+        if not player_obj and match.home_team_id:
+            player_obj = Player.objects.filter(team_id=match.home_team_id).first()
+        if not player_obj:
+            player_obj = Player.objects.first()
+
+        data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+        if player_obj:
+            data['player'] = player_obj.id
+
+        serializer = MatchEventSerializer(data=data)
         if serializer.is_valid():
-            serializer.save(match=match)
-            event_data = serializer.data
+            ev = serializer.save(match=match, player=player_obj)
+            event_type = ev.event_type
+
+            # Determine target team ID
+            target_team_id = ev.team_id or (ev.player.team_id if ev.player else None) or request.data.get('team_id')
+            if target_team_id:
+                try:
+                    target_team_id = int(target_team_id)
+                except (ValueError, TypeError):
+                    pass
+
+            if event_type in ['GOAL', 'PENALTY_SCORED']:
+                if target_team_id == match.home_team_id:
+                    match.home_score = (match.home_score or 0) + 1
+                elif target_team_id == match.away_team_id:
+                    match.away_score = (match.away_score or 0) + 1
+                elif ev.player and ev.player.team_id == match.home_team_id:
+                    match.home_score = (match.home_score or 0) + 1
+                elif ev.player and ev.player.team_id == match.away_team_id:
+                    match.away_score = (match.away_score or 0) + 1
+                match.save(update_fields=['home_score', 'away_score'])
+
+            elif event_type == 'OWN_GOAL':
+                # Own goal awards point to the opponent!
+                if target_team_id == match.home_team_id or (ev.player and ev.player.team_id == match.home_team_id):
+                    match.away_score = (match.away_score or 0) + 1
+                elif target_team_id == match.away_team_id or (ev.player and ev.player.team_id == match.away_team_id):
+                    match.home_score = (match.home_score or 0) + 1
+                match.save(update_fields=['home_score', 'away_score'])
+
+            elif event_type in ['UNDO_GOAL', 'UNDO_EVENT'] or 'لغو' in (ev.detail or ''):
+                # Revert score
+                if target_team_id == match.home_team_id or (ev.player and ev.player.team_id == match.home_team_id):
+                    match.home_score = max(0, (match.home_score or 0) - 1)
+                elif target_team_id == match.away_team_id or (ev.player and ev.player.team_id == match.away_team_id):
+                    match.away_score = max(0, (match.away_score or 0) - 1)
+                match.save(update_fields=['home_score', 'away_score'])
+
+            event_data = MatchEventSerializer(ev).data
+            match_data = MatchDetailSerializer(match).data
 
             broadcast_match_event(match_id, {
                 'type': 'new_event',
-                'event': event_data
+                'event': event_data,
+                'home_score': match.home_score,
+                'away_score': match.away_score,
+                'match': match_data
             })
 
-            return Response(event_data, status=status.HTTP_201_CREATED)
+            return Response({
+                'event': event_data,
+                'home_score': match.home_score,
+                'away_score': match.away_score,
+                'match': match_data
+            }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -249,6 +383,7 @@ class SubmitTeamStatsView(APIView):
                 'corners': request.data.get('corners', 0),
                 'fouls': request.data.get('fouls', 0),
                 'offsides': request.data.get('offsides', 0),
+                'saves': request.data.get('saves', 0),
             }
         )
 
@@ -296,6 +431,18 @@ class SubmitPlayerRatingsView(APIView):
                     }
                 )
                 saved.append(stat)
+
+            # --- Player Level System XP ---
+            from teams.level_engine import grant_match_xp
+            events = list(match.events.all())
+            home_won = match.home_score > match.away_score
+            away_won = match.away_score > match.home_score
+            for stat in saved:
+                if stat.rating is not None and stat.player.team_id:
+                    won = (stat.player.team_id == match.home_team_id and home_won) or \
+                          (stat.player.team_id == match.away_team_id and away_won)
+                    player_events = [e for e in events if e.player_id == stat.player_id]
+                    grant_match_xp(stat.player, match, float(stat.rating), player_events, won, stat.was_starter)
 
         serializer = PlayerMatchStatSerializer(saved, many=True)
 
@@ -346,40 +493,46 @@ class GameweekStatusView(APIView):
     """
     Returns summary of all Gameweeks/Rounds, tracking completed/live/scheduled matches,
     and identifies the current active Gameweek for auto-progression.
+    Optimized with single SQL aggregation.
     """
     permission_classes = [AllowAny]
 
     def get(self, request):
+        from django.db.models import Count, Q
         tournament = Tournament.objects.filter(tournament_type='LEAGUE').order_by('-created_at').first()
         if not tournament:
             tournament = Tournament.objects.first()
 
-        matches = Match.objects.filter(tournament=tournament) if tournament else Match.objects.all()
-        
-        from collections import defaultdict
-        rounds_dict = defaultdict(list)
-        for m in matches.select_related('home_team', 'away_team'):
-            r_name = m.round_name or 'هفته ۱'
-            rounds_dict[r_name].append(m)
+        match_qs = Match.objects.filter(tournament=tournament) if tournament else Match.objects.all()
+
+        aggregated_rounds = (
+            match_qs
+            .values('round_name')
+            .annotate(
+                total_matches=Count('id'),
+                finished_matches=Count('id', filter=Q(status='FINISHED')),
+                live_matches=Count('id', filter=Q(status='LIVE')),
+                scheduled_matches=Count('id', filter=Q(status='SCHEDULED')),
+            )
+        )
 
         def extract_round_num(name):
-            import re
-            digits = re.findall(r'\d+', str(name))
-            return int(digits[0]) if digits else 999
+            is_gw, r_num, _ = normalize_round_query(name)
+            return r_num if (is_gw and r_num is not None) else 999
 
-        sorted_rounds = sorted(rounds_dict.keys(), key=extract_round_num)
-        if not sorted_rounds:
-            sorted_rounds = [f"هفته {i}" for i in range(1, 31)]
+        sorted_rows = sorted(aggregated_rounds, key=lambda r: extract_round_num(r.get('round_name', '')))
+        if not sorted_rows:
+            sorted_rows = [{'round_name': f"هفته {i}", 'total_matches': 0, 'finished_matches': 0, 'live_matches': 0, 'scheduled_matches': 0} for i in range(1, 31)]
 
         gameweeks = []
         active_gameweek = None
 
-        for r_name in sorted_rounds:
-            round_matches = rounds_dict.get(r_name, [])
-            total = len(round_matches)
-            finished = sum(1 for m in round_matches if m.status == 'FINISHED')
-            live = sum(1 for m in round_matches if m.status == 'LIVE')
-            scheduled = sum(1 for m in round_matches if m.status == 'SCHEDULED')
+        for row in sorted_rows:
+            r_name = row.get('round_name') or 'هفته ۱'
+            total = row.get('total_matches', 0)
+            finished = row.get('finished_matches', 0)
+            live = row.get('live_matches', 0)
+            scheduled = row.get('scheduled_matches', 0)
             is_finished = (total > 0 and finished == total)
 
             gameweeks.append({
@@ -412,14 +565,19 @@ class AdminMatchListView(generics.ListAPIView):
     def get_queryset(self):
         status_filter = self.request.query_params.get('status')
         round_filter = self.request.query_params.get('round') or self.request.query_params.get('gameweek')
-        qs = Match.objects.all().select_related('home_team', 'away_team', 'tournament').order_by('date', 'id')
+        qs = Match.objects.all().select_related(
+            'home_team__manager', 'away_team__manager',
+            'home_team__gameplan', 'away_team__gameplan',
+            'tournament'
+        ).prefetch_related('gameplans').order_by('date', 'id')
         if status_filter:
             qs = qs.filter(status=status_filter)
         if round_filter:
-            if round_filter.isdigit():
-                qs = qs.filter(round_name__icontains=f"هفته {round_filter}")
+            is_gw, r_num, exact_names = normalize_round_query(round_filter)
+            if is_gw:
+                qs = qs.filter(round_name__in=exact_names)
             else:
-                qs = qs.filter(round_name__icontains=round_filter)
+                qs = qs.filter(round_name__iexact=str(round_filter).strip())
         return qs
 
 
@@ -495,7 +653,11 @@ class TeamScheduleView(generics.ListAPIView):
         round_filter = self.request.query_params.get('round')
         venue_filter = self.request.query_params.get('venue')
 
-        qs = Match.objects.all().select_related('tournament', 'home_team', 'away_team')
+        qs = Match.objects.all().select_related(
+            'home_team__manager', 'away_team__manager',
+            'home_team__gameplan', 'away_team__gameplan',
+            'tournament'
+        ).prefetch_related('gameplans')
 
         if team_id:
             if venue_filter == 'HOME':
@@ -509,7 +671,11 @@ class TeamScheduleView(generics.ListAPIView):
             qs = qs.filter(status=status_filter.upper())
 
         if round_filter:
-            qs = qs.filter(round_name__icontains=round_filter)
+            is_gw, r_num, exact_names = normalize_round_query(round_filter)
+            if is_gw:
+                qs = qs.filter(round_name__in=exact_names)
+            else:
+                qs = qs.filter(round_name__iexact=str(round_filter).strip())
 
         return qs.order_by('date', 'id')
 
@@ -546,6 +712,8 @@ class ActiveLiveMatchContextView(APIView):
     Returns the current live match context for schedule enforcement & time-gated access:
     - has_active_match: True if a match is actively in progress ('LIVE')
     - active_match: Serialized match data
+    - recent_finished_match: Most recently finished match data (retained for 10-min post-match recap)
+    - last_finished_match: Alias for recent_finished_match
     - next_match: First upcoming scheduled match
     - time_to_kickoff_seconds: Remaining seconds until next kickoff (or 0 if reached)
     - is_within_reminder_window: True if 0 <= time_to_kickoff_seconds <= 900 (T-15 min)
@@ -556,9 +724,11 @@ class ActiveLiveMatchContextView(APIView):
 
     def get(self, request):
         from django.utils import timezone
+        from django.db.models import Q
         now = timezone.now()
         active_match = Match.objects.filter(status='LIVE').select_related('home_team', 'away_team', 'tournament').order_by('date', 'id').first()
         next_match = Match.objects.filter(status='SCHEDULED').select_related('home_team', 'away_team', 'tournament').order_by('date', 'id').first()
+        recent_finished_match = Match.objects.filter(status='FINISHED').select_related('home_team', 'away_team', 'tournament').order_by('-date', '-id').first()
 
         time_to_kickoff = None
         is_within_reminder = False
@@ -568,12 +738,60 @@ class ActiveLiveMatchContextView(APIView):
             time_to_kickoff = max(0, int(diff))
             is_within_reminder = (0 <= time_to_kickoff <= 900)
 
+        # Team-specific match calculation for the coach
+        team_id = request.query_params.get('team_id')
+        user_team = getattr(request.user, 'team', None) if request.user.is_authenticated else None
+        if not user_team and team_id:
+            try:
+                user_team = Team.objects.get(id=team_id)
+            except Team.DoesNotExist:
+                pass
+
+        team_next_match = None
+        team_recent_finished_match = None
+        team_time_to_kickoff = None
+        team_is_within_reminder = False
+
+        if user_team:
+            team_next_match = Match.objects.filter(
+                Q(home_team=user_team) | Q(away_team=user_team),
+                status='SCHEDULED'
+            ).select_related('home_team', 'away_team', 'tournament').order_by('date', 'id').first()
+
+            team_recent_finished_match = Match.objects.filter(
+                Q(home_team=user_team) | Q(away_team=user_team),
+                status='FINISHED'
+            ).select_related('home_team', 'away_team', 'tournament').order_by('-date', '-id').first()
+
+            if team_next_match and team_next_match.date:
+                team_diff = (team_next_match.date - now).total_seconds()
+                team_time_to_kickoff = max(0, int(team_diff))
+                team_is_within_reminder = (0 <= team_time_to_kickoff <= 900)
+
+        team_next_match_data = None
+        if team_next_match:
+            team_next_match_data = MatchSerializer(team_next_match).data
+            # Verify if this specific match has a submitted lineup for this team
+            from .models import MatchGamePlan
+            is_sub = MatchGamePlan.objects.filter(
+                match=team_next_match,
+                team=user_team,
+                is_submitted=True
+            ).exists()
+            team_next_match_data['is_lineup_submitted'] = is_sub
+
         data = {
             'has_active_match': active_match is not None,
             'active_match': MatchDetailSerializer(active_match).data if active_match else None,
+            'recent_finished_match': MatchDetailSerializer(recent_finished_match).data if recent_finished_match else None,
+            'last_finished_match': MatchDetailSerializer(recent_finished_match).data if recent_finished_match else None,
             'next_match': MatchSerializer(next_match).data if next_match else None,
             'time_to_kickoff_seconds': time_to_kickoff,
             'is_within_reminder_window': is_within_reminder,
+            'team_next_match': team_next_match_data,
+            'team_recent_finished_match': MatchDetailSerializer(team_recent_finished_match).data if team_recent_finished_match else None,
+            'team_time_to_kickoff_seconds': team_time_to_kickoff,
+            'team_is_within_reminder_window': team_is_within_reminder,
             'current_server_time': now.isoformat(),
             'stream_url': "https://www.aparat.com/embed/live/VML.Emad",
         }
@@ -847,20 +1065,21 @@ class AdminMatchControlRoomView(APIView):
 
             # Revert score changes if undoing goal / own goal
             if not ev.is_undone:
+                target_team_id = ev.team_id or (ev.player.team_id if ev.player else None)
                 if ev.event_type in ['GOAL', 'PENALTY_SCORED']:
-                    if ev.player and ev.player.team_id == match.home_team_id:
+                    if target_team_id == match.home_team_id or (ev.player and ev.player.team_id == match.home_team_id):
                         match.home_score = max(0, match.home_score - 1)
-                    elif ev.player and ev.player.team_id == match.away_team_id:
+                    elif target_team_id == match.away_team_id or (ev.player and ev.player.team_id == match.away_team_id):
                         match.away_score = max(0, match.away_score - 1)
                 elif ev.event_type == 'OWN_GOAL':
-                    if ev.player and ev.player.team_id == match.home_team_id:
+                    if target_team_id == match.home_team_id or (ev.player and ev.player.team_id == match.home_team_id):
                         match.away_score = max(0, match.away_score - 1)
-                    elif ev.player and ev.player.team_id == match.away_team_id:
+                    elif target_team_id == match.away_team_id or (ev.player and ev.player.team_id == match.away_team_id):
                         match.home_score = max(0, match.home_score - 1)
                 elif ev.event_type == 'VAR' and 'مردود' in (ev.detail or ''):
-                    if ev.player and ev.player.team_id == match.home_team_id:
+                    if target_team_id == match.home_team_id or (ev.player and ev.player.team_id == match.home_team_id):
                         match.home_score += 1
-                    elif ev.player and ev.player.team_id == match.away_team_id:
+                    elif target_team_id == match.away_team_id or (ev.player and ev.player.team_id == match.away_team_id):
                         match.away_score += 1
 
                 ev.is_undone = True
@@ -876,7 +1095,12 @@ class AdminMatchControlRoomView(APIView):
                 'match': match_detail
             })
 
-            return Response({'status': 'event_undone', 'match': match_detail}, status=status.HTTP_200_OK)
+            return Response({
+                'status': 'event_undone',
+                'home_score': match.home_score,
+                'away_score': match.away_score,
+                'match': match_detail
+            }, status=status.HTTP_200_OK)
 
         # 8. RECORD SUBSTITUTION (with 5-subs / 3-windows / Red Card enforcement)
         elif action == 'RECORD_SUBSTITUTION':
@@ -1076,6 +1300,183 @@ class AdminMatchControlRoomView(APIView):
             return Response({'status': 'clock_synced', 'current_minute': match.current_minute, 'stoppage_time': match.stoppage_time}, status=status.HTTP_200_OK)
 
         return Response({'error': 'عملیات نامعتبر است (Invalid action)'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class LiveInGameChangeListView(APIView):
+    """
+    Get or list all in-game change requests for a match.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, match_id):
+        match = get_object_or_404(Match, id=match_id)
+        team_id = request.query_params.get('team_id')
+        queryset = match.in_game_changes.all().order_by('-created_at')
+        if team_id:
+            queryset = queryset.filter(team_id=team_id)
+        data = LiveInGameChangeSerializer(queryset, many=True).data
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class LiveInGameChangeBatchSubmitView(APIView):
+    """
+    Coach submits in-game changes (substitutions, position moves, tactics, formation changes).
+    Only modified items should be sent.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, match_id):
+        match = get_object_or_404(Match, id=match_id)
+        team_id = request.data.get('team_id')
+        if not team_id:
+            # Detect team from coach
+            coach_team = Team.objects.filter(manager=request.user).first()
+            if coach_team:
+                team_id = coach_team.id
+            else:
+                team_id = match.home_team_id
+
+        team = get_object_or_404(Team, id=team_id)
+        raw_changes = request.data.get('changes', [])
+        if not isinstance(raw_changes, list):
+            raw_changes = [request.data]
+
+        created_objs = []
+        minute = int(request.data.get('minute') or match.current_minute or 45)
+
+        for item in raw_changes:
+            category = item.get('category') or item.get('change_category') or 'TACTIC'
+            title = item.get('title') or 'تغییرات حین بازی'
+            detail = item.get('detail') or item.get('description') or ''
+            diff_data = item.get('diff_data') or item.get('payload') or {}
+
+            # Don't save empty items
+            if not title and not detail:
+                continue
+
+            change_obj = LiveInGameChangeRequest.objects.create(
+                match=match,
+                team=team,
+                coach=request.user,
+                change_category=category,
+                title=title,
+                detail=detail,
+                diff_data=diff_data,
+                status='PENDING',
+                minute=minute
+            )
+            created_objs.append(change_obj)
+
+        serialized = LiveInGameChangeSerializer(created_objs, many=True).data
+        match_detail = MatchDetailSerializer(match).data
+
+        broadcast_match_event(match_id, {
+            'type': 'new_in_game_change',
+            'team_id': team.id,
+            'team_name': team.name,
+            'changes': serialized,
+            'match': match_detail
+        })
+
+        return Response({
+            'status': 'success',
+            'count': len(created_objs),
+            'changes': serialized,
+            'match': match_detail
+        }, status=status.HTTP_201_CREATED)
+
+
+class LiveInGameChangeApplyView(APIView):
+    """
+    Admin checks off / marks an in-game change as APPLIED.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, match_id, change_id):
+        match = get_object_or_404(Match, id=match_id)
+        change = get_object_or_404(LiveInGameChangeRequest, id=change_id, match=match)
+
+        change.status = 'APPLIED'
+        change.applied_at = timezone.now()
+        change.save(update_fields=['status', 'applied_at'])
+
+        # If it's a substitution, check if we need to apply substitution on Match stats / events
+        if change.change_category == 'SUBSTITUTION':
+            player_out_id = change.diff_data.get('player_out_id')
+            player_in_id = change.diff_data.get('player_in_id')
+            minute = change.minute or match.current_minute or 45
+            p_out = Player.objects.filter(id=player_out_id).first() if player_out_id else None
+            p_in = Player.objects.filter(id=player_in_id).first() if player_in_id else None
+
+            if p_out and p_in:
+                # Record sub out & sub in events if not already done
+                sub_out_exists = MatchEvent.objects.filter(
+                    match=match, player=p_out, event_type='SUB_OUT', minute=minute
+                ).exists()
+                if not sub_out_exists:
+                    MatchEvent.objects.create(
+                        match=match, player=p_out, team=change.team, event_type='SUB_OUT',
+                        minute=minute, detail=f'تعویض (خروج): {p_out.name}'
+                    )
+                    MatchEvent.objects.create(
+                        match=match, player=p_in, team=change.team, event_type='SUB_IN',
+                        minute=minute, detail=f'تعویض (ورود): {p_in.name}'
+                    )
+
+        serialized = LiveInGameChangeSerializer(change).data
+        match_detail = MatchDetailSerializer(match).data
+
+        # Broadcast confirmation to coach & referee desk
+        broadcast_match_event(match_id, {
+            'type': 'in_game_change_applied',
+            'change_id': change.id,
+            'change': serialized,
+            'team_id': change.team_id,
+            'team_name': change.team.name,
+            'message': f'پیغام انجام شد: «{change.title}» با موفقیت توسط داور در زمین اعمال و تیک خورد ✅',
+            'custom_text': f'پیغام انجام شد: «{change.title}» تایید و در زمین مسابقه اعمال گردید ✅',
+            'match': match_detail
+        })
+
+        return Response({
+            'status': 'applied',
+            'change': serialized,
+            'match': match_detail
+        }, status=status.HTTP_200_OK)
+
+
+class LiveInGameChangeRejectView(APIView):
+    """
+    Admin rejects an in-game change request.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, match_id, change_id):
+        match = get_object_or_404(Match, id=match_id)
+        change = get_object_or_404(LiveInGameChangeRequest, id=change_id, match=match)
+
+        change.status = 'REJECTED'
+        change.save(update_fields=['status'])
+
+        serialized = LiveInGameChangeSerializer(change).data
+        match_detail = MatchDetailSerializer(match).data
+
+        broadcast_match_event(match_id, {
+            'type': 'in_game_change_rejected',
+            'change_id': change.id,
+            'change': serialized,
+            'team_id': change.team_id,
+            'team_name': change.team.name,
+            'message': f'درخواست تغییر «{change.title}» توسط داور رد شد ❌',
+            'match': match_detail
+        })
+
+        return Response({
+            'status': 'rejected',
+            'change': serialized,
+            'match': match_detail
+        }, status=status.HTTP_200_OK)
+
 
 
 

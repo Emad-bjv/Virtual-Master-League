@@ -417,6 +417,233 @@ class Tier2MatchesBoundaryTests(VMLTestHarness):
         res = self.get(f'/api/matches/{self.live_match.id}/events/')
         self.assertIn(res.status_code, [200, 404])
 
+    # --- Requirement R2, R3, R4 Boundaries & Corner Cases ---
+
+    def test_r2_strict_gameweek_isolation_no_leakage_across_weeks(self):
+        """
+        Querying Week 1 must strictly return Week 1 matches and NEVER leak
+        matches from Week 10, Week 11, Week 19, Week 2, or Week 3.
+        """
+        t = Tournament.objects.create(name="Strict League", tournament_type="LEAGUE")
+        t_a = self.create_team(name="Team A")
+        t_b = self.create_team(name="Team B")
+
+        m_w1_a = Match.objects.create(tournament=t, home_team=t_a, away_team=t_b, round_name="هفته ۱")
+        m_w1_b = Match.objects.create(tournament=t, home_team=t_b, away_team=t_a, round_name="هفته 1")
+        m_w2 = Match.objects.create(tournament=t, home_team=t_a, away_team=t_b, round_name="هفته ۲")
+        m_w10 = Match.objects.create(tournament=t, home_team=t_a, away_team=t_b, round_name="هفته ۱۰")
+        m_w11 = Match.objects.create(tournament=t, home_team=t_a, away_team=t_b, round_name="هفته 11")
+        m_w19 = Match.objects.create(tournament=t, home_team=t_a, away_team=t_b, round_name="هفته ۱۹")
+
+        # Query Week 1
+        res = self.get("/api/matches/schedule/?round=1")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        match_ids = [m["id"] for m in data]
+
+        self.assertIn(m_w1_a.id, match_ids)
+        self.assertIn(m_w1_b.id, match_ids)
+        self.assertNotIn(m_w2.id, match_ids)
+        self.assertNotIn(m_w10.id, match_ids)
+        self.assertNotIn(m_w11.id, match_ids)
+        self.assertNotIn(m_w19.id, match_ids)
+
+    def test_r2_persian_arabic_ascii_normalization_boundaries(self):
+        """
+        Persian digit '۱', Arabic digit '١', ASCII '1', and strings 'هفته ۱', 'هفته 1'
+        all resolve to the same round query.
+        """
+        t = Tournament.objects.create(name="Norm League")
+        t_a = self.create_team(name="Norm A")
+        t_b = self.create_team(name="Norm B")
+        m = Match.objects.create(tournament=t, home_team=t_a, away_team=t_b, round_name="هفته ۱")
+
+        for query_val in ["1", "۱", "١", "هفته 1", "هفته ۱"]:
+            res = self.get(f"/api/matches/schedule/?round={query_val}")
+            self.assertEqual(res.status_code, 200)
+            data = res.json()
+            self.assertEqual(len(data), 1, f"Failed for round query: {query_val}")
+            self.assertEqual(data[0]["id"], m.id)
+
+    def test_r4_substitution_limit_max_5_subs_control_room(self):
+        """
+        Admin Arbiter Control Room strictly enforces the 5 substitutions limit per team.
+        6th substitution attempt returns 400 Bad Request.
+        """
+        team = self.create_team(name="Sub Limit Team")
+        match = Match.objects.create(home_team=team, away_team=self.third_team, status="LIVE", current_minute=60)
+
+        # Record 5 valid substitutions at minute 45 (half-time)
+        for i in range(5):
+            p_out = self.create_player(team=team, name=f"Starter Out {i}")
+            p_in = self.create_player(team=team, name=f"Sub In {i}")
+            res = self.post(f"/api/matches/{match.id}/control/", json={
+                "action": "RECORD_SUBSTITUTION",
+                "team_id": team.id,
+                "player_out_id": p_out.id,
+                "player_in_id": p_in.id,
+                "minute": 45
+            })
+            self.assertEqual(res.status_code, 201)
+
+        # 6th substitution attempt -> Rejected
+        p_out6 = self.create_player(team=team, name="Starter Out 6")
+        p_in6 = self.create_player(team=team, name="Sub In 6")
+        res6 = self.post(f"/api/matches/{match.id}/control/", json={
+            "action": "RECORD_SUBSTITUTION",
+            "team_id": team.id,
+            "player_out_id": p_out6.id,
+            "player_in_id": p_in6.id,
+            "minute": 45
+        })
+        self.assertEqual(res6.status_code, 400)
+        self.assertIn("۵ تعویض", res6.json().get("error", ""))
+
+    def test_r4_substitution_window_limit_3_windows_control_room(self):
+        """
+        Team is limited to 3 substitution windows during active play (minute 45 excluded).
+        4th distinct minute substitution window returns 400 Bad Request.
+        """
+        team = self.create_team(name="Window Limit Team")
+        match = Match.objects.create(home_team=team, away_team=self.third_team, status="LIVE")
+
+        # Window 1 (min 50), Window 2 (min 60), Window 3 (min 70)
+        for min_val in [50, 60, 70]:
+            p_out = self.create_player(team=team, name=f"Out {min_val}")
+            p_in = self.create_player(team=team, name=f"In {min_val}")
+            res = self.post(f"/api/matches/{match.id}/control/", json={
+                "action": "RECORD_SUBSTITUTION",
+                "team_id": team.id,
+                "player_out_id": p_out.id,
+                "player_in_id": p_in.id,
+                "minute": min_val
+            })
+            self.assertEqual(res.status_code, 201)
+
+        # Window 4 (min 80) -> Rejection
+        p_out4 = self.create_player(team=team, name="Out 80")
+        p_in4 = self.create_player(team=team, name="In 80")
+        res_w4 = self.post(f"/api/matches/{match.id}/control/", json={
+            "action": "RECORD_SUBSTITUTION",
+            "team_id": team.id,
+            "player_out_id": p_out4.id,
+            "player_in_id": p_in4.id,
+            "minute": 80
+        })
+        self.assertEqual(res_w4.status_code, 400)
+        self.assertIn("پنجره", res_w4.json().get("error", ""))
+
+    def test_r4_red_carded_player_substitution_rejection_control_room(self):
+        """
+        A player who has received a direct RED or SECOND_YELLOW cannot be substituted.
+        """
+        team = self.create_team(name="Red Card Team")
+        p_ejected = self.create_player(team=team, name="Ejected Star")
+        p_bench = self.create_player(team=team, name="Bench Sub")
+        match = Match.objects.create(home_team=team, away_team=self.third_team, status="LIVE", current_minute=30)
+
+        # Log RED card
+        MatchEvent.objects.create(match=match, player=p_ejected, team=team, event_type="RED", minute=25)
+
+        # Attempt to substitute the ejected player
+        res = self.post(f"/api/matches/{match.id}/control/", json={
+            "action": "RECORD_SUBSTITUTION",
+            "team_id": team.id,
+            "player_out_id": p_ejected.id,
+            "player_in_id": p_bench.id,
+            "minute": 30
+        })
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("اخراج شده", res.json().get("error", ""))
+
+    def test_r3_control_room_goal_and_own_goal_score_math(self):
+        """
+        GOAL increments scoring team score; OWN_GOAL awards the goal to the opponent team.
+        """
+        h_team = self.home_team
+        a_team = self.away_team
+        p_h = self.h_p_out
+        p_a = self.a_p_out
+        match = Match.objects.create(home_team=h_team, away_team=a_team, status="LIVE", home_score=0, away_score=0)
+
+        # 1. Home Goal
+        res_g = self.post(f"/api/matches/{match.id}/control/", json={
+            "action": "RECORD_EVENT", "event_type": "GOAL", "player_id": p_h.id, "minute": 12
+        })
+        self.assertEqual(res_g.status_code, 201)
+        match.refresh_from_db()
+        self.assertEqual(match.home_score, 1)
+        self.assertEqual(match.away_score, 0)
+
+        # 2. Away Defender scores OWN_GOAL -> Home team gets +1 goal
+        res_og = self.post(f"/api/matches/{match.id}/control/", json={
+            "action": "RECORD_EVENT", "event_type": "OWN_GOAL", "player_id": p_a.id, "minute": 30
+        })
+        self.assertEqual(res_og.status_code, 201)
+        match.refresh_from_db()
+        self.assertEqual(match.home_score, 2)
+        self.assertEqual(match.away_score, 0)
+
+    def test_r3_control_room_var_goal_disallowed(self):
+        """
+        VAR with var_type GOAL_DISALLOWED decrements the scoring team's score.
+        """
+        match = Match.objects.create(
+            home_team=self.home_team, away_team=self.away_team,
+            status="LIVE", home_score=1, away_score=0
+        )
+        res_var = self.post(f"/api/matches/{match.id}/control/", json={
+            "action": "RECORD_EVENT", "event_type": "VAR", "var_type": "GOAL_DISALLOWED",
+            "player_id": self.h_p_out.id, "minute": 20, "detail": "گل به دلیل خطا مردود شد"
+        })
+        self.assertEqual(res_var.status_code, 201)
+        match.refresh_from_db()
+        self.assertEqual(match.home_score, 0)
+
+    def test_r3_control_room_second_yellow_upgrade(self):
+        """
+        Recording a second YELLOW on the same player automatically upgrades event_type to SECOND_YELLOW.
+        """
+        match = Match.objects.create(home_team=self.home_team, away_team=self.away_team, status="LIVE")
+
+        # 1st Yellow
+        res1 = self.post(f"/api/matches/{match.id}/control/", json={
+            "action": "RECORD_EVENT", "event_type": "YELLOW", "player_id": self.h_p_out.id, "minute": 20
+        })
+        self.assertEqual(res1.status_code, 201)
+
+        # 2nd Yellow -> Automatic upgrade to SECOND_YELLOW
+        res2 = self.post(f"/api/matches/{match.id}/control/", json={
+            "action": "RECORD_EVENT", "event_type": "YELLOW", "player_id": self.h_p_out.id, "minute": 65
+        })
+        self.assertEqual(res2.status_code, 201)
+        self.assertEqual(res2.json()["event"]["event_type"], "SECOND_YELLOW")
+
+    def test_r3_control_room_delete_event_score_rollback(self):
+        """
+        DELETE_EVENT reverts score change, marks event as is_undone=True.
+        """
+        match = Match.objects.create(
+            home_team=self.home_team, away_team=self.away_team,
+            status="LIVE", home_score=0, away_score=0
+        )
+        res_ev = self.post(f"/api/matches/{match.id}/control/", json={
+            "action": "RECORD_EVENT", "event_type": "GOAL", "player_id": self.h_p_out.id, "minute": 15
+        })
+        ev_id = res_ev.json()["event"]["id"]
+        match.refresh_from_db()
+        self.assertEqual(match.home_score, 1)
+
+        # Undo event
+        res_del = self.post(f"/api/matches/{match.id}/control/", json={
+            "action": "DELETE_EVENT", "event_id": ev_id
+        })
+        self.assertEqual(res_del.status_code, 200)
+        match.refresh_from_db()
+        self.assertEqual(match.home_score, 0)
+        ev = MatchEvent.objects.get(id=ev_id)
+        self.assertTrue(ev.is_undone)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -4,6 +4,45 @@ import { teamApi } from '../services/api';
 const TeamContext = createContext(null);
 
 export const FORMATION_PRESETS = {
+  '4-3-3 (4-3-3)': [
+    { pos: 'GK', x: 50, y: 90 },
+    { pos: 'LB', x: 15, y: 72 },
+    { pos: 'CB', x: 35, y: 75 },
+    { pos: 'CB', x: 65, y: 75 },
+    { pos: 'RB', x: 85, y: 72 },
+    { pos: 'CMF', x: 30, y: 52 },
+    { pos: 'CMF', x: 50, y: 56 },
+    { pos: 'CMF', x: 70, y: 52 },
+    { pos: 'LWF', x: 18, y: 20 },
+    { pos: 'RWF', x: 82, y: 20 },
+    { pos: 'CF', x: 50, y: 15 },
+  ],
+  '4-3-3 (4-1-2-3)': [
+    { pos: 'GK', x: 50, y: 90 },
+    { pos: 'LB', x: 15, y: 72 },
+    { pos: 'CB', x: 35, y: 75 },
+    { pos: 'CB', x: 65, y: 75 },
+    { pos: 'RB', x: 85, y: 72 },
+    { pos: 'DMF', x: 50, y: 60 },
+    { pos: 'AMF', x: 35, y: 42 },
+    { pos: 'AMF', x: 65, y: 42 },
+    { pos: 'LWF', x: 18, y: 20 },
+    { pos: 'RWF', x: 82, y: 20 },
+    { pos: 'CF', x: 50, y: 15 },
+  ],
+  '4-3-3 (4-2-1-3)': [
+    { pos: 'GK', x: 50, y: 90 },
+    { pos: 'LB', x: 15, y: 72 },
+    { pos: 'CB', x: 35, y: 75 },
+    { pos: 'CB', x: 65, y: 75 },
+    { pos: 'RB', x: 85, y: 72 },
+    { pos: 'DMF', x: 35, y: 56 },
+    { pos: 'CMF', x: 65, y: 56 },
+    { pos: 'AMF', x: 50, y: 38 },
+    { pos: 'LWF', x: 18, y: 20 },
+    { pos: 'RWF', x: 82, y: 20 },
+    { pos: 'CF', x: 50, y: 15 },
+  ],
   '4-5-1 (4-2-3-1)': [
     { pos: 'GK', x: 50, y: 90 },
     { pos: 'LB', x: 15, y: 72 },
@@ -43,6 +82,19 @@ export const FORMATION_PRESETS = {
     { pos: 'AMF', x: 64, y: 35 },
     { pos: 'CF', x: 50, y: 15 },
   ],
+  '4-4-2 (4-4-2)': [
+    { pos: 'GK', x: 50, y: 90 },
+    { pos: 'LB', x: 15, y: 72 },
+    { pos: 'CB', x: 35, y: 75 },
+    { pos: 'CB', x: 65, y: 75 },
+    { pos: 'RB', x: 85, y: 72 },
+    { pos: 'LMF', x: 15, y: 45 },
+    { pos: 'CMF', x: 38, y: 48 },
+    { pos: 'CMF', x: 62, y: 48 },
+    { pos: 'RMF', x: 85, y: 45 },
+    { pos: 'CF', x: 38, y: 18 },
+    { pos: 'CF', x: 62, y: 18 },
+  ],
   '4-4-2 (4-2-2-2)': [
     { pos: 'GK', x: 50, y: 90 },
     { pos: 'LB', x: 15, y: 72 },
@@ -69,32 +121,6 @@ export const FORMATION_PRESETS = {
     { pos: 'CF', x: 38, y: 18 },
     { pos: 'CF', x: 62, y: 18 },
   ],
-  '4-3-3 (4-1-2-3)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'LB', x: 15, y: 72 },
-    { pos: 'CB', x: 35, y: 75 },
-    { pos: 'CB', x: 65, y: 75 },
-    { pos: 'RB', x: 85, y: 72 },
-    { pos: 'DMF', x: 50, y: 60 },
-    { pos: 'AMF', x: 35, y: 42 },
-    { pos: 'AMF', x: 65, y: 42 },
-    { pos: 'LWF', x: 18, y: 20 },
-    { pos: 'RWF', x: 82, y: 20 },
-    { pos: 'CF', x: 50, y: 15 },
-  ],
-  '4-3-3 (4-2-1-3)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'LB', x: 15, y: 72 },
-    { pos: 'CB', x: 35, y: 75 },
-    { pos: 'CB', x: 65, y: 75 },
-    { pos: 'RB', x: 85, y: 72 },
-    { pos: 'DMF', x: 35, y: 56 },
-    { pos: 'CMF', x: 65, y: 56 },
-    { pos: 'AMF', x: 50, y: 38 },
-    { pos: 'LWF', x: 18, y: 20 },
-    { pos: 'RWF', x: 82, y: 20 },
-    { pos: 'CF', x: 50, y: 15 },
-  ],
   '3-6-1 (3-2-4-1)': [
     { pos: 'GK', x: 50, y: 90 },
     { pos: 'CB', x: 25, y: 75 },
@@ -107,6 +133,19 @@ export const FORMATION_PRESETS = {
     { pos: 'AMF', x: 62, y: 35 },
     { pos: 'RMF', x: 85, y: 38 },
     { pos: 'CF', x: 50, y: 15 },
+  ],
+  '3-5-2 (3-5-2)': [
+    { pos: 'GK', x: 50, y: 90 },
+    { pos: 'CB', x: 25, y: 75 },
+    { pos: 'CB', x: 50, y: 78 },
+    { pos: 'CB', x: 75, y: 75 },
+    { pos: 'LMF', x: 15, y: 45 },
+    { pos: 'CMF', x: 33, y: 52 },
+    { pos: 'CMF', x: 50, y: 55 },
+    { pos: 'CMF', x: 67, y: 52 },
+    { pos: 'RMF', x: 85, y: 45 },
+    { pos: 'CF', x: 38, y: 18 },
+    { pos: 'CF', x: 62, y: 18 },
   ],
   '3-5-2 (3-2-3-2)': [
     { pos: 'GK', x: 50, y: 90 },
@@ -189,12 +228,12 @@ export const FORMATION_PRESETS = {
 };
 
 export const resolveFormationKey = (form) => {
-  if (!form) return '4-3-3 (4-2-1-3)';
+  if (!form) return '4-3-3 (4-3-3)';
   if (FORMATION_PRESETS[form]) return form;
   const match = Object.keys(FORMATION_PRESETS).find(
     (f) => f.startsWith(form) || f.includes(form)
   );
-  return match || '4-3-3 (4-2-1-3)';
+  return match || '4-3-3 (4-3-3)';
 };
 
 export function matchPlayersToFormationSlots(playersList, preset) {
@@ -357,6 +396,7 @@ export function TeamProvider({ children }) {
         x_coord: p.x_coord != null ? Number(p.x_coord) : null,
         y_coord: p.y_coord != null ? Number(p.y_coord) : null,
         wage: p.wage || '1000',
+        market_value: p.market_value != null ? Number(p.market_value) : 1000000,
         rarity: p.rarity || 'REGULAR',
         status: p.is_injured ? 'مصدوم' : (Number(p.virtual_stamina) || 100) < 50 ? 'خسته' : 'سالم',
         trend: '▲',

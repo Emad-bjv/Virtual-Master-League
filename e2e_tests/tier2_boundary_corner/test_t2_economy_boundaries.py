@@ -42,7 +42,7 @@ class Tier2EconomyBoundaryTests(VMLTestHarness):
         StorePackage.objects.all().delete()
         Team.objects.all().delete()
 
-        self.user = User.objects.create_user(phone_number="09125556677")
+        self.user = self.create_user(phone_number="09125556677")
         self.team = Team.objects.create(manager=self.user, name="Economy FC", budget=Decimal("1000.00"))
 
         self.package = StorePackage.objects.create(
@@ -54,7 +54,7 @@ class Tier2EconomyBoundaryTests(VMLTestHarness):
 
         self.pending_txn = Transaction.objects.create(
             team=self.team,
-            amount_usd=Decimal("60000000.00"),
+            amount=Decimal("60000000.00"),
             amount_irr=480000,
             transaction_type='DEPOSIT',
             status='PENDING',
@@ -189,9 +189,9 @@ class Tier2EconomyBoundaryTests(VMLTestHarness):
     def test_ec21_transaction_history_recording(self):
         """Creating transaction record logs team and amount."""
         txn = Transaction.objects.create(
-            team=self.team, amount_usd=Decimal("100.00"), transaction_type='DEPOSIT', status='SUCCESS'
+            team=self.team, amount=Decimal("100.00"), transaction_type='DEPOSIT', status='SUCCESS'
         )
-        self.assertEqual(txn.amount_usd, Decimal("100.00"))
+        self.assertEqual(txn.amount, Decimal("100.00"))
 
     # --- F18: Season Pass & Daily Claim Boundaries ---
 

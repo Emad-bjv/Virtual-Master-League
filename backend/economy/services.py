@@ -7,16 +7,39 @@ from teams.models import Team
 from .models import Transaction, StorePackage
 
 
-def process_atomic_wallet_update(team_id: int, amount: Decimal, currency: str, transaction_type: str, description: str = "") -> dict:
+def process_atomic_wallet_update(team_id, amount, currency: str = 'BUDGET', transaction_type: str = 'MANUAL_ADJUSTMENT', description: str = "") -> dict:
     """
     Atomically updates a team's budget or gems to prevent race conditions.
+    Accepts both team ID (int) or Team instance.
     """
     with transaction.atomic():
         try:
-            # select_for_update locks the row until the transaction completes
-            team = Team.objects.select_for_update().get(id=team_id)
+            t_id = team_id.id if hasattr(team_id, 'id') else int(team_id)
+            team = Team.objects.select_for_update().get(id=t_id)
             
-            if currency == 'GEMS':
+            # Normalize Currency
+            curr = 'GEMS' if str(currency).upper() == 'GEMS' else 'BUDGET'
+            
+            # Normalize Transaction Type to match model choices
+            TYPE_MAP = {
+                'TRANSFER_FEE': 'TRANSFER_BUY',
+                'TRANSFER_FEE_RECEIVED': 'TRANSFER_SELL',
+                'LOAN_FEE': 'LOAN_FEE',
+                'LOAN_FEE_RECEIVED': 'LOAN_FEE_RECEIVED',
+                'PLAYER_RELEASE': 'PLAYER_RELEASE',
+                'MATCH_REWARD': 'MATCH_REWARD',
+                'WAGE': 'WAGE',
+                'FACILITY_UPGRADE': 'FACILITY_UPGRADE',
+                'STORE_PURCHASE': 'STORE_PURCHASE',
+                'GACHA_OPEN': 'GACHA_OPEN',
+                'PLAYER_LEVEL_UP': 'PLAYER_LEVEL_UP',
+            }
+            tx_type = TYPE_MAP.get(transaction_type, transaction_type)
+            valid_types = [c[0] for c in Transaction.TRANSACTION_TYPES]
+            if tx_type not in valid_types:
+                tx_type = 'MANUAL_ADJUSTMENT'
+            
+            if curr == 'GEMS':
                 current_balance = int(team.gems or 0)
                 int_amount = int(amount)
                 if int_amount < 0 and current_balance + int_amount < 0:
@@ -36,11 +59,11 @@ def process_atomic_wallet_update(team_id: int, amount: Decimal, currency: str, t
             # Record transaction
             txn = Transaction.objects.create(
                 team=team,
-                currency=currency,
-                amount=amount,
-                transaction_type=transaction_type,
+                currency=curr,
+                amount=Decimal(str(amount)),
+                transaction_type=tx_type,
                 status='SUCCESS',
-                description=description
+                description=str(description)[:255]
             )
             
             return {
@@ -70,13 +93,19 @@ def distribute_match_rewards(match) -> dict:
         result = 'WIN' if own_score > opponent_score else ('DRAW' if own_score == opponent_score else 'LOSS')
         clean_sheet = opponent_score == 0
         raw = calculate_match_reward(team, result, own_score, clean_sheet)
+
+        # Apply Stadium Multiplier for home matches (Ticket & Matchday Sponsor)
+        if team == match.home_team and hasattr(team, 'facilities') and team.facilities:
+            stadium_mult = Decimal(str(get_stadium_multiplier(team)))
+            raw = (raw * stadium_mult).quantize(Decimal('0.01'))
+
         capped = apply_weekly_soft_cap(team, raw, week_start)
 
         # Dollar reward
         process_atomic_wallet_update(
             team_id=team.id, amount=capped, currency='BUDGET',
             transaction_type='MATCH_REWARD',
-            description=f"پاداش بازی {match} — نتیجه: {result}"
+            description=f"پاداش مسابقه {match} — {('میزبان با بونوس استادیوم' if team == match.home_team else 'میهمان')} ({result})"
         )
 
         # Gem reward (Win & Underdog)

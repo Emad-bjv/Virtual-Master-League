@@ -1,6 +1,7 @@
 import React from 'react';
 import { Shield, User } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 
 // Color map for position badges matching eFootball standard (13 official positions)
 export const POSITION_COLORS = {
@@ -83,7 +84,7 @@ export default function TacticalPitch({
               ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'
               : 'bg-rose-500 shadow-[0_0_8px_#f43f5e] animate-pulse';
 
-          const photoUrl = player.photo_url || player.image || player.avatar || null;
+          const photoUrl = getPlayerPhotoUrl(player);
 
           return (
             <motion.div

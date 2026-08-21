@@ -23,6 +23,10 @@ from .views import (
     MatchLiveStateView,
     AdminMatchControlRoomView,
     GameweekStatusView,
+    LiveInGameChangeBatchSubmitView,
+    LiveInGameChangeListView,
+    LiveInGameChangeApplyView,
+    LiveInGameChangeRejectView,
 )
 
 urlpatterns = [
@@ -48,7 +52,9 @@ urlpatterns = [
 
     # Task C: Match stats & ratings (admin POST)
     path('matches/<int:match_id>/team-stats/', SubmitTeamStatsView.as_view(), name='match-team-stats'),
+    path('matches/<int:match_id>/stats/team/', SubmitTeamStatsView.as_view(), name='match-stats-team'),
     path('matches/<int:match_id>/player-ratings/', SubmitPlayerRatingsView.as_view(), name='match-player-ratings'),
+    path('matches/<int:match_id>/stats/players/', SubmitPlayerRatingsView.as_view(), name='match-stats-players'),
 
     # Task C: Match detail & team history
     path('matches/<int:match_id>/detail/', MatchDetailView.as_view(), name='match-detail'),
@@ -59,4 +65,10 @@ urlpatterns = [
     path('matches/admin-list/', AdminMatchListView.as_view(), name='admin-match-list'),
     path('matches/admin-create/', AdminMatchCreateView.as_view(), name='admin-match-create'),
     path('matches/<int:match_id>/admin-update/', AdminMatchUpdateView.as_view(), name='admin-match-update'),
+
+    # In-Game Changes Management (Coach Submissions & Referee Check-Offs)
+    path('matches/<int:match_id>/in-game-changes/', LiveInGameChangeBatchSubmitView.as_view(), name='match-in-game-changes-submit'),
+    path('matches/<int:match_id>/in-game-changes/list/', LiveInGameChangeListView.as_view(), name='match-in-game-changes-list'),
+    path('matches/<int:match_id>/in-game-changes/<int:change_id>/apply/', LiveInGameChangeApplyView.as_view(), name='match-in-game-change-apply'),
+    path('matches/<int:match_id>/in-game-changes/<int:change_id>/reject/', LiveInGameChangeRejectView.as_view(), name='match-in-game-change-reject'),
 ]

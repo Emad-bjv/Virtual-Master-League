@@ -1,9 +1,34 @@
 from rest_framework import serializers
 from .models import (
-    LiveSubstitutionRequest, Match, MatchEvent, PlayerMatchStat,
-    MatchTeamStat, LeagueStanding
+    LiveSubstitutionRequest, LiveInGameChangeRequest, Match, MatchEvent, PlayerMatchStat,
+    MatchTeamStat, LeagueStanding, MatchGamePlan
 )
 from teams.serializers import TeamSerializer
+
+
+class MatchGamePlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MatchGamePlan
+        fields = '__all__'
+        read_only_fields = ['id', 'match', 'team', 'submitted_at']
+
+
+class LiveInGameChangeSerializer(serializers.ModelSerializer):
+    team_name = serializers.CharField(source='team.name', read_only=True)
+    team_logo = serializers.CharField(source='team.logo', read_only=True)
+    coach_name = serializers.CharField(source='coach.username', read_only=True)
+    category_display = serializers.CharField(source='get_change_category_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = LiveInGameChangeRequest
+        fields = [
+            'id', 'match', 'team', 'team_name', 'team_logo',
+            'coach', 'coach_name', 'change_category', 'category_display',
+            'title', 'detail', 'diff_data', 'status', 'status_display',
+            'minute', 'created_at', 'applied_at'
+        ]
+        read_only_fields = ['status', 'created_at', 'applied_at']
 
 
 class LiveSubstitutionRequestSerializer(serializers.ModelSerializer):
@@ -67,14 +92,14 @@ class MatchSerializer(serializers.ModelSerializer):
         return 'نامشخص'
 
     def get_home_lineup_ready(self, obj):
-        if obj.home_team and hasattr(obj.home_team, 'gameplan'):
-            return bool(obj.home_team.gameplan.is_submitted)
-        return False
+        if not obj.home_team_id:
+            return False
+        return obj.gameplans.filter(team_id=obj.home_team_id, is_submitted=True).exists()
 
     def get_away_lineup_ready(self, obj):
-        if obj.away_team and hasattr(obj.away_team, 'gameplan'):
-            return bool(obj.away_team.gameplan.is_submitted)
-        return False
+        if not obj.away_team_id:
+            return False
+        return obj.gameplans.filter(team_id=obj.away_team_id, is_submitted=True).exists()
 
 
 class MatchEventSerializer(serializers.ModelSerializer):
@@ -89,6 +114,11 @@ class MatchEventSerializer(serializers.ModelSerializer):
     class Meta:
         model = MatchEvent
         fields = '__all__'
+        read_only_fields = ['id', 'match']
+        extra_kwargs = {
+            'player': {'required': False, 'allow_null': True},
+            'minute': {'required': False, 'default': 1},
+        }
 
 
 class PlayerMatchStatSerializer(serializers.ModelSerializer):
@@ -127,6 +157,7 @@ class MatchDetailSerializer(serializers.ModelSerializer):
     team_stats = MatchTeamStatSerializer(many=True, read_only=True)
     player_stats = PlayerMatchStatSerializer(many=True, read_only=True)
     substitution_requests = LiveSubstitutionRequestSerializer(many=True, read_only=True)
+    in_game_changes = LiveInGameChangeSerializer(many=True, read_only=True)
     
     # Rule counters & tactical state
     home_subs_count = serializers.SerializerMethodField()
@@ -148,7 +179,7 @@ class MatchDetailSerializer(serializers.ModelSerializer):
             'home_subs_count', 'away_subs_count',
             'home_sub_windows_used', 'away_sub_windows_used',
             'home_red_cards', 'away_red_cards',
-            'events', 'team_stats', 'player_stats', 'substitution_requests'
+            'events', 'team_stats', 'player_stats', 'substitution_requests', 'in_game_changes'
         ]
 
     def get_events(self, obj):
@@ -166,14 +197,14 @@ class MatchDetailSerializer(serializers.ModelSerializer):
         return 'نامشخص'
 
     def get_home_lineup_ready(self, obj):
-        if obj.home_team and hasattr(obj.home_team, 'gameplan'):
-            return bool(obj.home_team.gameplan.is_submitted)
-        return False
+        if not obj.home_team_id:
+            return False
+        return obj.gameplans.filter(team_id=obj.home_team_id, is_submitted=True).exists()
 
     def get_away_lineup_ready(self, obj):
-        if obj.away_team and hasattr(obj.away_team, 'gameplan'):
-            return bool(obj.away_team.gameplan.is_submitted)
-        return False
+        if not obj.away_team_id:
+            return False
+        return obj.gameplans.filter(team_id=obj.away_team_id, is_submitted=True).exists()
 
     def get_home_subs_count(self, obj):
         if not obj.home_team_id:

@@ -44,8 +44,18 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
   const teamId = teamData?.id;
   const teamName = teamData?.name || 'تیم شما';
 
-  // Persistent Lineup Submitted Check: either from prop or from teamData DB record
-  const isLineupSubmittedActual = isLineupSubmitted || Boolean(teamData?.gameplan?.is_submitted);
+  // Match-Scoped Lineup Check for the upcoming match
+  const isLineupSubmittedActual = useMemo(() => {
+    if (!nextMatch) return true;
+    if (nextMatch.is_lineup_submitted !== undefined) {
+      return Boolean(nextMatch.is_lineup_submitted);
+    }
+    if (teamId) {
+      if (nextMatch.home_team === teamId) return Boolean(nextMatch.home_lineup_ready);
+      if (nextMatch.away_team === teamId) return Boolean(nextMatch.away_lineup_ready);
+    }
+    return Boolean(isLineupSubmitted);
+  }, [nextMatch, teamId, isLineupSubmitted]);
 
   useEffect(() => {
     const timer = setInterval(() => {

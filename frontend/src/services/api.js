@@ -47,10 +47,10 @@ export const teamApi = {
   getTeam: (teamId) => api.get(`/teams/${teamId}/`),
   updateGameplan: (teamId, players) =>
     api.post(`/teams/${teamId}/update_gameplan/`, players),
-  submitGameplan: (teamId, payload) =>
-    api.post(`/teams/${teamId}/submit_gameplan/`, payload),
-  getGameplan: (teamId) =>
-    api.get(`/teams/${teamId}/submit_gameplan/`),
+  submitGameplan: (teamId, payload, matchId) =>
+    api.post(`/teams/${teamId}/submit_gameplan/`, { ...payload, ...(matchId ? { match_id: matchId } : {}) }),
+  getGameplan: (teamId, matchId) =>
+    api.get(`/teams/${teamId}/submit_gameplan/`, { params: matchId ? { match_id: matchId } : {} }),
   upgradeFacility: (teamId, facilityName) =>
     api.post(`/teams/${teamId}/upgrade_facility/`, { facility: facilityName }),
 };
@@ -60,6 +60,7 @@ export const playerApi = {
   getPlayer: (id) => api.get(`/players/${id}/`),
   recoverStamina: (id) => api.post(`/players/${id}/recover_stamina/`),
   healInjury: (id) => api.post(`/players/${id}/heal_injury/`),
+  gemBoost: (id) => api.post(`/players/${id}/gem_boost/`),
 };
 
 export const transferApi = {
@@ -70,6 +71,8 @@ export const transferApi = {
   getHistory: () => api.get('/transfers/history/'),
   // Negotiation Hub Endpoints
   getLeagueTeams: () => api.get('/transfers/league-teams/'),
+  getFreeAgents: () => api.get('/transfers/free-agents/'),
+  signFreeAgent: (playerId) => api.post(`/transfers/free-agents/${playerId}/sign/`),
   createOffer: (data) => api.post('/transfers/offers/', data),
   getInbox: () => api.get('/transfers/inbox/'),
   actionOffer: (offerId, action) => api.post(`/transfers/offers/${offerId}/${action}/`),
@@ -111,7 +114,7 @@ export const adminApi = {
 
 export const matchApi = {
   getGameweeksStatus: () => api.get('/matches/gameweeks-status/'),
-  getLiveMatchContext: () => api.get('/matches/live-context/'),
+  getLiveMatchContext: (teamId) => api.get('/matches/live-context/', { params: teamId ? { team_id: teamId } : {} }),
   getMatchLiveState: (matchId) => api.get(`/matches/${matchId}/live-state/`),
   controlMatch: (matchId, payload) => api.post(`/matches/${matchId}/control/`, payload),
   getUpcomingMatches: () => api.get('/matches/upcoming/'),
@@ -131,14 +134,18 @@ export const matchApi = {
   updateLiveTactics: (payload) => api.post(`/matches/live-tactics-update/`, payload),
   deleteEvent: (matchId, eventId) => api.post(`/matches/${matchId}/control/`, { action: 'DELETE_EVENT', event_id: eventId }),
   approveSubRequest: (matchId, requestId) => api.post(`/matches/${matchId}/control/`, { action: 'APPROVE_SUB_REQUEST', request_id: requestId }),
-  rejectSubRequest: (matchId, requestId) => api.post(`/matches/${matchId}/control/`, { action: 'REJECT_SUB_REQUEST', request_id: requestId }),
   updateLiveTelemetryStats: (matchId, stats) => api.post(`/matches/${matchId}/control/`, { action: 'UPDATE_TEAM_STATS', stats }),
   syncMatchClock: (matchId, minute, stoppageTime, isRunning) => api.post(`/matches/${matchId}/control/`, { action: 'SYNC_CLOCK', minute, stoppage_time: stoppageTime, is_running: isRunning }),
+  submitInGameChanges: (matchId, payload) => api.post(`/matches/${matchId}/in-game-changes/`, payload),
+  getInGameChanges: (matchId, teamId) => api.get(`/matches/${matchId}/in-game-changes/list/`, { params: { team_id: teamId } }),
+  applyInGameChange: (matchId, changeId) => api.post(`/matches/${matchId}/in-game-changes/${changeId}/apply/`),
+  rejectInGameChange: (matchId, changeId) => api.post(`/matches/${matchId}/in-game-changes/${changeId}/reject/`),
 };
 
 export const notificationApi = {
-  getInbox: () => api.get('/notifications/inbox/'),
+  getInbox: (params) => api.get('/notifications/inbox/', { params }),
   markAsRead: (id) => api.post(`/notifications/${id}/read/`),
+  dismissNotification: (id) => api.post(`/notifications/${id}/dismiss/`),
 };
 
 export const seasonPassApi = {

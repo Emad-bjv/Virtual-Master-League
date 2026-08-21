@@ -121,7 +121,7 @@ def generate_league_fixtures(tournament, teams=None, start_date=None, days_betwe
                         date=slot_dt,
                         round_name=round_name,
                         status='SCHEDULED',
-                        half_status='1ST_HALF',
+                        half_status='NOT_STARTED',
                         is_knockout=False,
                         standings_processed=False
                     )

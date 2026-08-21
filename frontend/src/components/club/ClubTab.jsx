@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SubNav from '../common/SubNav';
-import { Building, Zap, Dumbbell, Stethoscope, Waves, Compass, Trophy, Award, Shield } from 'lucide-react';
+import { Building, Zap, Dumbbell, Stethoscope, Waves, Compass, Trophy, Award, Shield, GraduationCap, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { teamApi } from '../../services/api';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
@@ -11,7 +11,7 @@ import FacilityCard from './FacilityCard';
 
 const CLUB_SUBNAV = [
   { id: 'budget', label: 'بودجه و درآمد' },
-  { id: 'facilities', label: 'تسهیلات اصلی باشگاه' },
+  { id: 'facilities', label: 'امکانات باشگاه' },
   { id: 'stadium', label: 'استادیوم' },
   { id: 'achievements', label: 'تالار افتخارات' },
 ];
@@ -24,7 +24,6 @@ export default function ClubTab({ teamData }) {
     academy_level: 0,
     medical_level: 0,
     gym_level: 0,
-    scouting_level: 0,
     training_camp_level: 0,
     pool_level: 0,
   });
@@ -43,6 +42,8 @@ export default function ClubTab({ teamData }) {
   }, [teamData]);
 
   const currentGems = team?.gems ?? teamData?.gems ?? 0;
+  const squadPlayers = team?.players || teamData?.players || [];
+  const youngPlayers = squadPlayers.filter((p) => Number(p.age) <= 23);
 
   const handleUpgrade = async (facilityKey) => {
     setUpgradingFacility(facilityKey);
@@ -60,7 +61,11 @@ export default function ClubTab({ teamData }) {
         if (res.data.remaining_gems !== undefined) {
           updateTeamGems(res.data.remaining_gems);
         }
-        setToastMessage(`تسهیلات با موفقیت به سطح ${res.data.new_level} ارتقا یافت! (${res.data.gem_cost} جم کسر شد)`);
+        if (facilityKey === 'academy_level' && res.data.boosted_young_count > 0) {
+          setToastMessage(`🌟 آکادمی جوانان به سطح ${res.data.new_level} ارتقا یافت و سقف پتانسیل ${res.data.boosted_young_count} بازیکن جوان تیم (+1) افزایش یافت! (${res.data.gem_cost} جم کسر شد)`);
+        } else {
+          setToastMessage(`امکانات با موفقیت به سطح ${res.data.new_level} ارتقا یافت! (${res.data.gem_cost} جم کسر شد)`);
+        }
       } else {
         setFacilities((prev) => ({
           ...prev,
@@ -69,11 +74,11 @@ export default function ClubTab({ teamData }) {
         setToastMessage('ارتقا انجام شد.');
       }
     } catch (err) {
-      const errMsg = err.response?.data?.error || 'خطا در ارتقای تسهیلات';
+      const errMsg = err.response?.data?.error || 'خطا در ارتقای امکانات';
       setToastMessage(errMsg);
     } finally {
       setUpgradingFacility(null);
-      setTimeout(() => setToastMessage(''), 3500);
+      setTimeout(() => setToastMessage(''), 4000);
     }
   };
 
@@ -112,7 +117,16 @@ export default function ClubTab({ teamData }) {
           </div>
           <div>
             <h2 className="text-base sm:text-lg font-black text-white tracking-tight">{teamData?.name || 'باشگاه اختصاصی (CLUB HEADQUARTERS)'}</h2>
-            <p className="text-xs text-cyan-300 font-medium">مدیریت تسهیلات حرفه‌ای، استادیوم و توسعه پایدار باشگاه</p>
+            <div className="flex flex-wrap items-center gap-2 mt-0.5 text-xs">
+              <span className="text-cyan-300 font-bold">
+                سرمربی: {teamData?.manager_full_name || teamData?.manager_username || 'پائولو فونسکا'}
+              </span>
+              {teamData?.manager_birth_date && (
+                <span className="text-slate-400 text-[11px] font-sport">
+                  • متولد: {teamData.manager_birth_date}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -168,17 +182,19 @@ export default function ClubTab({ teamData }) {
       {activeSub === 'facilities' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
           <div className="text-[11px] text-purple-300 bg-purple-950/40 p-2.5 rounded-xl border border-purple-500/30 flex justify-between items-center md:col-span-2 lg:col-span-3">
-            <span>تسهیلات اصلی باشگاه دارای ۲۰ سطح پیشرفت نمایی بوده و پتانسیل کل تیم را افزایش می‌دهند.</span>
+            <span>امکانات اصلی باشگاه دارای ۲۰ سطح پیشرفت نمایی بوده و پتانسیل کل تیم را افزایش می‌دهند.</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* 1. Training Camp */}
-            <FacilityCard 
+            <FacilityCard
               facilityKey="training_camp_level"
               facilityName="کمپ تمرینی (Training Camp)"
               level={facilities.training_camp_level || 0}
               icon={Zap}
-              formulaText={`فرمول: +${(curvePercent(facilities.training_camp_level || 0) * 0.60).toFixed(1)}٪ سرعت رشد کلی`}
+              phaseBadge="⚡ شتاب رشد و تجربه (Team XP Multiplier)"
+              scenarioText="افزایش دائمی امتیاز تجربه (XP) دریافتی از مسابقات رسمی برای تمام بازیکنان تیم"
+              formulaText={`ضریب کسب XP مسابقات: +${((facilities.training_camp_level || 0) * 3)}٪ (تا سقف ۶۰٪+)`}
               curvePercent={curvePercent(facilities.training_camp_level || 0)}
               handleUpgrade={handleUpgrade}
               upgradingFacility={upgradingFacility}
@@ -188,78 +204,72 @@ export default function ClubTab({ teamData }) {
             />
 
             {/* 2. Gym */}
-            <FacilityCard 
+            <FacilityCard
               facilityKey="gym_level"
               facilityName="باشگاه بدنسازی (Gym)"
               level={facilities.gym_level || 0}
               icon={Dumbbell}
-              formulaText={`فرمول: -${(curvePercent(facilities.gym_level || 0) * 0.32).toFixed(1)}٪ کاهش افت استقامت`}
+              phaseBadge="🛡️ حین ۹۰ دقیقه مسابقه (In-Match Endurance)"
+              scenarioText="کاهش افت انرژی بازیکن در دقایق ۷۰ به بعد و جلوگیری از خستگی ناشی از پرسینگ و استارت‌های متوالی"
+              formulaText={`کاهش افت استقامت مسابقه: -${(curvePercent(facilities.gym_level || 0) * 0.32).toFixed(1)}٪ (تخلیه انرژی کمتر)`}
               curvePercent={curvePercent(facilities.gym_level || 0)}
               handleUpgrade={handleUpgrade}
               upgradingFacility={upgradingFacility}
               extraDescription="جلوگیری از خستگی زودرس"
-              imageFolder="camp"
+              imageFolder="gym"
               currentGems={currentGems}
             />
 
             {/* 3. Medical Center */}
-            <FacilityCard 
+            <FacilityCard
               facilityKey="medical_level"
               facilityName="بخش درمانی و پزشکی (Medical)"
               level={facilities.medical_level || 0}
               icon={Stethoscope}
-              formulaText={`فرمول: +${(curvePercent(facilities.medical_level || 0) * 0.40).toFixed(1)}٪ ریکاوری & -${(curvePercent(facilities.medical_level || 0) * 0.32).toFixed(1)}٪ مصدومیت`}
+              phaseBadge="🚑 بخش اورژانس و آسیب‌دیدگی (Injury Management)"
+              scenarioText="کاهش شانس آسیب‌دیدگی در تکل‌ها و نبردهای فیزیکی + کاهش مستقیم روزهای دوری از میادین"
+              formulaText={`کاهش ریسک مصدومیت: -${(curvePercent(facilities.medical_level || 0) * 0.32).toFixed(1)}٪ | شتاب درمان: +${(curvePercent(facilities.medical_level || 0) * 0.40).toFixed(1)}٪`}
               curvePercent={curvePercent(facilities.medical_level || 0)}
               handleUpgrade={handleUpgrade}
               upgradingFacility={upgradingFacility}
               extraDescription="کاهش زمان مصدومیت"
-              imageFolder="camp"
+              imageFolder="medical"
               currentGems={currentGems}
             />
 
             {/* 4. Recovery Pool */}
-            <FacilityCard 
+            <FacilityCard
               facilityKey="pool_level"
               facilityName="استخر بازیابی (Recovery Pool)"
               level={facilities.pool_level || 0}
               icon={Waves}
-              formulaText={`فرمول: +${(curvePercent(facilities.pool_level || 0) * 0.24).toFixed(1)}٪ بونوس ریکاوری روزانه`}
+              phaseBadge="🌊 بین هفته‌ها و روزهای استراحت (Off-Pitch Recovery)"
+              scenarioText="شارژ خودکار و سریع‌تر استقامت بازیکنان خسته و نیمکت‌نشین بین مسابقات بدون نیاز به مصرف الماس"
+              formulaText={`بونوس شارژ روزانه استقامت: +${(curvePercent(facilities.pool_level || 0) * 0.24).toFixed(1)}٪ (بازیابی پسیو)`}
               curvePercent={curvePercent(facilities.pool_level || 0)}
               handleUpgrade={handleUpgrade}
               upgradingFacility={upgradingFacility}
               extraDescription="ریکاوری سریع‌تر استقامت"
-              imageFolder="camp"
+              imageFolder="pool"
               currentGems={currentGems}
             />
 
-            {/* 5. Youth Academy */}
-            <FacilityCard 
+            {/* 5. Youth Academy (Redesigned) */}
+            <FacilityCard
               facilityKey="academy_level"
               facilityName="آکادمی جوانان (Youth Academy)"
               level={facilities.academy_level || 0}
-              icon={Building}
-              formulaText={`پتانسیل جوانان: OVR ${Math.round(65 + curvePercent(facilities.academy_level || 0) * 0.20)}`}
+              icon={GraduationCap}
+              phaseBadge="🎓 پرورش استعداد و سقف پتانسیل (Youth Development)"
+              scenarioText={`شتاب رشد +${((facilities.academy_level || 0) * 2.5).toFixed(1)}٪ به جوانان زیر ۲۴ سال + پاداش +1 پتانسیل در مایلستون‌های ۵، ۱۰، ۱۵ و ۲۰`}
+              formulaText={`شتاب رشد جوانان: +${((facilities.academy_level || 0) * 2.5).toFixed(1)}٪ | سقف پتانسیل: +${Math.floor((facilities.academy_level || 0) / 5)} از ۴`}
               curvePercent={curvePercent(facilities.academy_level || 0)}
               handleUpgrade={handleUpgrade}
               upgradingFacility={upgradingFacility}
-              extraDescription="خروجی آکادمی: بازیکنان جوان مستعد"
-              imageFolder="camp"
+              extraDescription={`تحت پوشش: ${youngPlayers.length} بازیکن مستعد زیر ۲۴ سال`}
+              imageFolder="academy"
               currentGems={currentGems}
-            />
-
-            {/* 6. Scouting Network */}
-            <FacilityCard 
-              facilityKey="scouting_level"
-              facilityName="شبکه استعدادیابی بین‌المللی"
-              level={facilities.scouting_level || 0}
-              icon={Compass}
-              formulaText={`تخفیف خرید: ${(curvePercent(facilities.scouting_level || 0) * 0.12).toFixed(1)}٪ & خطای تخمین: ±۴ OVR`}
-              curvePercent={curvePercent(facilities.scouting_level || 0)}
-              handleUpgrade={handleUpgrade}
-              upgradingFacility={upgradingFacility}
-              extraDescription="دقت آنالیز پتانسیل: ±۴ OVR"
-              imageFolder="camp"
-              currentGems={currentGems}
+              youngPlayersList={youngPlayers}
             />
           </div>
         </motion.div>
@@ -268,12 +278,14 @@ export default function ClubTab({ teamData }) {
       {/* Stadium Subtab */}
       {activeSub === 'stadium' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-          <FacilityCard 
+          <FacilityCard
             facilityKey="stadium_level"
             facilityName="استادیوم اختصاصی باشگاه"
             level={facilities.stadium_level || 0}
             icon={Building}
-            formulaText={`بونوس درآمد بلیت‌فروشی: +${(curvePercent(facilities.stadium_level || 0) * 0.40).toFixed(1)}٪`}
+            phaseBadge="🏟️ میزبانی و درآمدزایی (Matchday Revenue)"
+            scenarioText="افزایش گنجایش تماشاگران و درآمد هفتگی بلیت‌فروشی و اسپانسرهای مسابقات خانگی"
+            formulaText={`گنجایش: ${(((facilities.stadium_level || 0) * 10000) + 10000).toLocaleString('fa-IR')} صندلی | درآمد بلیت: +${(curvePercent(facilities.stadium_level || 0) * 0.40).toFixed(1)}٪`}
             curvePercent={curvePercent(facilities.stadium_level || 0)}
             handleUpgrade={handleUpgrade}
             upgradingFacility={upgradingFacility}

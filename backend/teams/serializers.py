@@ -18,16 +18,56 @@ class TeamGamePlanSerializer(serializers.ModelSerializer):
 class PlayerSerializer(serializers.ModelSerializer):
     stamina_status = serializers.CharField(read_only=True)
     is_stamina_locked = serializers.BooleanField(read_only=True)
+    loan_owner_team_name = serializers.CharField(source='loan_owner_team.name', read_only=True, allow_null=True)
+    photo_url = serializers.SerializerMethodField()
+    xp_to_next_level = serializers.SerializerMethodField()
+    xp_progress_percent = serializers.SerializerMethodField()
+    next_level_gem_cost = serializers.SerializerMethodField()
+    next_level_target_ovr = serializers.SerializerMethodField()
 
     class Meta:
         model = Player
         fields = '__all__'
+
+    def get_photo_url(self, obj):
+        import urllib.parse
+        return f"/players/{urllib.parse.quote(obj.name)}.png"
+
+    def get_xp_to_next_level(self, obj):
+        if obj.level >= 20:
+            return 0
+        from .level_engine import get_xp_required
+        return get_xp_required(obj.level)
+
+    def get_xp_progress_percent(self, obj):
+        if obj.level >= 20:
+            return 100
+        required = self.get_xp_to_next_level(obj)
+        if required == 0:
+            return 0
+        return min(100, int((obj.xp / required) * 100))
+
+    def get_next_level_gem_cost(self, obj):
+        if obj.level >= 20:
+            return 0
+        from .level_engine import get_gem_boost_cost
+        return get_gem_boost_cost(obj.level)
+
+    def get_next_level_target_ovr(self, obj):
+        if obj.level >= 20:
+            return obj.overall
+        from .level_engine import calculate_gem_boost_ovr
+        base = obj.base_overall or obj.overall
+        return calculate_gem_boost_ovr(base, obj.level + 1)
 
 
 class TeamSerializer(serializers.ModelSerializer):
     players = PlayerSerializer(many=True, read_only=True)
     facilities = ClubFacilitiesSerializer(read_only=True)
     gameplan = TeamGamePlanSerializer(read_only=True)
+    manager_username = serializers.CharField(source='manager.username', read_only=True, default=None)
+    manager_full_name = serializers.CharField(source='manager.full_name', read_only=True, default=None)
+    manager_birth_date = serializers.DateField(source='manager.birth_date', read_only=True, default=None)
 
     class Meta:
         model = Team

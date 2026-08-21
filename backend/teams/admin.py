@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Team, Player, PlayerGrowthLog
+from .models import Team, Player, PlayerGrowthLog, PlayerLevelConfig, PlayerLevelUpLog
 
 
 class PlayerGrowthLogInline(admin.TabularInline):
@@ -8,6 +8,15 @@ class PlayerGrowthLogInline(admin.TabularInline):
     readonly_fields = (
         'period_name', 'old_overall', 'new_overall', 'change_amount',
         'change_type', 'avg_rating', 'games_played', 'goals_scored', 'created_at', 'notes'
+    )
+    can_delete = False
+
+
+class PlayerLevelUpLogInline(admin.TabularInline):
+    model = PlayerLevelUpLog
+    extra = 0
+    readonly_fields = (
+        'old_level', 'new_level', 'xp_source', 'xp_amount', 'details', 'created_at'
     )
     can_delete = False
 
@@ -21,18 +30,21 @@ class TeamAdmin(admin.ModelAdmin):
 @admin.register(Player)
 class PlayerAdmin(admin.ModelAdmin):
     list_display = (
-        'name', 'team', 'position', 'overall',
+        'name', 'team', 'position', 'overall', 'level', 'xp',
         'virtual_stamina', 'consecutive_games',
         'stamina_status_display', 'is_starting'
     )
-    list_filter = ('team', 'position', 'is_starting', 'is_injured')
+    list_filter = ('team', 'position', 'is_starting', 'is_injured', 'level')
     search_fields = ('name',)
     readonly_fields = ('stamina_status_display', 'is_stamina_locked_display')
-    inlines = [PlayerGrowthLogInline]
+    inlines = [PlayerGrowthLogInline, PlayerLevelUpLogInline]
 
     fieldsets = (
         ('اطلاعات پایه', {
             'fields': ('name', 'team', 'age', 'position', 'overall')
+        }),
+        ('سیستم لول', {
+            'fields': ('level', 'xp', 'total_xp')
         }),
         ('سیستم استقامت', {
             'fields': (
@@ -82,3 +94,17 @@ class PlayerGrowthLogAdmin(admin.ModelAdmin):
         elif obj.change_amount < 0:
             return f"🔴 {obj.change_amount}"
         return "⚪ بدون تغییر"
+
+
+@admin.register(PlayerLevelConfig)
+class PlayerLevelConfigAdmin(admin.ModelAdmin):
+    list_display = ('level', 'xp_required')
+    ordering = ('level',)
+
+
+@admin.register(PlayerLevelUpLog)
+class PlayerLevelUpLogAdmin(admin.ModelAdmin):
+    list_display = ('player', 'old_level', 'new_level', 'xp_source', 'xp_amount', 'created_at')
+    list_filter = ('xp_source', 'created_at')
+    search_fields = ('player__name',)
+    readonly_fields = [f.name for f in PlayerLevelUpLog._meta.fields]

@@ -99,7 +99,7 @@ const AdminFacilitiesBudget = () => {
           <h3 className="text-lg font-bold text-blue-300">راهنمای بودجه و تسهیلات باشگاه‌ها</h3>
         </div>
         <p className="text-sm leading-relaxed text-gray-300">
-          تسهیلات باشگاه شامل کمپ تمرینی، بدنسازی، مرکز پزشکی، استادیوم، آکادمی جوانان، استعدادیابی و استخر بازیابی می‌باشد. هر سطح از ۱ تا ۲۰ به صورت منحنی غیرخطی (Curve) روی ریکاوری خستگی بازیکنان، درآمد بلیت‌فروشی استادیوم و خروجی بازیکنان آکادمی تأثیر می‌گذارد.
+          تسهیلات باشگاه شامل کمپ تمرینی، بدنسازی، مرکز پزشکی، استادیوم، آکادمی جوانان و استخر بازیابی می‌باشد. هر سطح از ۱ تا ۲۰ به صورت منحنی غیرخطی (Curve) روی ریکاوری خستگی بازیکنان، درآمد بلیت‌فروشی استادیوم و خروجی بازیکنان آکادمی تأثیر می‌گذارد.
         </p>
       </div>
 
@@ -163,7 +163,6 @@ const AdminFacilitiesBudget = () => {
                 <option value="medical">مرکز پزشکی (medical)</option>
                 <option value="stadium">استادیوم (stadium)</option>
                 <option value="academy">آکادمی (academy)</option>
-                <option value="scouting">استعدادیابی (scouting)</option>
                 <option value="pool">استخر (pool)</option>
               </select>
             </div>

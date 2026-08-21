@@ -11,10 +11,15 @@ class NotificationSerializer(serializers.ModelSerializer):
             'id',
             'team',
             'team_name',
+            'match',
+            'target_role',
+            'action_url',
             'category',
             'title',
             'message',
             'is_read',
+            'is_dismissed',
+            'dismissed_at',
             'created_at',
         ]
         read_only_fields = fields

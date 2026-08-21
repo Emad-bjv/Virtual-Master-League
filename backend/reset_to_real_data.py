@@ -12,7 +12,7 @@ from teams.models import Team, Player, ClubFacilities, TeamGamePlan
 from users.models import User
 from economy.models import StorePackage
 from gacha.models import GachaPack
-from transfers.models import TransferListing
+from transfers.models import TransferListing, TransferBid, TransferOffer, TransferHistory, TransferLog
 from notifications.models import Notification
 from matches.models import Match
 
@@ -26,8 +26,12 @@ FC26_TEAMS = [
 def reset_db():
     print("Starting clean reset to Real FC 26 data...")
 
-    # 1. Clear transfer listings, notifications, matches, and tasks
+    # 1. Clear transfer listings, bids, offers, history, logs, notifications, matches, and tasks
     TransferListing.objects.all().delete()
+    TransferBid.objects.all().delete()
+    TransferOffer.objects.all().delete()
+    TransferHistory.objects.all().delete()
+    TransferLog.objects.all().delete()
     Notification.objects.all().delete()
     Match.objects.all().delete()
     try:
@@ -36,7 +40,7 @@ def reset_db():
         TeamTaskProgress.objects.all().delete()
     except Exception:
         pass
-    print("Cleared transfer listings, notifications, matches, and season tasks.")
+    print("Cleared transfer listings, bids, offers, history, logs, notifications, matches, and season tasks.")
 
     # 2. Delete non-FC26 teams and players
     dummy_teams = Team.objects.exclude(name__in=FC26_TEAMS)
@@ -65,24 +69,24 @@ def reset_db():
                 dest_path = os.path.join(logos_dest_dir, filename)
                 shutil.copy2(src_path, dest_path)
     
-    # Formations dict based on standard real-world setup
+    # Formations dict based on PES 2021 standard setup
     DEFAULT_FORMATIONS = {
-        'AC Milan': '4-2-3-1', 
-        'Arsenal': '4-3-3', 
-        'Atlético Madrid': '5-3-2', 
-        'BVB Borussia Dortmund': '4-2-3-1',
-        'Chelsea': '4-2-3-1', 
-        'FC Barcelona': '4-3-3', 
-        'FC Bayern München': '4-2-3-1', 
-        'Inter': '3-5-2',
-        'Juventus': '3-5-2', 
-        'Liverpool': '4-3-3', 
-        'Manchester City': '3-2-4-1', 
-        'Manchester United': '4-2-3-1',
-        'Newcastle United': '4-3-3', 
-        'Paris Saint-Germain': '4-3-3', 
-        'Real Madrid': '4-3-1-2', 
-        'Tottenham Hotspur': '4-2-3-1'
+        'AC Milan': '4-5-1 (4-2-3-1)',
+        'Arsenal': '4-3-3 (4-3-3)',
+        'Atlético Madrid': '4-4-2 (4-4-2)',
+        'BVB Borussia Dortmund': '4-5-1 (4-2-3-1)',
+        'Chelsea': '4-3-3 (4-3-3)',
+        'FC Barcelona': '4-3-3 (4-3-3)',
+        'FC Bayern München': '4-5-1 (4-2-3-1)',
+        'Inter': '3-5-2 (3-5-2)',
+        'Juventus': '4-3-3 (4-3-3)',
+        'Liverpool': '4-3-3 (4-3-3)',
+        'Manchester City': '4-3-3 (4-3-3)',
+        'Manchester United': '4-5-1 (4-2-3-1)',
+        'Newcastle United': '4-3-3 (4-3-3)',
+        'Paris Saint-Germain': '4-3-3 (4-3-3)',
+        'Real Madrid': '4-3-3 (4-3-3)',
+        'Tottenham Hotspur': '4-5-1 (4-2-3-1)',
     }
 
     # 3. Load / import FC 26 teams and players from fixture JSON if not present
@@ -100,14 +104,11 @@ def reset_db():
             if model == 'teams.team':
                 # find logo filename mapping
                 team_name = fields['name']
-                default_form = DEFAULT_FORMATIONS.get(team_name, '4-3-3')
+                default_form = DEFAULT_FORMATIONS.get(team_name, '4-3-3 (4-3-3)')
                 
                 logo_path = fields.get('logo', '')
                 if not logo_path and os.path.exists(logos_dest_dir):
-                    # Try to find a matching logo file
                     for filename in os.listdir(logos_dest_dir):
-                        # Simple naive match (e.g. "england_arsenal")
-                        # You could implement better matching, but this is a heuristic
                         if team_name.lower().replace(" ", "-") in filename.lower() or team_name.split()[0].lower() in filename.lower():
                             logo_path = f'/assets/logos/{filename}'
                             break
@@ -118,6 +119,7 @@ def reset_db():
                         'logo': logo_path,
                         'budget': Decimal(fields.get('budget', '500000000.00')),
                         'wage_cap': Decimal(fields.get('wage_cap', '5000000.00')),
+                        'star_rating': Decimal(fields.get('star_rating', '4.5')),
                         'default_formation': default_form
                     }
                 )
@@ -130,7 +132,6 @@ def reset_db():
                         'medical_level': 0,
                         'gym_level': 0,
                         'pool_level': 0,
-                        'scouting_level': 0,
                         'training_camp_level': 0
                     }
                 )
@@ -139,12 +140,14 @@ def reset_db():
                 team_fk = fields['team']
                 team_obj = team_id_map.get(team_fk)
                 if not team_obj:
-                    # Fallback lookup by name
                     continue
                 Player.objects.update_or_create(
-                    team=team_obj,
-                    name=fields['name'],
+                    id=pk,
                     defaults={
+                        'name': fields['name'],
+                        'team': team_obj,
+                        'loan_owner_team': None,
+                        'loan_matches_left': 0,
                         'age': fields['age'],
                         'position': fields['position'],
                         'overall': fields['overall'],
@@ -152,6 +155,7 @@ def reset_db():
                         'base_stamina': fields['base_stamina'],
                         'virtual_stamina': Decimal(fields['virtual_stamina']),
                         'wage': Decimal(fields['wage']),
+                        'market_value': Decimal(fields.get('market_value', '1000000.00')),
                         'rarity': fields['rarity'],
                     }
                 )
@@ -159,9 +163,13 @@ def reset_db():
         print("Imported/verified FC 26 teams and players from fixture.")
 
         # Squad Lineup and Tactical Starting XI Auto-Assignment
-        print("Auto-assigning Starting XI coordinates, shirt numbers, and bench distribution...")
+        print("Auto-assigning Starting XI coordinates, shirt numbers, and bench distribution based on PES 2021...")
         from teams.lineup_services import align_all_teams
         align_all_teams()
+
+        # Update Team Star Ratings based on aligned Starting XI
+        for t in Team.objects.all():
+            t.update_star_rating(save=True)
 
         # Reset TeamGamePlans to default unsubmitted state for all clubs
         for t in Team.objects.all():

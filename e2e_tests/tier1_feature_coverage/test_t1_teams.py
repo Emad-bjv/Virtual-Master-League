@@ -83,6 +83,7 @@ class Tier1TeamsFeatureTests(VMLTestHarness):
 
     def test_feature4_submit_gameplan_tactics_endpoint(self):
         team = self.create_team()
+        self.authenticate(team.manager)
         p1 = self.create_player(team=team, name="Midfielder", position="CMF")
         payload = {
             "tactics": {
@@ -106,11 +107,8 @@ class Tier1TeamsFeatureTests(VMLTestHarness):
                 {"id": p1.id, "x_coord": 50.0, "y_coord": 50.0, "position": "CMF", "is_starting": True}
             ],
         }
-        try:
-            response = self.client.post(f"/api/teams/{team.id}/submit_gameplan/", payload, format="json")
-            self.assertIn(response.status_code, [200, 500])
-        except AssertionError:
-            pass
+        response = self.client.post(f"/api/teams/{team.id}/submit_gameplan/", payload, format="json")
+        self.assertEqual(response.status_code, 200)
         gp = TeamGamePlan.objects.get(team=team)
         self.assertEqual(gp.formation, "4-2-1-3")
         self.assertTrue(gp.is_submitted)
@@ -237,3 +235,80 @@ class Tier1TeamsFeatureTests(VMLTestHarness):
         self.assertEqual(response.status_code, 200)
         fac = ClubFacilities.objects.get(team=team)
         self.assertEqual(fac.gym_level, 15)
+
+    # --- Requirement R4: Unified Gameplan & Tactics Submission ---
+
+    def test_r4_unified_submit_gameplan_14_tactics_and_player_coordinates(self):
+        """
+        Verify unified gameplan submission endpoint POST /api/teams/<id>/submit_gameplan/:
+        - Accepts all 14 tactics fields + formation
+        - Accepts starter and sub player coordinates and positions
+        - Sets is_submitted=True
+        - Returns updated gameplan and team payload
+        """
+        coach = self.create_user(username="coach_r4_unified", role="coach")
+        team = self.create_team(manager=coach, name="Tactics Master FC")
+        self.client.force_authenticate(user=coach)
+
+        p_gk = self.create_player(team=team, name="Goalie", position="GK", overall=80)
+        p_cb = self.create_player(team=team, name="CenterBack", position="CB", overall=78)
+        p_cf = self.create_player(team=team, name="Striker", position="CF", overall=85)
+        p_sub = self.create_player(team=team, name="Bench Midfielder", position="CMF", overall=74)
+
+        payload = {
+            "tactics": {
+                "formation": "4-3-3",
+                "attacking_style": "ضدحمله سریع",
+                "build_up": "پاس بلند",
+                "attacking_area": "جناحین",
+                "positioning": "انعطاف‌پذیر",
+                "support_range": 8,
+                "defensive_style": "دفاع همه‌جانبه",
+                "containment_area": "کناره‌ها",
+                "pressing": "محتاطانه",
+                "defensive_line": 4,
+                "compactness": 7,
+                "adv_offense_1": "تیکی تاکا",
+                "adv_offense_2": "وینگ بک هجومی",
+                "adv_defense_1": "فشار از بالا",
+                "adv_defense_2": "تراکم در محوطه",
+            },
+            "players": [
+                {"id": p_gk.id, "x_coord": 50.0, "y_coord": 5.0, "position": "GK", "is_starting": True},
+                {"id": p_cb.id, "x_coord": 40.0, "y_coord": 25.0, "position": "CB", "is_starting": True},
+                {"id": p_cf.id, "x_coord": 50.0, "y_coord": 88.0, "position": "CF", "is_starting": True},
+                {"id": p_sub.id, "x_coord": 0.0, "y_coord": 0.0, "position": "CMF", "is_starting": False},
+            ]
+        }
+
+        response = self.client.post(f"/api/teams/{team.id}/submit_gameplan/", payload, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("gameplan", response.data)
+        self.assertIn("team", response.data)
+
+        # Verify DB updates
+        gp = TeamGamePlan.objects.get(team=team)
+        self.assertTrue(gp.is_submitted)
+        self.assertEqual(gp.formation, "4-3-3")
+        self.assertEqual(gp.attacking_style, "ضدحمله سریع")
+        self.assertEqual(gp.build_up, "پاس بلند")
+        self.assertEqual(gp.attacking_area, "جناحین")
+        self.assertEqual(gp.positioning, "انعطاف‌پذیر")
+        self.assertEqual(gp.support_range, 8)
+        self.assertEqual(gp.defensive_style, "دفاع همه‌جانبه")
+        self.assertEqual(gp.containment_area, "کناره‌ها")
+        self.assertEqual(gp.pressing, "محتاطانه")
+        self.assertEqual(gp.defensive_line, 4)
+        self.assertEqual(gp.compactness, 7)
+        self.assertEqual(gp.adv_offense_1, "تیکی تاکا")
+        self.assertEqual(gp.adv_offense_2, "وینگ بک هجومی")
+        self.assertEqual(gp.adv_defense_1, "فشار از بالا")
+        self.assertEqual(gp.adv_defense_2, "تراکم در محوطه")
+
+        p_cf.refresh_from_db()
+        self.assertEqual(p_cf.x_coord, 50.0)
+        self.assertEqual(p_cf.y_coord, 88.0)
+        self.assertTrue(p_cf.is_starting)
+
+        p_sub.refresh_from_db()
+        self.assertFalse(p_sub.is_starting)

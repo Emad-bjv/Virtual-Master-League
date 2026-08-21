@@ -11,6 +11,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('teams', '0008_alter_team_logo'),
+        ('matches', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -20,11 +21,16 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('category', models.CharField(choices=[('MATCH', 'مسابقات'), ('TRANSFER', 'نقل و انتقالات'), ('GACHA', 'گاشا'), ('SYSTEM', 'سیستم')], default='SYSTEM', max_length=15, verbose_name='دسته‌بندی')),
+                ('target_role', models.CharField(choices=[('ALL', 'همه'), ('ADMIN', 'ادمین'), ('COACH', 'مربی')], default='ALL', max_length=10, verbose_name='نقش مخاطب')),
+                ('action_url', models.CharField(blank=True, default='', max_length=255, verbose_name='لینک اقدام')),
                 ('title', models.CharField(max_length=255, verbose_name='عنوان')),
                 ('message', models.TextField(blank=True, verbose_name='متن پیام')),
                 ('is_read', models.BooleanField(default=False, verbose_name='خوانده شده؟')),
+                ('is_dismissed', models.BooleanField(default=False, verbose_name='رد/بسته شده؟')),
+                ('dismissed_at', models.DateTimeField(blank=True, null=True, verbose_name='زمان رد/بستن')),
                 ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='زمان ایجاد')),
                 ('team', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='notifications', to='teams.team', verbose_name='تیم')),
+                ('match', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='notifications', to='matches.match', verbose_name='مسابقه')),
             ],
             options={
                 'verbose_name': 'اعلامیه',

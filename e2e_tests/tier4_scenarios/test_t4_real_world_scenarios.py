@@ -27,11 +27,11 @@ class TestT4RealWorldScenarios(VMLTestHarness):
     def setUp(self):
         super().setUp()
         # Setup baseline users & teams for scenario execution
-        self.mgr1 = User.objects.create_user(phone_number='09129990001', virtual_dollars=Decimal('1000.00'))
+        self.mgr1 = self.create_user(phone_number='09129990001', virtual_dollars=Decimal('1000.00'))
         self.team1 = Team.objects.create(manager=self.mgr1, name='Perspolis Tech', budget=Decimal('1000000.00'))
         self.fac1 = ClubFacilities.objects.create(team=self.team1)
 
-        self.mgr2 = User.objects.create_user(phone_number='09129990002', virtual_dollars=Decimal('500.00'))
+        self.mgr2 = self.create_user(phone_number='09129990002', virtual_dollars=Decimal('500.00'))
         self.team2 = Team.objects.create(manager=self.mgr2, name='Esteghlal United', budget=Decimal('500000.00'))
         self.fac2 = ClubFacilities.objects.create(team=self.team2)
 
@@ -49,13 +49,13 @@ class TestT4RealWorldScenarios(VMLTestHarness):
     # -------------------------------------------------------------------------
     def test_scenario_01_new_manager_onboarding_and_squad_setup(self):
         # Step 1: Create manager and default team
-        new_mgr = User.objects.create_user(phone_number='09129990003')
+        new_mgr = self.create_user(phone_number='09129990003')
         new_team = Team.objects.create(manager=new_mgr, name='Sepahan FC', budget=Decimal('1000000.00'))
         ClubFacilities.objects.create(team=new_team)
 
         # Step 2: Credit wallet via Store package topup ($25M Silver Package)
         topup_res = process_atomic_wallet_update(
-            team_id=new_team.id, amount_usd=Decimal('25000000.00'),
+            team_id=new_team.id, amount=Decimal('25000000.00'),
             transaction_type='DEPOSIT', description='Silver Package Topup'
         )
         self.assertTrue(topup_res['success'])
@@ -96,6 +96,7 @@ class TestT4RealWorldScenarios(VMLTestHarness):
                 {'id': leg_player_id, 'x_coord': 50.0, 'y_coord': 15.0, 'position': 'CF', 'is_starting': True}
             ]
         }
+        self.authenticate(new_mgr)
         response = self.post(url, data=payload)
         self.assert_status_code(response, 200)
 
@@ -121,6 +122,7 @@ class TestT4RealWorldScenarios(VMLTestHarness):
         match.save()
 
         # Step 3: Live sub request by Home manager
+        self.authenticate(self.mgr1)
         sub_url = '/api/matches/substitute/'
         sub_payload = {
             'match': match.id, 'team': self.team1.id,
@@ -157,7 +159,7 @@ class TestT4RealWorldScenarios(VMLTestHarness):
         self.assertTrue(bid1_res['success'])
 
         # Step 3: Team 3 joins and outbids with $750.00
-        mgr3 = User.objects.create_user(phone_number=f'0988{User.objects.count() + 1000:07d}')
+        mgr3 = self.create_user(phone_number=f'0988{User.objects.count() + 1000:07d}')
         team3 = Team.objects.create(manager=mgr3, name='Tractor Club', budget=Decimal('2000000.00'))
         bid2_res = place_bid(team3.id, listing_id, Decimal('750.00'))
         self.assertTrue(bid2_res['success'], f"bid2_res failed: {bid2_res}")
@@ -181,7 +183,7 @@ class TestT4RealWorldScenarios(VMLTestHarness):
     def test_scenario_04_zarinpal_payment_and_gacha_spree(self):
         # Step 1: Create PENDING payment transaction
         txn = Transaction.objects.create(
-            team=self.team1, amount_usd=Decimal('60000000.00'), amount_irr=4800000,
+            team=self.team1, amount=Decimal('60000000.00'), amount_irr=4800000,
             transaction_type='DEPOSIT', status='PENDING', zarinpal_authority='AUTH_SPREE_777'
         )
 
@@ -191,7 +193,7 @@ class TestT4RealWorldScenarios(VMLTestHarness):
         txn.save()
 
         process_atomic_wallet_update(
-            team_id=self.team1.id, amount_usd=Decimal('60000000.00'),
+            team_id=self.team1.id, amount=Decimal('60000000.00'),
             transaction_type='DEPOSIT', description='Gold Store Package'
         )
 
@@ -226,12 +228,12 @@ class TestT4RealWorldScenarios(VMLTestHarness):
         list_res = list_player_for_sale(self.team1.id, self.star_player.id, Decimal('100.00'))
 
         # Step 3: Assign new manager & issue 10% Bailout package ($1,000)
-        new_mgr = User.objects.create_user(phone_number='09129990009')
+        new_mgr = self.create_user(phone_number='09129990009')
         self.team1.manager = new_mgr
         self.team1.save()
 
         process_atomic_wallet_update(
-            team_id=self.team1.id, amount_usd=Decimal('1000.00'),
+            team_id=self.team1.id, amount=Decimal('1000.00'),
             transaction_type='DEPOSIT', description='Caretaker Bailout Package'
         )
         self.team1.refresh_from_db()
@@ -248,7 +250,7 @@ class TestT4RealWorldScenarios(VMLTestHarness):
     def test_scenario_06_season_pass_daily_claim_and_facility_development(self):
         # Step 1: Daily claim reward
         process_atomic_wallet_update(
-            team_id=self.team1.id, amount_usd=Decimal('500.00'),
+            team_id=self.team1.id, amount=Decimal('500.00'),
             transaction_type='DEPOSIT', description='Daily Login Claim'
         )
 
@@ -339,7 +341,7 @@ class TestT4RealWorldScenarios(VMLTestHarness):
     # -------------------------------------------------------------------------
     def test_scenario_10_duplicate_zarinpal_verification_attack_mitigation(self):
         txn = Transaction.objects.create(
-            team=self.team1, amount_usd=Decimal('5000.00'), amount_irr=500000,
+            team=self.team1, amount=Decimal('5000.00'), amount_irr=500000,
             transaction_type='DEPOSIT', status='PENDING', zarinpal_authority='AUTH_ATTACK_KEY'
         )
 
@@ -349,7 +351,7 @@ class TestT4RealWorldScenarios(VMLTestHarness):
         txn.save()
 
         process_atomic_wallet_update(
-            team_id=self.team1.id, amount_usd=Decimal('5000.00'),
+            team_id=self.team1.id, amount=Decimal('5000.00'),
             transaction_type='DEPOSIT', description='First Verification'
         )
         self.team1.refresh_from_db()
@@ -409,6 +411,7 @@ class TestT4RealWorldScenarios(VMLTestHarness):
     # Scenario 13: Facility Upgrade Cost Curve & Max Cap Enforcement
     # -------------------------------------------------------------------------
     def test_scenario_13_facility_upgrade_cost_curve_and_max_cap_enforcement(self):
+        self.authenticate(self.mgr1)
         # Admin sets level to 19
         url_override = '/api/teams/admin_override_facility/'
         self.post(url_override, data={'team_id': self.team1.id, 'facility': 'gym', 'level': 19})
@@ -471,3 +474,207 @@ class TestT4RealWorldScenarios(VMLTestHarness):
         # Test telegram message helper handles configuration gracefully
         result = send_telegram_message("📢 *VML Channel Test Notification*")
         self.assertIn(result, [True, False])
+
+    # -------------------------------------------------------------------------
+    # Scenario 17: Full Matchday Referee & Coach Lifecycle (Requirements R1 - R6)
+    # -------------------------------------------------------------------------
+    def test_scenario_17_full_matchday_referee_coach_lifecycle_r1_to_r6(self):
+        from django.utils import timezone
+        import datetime
+        from notifications.models import Notification
+        from matches.models import MatchTeamStat
+
+        # Setup: Create League, Teams, Players, and Next Week Match
+        tournament = Tournament.objects.create(name='Pro VML Championship', tournament_type='LEAGUE')
+        kickoff_w1 = timezone.now() + datetime.timedelta(minutes=10)
+        kickoff_w2 = timezone.now() + datetime.timedelta(days=7)
+
+        # Week 1 Match (Home Perspolis vs Away Esteghlal)
+        match_w1 = Match.objects.create(
+            tournament=tournament, home_team=self.team1, away_team=self.team2,
+            round_name='هفته ۱', status='SCHEDULED', date=kickoff_w1
+        )
+        # Week 2 Match
+        match_w2 = Match.objects.create(
+            tournament=tournament, home_team=self.team2, away_team=self.team1,
+            round_name='هفته ۲', status='SCHEDULED', date=kickoff_w2
+        )
+
+        sub_player = Player.objects.create(
+            team=self.team1, name='Ali Gholizadeh', age=25, position='RWF', overall=81, base_stamina=82
+        )
+
+        # ---------------------------------------------------------------------
+        # Step 1: Pre-Match Time-Gating & Smart Notification Routing (R1, R6)
+        # ---------------------------------------------------------------------
+        # Pre-match live-context check (T-10m reminder window)
+        res_context_pre = self.get('/api/matches/live-context/')
+        self.assert_status_code(res_context_pre, 200)
+        self.assertFalse(res_context_pre.data['has_active_match'])
+        self.assertTrue(res_context_pre.data['is_within_reminder_window'])
+        self.assertLessEqual(res_context_pre.data['time_to_kickoff_seconds'], 900)
+
+        # Notifications for Admin and Coach
+        notif_admin = Notification.objects.create(
+            category='MATCH', target_role='ADMIN', title='Match Kickoff in 10m',
+            action_url=f'/admin/matches?match_id={match_w1.id}', match=match_w1
+        )
+        notif_coach = Notification.objects.create(
+            team=self.team1, category='MATCH', target_role='COACH', title='Your Match Kickoff in 10m',
+            action_url=f'/live?match_id={match_w1.id}', match=match_w1
+        )
+
+        # Verify Coach sees own notif, Admin sees all
+        self.authenticate(self.mgr1)
+        res_coach_inbox = self.get('/api/notifications/inbox/')
+        self.assert_status_code(res_coach_inbox, 200)
+        c_titles = [n['title'] for n in res_coach_inbox.data]
+        self.assertIn('Your Match Kickoff in 10m', c_titles)
+        self.assertNotIn('Match Kickoff in 10m', c_titles)
+
+        # ---------------------------------------------------------------------
+        # Step 2: Referee Gameweek Round Filtering & Strict Isolation (R2)
+        # ---------------------------------------------------------------------
+        res_gw1 = self.get('/api/matches/schedule/?round=هفته ۱')
+        self.assert_status_code(res_gw1, 200)
+        gw1_ids = [m['id'] for m in res_gw1.data]
+        self.assertIn(match_w1.id, gw1_ids)
+        self.assertNotIn(match_w2.id, gw1_ids)
+
+        # ---------------------------------------------------------------------
+        # Step 3: Coach Unified Gameplan Submission (14 Tactics & Lineup) (R4)
+        # ---------------------------------------------------------------------
+        gp_payload = {
+            'tactics': {
+                'formation': '4-3-3',
+                'attacking_style': 'بازی مالکانه',
+                'build_up': 'پاس کوتاه',
+                'attacking_area': 'مرکز',
+                'positioning': 'حفظ ترکیب',
+                'support_range': 7,
+                'defensive_style': 'فشار خط مقدم',
+                'containment_area': 'میانه',
+                'pressing': 'تهاجمی',
+                'defensive_line': 6,
+                'compactness': 5,
+                'adv_offense_1': 'تیکی تاکا',
+                'adv_offense_2': 'هیچکدام',
+                'adv_defense_1': 'فشار از بالا',
+                'adv_defense_2': 'هیچکدام',
+            },
+            'players': [
+                {'id': self.star_player.id, 'x_coord': 50.0, 'y_coord': 80.0, 'position': 'LWF', 'is_starting': True},
+                {'id': sub_player.id, 'x_coord': 0.0, 'y_coord': 0.0, 'position': 'RWF', 'is_starting': False}
+            ]
+        }
+        res_gp = self.post(f'/api/teams/{self.team1.id}/submit_gameplan/', data=gp_payload)
+        self.assert_status_code(res_gp, 200)
+
+        # ---------------------------------------------------------------------
+        # Step 4: Referee Starts Match -> Live Clock Phase (R6, R3)
+        # ---------------------------------------------------------------------
+        res_start = self.post(f'/api/matches/{match_w1.id}/control/', data={'action': 'START_MATCH'})
+        self.assert_status_code(res_start, 200)
+        match_w1.refresh_from_db()
+        self.assertEqual(match_w1.status, 'LIVE')
+        self.assertEqual(match_w1.half_status, '1ST_HALF')
+
+        res_context_live = self.get('/api/matches/live-context/')
+        self.assertTrue(res_context_live.data['has_active_match'])
+
+        # ---------------------------------------------------------------------
+        # Step 5: Real-Time Event Logging & Score Arithmetic (R3)
+        # ---------------------------------------------------------------------
+        # 1. Home Goal by Star Player -> 1-0
+        res_g1 = self.post(f'/api/matches/{match_w1.id}/control/', data={
+            'action': 'RECORD_EVENT', 'event_type': 'GOAL', 'player_id': self.star_player.id, 'minute': 18
+        })
+        self.assert_status_code(res_g1, 201)
+
+        # 2. Yellow Card on Away Player
+        res_y1 = self.post(f'/api/matches/{match_w1.id}/control/', data={
+            'action': 'RECORD_EVENT', 'event_type': 'YELLOW', 'player_id': self.mid_player.id, 'minute': 32
+        })
+        self.assert_status_code(res_y1, 201)
+
+        # ---------------------------------------------------------------------
+        # Step 6: In-Game Substitution Request & Referee Approval (R4)
+        # ---------------------------------------------------------------------
+        res_sub_req = self.post('/api/matches/substitute/', data={
+            'match': match_w1.id, 'team': self.team1.id,
+            'player_out': self.star_player.id, 'player_in': sub_player.id, 'minute': 40
+        })
+        self.assert_status_code(res_sub_req, 201)
+        sub_id = res_sub_req.data['data']['id']
+
+        # Referee approves substitution
+        res_appr = self.post(f'/api/matches/{match_w1.id}/control/', data={
+            'action': 'APPROVE_SUB_REQUEST', 'request_id': sub_id
+        })
+        self.assert_status_code(res_appr, 200)
+        self.assertEqual(LiveSubstitutionRequest.objects.get(id=sub_id).status, 'APPLIED')
+
+        # ---------------------------------------------------------------------
+        # Step 7: Half-Time & Second Half Transition (R6, R3)
+        # ---------------------------------------------------------------------
+        # Half-Time
+        res_ht = self.post(f'/api/matches/{match_w1.id}/control/', data={'action': 'TRIGGER_HALF_TIME'})
+        self.assert_status_code(res_ht, 200)
+        match_w1.refresh_from_db()
+        self.assertEqual(match_w1.half_status, 'HALF_TIME')
+
+        # Start Second Half
+        res_sh = self.post(f'/api/matches/{match_w1.id}/control/', data={'action': 'START_SECOND_HALF'})
+        self.assert_status_code(res_sh, 200)
+        match_w1.refresh_from_db()
+        self.assertEqual(match_w1.half_status, '2ND_HALF')
+
+        # 2nd Yellow on Away Midfielder -> Automatically upgraded to SECOND_YELLOW (Red)
+        res_y2 = self.post(f'/api/matches/{match_w1.id}/control/', data={
+            'action': 'RECORD_EVENT', 'event_type': 'YELLOW', 'player_id': self.mid_player.id, 'minute': 70
+        })
+        self.assert_status_code(res_y2, 201)
+        self.assertEqual(res_y2.data['event']['event_type'], 'SECOND_YELLOW')
+
+        # ---------------------------------------------------------------------
+        # Step 8: Match Conclusion at Full Time (R6)
+        # ---------------------------------------------------------------------
+        res_ft = self.post(f'/api/matches/{match_w1.id}/control/', data={'action': 'CONCLUDE_FULL_TIME'})
+        self.assert_status_code(res_ft, 200)
+        match_w1.refresh_from_db()
+        self.assertEqual(match_w1.status, 'FINISHED')
+
+        # ---------------------------------------------------------------------
+        # Step 9: Post-Match Team Stats & Player Ratings with XP (R5)
+        # ---------------------------------------------------------------------
+        # Team stats
+        res_stats = self.post(f'/api/matches/{match_w1.id}/team-stats/', data={
+            'team_id': self.team1.id, 'possession_percent': 60, 'shots': 14,
+            'shots_on_target': 7, 'corners': 6, 'fouls': 8, 'offsides': 2, 'saves': 3
+        })
+        self.assert_status_code(res_stats, 201)
+
+        # Player ratings
+        res_ratings = self.post(f'/api/matches/{match_w1.id}/player-ratings/', data={
+            'players': [
+                {'player_id': self.star_player.id, 'minutes_played': 40, 'rating': 8.5, 'was_starter': True},
+                {'player_id': sub_player.id, 'minutes_played': 50, 'rating': 7.5, 'was_starter': False},
+            ]
+        })
+        self.assert_status_code(res_ratings, 200)
+        self.star_player.refresh_from_db()
+        self.assertTrue(self.star_player.total_xp > 0)
+
+        # ---------------------------------------------------------------------
+        # Step 10: 10-Min Post-Match Recap & Notification Dismissal (R6, R1)
+        # ---------------------------------------------------------------------
+        res_context_post = self.get('/api/matches/live-context/')
+        self.assert_status_code(res_context_post, 200)
+        self.assertIsNotNone(res_context_post.data['recent_finished_match'])
+        self.assertEqual(res_context_post.data['recent_finished_match']['id'], match_w1.id)
+
+        # Dismiss notification
+        res_dismiss = self.post(f'/api/notifications/{notif_coach.id}/dismiss/')
+        self.assert_status_code(res_dismiss, 200)
+        notif_coach.refresh_from_db()
+        self.assertTrue(notif_coach.is_dismissed)

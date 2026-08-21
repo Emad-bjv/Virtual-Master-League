@@ -48,7 +48,7 @@ class Tier2NotificationsBoundaryTests(VMLTestHarness):
         TransferHistory.objects.all().delete()
         PackOpeningLog.objects.all().delete()
 
-        self.user = User.objects.create_user(phone_number="09129990011")
+        self.user = self.create_user(phone_number="09129990011")
         self.team1 = Team.objects.create(manager=self.user, name="Notif Team A", budget=Decimal("1000.00"))
         self.team2 = Team.objects.create(name="Notif Team B", budget=Decimal("1000.00"))
         self.player = Player.objects.create(team=self.team1, name="Notif Star", age=24, position="CF", overall=85, base_stamina=85)
@@ -169,7 +169,7 @@ class Tier2NotificationsBoundaryTests(VMLTestHarness):
         pack = GachaPack.objects.create(name="Special Pack", cost_usd=Decimal("10.00"), is_active=True)
         log = PackOpeningLog.objects.create(
             team=self.team1, pack=pack, player_obtained=self.player,
-            rarity_drawn='LEGENDARY', pity_applied=False, cost_usd=Decimal("10.00")
+            rarity_drawn='LEGENDARY', pity_applied=False, cost=Decimal("10.00")
         )
         try:
             notify_legendary_pull(sender=PackOpeningLog, instance=log, created=True)
@@ -183,7 +183,7 @@ class Tier2NotificationsBoundaryTests(VMLTestHarness):
         pack = GachaPack.objects.create(name="Common Pack", cost_usd=Decimal("5.00"), is_active=True)
         log = PackOpeningLog.objects.create(
             team=self.team1, pack=pack, player_obtained=self.player,
-            rarity_drawn='RARE', pity_applied=False, cost_usd=Decimal("5.00")
+            rarity_drawn='RARE', pity_applied=False, cost=Decimal("5.00")
         )
         try:
             notify_legendary_pull(sender=PackOpeningLog, instance=log, created=True)
@@ -220,6 +220,93 @@ class Tier2NotificationsBoundaryTests(VMLTestHarness):
         """Clear all endpoint executes cleanly for frontend clear modal trigger."""
         res = self.post('/api/notifications/clear-all/', json={})
         self.assertIn(res.status_code, [200, 404])
+
+    # --- Requirement R1 Boundary & Corner Cases ---
+
+    def test_r1_dismiss_invalid_notification_id_404(self):
+        """
+        Dismissing non-existent notification ID returns 404 Not Found.
+        """
+        res = self.post('/api/notifications/999999/dismiss/')
+        self.assertEqual(res.status_code, 404)
+
+    def test_r1_dismiss_idempotency(self):
+        """
+        Calling dismiss multiple times on the same notification is idempotent (returns 200).
+        """
+        from notifications.models import Notification
+        notif = Notification.objects.create(
+            category="MATCH", title="Idempotent Dismissal", is_dismissed=False
+        )
+        res1 = self.post(f'/api/notifications/{notif.id}/dismiss/')
+        self.assertEqual(res1.status_code, 200)
+
+        notif.refresh_from_db()
+        self.assertTrue(notif.is_dismissed)
+        first_dismissed_at = notif.dismissed_at
+
+        # Call again
+        res2 = self.post(f'/api/notifications/{notif.id}/dismiss/')
+        self.assertEqual(res2.status_code, 200)
+        notif.refresh_from_db()
+        self.assertTrue(notif.is_dismissed)
+        self.assertEqual(notif.dismissed_at, first_dismissed_at)
+
+    def test_r1_coach_isolated_from_other_team_notifications(self):
+        """
+        Coach A querying inbox NEVER sees notifications intended specifically for Coach B's team.
+        """
+        from notifications.models import Notification
+        Notification.objects.all().delete()
+
+        coach_a = self.create_user(username="coach_a_isolated", role="coach")
+        team_a = self.create_team(manager=coach_a, name="Isolated Team A")
+
+        coach_b = self.create_user(username="coach_b_isolated", role="coach")
+        team_b = self.create_team(manager=coach_b, name="Isolated Team B")
+
+        # Create private match notification for Team B
+        n_b = Notification.objects.create(
+            team=team_b, category="MATCH", target_role="COACH",
+            title="Private Team B Match Strategy"
+        )
+        # Create private match notification for Team A
+        n_a = Notification.objects.create(
+            team=team_a, category="MATCH", target_role="COACH",
+            title="Private Team A Match Strategy"
+        )
+
+        self.authenticate(coach_a)
+        res = self.get('/api/notifications/inbox/')
+        self.assertEqual(res.status_code, 200)
+        items = res.json()
+        ids = [item['id'] for item in items]
+
+        self.assertIn(n_a.id, ids)
+        self.assertNotIn(n_b.id, ids)
+
+    def test_r1_admin_sees_all_league_notifications(self):
+        """
+        Admin user with role='admin' / is_staff=True has global visibility into all notifications.
+        """
+        from notifications.models import Notification
+        Notification.objects.all().delete()
+
+        admin_user = self.create_user(username="admin_global", role="admin", is_staff=True)
+        t1 = self.create_team(name="T1 Global")
+        t2 = self.create_team(name="T2 Global")
+
+        n1 = Notification.objects.create(team=t1, category="MATCH", target_role="ALL", title="T1 Public Notice")
+        n2 = Notification.objects.create(team=t2, category="MATCH", target_role="ADMIN", title="T2 Referee Alert")
+
+        self.authenticate(admin_user)
+        res = self.get('/api/notifications/inbox/')
+        self.assertEqual(res.status_code, 200)
+        items = res.json()
+        ids = [item['id'] for item in items]
+
+        self.assertIn(n1.id, ids)
+        self.assertIn(n2.id, ids)
 
 
 if __name__ == '__main__':

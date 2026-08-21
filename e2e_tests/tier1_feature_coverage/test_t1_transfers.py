@@ -11,8 +11,6 @@ from transfers.services import (
     buy_player_direct,
     place_bid,
     auto_release_overflow_players,
-    get_negotiation_discount,
-    get_potential_display_error,
 )
 
 User = get_user_model()
@@ -120,25 +118,6 @@ class Tier1TransfersFeatureTests(VMLTestHarness):
         initial_budget = Decimal("0.00")
         bailout = Decimal("100000.00") if initial_budget == Decimal("0.00") else Decimal("0.00")
         self.assertEqual(bailout, Decimal("100000.00"))
-
-    def test_feature14_negotiation_discount_scouting_level(self):
-        team = self.create_team()
-        disc_lvl1 = get_negotiation_discount(team)
-        fac, _ = ClubFacilities.objects.get_or_create(team=team)
-        fac.scouting_level = 20
-        fac.save()
-        disc_lvl20 = get_negotiation_discount(team)
-        self.assertTrue(disc_lvl20 >= disc_lvl1)
-
-    def test_feature14_potential_display_error_scouting_level(self):
-        team = self.create_team()
-        err_lvl1 = get_potential_display_error(team)
-        fac, _ = ClubFacilities.objects.get_or_create(team=team)
-        fac.scouting_level = 20
-        fac.save()
-        err_lvl20 = get_potential_display_error(team)
-        self.assertEqual(err_lvl20, 0)
-        self.assertTrue(err_lvl1 > err_lvl20)
 
     def test_feature14_transfer_history_logging(self):
         seller = self.create_team()

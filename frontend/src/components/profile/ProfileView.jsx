@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Trophy, Award, Medal, LogOut, RefreshCw, Shield, CheckCircle2, Lock, Flame, Target, Users, TrendingUp } from 'lucide-react';
+import { 
+  ArrowRight, Trophy, Award, Medal, LogOut, RefreshCw, Shield, 
+  CheckCircle2, Lock, Flame, Target, Users, TrendingUp, Edit3, 
+  Calendar, User as UserIcon, X, Check, Sparkles 
+} from 'lucide-react';
 import SubNav from '../common/SubNav';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import Toast from '../common/Toast';
 import { authApi, matchApi } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -13,13 +17,39 @@ const PROFILE_SUBNAV = [
   { id: 'rank', label: 'رده‌بندی کلی مربیان' },
 ];
 
+function calculateAge(birthDateStr) {
+  if (!birthDateStr) return null;
+  const birth = new Date(birthDateStr);
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const m = now.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age > 0 ? age : null;
+}
+
 export default function ProfileView({ user: propUser, teamData, onBack, onLogout: propOnLogout }) {
-  const { user: contextUser, logout: contextLogout } = useAuth();
+  const { user: contextUser, logout: contextLogout, updateProfile } = useAuth();
   const user = contextUser || propUser;
   const onLogout = propOnLogout || contextLogout;
 
   const [activeSub, setActiveSub] = useState('stats');
   const [challengeMessage, setChallengeMessage] = useState('');
+  
+  // Edit Profile Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editFullName, setEditFullName] = useState(user?.full_name || '');
+  const [editBirthDate, setEditBirthDate] = useState(user?.birth_date || '');
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // Sync edit form when user updates
+  useEffect(() => {
+    if (user) {
+      setEditFullName(user.full_name || '');
+      setEditBirthDate(user.birth_date || '');
+    }
+  }, [user]);
   
   // Real Data States
   const [standings, setStandings] = useState([]);
@@ -77,6 +107,34 @@ export default function ProfileView({ user: propUser, teamData, onBack, onLogout
     }
   }, [activeSub]);
 
+  // Handle Save Profile
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    try {
+      if (updateProfile) {
+        await updateProfile({
+          full_name: editFullName.trim(),
+          birth_date: editBirthDate || null,
+        });
+      } else {
+        await authApi.updateProfile({
+          full_name: editFullName.trim(),
+          birth_date: editBirthDate || null,
+        });
+      }
+      setIsEditModalOpen(false);
+      setChallengeMessage('اطلاعات مربی با موفقیت به‌روزرسانی شد! ✨');
+      setTimeout(() => setChallengeMessage(''), 3500);
+    } catch (err) {
+      console.error('Failed to update profile:', err);
+      setChallengeMessage(err.response?.data?.error || 'خطا در ذخیره تغییرات پروفایل');
+      setTimeout(() => setChallengeMessage(''), 3500);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   // Derived real statistical metrics
   const played = userStanding?.played || 0;
   const won = userStanding?.won || 0;
@@ -88,6 +146,7 @@ export default function ProfileView({ user: propUser, teamData, onBack, onLogout
   const points = userStanding?.points || user?.points || 0;
   const winRate = played > 0 ? Math.round((won / played) * 100) : 0;
   const rank = userStanding?.rank || user?.rank || '-';
+  const coachAge = calculateAge(user?.birth_date);
 
   // Compute Clean Sheets from finished matches
   const cleanSheetsCount = finishedMatches.filter((m) => {
@@ -118,67 +177,80 @@ export default function ProfileView({ user: propUser, teamData, onBack, onLogout
     {
       id: 3,
       title: 'دیوار بتنی (کلین‌شیت)',
-      desc: 'حفظ دروازه و پایان مسابقه رسمی بدون دریافت گل',
-      icon: Award,
-      isUnlocked: cleanSheetsCount >= 1,
+      desc: 'ثبت حداقل ۳ بازی بدون دریافت گل در طول مسابقات',
+      icon: Lock,
+      isUnlocked: cleanSheetsCount >= 3,
       color: 'text-cyan-400',
-      badge: cleanSheetsCount >= 1 ? `تکمیل شد (${cleanSheetsCount})` : 'قفل (نیازمند ۱ کلین‌شیت)',
+      badge: cleanSheetsCount >= 3 ? 'تکمیل شد' : `قفل (${cleanSheetsCount}/۳)`,
     },
     {
       id: 4,
-      title: 'خط آتشین مسابقات',
-      desc: 'ثبت حداقل ۵ گل زده در جدول مسابقات لیگ',
+      title: 'مهاجم آتشین (خط حمله برتر)',
+      desc: 'به ثمر رساندن حداقل ۱۰ گل رسمی در طول فصل',
       icon: Flame,
-      isUnlocked: gf >= 5,
+      isUnlocked: gf >= 10,
       color: 'text-rose-400',
-      badge: gf >= 5 ? 'تکمیل شد' : `در حال پیشرفت (${gf} / ۵ گل)`,
+      badge: gf >= 10 ? 'تکمیل شد' : `قفل (${gf}/۱۰)`,
     },
     {
       id: 5,
-      title: 'سه‌گانه پیروزی متوالی',
-      desc: 'کسب حداقل ۳ پیروزی در مسابقات رسمی',
-      icon: Medal,
-      isUnlocked: won >= 3,
+      title: 'مدعی قهرمانی (صدرنشینی)',
+      desc: 'قرار گرفتن در میان ۳ تیم برتر جدول رده‌بندی لیگ',
+      icon: Award,
+      isUnlocked: rank !== '-' && Number(rank) <= 3,
       color: 'text-purple-400',
-      badge: won >= 3 ? 'تکمیل شد' : `در حال پیشرفت (${won} / ۳ برد)`,
-    },
-    {
-      id: 6,
-      title: 'حضور در کورس قهرمانی (Top 3)',
-      desc: 'قرار گرفتن در رتبه‌های اول تا سوم جدول رده‌بندی لیگ',
-      icon: Target,
-      isUnlocked: typeof rank === 'number' && rank <= 3 && played > 0,
-      color: 'text-amber-400',
-      badge: typeof rank === 'number' && rank <= 3 && played > 0 ? 'تکمیل شد' : 'نیازمند حضور در تاپ ۳',
+      badge: rank !== '-' && Number(rank) <= 3 ? 'تکمیل شد' : 'قفل (نیازمند رتبه ۱ تا ۳)',
     },
   ];
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 20 }}
-      className="space-y-4 pb-20 font-sans dir-rtl"
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="space-y-5 pb-20 max-w-4xl mx-auto font-sans dir-rtl"
     >
-      {/* Top Bar Navigation */}
-      <div className="flex justify-between items-center">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-cyan-400 py-1 transition-colors cursor-pointer"
-        >
-          <ArrowRight size={16} />
-          <span>بازگشت به داشبورد</span>
-        </button>
+      {/* Top Header Bar */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="p-2.5 rounded-2xl bg-[#0d162a] border border-slate-700 text-slate-300 hover:text-white hover:border-cyan-400 transition-all cursor-pointer shadow-md"
+            >
+              <ArrowRight size={18} />
+            </button>
+          )}
+          <div>
+            <h2 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+              <UserIcon size={20} className="text-cyan-400" />
+              <span>پروفایل و مشخصات رسمی سرمربی</span>
+            </h2>
+            <p className="text-xs text-slate-400 font-medium">مشخصات هویتی، آمار و افتخارات هدایت باشگاه</p>
+          </div>
+        </div>
 
-        {onLogout && (
+        <div className="flex items-center gap-2">
+          {/* Edit Profile Trigger */}
           <button
-            onClick={onLogout}
-            className="flex items-center gap-1.5 bg-rose-950/80 hover:bg-rose-900/90 text-rose-300 border border-rose-500/50 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all shadow-md active:scale-95 cursor-pointer font-sport"
+            onClick={() => setIsEditModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-md"
           >
-            <LogOut size={15} className="text-rose-400" />
-            <span>خروج از حساب</span>
+            <Edit3 size={14} />
+            <span className="hidden sm:inline">ویرایش مشخصات</span>
           </button>
-        )}
+
+          {/* Logout Trigger */}
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/40 text-xs font-bold transition-all cursor-pointer active:scale-95 shadow-md"
+            >
+              <LogOut size={14} />
+              <span className="hidden sm:inline">خروج از حساب</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main Profile Header Card (FC 2026 Sports Style) */}
@@ -201,30 +273,59 @@ export default function ProfileView({ user: propUser, teamData, onBack, onLogout
           </span>
         </div>
 
-        <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
-          {teamData?.name || 'باشگاه اختصاصی'}
+        {/* Coach Full Name & Identity */}
+        <h3 className="text-lg sm:text-2xl font-black text-white tracking-tight flex items-center justify-center gap-2">
+          <span>{user?.full_name || 'سرمربی باشگاه'}</span>
+          <button
+            onClick={() => setIsEditModalOpen(true)}
+            className="text-slate-400 hover:text-cyan-300 transition-colors p-1"
+            title="ویرایش مشخصات مربی"
+          >
+            <Edit3 size={16} />
+          </button>
         </h3>
-        <div className="flex items-center justify-center gap-2 mt-1">
-          <span className="text-xs text-slate-400 font-sport dir-ltr">@{user?.username || 'coach'}</span>
-          <span className="text-slate-600">•</span>
-          <span className="text-xs text-[#00ff87] font-sport font-black dir-ltr">
+
+        {/* Club Name & Username */}
+        <div className="text-xs text-cyan-300 font-bold mt-0.5">
+          هدایت باشگاه: <strong className="text-white font-black">{teamData?.name || 'باشگاه اختصاصی'}</strong>
+        </div>
+
+        {/* Details Pill Strip (Username, Birth Date, Age, Budget) */}
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mt-2 text-xs">
+          <span className="inline-flex items-center gap-1 bg-[#05080e]/80 text-slate-300 px-3 py-1 rounded-xl border border-slate-700/80 font-sport dir-ltr">
+            @{user?.username || 'coach'}
+          </span>
+
+          <span className="inline-flex items-center gap-1.5 bg-cyan-950/80 text-cyan-300 px-3 py-1 rounded-xl border border-cyan-500/40 font-medium">
+            <Calendar size={13} className="text-cyan-400" />
+            <span>
+              {user?.birth_date ? `متولد: ${user.birth_date}` : 'تاریخ تولد: ثبت نشده'}
+            </span>
+            {coachAge && (
+              <span className="text-[10px] bg-cyan-900/90 text-cyan-200 px-1.5 py-0.2 rounded font-black font-sport">
+                ({coachAge} سال)
+              </span>
+            )}
+          </span>
+
+          <span className="inline-flex items-center gap-1 bg-emerald-950/80 text-[#00ff87] px-3 py-1 rounded-xl border border-emerald-500/40 font-sport font-black dir-ltr">
             ${teamData?.budget ? Math.round(parseFloat(teamData.budget)).toLocaleString() : Number(user?.virtual_dollars || 1000000).toLocaleString()}
           </span>
         </div>
 
         {/* Top 3 Metric Strip */}
         <div className="grid grid-cols-3 gap-2 mt-5 pt-4 border-t border-slate-700/60 text-xs font-sport">
-          <div className="bg-[#05080e]/60 p-2 rounded-2xl border border-slate-800">
+          <div className="bg-[#05080e]/60 p-2.5 rounded-2xl border border-slate-800">
             <span className="text-[10px] text-slate-400 block font-bold font-sans">رتبه در لیگ</span>
-            <span className="font-black text-cyan-300 text-base">#{rank}</span>
+            <span className="font-black text-cyan-300 text-base sm:text-lg">#{rank}</span>
           </div>
-          <div className="bg-[#05080e]/60 p-2 rounded-2xl border border-slate-800">
+          <div className="bg-[#05080e]/60 p-2.5 rounded-2xl border border-slate-800">
             <span className="text-[10px] text-slate-400 block font-bold font-sans">امتیازات لیگ</span>
-            <span className="font-black text-[#00ff87] text-base">{points} PTS</span>
+            <span className="font-black text-[#00ff87] text-base sm:text-lg">{points} PTS</span>
           </div>
-          <div className="bg-[#05080e]/60 p-2 rounded-2xl border border-slate-800">
+          <div className="bg-[#05080e]/60 p-2.5 rounded-2xl border border-slate-800">
             <span className="text-[10px] text-slate-400 block font-bold font-sans">نرخ پیروزی</span>
-            <span className="font-black text-amber-300 text-base">{winRate}٪</span>
+            <span className="font-black text-amber-300 text-base sm:text-lg">{winRate}٪</span>
           </div>
         </div>
       </div>
@@ -258,100 +359,77 @@ export default function ProfileView({ user: propUser, teamData, onBack, onLogout
           </div>
 
           {/* Goal Statistics & Telemetry */}
-          <div className="fc-card-elevated p-5 rounded-3xl border border-slate-700/60 space-y-3">
-            <h4 className="text-xs font-black text-white border-b border-slate-700/60 pb-2.5 flex items-center justify-between">
-              <span>عملکرد تهاجمی و دفاعی در لیگ (MATCHDAY TELEMETRY)</span>
-              <span className="text-[10px] text-cyan-300 font-sport bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-500/30">
-                SEASON 1
+          <div className="fc-card-elevated p-5 rounded-3xl border border-slate-700/60 space-y-4">
+            <h4 className="font-bold text-white text-sm flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="flex items-center gap-2">
+                <Target size={16} className="text-cyan-400" />
+                <span>آمار گلزنی و استحکام خط دفاعی</span>
+              </span>
+              <span className="text-xs text-[#00ff87] font-sport font-black dir-ltr">
+                تفاضل: {gd > 0 ? `+${gd}` : gd}
               </span>
             </h4>
 
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between items-center py-1.5 border-b border-slate-800/60">
-                <span className="text-slate-300 font-medium">گل‌های زده باشگاه (Goals For):</span>
-                <span className="font-sport font-black text-[#00ff87] text-sm">{gf} گل</span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-[#05080e]/80 p-3.5 rounded-2xl border border-slate-800 text-center">
+                <span className="text-xl font-black text-[#00ff87] block font-sport dir-ltr">{gf}</span>
+                <span className="text-[11px] text-slate-400 font-bold">گل‌های زده (GF)</span>
               </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-slate-800/60">
-                <span className="text-slate-300 font-medium">گل‌های خورده باشگاه (Goals Against):</span>
-                <span className="font-sport font-black text-rose-400 text-sm">{ga} گل</span>
+              <div className="bg-[#05080e]/80 p-3.5 rounded-2xl border border-slate-800 text-center">
+                <span className="text-xl font-black text-rose-400 block font-sport dir-ltr">{ga}</span>
+                <span className="text-[11px] text-slate-400 font-bold">گل‌های خورده (GA)</span>
               </div>
-              <div className="flex justify-between items-center py-1.5 border-b border-slate-800/60">
-                <span className="text-slate-300 font-medium">تفاضل گل رسمی مسابقات (Goal Difference):</span>
-                <span className={`font-sport font-black text-sm ${gd > 0 ? 'text-cyan-300' : gd < 0 ? 'text-rose-400' : 'text-slate-400'}`}>
-                  {gd > 0 ? `+${gd}` : gd}
-                </span>
-              </div>
-              <div className="flex justify-between items-center py-1.5">
-                <span className="text-slate-300 font-medium">کلین‌شیت‌ها (Clean Sheets):</span>
-                <span className="font-sport font-black text-amber-300 text-sm">{cleanSheetsCount} مسابقه</span>
+              <div className="bg-[#05080e]/80 p-3.5 rounded-2xl border border-slate-800 text-center">
+                <span className="text-xl font-black text-cyan-300 block font-sport dir-ltr">{cleanSheetsCount}</span>
+                <span className="text-[11px] text-slate-400 font-bold">کلین‌شیت (Clean Sheets)</span>
               </div>
             </div>
-          </div>
-
-          {/* Club Roster & Tactics Snapshot */}
-          <div className="fc-card p-4 rounded-3xl border border-slate-700/60 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-2xl bg-cyan-950/80 border border-cyan-500/40 text-cyan-300">
-                <Users size={20} />
-              </div>
-              <div>
-                <span className="font-black text-white block">چیدمان پیش‌فرض مربی:</span>
-                <span className="text-slate-400 font-sport">{teamData?.default_formation || '4-3-3 (4-2-1-3)'}</span>
-              </div>
-            </div>
-            <span className="text-xs font-black text-cyan-300 font-sport bg-[#05080e] px-3 py-1.5 rounded-xl border border-slate-700">
-              {teamData?.players?.length || 23} بازیکـن در لیست
-            </span>
           </div>
         </div>
       )}
 
-      {/* Subtab 2: Dynamic Real Achievements */}
+      {/* Subtab 2: Achievements */}
       {activeSub === 'achievements' && (
-        <div className="space-y-3 text-xs">
-          <div className="p-3.5 rounded-2xl bg-purple-950/40 border border-purple-500/30 text-slate-300 flex justify-between items-center">
-            <span>دستاوردها بر اساس آمار و عملکردهای واقعی باشگاه در طول مسابقات لیگ محاسبه و فعال می‌شوند.</span>
-            <span className="font-sport font-black text-amber-300 text-xs shrink-0 mr-2">
-              {achievements.filter((a) => a.isUnlocked).length} / {achievements.length} UNLOCKED
-            </span>
-          </div>
-
-          <div className="space-y-2">
-            {achievements.map((item) => {
-              const Icon = item.icon;
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3">
+            {achievements.map((ach) => {
+              const Icon = ach.icon;
               return (
                 <div
-                  key={item.id}
-                  className={`p-3.5 rounded-2xl border flex items-center justify-between transition-all ${
-                    item.isUnlocked
-                      ? 'fc-card border-slate-700/80 bg-[#080c14]/90 shadow-md'
-                      : 'border-slate-800/60 bg-[#05080e]/60 opacity-60'
+                  key={ach.id}
+                  className={`p-4 rounded-3xl border transition-all flex items-center justify-between gap-4 ${
+                    ach.isUnlocked
+                      ? 'bg-[#0a101f] border-cyan-500/40 shadow-lg shadow-cyan-950/20'
+                      : 'bg-[#060a12]/70 border-slate-800/80 opacity-60'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3.5">
                     <div
-                      className={`p-2.5 rounded-2xl border ${
-                        item.isUnlocked
-                          ? 'bg-slate-900/90 border-slate-700 ' + item.color
-                          : 'bg-slate-950 border-slate-800 text-slate-600'
+                      className={`w-12 h-12 rounded-2xl flex items-center justify-center border shrink-0 ${
+                        ach.isUnlocked
+                          ? 'bg-cyan-950/80 border-cyan-500/50 text-cyan-300 shadow-md'
+                          : 'bg-slate-900 border-slate-800 text-slate-600'
                       }`}
                     >
-                      <Icon size={20} />
+                      <Icon size={22} className={ach.isUnlocked ? ach.color : 'text-slate-600'} />
                     </div>
-                    <div>
-                      <span className="font-black text-white block text-xs sm:text-sm">{item.title}</span>
-                      <span className="text-[11px] text-slate-400 font-medium">{item.desc}</span>
+                    <div className="space-y-0.5">
+                      <h4 className="text-sm font-black text-white flex items-center gap-2">
+                        <span>{ach.title}</span>
+                        {ach.isUnlocked && <CheckCircle2 size={15} className="text-[#00ff87]" />}
+                      </h4>
+                      <p className="text-xs text-slate-400">{ach.desc}</p>
                     </div>
                   </div>
 
                   <span
-                    className={`text-[10.5px] font-sport font-black px-3 py-1 rounded-xl border shrink-0 ${
-                      item.isUnlocked
-                        ? 'text-[#00ff87] bg-emerald-950/80 border-emerald-500/40'
-                        : 'text-slate-500 bg-slate-950 border-slate-800'
+                    className={`text-[10.5px] font-black px-3 py-1 rounded-xl border shrink-0 font-sport ${
+                      ach.isUnlocked
+                        ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300'
+                        : 'bg-slate-900 border-slate-800 text-slate-500'
                     }`}
                   >
-                    {item.badge}
+                    {ach.badge}
                   </span>
                 </div>
               );
@@ -362,11 +440,11 @@ export default function ProfileView({ user: propUser, teamData, onBack, onLogout
 
       {/* Subtab 3: Global Leaderboard */}
       {activeSub === 'rank' && (
-        <div className="fc-card-elevated p-4 sm:p-5 rounded-3xl border border-slate-700/60 space-y-3.5 text-xs shadow-xl">
-          <div className="flex justify-between items-center p-3 rounded-2xl bg-gradient-to-r from-purple-950/80 via-[#0d162a] to-cyan-950/80 border border-purple-500/40">
-            <div>
-              <span className="text-cyan-300 font-bold block text-xs">رتبه باشگاه شما در لیگ:</span>
-              <span className="text-[11px] text-slate-400 font-sport">{teamData?.name || 'باشگاه شما'}</span>
+        <div className="space-y-3">
+          <div className="fc-card p-4 rounded-3xl border border-slate-700/60 flex justify-between items-center text-xs">
+            <div className="flex items-center gap-2">
+              <TrendingUp size={16} className="text-cyan-400" />
+              <span className="font-bold text-white">رتبه مربیگری شما در جدول لیگ:</span>
             </div>
             <span className="text-white font-sport font-black dir-ltr text-lg bg-[#05080e]/80 px-3 py-1 rounded-xl border border-cyan-500/30">
               #{rank}
@@ -408,11 +486,22 @@ export default function ProfileView({ user: propUser, teamData, onBack, onLogout
                         <span className="font-sport font-black text-slate-400 w-5 text-center">{item.rank || index + 1}</span>
                       )}
                       <div>
-                        <span className="font-black text-white dir-ltr block font-sport">@{item.username}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-black text-white text-xs">
+                            {item.full_name || `@${item.username}`}
+                          </span>
+                          {item.full_name && (
+                            <span className="text-[10px] text-slate-400 font-sport dir-ltr">
+                              (@{item.username})
+                            </span>
+                          )}
+                        </div>
                         {item.team_name && <span className="text-[11px] text-cyan-300 font-bold block">{item.team_name}</span>}
-                        <span className="text-[10px] text-purple-300 bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-800/60 uppercase font-sport">
-                          {item.role || 'coach'}
-                        </span>
+                        {item.birth_date && (
+                          <span className="text-[9.5px] text-slate-400 block font-sport">
+                            متولد: {item.birth_date}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="text-left font-sport">
@@ -428,6 +517,97 @@ export default function ProfileView({ user: propUser, teamData, onBack, onLogout
           )}
         </div>
       )}
+
+      {/* Edit Profile Modal */}
+      <AnimatePresence>
+        {isEditModalOpen && (
+          <div className="fixed inset-0 w-screen h-screen z-[9999] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="w-full max-w-md bg-gradient-to-b from-[#0b1220] via-[#0d162a] to-[#070b14] p-5 sm:p-6 rounded-3xl border border-cyan-500/40 shadow-[0_0_35px_rgba(0,243,255,0.2)] relative"
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="absolute left-4 top-4 text-slate-400 hover:text-white transition-colors p-1.5 rounded-xl hover:bg-slate-800 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="mb-4 pr-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 flex items-center justify-center">
+                    <Edit3 size={16} />
+                  </div>
+                  <h3 className="text-base font-black text-white tracking-tight">
+                    ویرایش مشخصات سرمربی
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-300">
+                  اطلاعات هویتی و تاریخ تولد خود را در سیستم مستر لیگ ویرایش نمایید.
+                </p>
+              </div>
+
+              <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1.5">
+                    نام و نام خانوادگی
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={editFullName}
+                      onChange={(e) => setEditFullName(e.target.value)}
+                      placeholder="مثلاً: پپ گواردیولا / علی دایی"
+                      className="w-full bg-[#05080e] border border-slate-700 rounded-2xl py-2.5 pr-10 pl-4 text-white text-xs outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400"
+                    />
+                    <UserIcon size={16} className="absolute right-3 top-3 text-cyan-400" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1.5">
+                    تاریخ تولد (میلادی)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={editBirthDate}
+                      onChange={(e) => setEditBirthDate(e.target.value)}
+                      className="w-full bg-[#05080e] border border-slate-700 rounded-2xl py-2.5 pr-10 pl-4 text-white text-xs outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 dir-ltr font-mono"
+                    />
+                    <Calendar size={16} className="absolute right-3 top-3 text-cyan-400" />
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    مثال: 1980-05-15 (جهت محاسبه خودکار سن مربی)
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-slate-800 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-4 py-2.5 rounded-2xl border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition-all font-bold text-xs cursor-pointer"
+                  >
+                    انصراف
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingProfile}
+                    className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black py-2.5 rounded-2xl shadow-[0_0_20px_rgba(0,243,255,0.3)] transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 text-xs font-sport"
+                  >
+                    <Check size={16} />
+                    <span>{savingProfile ? 'در حال ذخیره...' : 'ذخیره مشخصات'}</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
