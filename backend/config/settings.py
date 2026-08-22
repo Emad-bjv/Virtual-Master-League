@@ -33,7 +33,11 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-uu#!f=3v)e=wo^
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ['testserver', 'localhost', '127.0.0.1']
+allowed_hosts_env = os.environ.get('ALLOWED_HOSTS')
+if allowed_hosts_env:
+    ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_env.split(',') if h.strip()]
+else:
+    ALLOWED_HOSTS = ['*'] if DEBUG else ['testserver', 'localhost', '127.0.0.1', '.onrender.com', '.netlify.app']
 
 
 # Application definition
@@ -101,11 +105,13 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
+REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
+
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
+            "hosts": [REDIS_URL],
         },
     },
 }
@@ -143,20 +149,43 @@ def _get_database_config():
             }
         }
 
+    database_url = os.environ.get('DATABASE_URL')
+    if database_url:
+        import urllib.parse
+        url = urllib.parse.urlparse(database_url)
+        return {
+            'default': {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': url.path[1:],
+                'USER': url.username,
+                'PASSWORD': url.password,
+                'HOST': url.hostname,
+                'PORT': url.port or 5432,
+                'ATOMIC_REQUESTS': False,
+                'CONN_MAX_AGE': 600,
+            }
+        }
+
+    db_host = os.environ.get('DB_HOST', '127.0.0.1')
+    db_port = int(os.environ.get('DB_PORT', 5432))
+    db_name = os.environ.get('DB_NAME', 'vml_db')
+    db_user = os.environ.get('DB_USER', 'vml_user')
+    db_password = os.environ.get('DB_PASSWORD', 'vml_password')
+
     try:
         import socket
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(1.0)
-        s.connect(('127.0.0.1', 5432))
+        s.connect((db_host, db_port))
         s.close()
         return {
             'default': {
                 'ENGINE': 'django.db.backends.postgresql',
-                'NAME': 'vml_db',
-                'USER': 'vml_user',
-                'PASSWORD': 'vml_password',
-                'HOST': '127.0.0.1',
-                'PORT': '5432',
+                'NAME': db_name,
+                'USER': db_user,
+                'PASSWORD': db_password,
+                'HOST': db_host,
+                'PORT': str(db_port),
                 'ATOMIC_REQUESTS': False,
                 'CONN_MAX_AGE': 600,
             }
@@ -216,8 +245,8 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Celery Configuration Options
 from celery.schedules import crontab
-CELERY_BROKER_URL = 'redis://127.0.0.1:6379/0'
-CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/0'
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -237,8 +266,10 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS')
-if cors_origins and not DEBUG:
-    CORS_ALLOWED_ORIGINS = cors_origins.split(',')
+if cors_origins:
+    CORS_ALLOWED_ORIGINS = [o.strip() for o in cors_origins.split(',') if o.strip()]
+elif not DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
 else:
     # In DEBUG/development: allow all origins (frontend port may vary)
     CORS_ALLOW_ALL_ORIGINS = True
