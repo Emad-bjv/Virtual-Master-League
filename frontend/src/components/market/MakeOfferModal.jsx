@@ -100,9 +100,7 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
               <span className="text-slate-400 font-sans">({player.position})</span>
             </div>
             <div className="text-[11px] text-slate-300 flex items-center gap-2 font-sport pt-0.5">
-              <span>ارزش پایه: <strong className="text-[#00ff87]">€{Number(player.market_value || player.wage * 50 || 1000000).toLocaleString()}</strong></span>
-              <span>•</span>
-              <span>دستمزد: <strong className="text-amber-300">€{Number(player.wage || 0).toLocaleString()}</strong>/هفته</span>
+              <span>ارزش بازار: <strong className="text-[#00ff87]">${Number(player.market_value || 1000000).toLocaleString()}</strong></span>
             </div>
           </div>
         </div>
@@ -188,7 +186,7 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
                           <span className="text-cyan-400 font-bold bg-cyan-950/70 px-1 rounded">POT {p.potential_ovr}</span>
                         )}
                       </div>
-                      <span className="text-[#00ff87] text-[9.5px] block font-bold">€{Number(p.market_value || (p.wage ? p.wage * 50 : 1000000)).toLocaleString()}</span>
+                      <span className="text-[#00ff87] text-[9.5px] block font-bold">${Number(p.market_value || 1000000).toLocaleString()}</span>
                     </div>
                   </div>
                 ))}

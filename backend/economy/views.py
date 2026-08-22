@@ -271,3 +271,158 @@ class TransactionHistoryView(generics.ListAPIView):
         if not hasattr(self.request.user, 'team') or not self.request.user.team:
             return Transaction.objects.none()
         return Transaction.objects.filter(team=self.request.user.team)
+
+
+class TeamRevenueBreakdownView(views.APIView):
+    """
+    Returns itemized club revenue breakdown categorized into:
+    1. MATCH_WINS: Match victory rewards and bonuses
+    2. TRANSFERS: Player transfer sales and releases
+    3. BUDGET_PURCHASES: Store package / admin budget injections
+    4. TASKS_MISSIONS: Season pass and completed mission rewards
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, team_id):
+        from teams.models import Team
+        from transfers.models import TransferHistory
+
+        team = Team.objects.filter(id=team_id).first()
+        if not team:
+            return Response({'error': 'تیم مورد نظر یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        # 1. Match Wins Revenue
+        match_txs = Transaction.objects.filter(
+            team=team,
+            transaction_type__in=['MATCH_REWARD', 'UNDERDOG_BONUS'],
+            amount__gt=0
+        ).order_by('-created_at')
+        
+        match_items = []
+        match_total = 0.0
+        for tx in match_txs:
+            amt = float(tx.amount)
+            match_total += amt
+            match_items.append({
+                'id': f"m_tx_{tx.id}",
+                'title': 'پاداش پیروزی در مسابقه',
+                'description': tx.description or 'پاداش رسمی کسب پیروزی در مسابقه لیگ',
+                'amount': amt,
+                'date': tx.created_at.strftime('%Y/%m/%d %H:%M') if tx.created_at else ''
+            })
+
+        # 2. Transfers & Player Sales
+        transfer_txs = Transaction.objects.filter(
+            team=team,
+            transaction_type='TRANSFER_SELL',
+            amount__gt=0
+        ).order_by('-created_at')
+
+        transfer_items = []
+        transfer_total = 0.0
+        for tx in transfer_txs:
+            amt = float(tx.amount)
+            transfer_total += amt
+            transfer_items.append({
+                'id': f"t_tx_{tx.id}",
+                'title': 'فروش بازیکن',
+                'description': tx.description or 'درآمد حاصل از انتقال یا آزادسازی بازیکن',
+                'amount': amt,
+                'date': tx.created_at.strftime('%Y/%m/%d %H:%M') if tx.created_at else ''
+            })
+
+        for th in TransferHistory.objects.filter(seller_team=team).select_related('player', 'buyer_team')[:20]:
+            if th.transfer_fee and float(th.transfer_fee) > 0:
+                p_name = th.player.name if th.player else 'بازیکن'
+                if not any(item.get('description', '').startswith(f"فروش {p_name}") for item in transfer_items):
+                    amt = float(th.transfer_fee)
+                    transfer_total += amt
+                    transfer_items.append({
+                        'id': f"th_{th.id}",
+                        'title': f"فروش بازیکن {p_name}",
+                        'description': f"انتقال قطعی به {th.buyer_team.name if th.buyer_team else 'تیم خریدار'}",
+                        'amount': amt,
+                        'date': th.timestamp.strftime('%Y/%m/%d %H:%M') if th.timestamp else ''
+                    })
+
+        # 3. Budget Purchases & Injections
+        purchase_txs = Transaction.objects.filter(
+            team=team,
+            transaction_type__in=['STORE_PURCHASE', 'ADMIN_ADJUST'],
+            amount__gt=0
+        ).order_by('-created_at')
+
+        purchase_items = []
+        purchase_total = 0.0
+        for tx in purchase_txs:
+            amt = float(tx.amount)
+            purchase_total += amt
+            purchase_items.append({
+                'id': f"p_tx_{tx.id}",
+                'title': 'خرید بودجه / شارژ مالی',
+                'description': tx.description or 'واریز بسته فروشگاه به بودجه باشگاه',
+                'amount': amt,
+                'date': tx.created_at.strftime('%Y/%m/%d %H:%M') if tx.created_at else ''
+            })
+
+        # 4. Tasks & Missions (Season Pass)
+        task_txs = Transaction.objects.filter(
+            team=team,
+            transaction_type='SEASON_PASS_REWARD',
+            amount__gt=0
+        ).order_by('-created_at')
+
+        task_items = []
+        task_total = 0.0
+        for tx in task_txs:
+            amt = float(tx.amount)
+            task_total += amt
+            task_items.append({
+                'id': f"tsk_tx_{tx.id}",
+                'title': 'پاداش تسک و ماموریت',
+                'description': tx.description or 'پاداش ماموریت سیزن‌پس',
+                'amount': amt,
+                'date': tx.created_at.strftime('%Y/%m/%d %H:%M') if tx.created_at else ''
+            })
+
+        total_revenue = match_total + transfer_total + purchase_total + task_total
+
+        return Response({
+            'team_id': team.id,
+            'team_name': team.name,
+            'total_revenue': total_revenue,
+            'categories': {
+                'match_wins': {
+                    'title': 'پیروزی در مسابقات',
+                    'icon': 'Trophy',
+                    'color': 'emerald',
+                    'total': match_total,
+                    'count': len(match_items),
+                    'items': match_items[:20]
+                },
+                'transfers': {
+                    'title': 'نقل و انتقالات و فروش بازیکن',
+                    'icon': 'ArrowRightLeft',
+                    'color': 'cyan',
+                    'total': transfer_total,
+                    'count': len(transfer_items),
+                    'items': transfer_items[:20]
+                },
+                'budget_purchases': {
+                    'title': 'خرید بودجه و شارژ مالی',
+                    'icon': 'CreditCard',
+                    'color': 'amber',
+                    'total': purchase_total,
+                    'count': len(purchase_items),
+                    'items': purchase_items[:20]
+                },
+                'tasks_missions': {
+                    'title': 'پاداش تسک‌ها و ماموریت‌ها',
+                    'icon': 'CheckCircle2',
+                    'color': 'purple',
+                    'total': task_total,
+                    'count': len(task_items),
+                    'items': task_items[:20]
+                }
+            }
+        }, status=status.HTTP_200_OK)

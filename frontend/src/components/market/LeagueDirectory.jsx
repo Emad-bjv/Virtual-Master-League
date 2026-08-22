@@ -113,7 +113,6 @@ export default function LeagueDirectory({ currentTeamId, onPlayerSelect }) {
       if (sortBy === 'overall') return (b.overall || 0) - (a.overall || 0);
       if (sortBy === 'market_value') return (Number(b.market_value) || 0) - (Number(a.market_value) || 0);
       if (sortBy === 'potential') return (Number(b.potential_ovr || b.overall || 0)) - (Number(a.potential_ovr || a.overall || 0));
-      if (sortBy === 'wage') return (Number(b.wage) || 0) - (Number(a.wage) || 0);
       if (sortBy === 'age') return (a.age || 0) - (b.age || 0);
       if (sortBy === 'name') return a.name.localeCompare(b.name, 'fa');
       return 0;
@@ -125,12 +124,11 @@ export default function LeagueDirectory({ currentTeamId, onPlayerSelect }) {
     if (!selectedTeam) return null;
     const players = selectedTeam.players || [];
     const count = players.length;
-    if (count === 0) return { avgOvr: 0, avgPot: 0, totalValue: 0, totalWage: 0, fwdCount: 0, midCount: 0, defCount: 0, gkCount: 0 };
+    if (count === 0) return { avgOvr: 0, avgPot: 0, totalValue: 0, fwdCount: 0, midCount: 0, defCount: 0, gkCount: 0 };
 
     const totalOvr = players.reduce((sum, p) => sum + (p.overall || 0), 0);
     const totalPot = players.reduce((sum, p) => sum + (p.potential_ovr || p.overall || 0), 0);
-    const totalVal = players.reduce((sum, p) => sum + (Number(p.market_value) || (p.wage || 0) * 50), 0);
-    const totalWage = players.reduce((sum, p) => sum + (Number(p.wage) || 0), 0);
+    const totalVal = players.reduce((sum, p) => sum + (Number(p.market_value) || 1000000), 0);
     const avgOvr = Math.round(totalOvr / count);
     const avgPot = Math.round(totalPot / count);
 
@@ -139,7 +137,7 @@ export default function LeagueDirectory({ currentTeamId, onPlayerSelect }) {
     const defCount = players.filter(p => POSITION_CATEGORIES.DEF.includes(p.position)).length;
     const gkCount = players.filter(p => POSITION_CATEGORIES.GK.includes(p.position)).length;
 
-    return { avgOvr, avgPot, totalValue: totalVal, totalWage, fwdCount, midCount, defCount, gkCount };
+    return { avgOvr, avgPot, totalValue: totalVal, fwdCount, midCount, defCount, gkCount };
   }, [selectedTeam]);
 
   if (loading) {
@@ -371,9 +369,9 @@ export default function LeagueDirectory({ currentTeamId, onPlayerSelect }) {
                     </span>
                   </div>
                   <div className="bg-[#05080e]/90 p-2.5 sm:p-3 rounded-2xl border border-amber-500/30 text-center shadow">
-                    <span className="text-[9.5px] text-amber-400 block font-bold">دستمزد هفتگی</span>
-                    <span className="text-xs sm:text-sm font-black text-amber-300 dir-ltr block mt-0.5">
-                      €{Number(teamStats?.totalWage || 0).toLocaleString()}
+                    <span className="text-[9.5px] text-amber-400 block font-bold">میانگین پتانسیل</span>
+                    <span className="text-xs sm:text-sm font-black text-amber-300 dir-ltr block mt-0.5 font-sport">
+                      POT {teamStats?.avgPot || 0}
                     </span>
                   </div>
                   <div className="bg-[#05080e]/90 p-2.5 sm:p-3 rounded-2xl border border-cyan-500/30 text-center shadow">
@@ -455,7 +453,6 @@ export default function LeagueDirectory({ currentTeamId, onPlayerSelect }) {
                     <option value="overall" className="bg-slate-900 text-white">امتیاز کلی (OVR)</option>
                     <option value="market_value" className="bg-slate-900 text-white">ارزش بازار (Value)</option>
                     <option value="potential" className="bg-slate-900 text-white">سقف پتانسیل (POT)</option>
-                    <option value="wage" className="bg-slate-900 text-white">دستمزد (Wage)</option>
                     <option value="age" className="bg-slate-900 text-white">سن بازیکن</option>
                     <option value="name" className="bg-slate-900 text-white">نام بازیکن</option>
                   </select>
@@ -557,9 +554,7 @@ export default function LeagueDirectory({ currentTeamId, onPlayerSelect }) {
                           {player.name}
                         </h4>
                         <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400 font-sport">
-                          <span>سن: <strong className="text-slate-200 font-sans">{player.age || 25}</strong></span>
-                          <span>•</span>
-                          <span>دستمزد: <strong className="text-amber-300">€{Number(player.wage || 0).toLocaleString()}</strong>/هفته</span>
+                          <span>سن: <strong className="text-slate-200 font-sans">{player.age || 25} سال</strong></span>
                         </div>
                       </div>
                     </div>

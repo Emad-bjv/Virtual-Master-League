@@ -112,10 +112,6 @@ const PlayerManagementModal = ({ isOpen, onClose, team }) => {
               <label className="admin-label">استقامت مجازی (فعلی)</label>
               <input type="number" name="virtual_stamina" className="admin-input" value={formData.virtual_stamina} onChange={handleInputChange} required />
             </div>
-            <div>
-              <label className="admin-label">دستمزد</label>
-              <input type="number" name="wage" className="admin-input" value={formData.wage} onChange={handleInputChange} required />
-            </div>
           </div>
           <div className="modal-footer" style={{ paddingBottom: 0 }}>
             <button type="button" className="admin-btn secondary" onClick={() => setIsAddMode(false)}>انصراف</button>

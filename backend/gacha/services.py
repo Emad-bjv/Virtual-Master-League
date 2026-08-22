@@ -79,11 +79,12 @@ def open_gacha_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') ->
         if pack.purchase_method != 'BOTH' and pack.purchase_method != payment_method:
             return {'success': False, 'error': 'این پک با این روش قابل خریداری نیست.'}
 
-        # 1. Roster cap check (max 25 players)
-        if team.players.count() >= 25:
+        # 1. Roster cap check (dynamic 25-32 players based on training camp)
+        max_squad = team.max_squad_size
+        if team.players.count() >= max_squad:
             return {
                 'success': False,
-                'error': 'تیم شما حداکثر ظرفیت مجاز (۲۵ بازیکن) را دارد. ابتدا بازیکن مازاد بفروشید یا آزاد کنید.'
+                'error': f'تیم شما حداکثر ظرفیت مجاز ({max_squad} بازیکن) را دارد. با ارتقای کمپ تمرینی می‌توانید ظرفیت را تا ۳۲ نفر افزایش دهید.'
             }
 
         # 2. Wallet deduction

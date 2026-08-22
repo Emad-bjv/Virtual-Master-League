@@ -89,6 +89,7 @@ export const economyApi = {
   }),
   getMyPaymentRequests: () => api.get('/economy/payment/my-requests/'),
   getTransactionHistory: () => api.get('/economy/transactions/history/'),
+  getRevenueBreakdown: (teamId) => api.get(`/economy/teams/${teamId}/revenue-breakdown/`),
   adminGetPaymentRequests: (params) => api.get('/economy/payment/admin-list/', { params }),
   adminReviewPayment: (paymentId, data) => api.post(`/economy/payment/${paymentId}/admin-review/`, data),
 };

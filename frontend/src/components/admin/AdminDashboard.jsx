@@ -2332,16 +2332,6 @@ export default function AdminDashboard({
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-sport focus:border-cyan-400 focus:outline-none"
                   />
                 </div>
-
-                <div>
-                  <label className="text-slate-300 font-bold block mb-1">سقف دستمزد هفتگی ($)</label>
-                  <input
-                    type="number"
-                    value={newCoach.wageCap}
-                    onChange={(e) => setNewCoach({ ...newCoach, wageCap: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-white font-sport focus:border-cyan-400 focus:outline-none"
-                  />
-                </div>
               </div>
 
               <button

@@ -107,17 +107,18 @@ def task_run_academy_graduation():
 
     for team in Team.objects.select_related('facilities').all():
         current_count = team.players.count()
-        if current_count >= 25:
+        max_cap = team.max_squad_size
+        if current_count >= max_cap:
             logger.info(
-                f"[Academy Graduation] Team '{team.name}' skipped: roster full ({current_count}/25)."
+                f"[Academy Graduation] Team '{team.name}' skipped: roster full ({current_count}/{max_cap})."
             )
             continue
 
-        # How many players can we add before hitting 25?
-        available_slots = 25 - current_count
+        # How many players can we add before hitting max_squad_size?
+        available_slots = max_cap - current_count
 
         count = graduates_count(team)
-        count = min(count, available_slots)  # Never exceed 25-player cap
+        count = min(count, available_slots)  # Never exceed dynamic squad cap
         target_ovr = generate_academy_prospect(team)
 
         team_graduates = []

@@ -145,9 +145,8 @@ export default function CounterOfferModal({ offer, myTeam, onClose, onSubmitCoun
                 <span className="text-slate-400 font-sans">({offer.target_player_position})</span>
               </div>
               <div className="text-[11px] text-slate-300 flex items-center gap-2 font-sport pt-0.5">
-                <span>ارزش پایه: <strong className="text-[#00ff87]">€{Number(offer.target_player_market_value || 1000000).toLocaleString()}</strong></span>
+                <span>ارزش بازار: <strong className="text-[#00ff87]">${Number(offer.target_player_market_value || 1000000).toLocaleString()}</strong></span>
                 <span>•</span>
-                <span>دستمزد: <strong className="text-amber-300">€{Number(offer.target_player_wage || 0).toLocaleString()}</strong>/هفته</span>
                 <span>➔ باشگاه خریدار: <strong className="text-cyan-300 font-sans">{buyerTeamName}</strong></span>
               </div>
             </div>
@@ -333,7 +332,7 @@ export default function CounterOfferModal({ offer, myTeam, onClose, onSubmitCoun
                                 <span className="text-cyan-400 font-bold bg-cyan-950/70 px-1 rounded text-[9.5px]">POT {p.potential_ovr}</span>
                               )}
                             </div>
-                            <span className="text-[#00ff87] text-[9.5px] block font-bold">€{Number(p.market_value || (p.wage ? p.wage * 50 : 1000000)).toLocaleString()}</span>
+                            <span className="text-[#00ff87] text-[9.5px] block font-bold">${Number(p.market_value || 1000000).toLocaleString()}</span>
                           </div>
                         </div>
                       );

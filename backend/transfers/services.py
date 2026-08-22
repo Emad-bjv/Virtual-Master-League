@@ -87,11 +87,12 @@ def buy_player_direct(buyer_team_id: int, listing_id: int) -> dict:
         if buyer.manager is None:
             return {'success': False, 'error': 'تیم بدون مربی (سرپرستی) مجاز به خرید یا خرج بودجه نیست.'}
 
-        # Check buyer roster limit (max 25 players)
-        if buyer.players.count() >= 25:
+        # Check buyer roster limit (dynamic 25-32 players based on training camp)
+        max_squad = buyer.max_squad_size
+        if buyer.players.count() >= max_squad:
             return {
                 'success': False,
-                'error': 'تیم شما حداکثر ظرفیت مجاز (۲۵ بازیکن) را دارد. ابتدا بازیکن آزاد کنید یا بفروشید.'
+                'error': f'تیم شما حداکثر ظرفیت مجاز ({max_squad} بازیکن) را دارد. با ارتقای کمپ تمرینی می‌توانید ظرفیت را تا ۳۲ نفر افزایش دهید.'
             }
 
         # Check wage cap compliance
@@ -223,10 +224,11 @@ def finalize_auction(listing_id: int) -> dict:
             listing.save(update_fields=['status'])
             return {'success': True, 'message': 'مزایده بدون پیشنهاد دهنده منقضی شد.'}
 
-        if buyer.players.count() >= 25:
+        max_squad = buyer.max_squad_size
+        if buyer.players.count() >= max_squad:
             listing.status = 'EXPIRED'
             listing.save(update_fields=['status'])
-            return {'success': False, 'error': 'تیم خریدار حد مجاز ۲۵ بازیکن دارد. مزایده لغو شد.'}
+            return {'success': False, 'error': f'تیم خریدار به حداکثر ظرفیت ({max_squad} بازیکن) رسیده است. مزایده لغو شد.'}
 
         # Check wage cap compliance
         wage_check = check_wage_cap_compliance(buyer, listing.player)

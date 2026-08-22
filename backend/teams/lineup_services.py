@@ -1661,3 +1661,137 @@ def auto_assign_team_starting_lineup(team: Team, formation_name: str = None) -> 
 def align_all_teams():
     for team in Team.objects.all():
         auto_assign_team_starting_lineup(team)
+
+
+def auto_replace_ineligible_starters(team, target_match=None):
+    """
+    Checks all players in the team who are currently marked is_starting=True.
+    If any starter is suspended (suspension_matches > 0), injured (is_injured=True),
+    or stamina-locked (is_stamina_locked=True / virtual_stamina < 30):
+      1. Finds best available eligible substitute (is_starting=False, suspension_matches=0, is_injured=False, stamina >= 30).
+      2. Priority:
+         - Exact matching position
+         - Fallback positions from POSITION_FALLBACKS
+         - Highest overall available player (with GK for GK strictly maintained)
+      3. Moves suspended player to is_starting=False and gives their coordinates & slot to the replacement.
+      4. Persists changes to Player models and MatchGamePlan.players_data if target_match exists.
+    """
+    if not team:
+        return []
+
+    # Get all players
+    all_players = list(Player.objects.filter(team=team))
+    if not all_players:
+        return []
+
+    ineligible_starters = [
+        p for p in all_players 
+        if p.is_starting and (p.suspension_matches > 0 or p.is_injured or p.is_stamina_locked or (p.virtual_stamina is not None and p.virtual_stamina < 30))
+    ]
+
+    if not ineligible_starters:
+        return []
+
+    # Available bench substitutes
+    available_subs = [
+        p for p in all_players
+        if not p.is_starting and p.suspension_matches == 0 and not p.is_injured and not p.is_stamina_locked and (p.virtual_stamina is None or p.virtual_stamina >= 30)
+    ]
+    # Sort available by overall descending
+    available_subs.sort(key=lambda p: p.overall, reverse=True)
+
+    replacements_made = []
+
+    for starter in ineligible_starters:
+        target_pos = starter.position or 'CMF'
+        candidate = None
+
+        if target_pos == 'GK':
+            # Must find a GK if possible
+            gk_matches = [p for p in available_subs if p.position == 'GK']
+            if gk_matches:
+                candidate = max(gk_matches, key=lambda p: p.overall)
+            elif available_subs:
+                candidate = available_subs[0]
+        else:
+            # Outfield player
+            # 1. Exact position (non-GK)
+            exact_matches = [p for p in available_subs if p.position == target_pos]
+            if exact_matches:
+                candidate = max(exact_matches, key=lambda p: p.overall)
+            
+            # 2. Fallbacks
+            if not candidate:
+                fallbacks = POSITION_FALLBACKS.get(target_pos, [])
+                for fb_pos in fallbacks:
+                    fb_matches = [p for p in available_subs if p.position == fb_pos]
+                    if fb_matches:
+                        candidate = max(fb_matches, key=lambda p: p.overall)
+                        break
+            
+            # 3. Best overall outfield player
+            if not candidate:
+                outfield = [p for p in available_subs if p.position != 'GK']
+                if outfield:
+                    candidate = outfield[0]
+                elif available_subs:
+                    candidate = available_subs[0]
+
+        if candidate:
+            available_subs.remove(candidate)
+            
+            # Swap positions & starting status
+            candidate.is_starting = True
+            candidate.x_coord = starter.x_coord
+            candidate.y_coord = starter.y_coord
+            candidate.position = starter.position
+            candidate.save(update_fields=['is_starting', 'x_coord', 'y_coord', 'position'])
+
+            starter.is_starting = False
+            starter.save(update_fields=['is_starting'])
+
+            replacements_made.append({
+                'replaced_player': starter,
+                'substitute_player': candidate,
+                'reason': 'suspension' if starter.suspension_matches > 0 else 'injury' if starter.is_injured else 'stamina',
+            })
+        else:
+            # No eligible sub found, still take ineligible player off starting XI
+            starter.is_starting = False
+            starter.save(update_fields=['is_starting'])
+
+    # If target_match or next upcoming match has MatchGamePlan, sync players_data
+    try:
+        from matches.models import Match, MatchGamePlan
+        from django.db.models import Q
+
+        if not target_match:
+            target_match = Match.objects.filter(
+                Q(home_team=team) | Q(away_team=team),
+                status__in=['SCHEDULED', 'LIVE']
+            ).order_by('date', 'id').first()
+
+        if target_match:
+            mgp = MatchGamePlan.objects.filter(match=target_match, team=team).first()
+            if mgp and mgp.players_data:
+                updated_players_data = []
+                current_team_players = {p.id: p for p in Player.objects.filter(team=team)}
+                for item in mgp.players_data:
+                    pid = item.get('player_id') or item.get('id')
+                    if pid in current_team_players:
+                        p = current_team_players[pid]
+                        updated_players_data.append({
+                            'player_id': p.id,
+                            'x_coord': p.x_coord,
+                            'y_coord': p.y_coord,
+                            'position': p.position,
+                            'is_starting': p.is_starting,
+                        })
+                    else:
+                        updated_players_data.append(item)
+                mgp.players_data = updated_players_data
+                mgp.save(update_fields=['players_data'])
+    except Exception:
+        pass
+
+    return replacements_made

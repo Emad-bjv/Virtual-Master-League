@@ -161,7 +161,7 @@ export default function LiveMatchStandby({
               {getTeamLogoUrl(homeLogo || homeName) ? (
                 <img src={getTeamLogoUrl(homeLogo || homeName)} alt={homeName} className="w-full h-full object-contain relative z-10 drop-shadow-md" />
               ) : (
-                <span className="font-black text-slate-800 text-xl sm:text-2xl relative z-10 font-sport">{homeName.slice(0, 2).toUpperCase()}</span>
+                <span className="font-black text-slate-800 text-xl sm:text-2xl relative z-10 font-sport">{(homeName || 'TM').slice(0, 2).toUpperCase()}</span>
               )}
             </div>
             <span className="font-black text-white text-sm sm:text-base tracking-tight">{homeName}</span>
@@ -190,7 +190,7 @@ export default function LiveMatchStandby({
               {getTeamLogoUrl(awayLogo || awayName) ? (
                 <img src={getTeamLogoUrl(awayLogo || awayName)} alt={awayName} className="w-full h-full object-contain relative z-10 drop-shadow-md" />
               ) : (
-                <span className="font-black text-slate-800 text-xl sm:text-2xl relative z-10 font-sport">{awayName.slice(0, 2).toUpperCase()}</span>
+                <span className="font-black text-slate-800 text-xl sm:text-2xl relative z-10 font-sport">{(awayName || 'AW').slice(0, 2).toUpperCase()}</span>
               )}
             </div>
             <span className="font-black text-white text-sm sm:text-base tracking-tight">{awayName}</span>

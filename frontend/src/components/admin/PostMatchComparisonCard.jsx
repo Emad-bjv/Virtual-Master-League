@@ -24,7 +24,17 @@ export default function PostMatchComparisonCard({
   const awayScore = match.away_score ?? 0;
 
   // Normalized Stats
-  const homeStatsObj = teamStats?.home || {
+  const homeTeamId = match.home_team?.id || match.home_team;
+  const awayTeamId = match.away_team?.id || match.away_team;
+
+  const homeStatsFromArray = Array.isArray(teamStats)
+    ? teamStats.find((s) => s.team === homeTeamId || s.team_name === homeName)
+    : null;
+  const awayStatsFromArray = Array.isArray(teamStats)
+    ? teamStats.find((s) => s.team === awayTeamId || s.team_name === awayName)
+    : null;
+
+  const homeStatsObj = teamStats?.home || homeStatsFromArray || {
     possession_percent: 50,
     shots: 0,
     shots_on_target: 0,
@@ -34,7 +44,7 @@ export default function PostMatchComparisonCard({
     saves: 0,
   };
 
-  const awayStatsObj = teamStats?.away || {
+  const awayStatsObj = teamStats?.away || awayStatsFromArray || {
     possession_percent: 50,
     shots: 0,
     shots_on_target: 0,

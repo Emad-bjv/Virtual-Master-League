@@ -77,17 +77,44 @@ export default function LiveStreamTab({
   // 1. Fetch Live Context (Time-gating & schedule enforcement)
   const fetchLiveContext = async () => {
     try {
-      const res = await matchApi.getLiveMatchContext();
+      const res = await matchApi.getLiveMatchContext(teamData?.id);
       setLiveContext(res.data);
-      if (res.data?.has_active_match && res.data.active_match) {
-        setActiveMatch(res.data.active_match);
-        if (res.data.active_match.half_status) {
-          setMatchState(res.data.active_match.half_status);
+
+      const isCoachWithTeam = !!teamData?.id && userRole !== 'admin';
+
+      if (isCoachWithTeam) {
+        // Coach view: scope strictly to this coach's team
+        if (res.data?.has_team_active_match && res.data?.team_active_match) {
+          setActiveMatch(res.data.team_active_match);
+          if (res.data.team_active_match.half_status) {
+            setMatchState(res.data.team_active_match.half_status);
+          } else {
+            setMatchState(res.data.team_active_match.status || 'LIVE');
+          }
+        } else {
+          setActiveMatch(null);
+          if (res.data?.team_next_match) {
+            setMatchState(res.data.team_next_match.half_status || 'SCHEDULED');
+          } else {
+            setMatchState('SCHEDULED');
+          }
         }
-      } else if (res.data?.next_match) {
-        setMatchState(res.data.next_match.half_status || 'SCHEDULED');
       } else {
-        setMatchState('SCHEDULED');
+        // Admin / neutral viewer: show global match context
+        if (res.data?.has_active_match && res.data.active_match) {
+          setActiveMatch(res.data.active_match);
+          if (res.data.active_match.half_status) {
+            setMatchState(res.data.active_match.half_status);
+          } else {
+            setMatchState(res.data.active_match.status || 'LIVE');
+          }
+        } else if (res.data?.next_match) {
+          setActiveMatch(null);
+          setMatchState(res.data.next_match.half_status || 'SCHEDULED');
+        } else {
+          setActiveMatch(null);
+          setMatchState('SCHEDULED');
+        }
       }
     } catch (err) {
       console.warn('Failed to fetch live context:', err);
@@ -100,7 +127,7 @@ export default function LiveStreamTab({
     fetchLiveContext();
     const interval = setInterval(fetchLiveContext, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [teamData?.id, userRole]);
 
   // 2. Fetch Team Tactical GamePlan and Team's Matches
   const [teamNextMatch, setTeamNextMatch] = useState(null);
@@ -135,8 +162,11 @@ export default function LiveStreamTab({
       matchApi.getTeamSchedule(teamData.id).then((res) => {
         const matches = res.data || [];
         if (matches.length > 0) {
-          // Look for LIVE match first, then SCHEDULED, or fallback to first match
-          const currentM = matches.find((m) => m.status === 'LIVE') || matches.find((m) => m.status === 'SCHEDULED') || matches[0];
+          // Look for LIVE match first, then SCHEDULED, then FINISHED, or fallback to first match
+          const liveM = matches.find((m) => m.status === 'LIVE');
+          const schedM = matches.find((m) => m.status === 'SCHEDULED');
+          const recentFinM = matches.find((m) => m.status === 'FINISHED');
+          const currentM = liveM || schedM || recentFinM || matches[0];
           
           const isHome = currentM.home_team === teamData.id;
           const resolvedOpponentName = isHome 
@@ -150,13 +180,13 @@ export default function LiveStreamTab({
             id: currentM.id,
             home_team: currentM.home_team,
             away_team: currentM.away_team,
-            home_team_name: isHome ? teamData.name : resolvedOpponentName,
-            away_team_name: !isHome ? teamData.name : resolvedOpponentName,
+            home_team_name: isHome ? (teamData.name || 'تیم خودی') : resolvedOpponentName,
+            away_team_name: !isHome ? (teamData.name || 'تیم خودی') : resolvedOpponentName,
             home_team_logo: isHome ? teamData.logo : resolvedOpponentLogo,
             away_team_logo: !isHome ? teamData.logo : resolvedOpponentLogo,
             home_score: currentM.home_score ?? 0,
             away_score: currentM.away_score ?? 0,
-            round_name: currentM.round_name || 'هفته اول لیگ برتر',
+            round_name: currentM.round_name || 'هفته مسابقه لیگ برتر',
             date: currentM.date,
             status: currentM.status,
             half_status: currentM.half_status,
@@ -166,8 +196,8 @@ export default function LiveStreamTab({
 
           setTeamNextMatch(formattedMatch);
 
-          if (currentM.status === 'LIVE' || !activeMatch) {
-            setActiveMatch((prev) => prev || formattedMatch);
+          if (liveM) {
+            setActiveMatch(formattedMatch);
           }
         }
       }).catch((_e) => {});
@@ -230,7 +260,10 @@ export default function LiveStreamTab({
 
   // 3. Real-Time WebSocket Connection to Match Channel
   useEffect(() => {
-    const matchId = activeMatch?.id || teamNextMatch?.id || liveContext?.active_match?.id || liveContext?.next_match?.id;
+    const isCoach = !!teamData?.id && userRole !== 'admin';
+    const matchId = isCoach
+      ? (activeMatch?.id || teamNextMatch?.id || liveContext?.team_active_match?.id || liveContext?.team_next_match?.id)
+      : (activeMatch?.id || teamNextMatch?.id || liveContext?.active_match?.id || liveContext?.next_match?.id);
     if (!matchId) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -377,7 +410,7 @@ export default function LiveStreamTab({
         wsRef.current.close();
       }
     };
-  }, [activeMatch?.id, teamNextMatch?.id, liveContext?.active_match?.id, liveContext?.next_match?.id, onAddEvent, onMatchStatusChange, teamData?.id]);
+  }, [activeMatch?.id, teamNextMatch?.id, liveContext?.team_active_match?.id, liveContext?.team_next_match?.id, liveContext?.active_match?.id, liveContext?.next_match?.id, onAddEvent, onMatchStatusChange, teamData?.id, userRole]);
 
   // 5. Half-Time 30-Second Countdown Timer Logic
   useEffect(() => {
@@ -707,20 +740,33 @@ export default function LiveStreamTab({
   // -------------------------------------------------------------
   // CURRENT MATCH SELECTION & 3-PHASE SMART STATE MACHINE
   // -------------------------------------------------------------
-  const currentMatch = activeMatch || teamNextMatch || liveContext?.active_match || liveContext?.next_match;
+  const isCoachWithTeam = !!teamData?.id && userRole !== 'admin';
+
+  const currentMatch = isCoachWithTeam
+    ? (activeMatch || teamNextMatch || liveContext?.team_active_match || liveContext?.team_next_match || liveContext?.team_recent_finished_match)
+    : (activeMatch || teamNextMatch || liveContext?.active_match || liveContext?.next_match || liveContext?.recent_finished_match);
   const displayMatch = currentMatch;
 
-  let displaySeconds = liveContext?.time_to_kickoff_seconds;
+  let displaySeconds = isCoachWithTeam
+    ? (liveContext?.team_time_to_kickoff_seconds ?? liveContext?.time_to_kickoff_seconds)
+    : liveContext?.time_to_kickoff_seconds;
   if (displayMatch?.date) {
     displaySeconds = Math.max(0, Math.floor((new Date(displayMatch.date).getTime() - Date.now()) / 1000));
   }
 
   const isMatchFinished = matchState === 'FINISHED' || currentMatch?.status === 'FINISHED' || currentMatch?.half_status === 'FINISHED';
   // A match is LIVE strictly when admin has started it (status === 'LIVE' or active half_status). Never auto-start on time reached!
+  // For coaches, ensure the match actually belongs to this coach's team!
   const isMatchLive = !isMatchFinished && (
     currentMatch?.status === 'LIVE' ||
     ['1ST_HALF', 'HALF_TIME', '2ND_HALF', 'EXTRA_TIME', 'PENALTIES'].includes(matchState) ||
     ['1ST_HALF', 'HALF_TIME', '2ND_HALF', 'EXTRA_TIME', 'PENALTIES'].includes(currentMatch?.half_status)
+  ) && (
+    !isCoachWithTeam ||
+    currentMatch?.home_team === teamData.id ||
+    currentMatch?.away_team === teamData.id ||
+    currentMatch?.home_team_name === teamData.name ||
+    currentMatch?.away_team_name === teamData.name
   );
 
   if (loadingContext && !liveContext) {

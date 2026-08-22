@@ -154,20 +154,12 @@ class LeagueStandingsView(generics.GenericAPIView):
         if not tournament:
             return Response([])
 
+        try:
+            recalculate_tournament_standings(tournament.id)
+        except Exception:
+            pass
+
         qs = LeagueStanding.objects.filter(tournament=tournament).select_related('team')
-        
-        # Only seed missing standings if count doesn't match total teams (avoids 16 get_or_create queries per request)
-        from teams.models import Team
-        total_teams_count = Team.objects.count()
-        if qs.count() < total_teams_count:
-            teams = Team.objects.all()
-            for t in teams:
-                LeagueStanding.objects.get_or_create(
-                    tournament=tournament, team=t,
-                    defaults={'played': 0, 'won': 0, 'drawn': 0, 'lost': 0,
-                              'goals_for': 0, 'goals_against': 0, 'points': 0}
-                )
-            qs = LeagueStanding.objects.filter(tournament=tournament).select_related('team')
 
         standings = []
         for row in qs:
@@ -325,6 +317,87 @@ class MatchStatusUpdateView(APIView):
 # NEW TASK C VIEWS
 # ─────────────────────────────────────────────────────────
 
+def recalculate_tournament_standings(tournament_id):
+    """
+    Guarantees that persisted LeagueStanding records perfectly and accurately
+    match the recorded match results (status='FINISHED') for the specified tournament.
+    """
+    from .models import Tournament, Match, LeagueStanding
+    from teams.models import Team
+
+    tournament = Tournament.objects.filter(id=tournament_id).first()
+    if not tournament:
+        return
+
+    teams = Team.objects.all()
+    stats = {}
+    for team in teams:
+        stats[team.id] = {
+            'team': team,
+            'played': 0,
+            'won': 0,
+            'drawn': 0,
+            'lost': 0,
+            'goals_for': 0,
+            'goals_against': 0,
+            'points': 0,
+        }
+
+    finished_matches = Match.objects.filter(
+        tournament=tournament,
+        status='FINISHED',
+        home_team__isnull=False,
+        away_team__isnull=False
+    ).select_related('home_team', 'away_team')
+
+    for match in finished_matches:
+        h_id = match.home_team_id
+        a_id = match.away_team_id
+        hs = match.home_score or 0
+        as_ = match.away_score or 0
+
+        if h_id not in stats:
+            stats[h_id] = {'team': match.home_team, 'played': 0, 'won': 0, 'drawn': 0, 'lost': 0, 'goals_for': 0, 'goals_against': 0, 'points': 0}
+        if a_id not in stats:
+            stats[a_id] = {'team': match.away_team, 'played': 0, 'won': 0, 'drawn': 0, 'lost': 0, 'goals_for': 0, 'goals_against': 0, 'points': 0}
+
+        stats[h_id]['played'] += 1
+        stats[a_id]['played'] += 1
+        stats[h_id]['goals_for'] += hs
+        stats[h_id]['goals_against'] += as_
+        stats[a_id]['goals_for'] += as_
+        stats[a_id]['goals_against'] += hs
+
+        if hs > as_:
+            stats[h_id]['won'] += 1
+            stats[h_id]['points'] += 3
+            stats[a_id]['lost'] += 1
+        elif hs < as_:
+            stats[a_id]['won'] += 1
+            stats[a_id]['points'] += 3
+            stats[h_id]['lost'] += 1
+        else:
+            stats[h_id]['drawn'] += 1
+            stats[h_id]['points'] += 1
+            stats[a_id]['drawn'] += 1
+            stats[a_id]['points'] += 1
+
+    for t_id, data in stats.items():
+        LeagueStanding.objects.update_or_create(
+            tournament=tournament,
+            team_id=t_id,
+            defaults={
+                'played': data['played'],
+                'won': data['won'],
+                'drawn': data['drawn'],
+                'lost': data['lost'],
+                'goals_for': data['goals_for'],
+                'goals_against': data['goals_against'],
+                'points': data['points'],
+            }
+        )
+
+
 class TournamentStandingListView(generics.ListAPIView):
     """
     Returns persisted LeagueStanding rows for a tournament,
@@ -335,6 +408,11 @@ class TournamentStandingListView(generics.ListAPIView):
 
     def get_queryset(self):
         tournament_id = self.kwargs['tournament_id']
+        try:
+            recalculate_tournament_standings(tournament_id)
+        except Exception:
+            pass
+
         qs = LeagueStanding.objects.filter(
             tournament_id=tournament_id
         ).select_related('team').order_by(
@@ -624,6 +702,12 @@ class AdminMatchUpdateView(APIView):
             match.round_name = request.data['round_name']
         match.save()
 
+        if match.tournament_id:
+            try:
+                recalculate_tournament_standings(match.tournament_id)
+            except Exception:
+                pass
+
         # Broadcast update to clients
         broadcast_match_event(match_id, {
             'type': 'status_update',
@@ -747,12 +831,18 @@ class ActiveLiveMatchContextView(APIView):
             except Team.DoesNotExist:
                 pass
 
+        team_active_match = None
         team_next_match = None
         team_recent_finished_match = None
         team_time_to_kickoff = None
         team_is_within_reminder = False
 
         if user_team:
+            team_active_match = Match.objects.filter(
+                Q(home_team=user_team) | Q(away_team=user_team),
+                status='LIVE'
+            ).select_related('home_team', 'away_team', 'tournament').order_by('date', 'id').first()
+
             team_next_match = Match.objects.filter(
                 Q(home_team=user_team) | Q(away_team=user_team),
                 status='SCHEDULED'
@@ -788,6 +878,8 @@ class ActiveLiveMatchContextView(APIView):
             'next_match': MatchSerializer(next_match).data if next_match else None,
             'time_to_kickoff_seconds': time_to_kickoff,
             'is_within_reminder_window': is_within_reminder,
+            'has_team_active_match': team_active_match is not None,
+            'team_active_match': MatchDetailSerializer(team_active_match).data if team_active_match else None,
             'team_next_match': team_next_match_data,
             'team_recent_finished_match': MatchDetailSerializer(team_recent_finished_match).data if team_recent_finished_match else None,
             'team_time_to_kickoff_seconds': team_time_to_kickoff,
@@ -1035,6 +1127,15 @@ class AdminMatchControlRoomView(APIView):
                 minute=minute,
                 detail=detail_text
             )
+
+            # If red card is issued, immediately apply suspension and auto-replace starter for next match
+            if event_type in ['RED', 'SECOND_YELLOW'] and player:
+                suspension_add = 1 if event_type == 'SECOND_YELLOW' else 2
+                player.suspension_matches += suspension_add
+                player.save(update_fields=['suspension_matches'])
+                if player.team:
+                    from teams.lineup_services import auto_replace_ineligible_starters
+                    auto_replace_ineligible_starters(player.team)
 
             serialized_ev = MatchEventSerializer(ev).data
             match_detail = MatchDetailSerializer(match).data

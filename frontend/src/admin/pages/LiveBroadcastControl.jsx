@@ -1546,7 +1546,7 @@ export default function LiveBroadcastControl() {
                       >
                         {activeTargetSquad.map(p => (
                           <option key={p.id} value={p.id}>
-                            {p.name} ({p.position}) {p.is_starting ? '• فیکس' : '• نیمکت'}
+                            {p.name} ({p.position}) {p.suspension_matches > 0 || p.is_suspended ? '• 🟥 محروم' : p.is_starting ? '• فیکس' : '• نیمکت'}
                           </option>
                         ))}
                       </select>
@@ -1561,7 +1561,7 @@ export default function LiveBroadcastControl() {
                       >
                         {activeTargetSquad.map(p => (
                           <option key={p.id} value={p.id}>
-                            {p.name} ({p.position}) {!p.is_starting ? '• نیمکت' : '• فیکس'}
+                            {p.name} ({p.position}) {p.suspension_matches > 0 || p.is_suspended ? '• 🟥 محروم' : !p.is_starting ? '• نیمکت' : '• فیکس'}
                           </option>
                         ))}
                       </select>
@@ -1581,7 +1581,7 @@ export default function LiveBroadcastControl() {
                         <option value="">-- انتخاب بازیکن --</option>
                         {activeTargetSquad.map(p => (
                           <option key={p.id} value={p.id}>
-                            {p.name} ({p.position}) {p.is_starting ? '• فیکس' : '• نیمکت'}
+                            {p.name} ({p.position}) {p.suspension_matches > 0 || p.is_suspended ? '• 🟥 محروم' : p.is_starting ? '• فیکس' : '• نیمکت'}
                           </option>
                         ))}
                       </select>

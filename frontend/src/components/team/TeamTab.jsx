@@ -3,6 +3,8 @@ import SubNav from '../common/SubNav';
 import EFootballGamePlan, { getGemBoostCost } from './EFootballGamePlan';
 import LeagueStandingsTable from './LeagueStandingsTable';
 import MatchDetailModal from './MatchDetailModal';
+import PlayerOverallRecords from './PlayerOverallRecords';
+import MatchSummaryView from './MatchSummaryView';
 import { 
   Search, CheckCircle, AlertTriangle, XCircle, Save, Sliders, 
   Calendar, Info, X, User, Zap, HeartPulse, Gem, Sparkles, 
@@ -365,23 +367,38 @@ export default function TeamTab({
 
   useEffect(() => {
     if (initialPlayers && initialPlayers.length > 0) {
-      setPlayers(
-        initialPlayers.map((p, idx) => ({
-          ...p,
-          id: p.id.toString(),
-          naturalPosition: p.naturalPosition || p.position,
-          shirt_number: p.shirt_number || (idx + 1),
-          is_starting: Boolean(p.is_starting),
-          stamina: Number(p.virtual_stamina) || 90,
-          virtual_stamina: Number(p.virtual_stamina) || 90,
-          status: p.is_injured ? 'مصدوم' : (Number(p.virtual_stamina) || 90) < 50 ? 'خسته' : 'سالم',
-          trend: '▲',
-          age: p.age || 26,
-          consecutive_games: p.consecutive_games || 0,
-          base_stamina: p.base_stamina || 80,
-          position_group: p.position_group || 'CMF',
-        }))
-      );
+      // Map players with suspension status
+      const mapped = initialPlayers.map((p, idx) => ({
+        ...p,
+        id: p.id.toString(),
+        naturalPosition: p.naturalPosition || p.position,
+        shirt_number: p.shirt_number || (idx + 1),
+        is_starting: Boolean(p.is_starting),
+        stamina: Number(p.virtual_stamina) || 90,
+        virtual_stamina: Number(p.virtual_stamina) || 90,
+        status: (p.suspension_matches > 0 || p.is_suspended) ? 'محروم' : p.is_injured ? 'مصدوم' : (Number(p.virtual_stamina) || 90) < 50 ? 'خسته' : 'سالم',
+        trend: '▲',
+        age: p.age || 26,
+        consecutive_games: p.consecutive_games || 0,
+        base_stamina: p.base_stamina || 80,
+        position_group: p.position_group || 'CMF',
+      }));
+
+      // Check if any starter is suspended
+      const isPlayerSuspended = (p) => Boolean((p?.suspension_matches > 0) || p?.is_suspended || p?.isSuspended);
+      let starters = mapped.filter((p) => p.is_starting && !isPlayerSuspended(p));
+      let nonStarters = mapped.filter((p) => !p.is_starting || isPlayerSuspended(p)).map((p) => isPlayerSuspended(p) ? { ...p, is_starting: false } : p);
+
+      if (starters.length < 11 && nonStarters.length > 0 && mapped.length >= 11) {
+        const needed = 11 - starters.length;
+        const eligibleBench = nonStarters.filter((p) => !isPlayerSuspended(p) && !p.is_injured && (p.virtual_stamina >= 30));
+        const promoted = eligibleBench.slice(0, needed);
+        starters = [...starters, ...promoted.map((p) => ({ ...p, is_starting: true }))];
+        const promotedIds = new Set(promoted.map((p) => p.id));
+        nonStarters = nonStarters.map((p) => promotedIds.has(p.id) ? { ...p, is_starting: true } : { ...p, is_starting: false });
+      }
+
+      setPlayers([...starters, ...nonStarters.filter((p) => !starters.some((s) => s.id === p.id))]);
     }
   }, [initialPlayers]);
 
@@ -446,8 +463,15 @@ export default function TeamTab({
       {activeSub === 'matches' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           {selectedMatch ? (
+            selectedMatch.status === 'FINISHED' ? (
+              <MatchSummaryView
+                match={selectedMatch}
+                onBack={() => setSelectedMatch(null)}
+                onNavigateMatch={handleNavigateMatch}
+              />
+            ) : (
             /* ========================================================================= */
-            /* 1. MATCH-SCOPED LINEUP & TACTICS WORKBENCH                                */
+            /* 1. MATCH-SCOPED LINEUP & TACTICS WORKBENCH (FOR UPCOMING / LIVE MATCHES)  */
             /* ========================================================================= */
             <div className="space-y-4">
               {/* Top Match Bar */}
@@ -535,14 +559,17 @@ export default function TeamTab({
 
               {/* Pitch Component */}
               {(() => {
-                let starters = (players || []).filter((p) => p && p.is_starting);
-                let nonStarting = (players || []).filter((p) => p && !p.is_starting);
+                const isPlayerSuspended = (p) => Boolean((p?.suspension_matches > 0) || p?.is_suspended || p?.isSuspended);
+                let starters = (players || []).filter((p) => p && p.is_starting && !isPlayerSuspended(p));
+                let nonStarting = (players || []).filter((p) => p && (!p.is_starting || isPlayerSuspended(p)));
 
                 if (starters.length < 11 && nonStarting.length > 0 && (players || []).length >= 11) {
                   const needed = 11 - starters.length;
-                  const promoted = nonStarting.slice(0, needed);
+                  const eligiblePool = nonStarting.filter((p) => !isPlayerSuspended(p) && !p.is_injured);
+                  const promoted = eligiblePool.slice(0, needed);
                   starters = [...starters, ...promoted.map((p) => ({ ...p, is_starting: true }))];
-                  nonStarting = nonStarting.slice(needed);
+                  const promotedIds = new Set(promoted.map((p) => p.id));
+                  nonStarting = nonStarting.map((p) => promotedIds.has(p.id) ? { ...p, is_starting: true } : p).filter((p) => !promotedIds.has(p.id));
                 }
 
                 return (
@@ -904,6 +931,7 @@ export default function TeamTab({
                 </motion.button>
               </div>
             </div>
+            )
           ) : (
             /* ========================================================================= */
             /* 2. MATCHES SCHEDULE HUB (30-GAME FIXTURES LIST WITH LINEUP STATUSES)      */
@@ -1033,11 +1061,7 @@ export default function TeamTab({
                         key={m.id || idx}
                         whileHover={{ scale: 1.008 }}
                         onClick={() => {
-                          if (isFinished) {
-                            setSelectedMatchDetailId(m.id);
-                          } else {
-                            handleSelectMatchForLineup(m);
-                          }
+                          setSelectedMatch(m);
                         }}
                         className={`p-3.5 sm:p-4 rounded-3xl border transition-all flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 cursor-pointer ${
                           isImminentUnsubmitted
@@ -1131,7 +1155,7 @@ export default function TeamTab({
 
                           {resultBadge}
 
-                          {!isFinished && (
+                          {!isFinished ? (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1146,6 +1170,16 @@ export default function TeamTab({
                               }`}
                             >
                               <span>{isLineupDone ? 'ویرایش ترکیب ⚙️' : 'تنظیم ترکیب ⚽'}</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedMatch(m);
+                              }}
+                              className="px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 font-sport shrink-0 cursor-pointer shadow active:scale-95 bg-slate-900/90 hover:bg-slate-800 text-cyan-300 border border-slate-700 hover:border-cyan-500/40"
+                            >
+                              <span>خلاصه آمار 📊</span>
                             </button>
                           )}
                         </div>
@@ -1167,264 +1201,18 @@ export default function TeamTab({
         </motion.div>
       )}
 
-      {/* Subtab 2: Player Performance & Roster */}
+      {/* Subtab 2: Player Performance & Overall Records (PES Style) */}
       {activeSub === 'players' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="جستجوی نام بازیکن..."
-                className="w-full bg-[#080c14]/90 border border-slate-700/70 rounded-xl pr-9 pl-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 shadow-inner"
-              />
-              <Search size={15} className="absolute right-3 top-3 text-slate-400" />
-            </div>
-
-            {/* Position Filter Pills */}
-            <div className="flex items-center gap-1 bg-[#080c14]/90 p-1 rounded-xl border border-slate-700/60 text-[10.5px]">
-              {['ALL', 'GK', 'DEF', 'MID', 'FWD'].map((pos) => (
-                <button
-                  key={pos}
-                  onClick={() => setPositionFilter(pos)}
-                  className={`px-2.5 py-1 rounded-lg transition-all font-sport font-black cursor-pointer ${
-                    positionFilter === pos ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-[0_0_10px_rgba(0,243,255,0.4)]' : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {pos}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2.5">
-            {filteredPlayers.map((p) => {
-              const staminaVal = Math.max(5, Math.min(100, Math.round(Number(p.stamina ?? p.virtual_stamina ?? 90))));
-              const photoUrl = getPlayerPhotoUrl(p);
-
-              return (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between p-3 sm:p-3.5 rounded-2xl fut-card border border-slate-700/60 text-xs"
-                >
-                  <div className="flex items-center gap-3">
-                    {/* Portrait Photo Card Frame + OVR Badge */}
-                    <div className="relative shrink-0">
-                      <div className="w-12 h-14 rounded-2xl overflow-hidden border border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e] shadow-md flex flex-col items-center justify-between relative">
-                        {photoUrl ? (
-                          <img
-                            src={photoUrl}
-                            alt={p.name}
-                            className="w-full h-full object-cover object-top"
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = '/team-logos/default.png';
-                            }}
-                          />
-                        ) : (
-                          <User size={24} className="text-slate-500" />
-                        )}
-                        <span className="absolute bottom-0 inset-x-0 bg-slate-950/90 text-center font-sport font-black text-[10px] text-cyan-300 border-t border-slate-800">
-                          {p.position}
-                        </span>
-                      </div>
-                      <span className="absolute -top-1.5 -right-1.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-sport font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-lg border border-white/20">
-                        {p.overall}
-                      </span>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-white text-xs sm:text-sm tracking-tight">{p.name}</span>
-                        <span className="text-[10px] bg-cyan-950/80 text-cyan-300 font-sport font-black px-2 py-0.5 rounded-md border border-cyan-500/30">
-                          {p.position}
-                        </span>
-                        <span className="text-[10px] text-amber-400 dir-ltr font-bold font-sport">{p.trend || '▲'}</span>
-                      </div>
-
-                      {/* Stamina & Status Indicator */}
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <div className="w-24 h-2 bg-slate-950 rounded-full overflow-hidden border border-white/10 p-0.5">
-                          <div
-                            className={`h-full rounded-full transition-all duration-500 ${
-                              staminaVal >= 80
-                                ? 'bg-[#00ff87] shadow-[0_0_8px_#00ff87]'
-                                : staminaVal >= 50
-                                ? 'bg-cyan-400 shadow-[0_0_8px_#00f3ff]'
-                                : staminaVal >= 30
-                                ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'
-                                : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]'
-                            }`}
-                            style={{ width: `${staminaVal}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-[10.5px] text-slate-300 font-sport font-bold dir-ltr">{staminaVal}%</span>
-
-                        {p.status === 'سالم' && (
-                          <span className="text-[10px] text-[#00ff87] flex items-center gap-1 font-bold">
-                            <CheckCircle size={12} /> سالم
-                          </span>
-                        )}
-                        {p.status === 'خسته' && (
-                          <span className="text-[10px] text-amber-400 flex items-center gap-1 font-bold">
-                            <AlertTriangle size={12} /> خسته
-                          </span>
-                        )}
-                        {p.status === 'مصدوم' && (
-                          <span className="text-[10px] text-rose-400 flex items-center gap-1 font-bold">
-                            <XCircle size={12} /> مصدوم
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    {/* Action buttons for Stamina / Injury */}
-                    {p.is_injured ? (
-                      <button
-                        onClick={() => handleHealInjury(p.id, p.name)}
-                        disabled={actionLoading === p.id || currentGems < 25}
-                        className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all active:scale-95 cursor-pointer ${
-                          currentGems >= 25
-                            ? 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white shadow-[0_0_10px_rgba(244,63,94,0.4)]'
-                            : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
-                        }`}
-                        title={currentGems < 25 ? 'نیاز به ۲۵ جم دارید' : 'درمان فوری مصدومیت با ۲۵ جم'}
-                      >
-                        <HeartPulse size={12} className={actionLoading === p.id ? 'animate-spin' : ''} />
-                        <span className="hidden xs:inline">درمان</span>
-                        <span className="font-sport font-bold dir-ltr">25💎</span>
-                      </button>
-                    ) : staminaVal < 100 ? (
-                      <button
-                        onClick={() => handleRecoverStamina(p.id, p.name)}
-                        disabled={actionLoading === p.id || currentGems < 10}
-                        className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all active:scale-95 cursor-pointer ${
-                          currentGems >= 10
-                            ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-[0_0_10px_rgba(0,243,255,0.35)]'
-                            : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
-                        }`}
-                        title={currentGems < 10 ? 'نیاز به ۱۰ جم دارید' : 'شارژ ۵۰٪ استقامت با ۱۰ جم'}
-                      >
-                        <Zap size={12} className={actionLoading === p.id ? 'animate-spin text-yellow-300' : 'text-yellow-300'} />
-                        <span className="hidden xs:inline">شارژ</span>
-                        <span className="font-sport font-bold dir-ltr">10💎</span>
-                      </button>
-                    ) : null}
-
-                    {/* Gem Boost / Level Up button */}
-                    {(p.level || 1) < 20 && (
-                      <button
-                        onClick={() => handleGemBoost(p.id, p.name, p.level || 1)}
-                        disabled={actionLoading === p.id || currentGems < (p.next_level_gem_cost || getGemBoostCost(p.level || 1))}
-                        className={`px-2 sm:px-2.5 py-1 rounded-xl text-[10.5px] font-black flex items-center gap-1 transition-all active:scale-95 cursor-pointer ${
-                          currentGems >= (p.next_level_gem_cost || getGemBoostCost(p.level || 1))
-                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-[0_0_10px_rgba(168,85,247,0.35)]'
-                            : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
-                        }`}
-                        title={`ارتقای لول با ${p.next_level_gem_cost || getGemBoostCost(p.level || 1)} الماس`}
-                      >
-                        <Sparkles size={12} className={actionLoading === p.id ? 'animate-spin text-amber-300' : 'text-amber-300'} />
-                        <span className="hidden xs:inline">ارتقا</span>
-                        <span className="font-sport font-bold dir-ltr">{p.next_level_gem_cost || getGemBoostCost(p.level || 1)}💎</span>
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => setSelectedPlayerForFormula(p)}
-                      className="p-1.5 sm:p-2 bg-slate-800/80 hover:bg-cyan-950/80 text-cyan-400 hover:text-cyan-300 rounded-xl border border-slate-700 hover:border-cyan-400/40 transition-all shadow-sm cursor-pointer"
-                      title="آنالیز فرمول استقامت و رشد"
-                    >
-                      <Info size={14} />
-                    </button>
-                    <span
-                      className={`text-[10px] sm:text-[11px] font-black px-2 sm:px-2.5 py-1 rounded-xl dir-ltr font-sport ${
-                        p.is_starting
-                          ? 'text-[#00ff87] bg-emerald-950/70 border border-emerald-500/40 shadow-[0_0_10px_rgba(0,255,135,0.2)]'
-                          : 'text-purple-300 bg-purple-950/70 border border-purple-500/40'
-                      }`}
-                    >
-                      {p.is_starting ? 'XI' : 'BENCH'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Formula Inspector Modal Overlay */}
-          <AnimatePresence>
-            {selectedPlayerForFormula && (
-              <div className="fixed top-0 left-0 w-screen h-screen z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  className="w-full max-w-sm glass-panel p-5 rounded-2xl border border-cyan-500/50 space-y-3 text-xs"
-                >
-                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                    <span className="font-bold text-white text-sm">آنالیز فرمول‌های موتور بک‌اند — {selectedPlayerForFormula.name}</span>
-                    <button onClick={() => setSelectedPlayerForFormula(null)} className="text-slate-400 hover:text-white">
-                      <X size={18} />
-                    </button>
-                  </div>
-
-                  {(() => {
-                    const f = getStaminaFormulaPreview(selectedPlayerForFormula);
-                    return (
-                      <div className="space-y-2 text-slate-300">
-                        <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1">
-                          <span className="font-bold text-cyan-400 block border-b border-slate-800 pb-1">موتور افت استقامت (Stamina Engine):</span>
-                          <div className="flex justify-between text-[11px]">
-                            <span>افت پایه (۹۰ دقیقه):</span>
-                            <strong className="text-white">25.0٪</strong>
-                          </div>
-                          <div className="flex justify-between text-[11px]">
-                            <span>ضریب پست ({selectedPlayerForFormula.position}):</span>
-                            <strong className="text-[#00f3ff]">{f.posMult}x</strong>
-                          </div>
-                          <div className="flex justify-between text-[11px]">
-                            <span>ضریب سن ({selectedPlayerForFormula.age} سال):</span>
-                            <strong className="text-[#00f3ff]">{f.ageMult}x</strong>
-                          </div>
-                          <div className="flex justify-between text-[11px]">
-                            <span>تخفیف بدنسازی (Lvl 3 Gym):</span>
-                            <strong className="text-emerald-400">-8%</strong>
-                          </div>
-                          <div className="flex justify-between text-[11px]">
-                            <span>جریمه متوالی ({selectedPlayerForFormula.consecutive_games} بازی):</span>
-                            <strong className="text-rose-400">+{f.consecPenalty}%</strong>
-                          </div>
-                          <div className="flex justify-between text-[11px] pt-1 border-t border-slate-800 font-bold">
-                            <span className="text-white">افت تخمینی بازی ۹۰ دقیقه‌ای:</span>
-                            <strong className="text-amber-400">{f.estimatedDrain}%</strong>
-                          </div>
-                        </div>
-
-                        <div className="p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1">
-                          <span className="font-bold text-purple-400 block border-b border-slate-800 pb-1">موتور ارزیابی و رشد (Growth Engine):</span>
-                          <div className="flex justify-between text-[11px]">
-                            <span>شاخص عملکرد (PI):</span>
-                            <strong className="text-purple-300">75 / 100</strong>
-                          </div>
-                          <div className="flex justify-between text-[11px]">
-                            <span>باند رشد فعال:</span>
-                            <strong className="text-emerald-400">+0.20 Primary / +0.10 Sec</strong>
-                          </div>
-                          <div className="flex justify-between text-[11px]">
-                            <span>ضریب کمپ تمرینی (Lvl 3):</span>
-                            <strong className="text-cyan-300">+27% سرعت رشد</strong>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>
+          <PlayerOverallRecords
+            players={players}
+            teamData={teamData}
+            currentGems={currentGems}
+            handleHealInjury={handleHealInjury}
+            handleRecoverStamina={handleRecoverStamina}
+            handleGemBoost={handleGemBoost}
+            actionLoading={actionLoading}
+          />
         </motion.div>
       )}
 

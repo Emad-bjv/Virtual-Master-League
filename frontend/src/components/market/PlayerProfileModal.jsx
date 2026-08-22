@@ -39,22 +39,22 @@ export default function PlayerProfileModal({ player, team, onClose, onMakeOffer 
           <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center gap-2">
             <User className="text-purple-400" size={16} />
             <div>
-              <span className="block text-[10px] text-slate-400">سن / پتانسیل</span>
-              <span className="block text-xs font-bold text-white">{player.age || 25} سال {player.potential_ovr ? `(پتانسیل ${player.potential_ovr})` : ''}</span>
+              <span className="block text-[10px] text-slate-400">سن بازیکن</span>
+              <span className="block text-xs font-bold text-white">{player.age || 25} سال</span>
             </div>
           </div>
           <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center gap-2">
-            <DollarSign className="text-green-400" size={16} />
+            <Activity className="text-cyan-400" size={16} />
             <div>
-              <span className="block text-[10px] text-slate-400">دستمزد هفتگی</span>
-              <span className="block text-xs font-bold text-white dir-ltr">{Number(player.wage || 0).toLocaleString()} €</span>
+              <span className="block text-[10px] text-slate-400">پتانسیل رشد</span>
+              <span className="block text-xs font-bold text-amber-300 font-sport">POT: {player.potential_ovr || player.overall}</span>
             </div>
           </div>
           <div className="col-span-2 bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center gap-2">
-            <Crosshair className="text-amber-400" size={16} />
+            <Crosshair className="text-emerald-400" size={16} />
             <div>
               <span className="block text-[10px] text-slate-400">ارزش پایه بازار (Market Value)</span>
-              <span className="block text-sm font-black text-emerald-400 dir-ltr">{Number(player.market_value || player.wage * 50 || 1000000).toLocaleString()} €</span>
+              <span className="block text-sm font-black text-emerald-400 dir-ltr font-sport">{Number(player.market_value || 1000000).toLocaleString('fa-IR')} $</span>
             </div>
           </div>
         </div>

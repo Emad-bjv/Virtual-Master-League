@@ -59,6 +59,29 @@ class Team(models.Model):
             self.save(update_fields=['star_rating'])
         return stars
 
+    @property
+    def max_squad_size(self) -> int:
+        """
+        Base squad capacity is 25.
+        Upgrading the training camp (levels 1-20) expands the squad capacity
+        from 25 up to 32 players (+7 slots).
+        """
+        if hasattr(self, 'facilities') and self.facilities:
+            bonus = round(ClubFacilities.scaled_effect(self.facilities.training_camp_level, 7.0))
+            return 25 + int(bonus)
+        return 25
+
+    @property
+    def injury_heal_cost(self) -> int:
+        """
+        Base gem cost to heal an injury is 25 gems.
+        Upgrading the medical center (levels 1-20) reduces the cost down to 10 gems.
+        """
+        if hasattr(self, 'facilities') and self.facilities:
+            reduction = round(ClubFacilities.scaled_effect(self.facilities.medical_level, 15.0))
+            return max(10, 25 - int(reduction))
+        return 25
+
 
 class ClubFacilities(models.Model):
     team = models.OneToOneField(Team, on_delete=models.CASCADE, related_name='facilities', null=True, blank=True)
@@ -170,6 +193,10 @@ class Player(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.position} - {self.overall})"
+
+    @property
+    def is_suspended(self) -> bool:
+        return (self.suspension_matches or 0) > 0
 
     @property
     def is_stamina_locked(self) -> bool:

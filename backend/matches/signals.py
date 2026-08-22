@@ -100,15 +100,20 @@ def update_standings_and_rewards(sender, instance, **kwargs):
         except Exception:
             pass # Never block standings
 
-        # Process disciplinary actions (yellow/red card suspensions)
+        # Process disciplinary actions and auto record player match stats
         try:
-            from matches.tasks import task_process_disciplinary_actions, task_decrement_suspended_players
+            from matches.tasks import (
+                task_process_disciplinary_actions,
+                task_decrement_suspended_players,
+                task_auto_record_match_stats,
+            )
             task_process_disciplinary_actions.delay(match.id)
             task_decrement_suspended_players.delay(match.id)
+            task_auto_record_match_stats.delay(match.id)
         except Exception as e:
             # Log but never block standings processing
             import logging
-            logging.getLogger(__name__).error(f"[Signal] Disciplinary task dispatch failed: {e}")
+            logging.getLogger(__name__).error(f"[Signal] Post-match task dispatch failed: {e}")
 
         # Update Loan Statuses
         try:

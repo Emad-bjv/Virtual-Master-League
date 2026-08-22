@@ -380,20 +380,70 @@ export default function EFootballGamePlan({
     return newXi.map((p, idx) => p || { ...players[idx], naturalPosition: players[idx].naturalPosition || players[idx].position });
   };
 
-  // Helper to ensure 11 starters are populated from bench if starters departed
+  // Helper to ensure 11 starters are populated from bench if starters departed or suspended
   const buildFullSquad = (starters = [], subs = [], res = [], formPreset) => {
     let currentStarters = [...(starters || [])];
     let currentSubs = [...(subs || [])];
     let currentRes = [...(res || [])];
 
+    // Identify and auto-rotate out suspended or ineligible starters
+    const isPlayerIneligible = (p) => {
+      if (!p) return false;
+      const isSuspended = Boolean((p.suspension_matches > 0) || p.is_suspended || p.isSuspended);
+      const isInjured = Boolean(p.is_injured || p.isInjured);
+      const isStaminaLocked = Boolean(p.is_locked || p.is_stamina_locked || ((p.virtual_stamina != null && Number(p.virtual_stamina) < 30)));
+      return isSuspended || isInjured || isStaminaLocked;
+    };
+
+    const ineligibleStarters = currentStarters.filter(isPlayerIneligible);
+    if (ineligibleStarters.length > 0) {
+      currentStarters = currentStarters.filter((p) => !isPlayerIneligible(p));
+
+      ineligibleStarters.forEach((ineligibleP) => {
+        // Find best eligible candidate from bench or reserves
+        const eligibleCandidates = [...currentSubs, ...currentRes].filter((p) => !isPlayerIneligible(p));
+        const posMatch = eligibleCandidates.find((p) => p.position === ineligibleP.position) ||
+                         eligibleCandidates.find((p) => (p.naturalPosition || p.position) === (ineligibleP.naturalPosition || ineligibleP.position)) ||
+                         eligibleCandidates[0];
+
+        if (posMatch) {
+          currentSubs = currentSubs.filter((p) => p.id !== posMatch.id);
+          currentRes = currentRes.filter((p) => p.id !== posMatch.id);
+
+          currentStarters.push({
+            ...posMatch,
+            x_coord: ineligibleP.x_coord,
+            y_coord: ineligibleP.y_coord,
+            position: ineligibleP.position,
+            naturalPosition: posMatch.naturalPosition || posMatch.position,
+            is_starting: true,
+          });
+        }
+
+        // Place the ineligible player into substitutes
+        currentSubs.push({
+          ...ineligibleP,
+          is_starting: false,
+        });
+      });
+    }
+
     // Auto-promote bench players if starters are fewer than 11
     if (currentStarters.length < 11 && (currentSubs.length > 0 || currentRes.length > 0)) {
       const needed = 11 - currentStarters.length;
-      const fromSubs = currentSubs.splice(0, needed);
+      const eligiblePool = currentSubs.filter((p) => !isPlayerIneligible(p));
+      const fromSubs = eligiblePool.splice(0, needed);
+      fromSubs.forEach((p) => {
+        currentSubs = currentSubs.filter((s) => s.id !== p.id);
+      });
       currentStarters.push(...fromSubs);
       if (fromSubs.length < needed && currentRes.length > 0) {
         const stillNeeded = needed - fromSubs.length;
-        const fromRes = currentRes.splice(0, stillNeeded);
+        const eligibleResPool = currentRes.filter((p) => !isPlayerIneligible(p));
+        const fromRes = eligibleResPool.splice(0, stillNeeded);
+        fromRes.forEach((p) => {
+          currentRes = currentRes.filter((r) => r.id !== p.id);
+        });
         currentStarters.push(...fromRes);
       }
     }
@@ -956,6 +1006,11 @@ export default function EFootballGamePlan({
 
     if (!pitchPlayer || !benchPlayer) return;
 
+    if (benchPlayer.suspension_matches > 0 || benchPlayer.is_suspended || benchPlayer.isSuspended) {
+      showNotification(`⚠️ بازیکن «${benchPlayer.name}» به دلیل محرومیت (کارت قرمز) نمی‌تواند در ترکیب اصلی قرار گیرد 🟥`);
+      return;
+    }
+
     const benchNaturalPos = benchPlayer.naturalPosition || benchPlayer.position;
     const pitchNaturalPos = pitchPlayer.naturalPosition || pitchPlayer.position;
 
@@ -1018,6 +1073,11 @@ export default function EFootballGamePlan({
     if (selectedBenchPlayerId) {
       const benchPlayer = substitutes.find((b) => b.id === selectedBenchPlayerId) || reserves.find((r) => r.id === selectedBenchPlayerId);
       if (!benchPlayer) return;
+
+      if (benchPlayer.suspension_matches > 0 || benchPlayer.is_suspended || benchPlayer.isSuspended) {
+        showNotification(`⚠️ بازیکن «${benchPlayer.name}» به دلیل محرومیت (کارت قرمز) نمی‌تواند در ترکیب اصلی قرار گیرد 🟥`);
+        return;
+      }
 
       const newPitchPlayer = {
         ...benchPlayer,
@@ -1213,6 +1273,11 @@ export default function EFootballGamePlan({
                         مصدوم
                       </span>
                     )}
+                    {(activeSelectedPlayer.suspension_matches > 0 || activeSelectedPlayer.is_suspended) && (
+                      <span className="text-red-300 font-bold bg-red-950/90 px-2 py-0.5 rounded-full border border-red-500/60 shadow flex items-center gap-1">
+                        <span>🟥</span> محروم ({activeSelectedPlayer.suspension_matches || 1} بازی)
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1336,15 +1401,15 @@ export default function EFootballGamePlan({
                 >
                   {/* Player Avatar Container + Floating Event Badges */}
                   <div className="relative flex items-center justify-center">
-                    {/* Top-Right Blue Rating Pill Badge (Haaland style: 10.0 ★) */}
-                    {(player.rating != null || (isAdminMode && player.goals > 0)) && (
+                    {/* Top-Right Blue Rating Pill Badge (Only in Live/Admin match mode) */}
+                    {(isLiveMode || isAdminMode) && (player.rating != null || (isAdminMode && player.goals > 0)) && (
                       <span className="absolute -top-2 -right-2.5 z-30 bg-sky-500 text-slate-950 font-black text-[9px] md:text-[10px] px-1.5 py-0.5 rounded-full shadow-md border border-sky-300 flex items-center gap-0.5 font-sport leading-none pointer-events-none">
                         {player.rating || (player.goals >= 3 ? '10.0' : player.goals >= 1 ? '8.5' : '7.0')} ★
                       </span>
                     )}
 
-                    {/* Top-Left Subbed-Off / Booked Minute Badge */}
-                    {player.subMinute && (
+                    {/* Top-Left Subbed-Off / Booked Minute Badge (Only in Live/Admin match mode) */}
+                    {(isLiveMode || isAdminMode) && player.subMinute && (
                       <span className="absolute -top-2 -left-2.5 z-30 bg-black/95 text-white font-black text-[8.5px] md:text-[9.5px] px-1.5 py-0.5 rounded-full border border-rose-500 shadow-md flex items-center gap-1 font-sport leading-none pointer-events-none">
                         <span>{player.subMinute}'</span>
                         <span className="text-rose-400 font-black">←</span>
@@ -1353,11 +1418,11 @@ export default function EFootballGamePlan({
 
                     {/* FUT Portrait Photo Card Frame (Circular/Pill Frame) */}
                     <div className={`relative flex items-center justify-center w-12 h-14 md:w-14 md:h-16 rounded-2xl overflow-hidden border-2 shadow-xl transition-all ${
-                      player.isRed
-                        ? 'border-rose-600 ring-2 ring-rose-600/80 bg-rose-950/90 text-rose-300 opacity-60 grayscale'
-                        : player.isInjured
+                      (player.isRed || player.is_suspended || player.suspension_matches > 0)
+                        ? 'border-rose-600 ring-2 ring-rose-600/80 bg-rose-950/90 text-rose-300 opacity-70 grayscale'
+                        : (player.isInjured || player.is_injured)
                         ? 'border-amber-500 ring-2 ring-amber-500/80 bg-amber-950/90 text-amber-300 animate-pulse'
-                        : player.goals > 0
+                        : ((isLiveMode || isAdminMode) && (player.in_match_goals || player.goals) > 0)
                         ? 'border-emerald-400 ring-2 ring-emerald-400/60 bg-emerald-950/80'
                         : isSelected
                         ? 'border-cyan-400 bg-cyan-900/70 ring-2 ring-cyan-400 shadow-[0_0_20px_rgba(0,243,255,0.6)]'
@@ -1390,17 +1455,32 @@ export default function EFootballGamePlan({
                       )}
                     </div>
 
-                    {/* Bottom Overlapping Event Badges (Horizontal Stacked Discs matching Haaland FotMob screenshot) */}
-                    {((player.goals || 0) > 0 || (player.assists || 0) > 0 || player.yellowCards > 0 || player.isRed || player.isInjured) && (
+                    {/* In Coach Mode: Clean Injury or Suspension Pill Indicator */}
+                    {!isLiveMode && !isAdminMode && (player.is_injured || player.isInjured || (player.suspension_matches > 0) || player.is_suspended) && (
+                      <div className="absolute -bottom-2 z-30 flex items-center justify-center pointer-events-none drop-shadow">
+                        {(player.is_injured || player.isInjured) ? (
+                          <span className="bg-rose-950 text-rose-300 border border-rose-500 text-[8px] font-black px-1.5 py-0.2 rounded-full shadow flex items-center gap-0.5">
+                            🩹 مصدوم
+                          </span>
+                        ) : (
+                          <span className="bg-red-950 text-red-300 border border-red-500 text-[8px] font-black px-1.5 py-0.2 rounded-full shadow flex items-center gap-0.5">
+                            🟥 محروم
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Bottom Overlapping Event Badges (Only in Live / Admin Match Broadcast) */}
+                    {(isLiveMode || isAdminMode) && ((player.in_match_goals || 0) > 0 || (player.in_match_assists || 0) > 0 || player.yellowCards > 0 || player.isRed || player.isInjured) && (
                       <div className="absolute -bottom-2.5 z-30 flex items-center justify-center -space-x-1.5 drop-shadow-md pointer-events-none">
                         {/* Assist Badges (Shoes) */}
-                        {Array.from({ length: player.assists || 0 }).map((_, aIdx) => (
+                        {Array.from({ length: player.in_match_assists || 0 }).map((_, aIdx) => (
                           <div key={`ast-${aIdx}`} className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-white border border-slate-400 shadow-md flex items-center justify-center text-[10px] md:text-[11px] shrink-0" title="پاس گل">
                             👟
                           </div>
                         ))}
                         {/* Goal Badges (Soccer Balls) */}
-                        {Array.from({ length: player.goals || 0 }).map((_, gIdx) => (
+                        {Array.from({ length: player.in_match_goals || 0 }).map((_, gIdx) => (
                           <div key={`goal-${gIdx}`} className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-white border border-slate-400 shadow-md flex items-center justify-center text-[10px] md:text-[11px] shrink-0" title="گل">
                             ⚽
                           </div>
@@ -1527,6 +1607,7 @@ export default function EFootballGamePlan({
                 const isSelected = selectedBenchPlayerId === sub.id;
                 const natPos = sub.naturalPosition || sub.position;
                 const isOut = sub.isSubbedOut;
+                const isSuspended = Boolean((sub.suspension_matches > 0) || sub.is_suspended || sub.isSuspended);
                 const subStamina = Math.max(5, Math.min(100, Math.round(Number(sub.stamina ?? sub.virtual_stamina ?? 90))));
                 const subStaminaColor =
                   subStamina >= 80
@@ -1542,14 +1623,21 @@ export default function EFootballGamePlan({
                     key={sub.id}
                     onClick={() => handleBenchPlayerClick(sub, true)}
                     className={`p-2 rounded-2xl border cursor-pointer flex flex-col items-center text-center transition-all relative overflow-hidden ${
-                      isOut
+                      isSuspended
+                        ? 'bg-red-950/40 border-red-700/80 hover:border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.2)]'
+                        : isOut
                         ? 'opacity-65 bg-rose-950/40 border-rose-800/60 grayscale cursor-not-allowed hover:border-rose-600'
                         : isSelected
                         ? 'bg-gradient-to-r from-cyan-950 to-purple-950 border-2 border-cyan-400 scale-105 shadow-[0_0_20px_rgba(0,243,255,0.4)] ring-2 ring-cyan-400 animate-pulse'
                         : 'bg-[#0f172a]/80 border-slate-700/60 hover:border-cyan-400/60 hover:bg-slate-800'
                     }`}
                   >
-                    {isOut && (
+                    {isSuspended && (
+                      <span className="absolute top-1 right-1 text-[7px] font-black bg-red-600 text-white px-1 py-0.2 rounded-full flex items-center gap-0.5 shadow z-10 font-sport">
+                        🟥 محروم
+                      </span>
+                    )}
+                    {isOut && !isSuspended && (
                       <span className="absolute top-1 right-1 text-[7px] font-black bg-rose-600 text-white px-1 py-0.2 rounded-full flex items-center gap-0.5 shadow z-10 font-sport">
                         ↩️ OUT
                       </span>
@@ -1614,6 +1702,7 @@ export default function EFootballGamePlan({
                   {reserves.map((res) => {
                     const isSelected = selectedBenchPlayerId === res.id;
                     const natPos = res.naturalPosition || res.position;
+                    const isSuspended = Boolean((res.suspension_matches > 0) || res.is_suspended || res.isSuspended);
                     const resStamina = Math.max(5, Math.min(100, Math.round(Number(res.stamina ?? res.virtual_stamina ?? 90))));
 
                     return (
@@ -1621,12 +1710,19 @@ export default function EFootballGamePlan({
                         key={res.id}
                         onClick={() => handleBenchPlayerClick(res, false)}
                         className={`p-2.5 rounded-2xl border cursor-pointer flex justify-between items-center transition-all ${
-                          isSelected
+                          isSuspended
+                            ? 'bg-red-950/30 border-red-700/80 hover:border-red-500 text-red-200 shadow'
+                            : isSelected
                             ? 'bg-cyan-950/80 border-2 border-cyan-400 shadow-lg ring-2 ring-cyan-400 animate-pulse'
                             : 'bg-slate-950/70 border-slate-800 hover:border-slate-600 text-slate-300'
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate">
+                          {isSuspended && (
+                            <span className="text-[7.5px] font-black bg-red-600 text-white px-1 py-0.2 rounded-full font-sport">
+                              🟥
+                            </span>
+                          )}
                           <div className="w-6 h-6 rounded-lg flex items-center justify-center border border-slate-700 bg-[#05080e] relative overflow-hidden shrink-0 shadow-inner">
                             {getPlayerPhotoUrl(res) ? (
                               <img

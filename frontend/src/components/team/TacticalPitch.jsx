@@ -118,6 +118,8 @@ export default function TacticalPitch({
                   player.assists > 0 ||
                   player.yellowCards > 0 ||
                   player.isRed ||
+                  player.suspension_matches > 0 ||
+                  player.is_suspended ||
                   player.is_injured ||
                   player.isInjured) && (
                   <div className="absolute -top-2 -right-6 flex flex-col items-start gap-0.5 pointer-events-none z-30 drop-shadow-md">
@@ -137,7 +139,7 @@ export default function TacticalPitch({
                     {player.yellowCards === 2 && (
                       <span className="text-[10px] drop-shadow-lg">🟨🟨 🟥⛔</span>
                     )}
-                    {player.isRed && (
+                    {(player.isRed || player.suspension_matches > 0 || player.is_suspended) && (
                       <span className="text-[10px] drop-shadow-lg">🟥⛔</span>
                     )}
                     {(player.is_injured || player.isInjured) && (
@@ -149,7 +151,7 @@ export default function TacticalPitch({
                 {/* FUT Portrait Photo Card Frame (Proportional Portrait 1:1.15) */}
                 <div
                   className={`relative flex items-center justify-center w-12 h-14 md:w-14 md:h-16 rounded-2xl overflow-hidden border-2 shadow-2xl transition-all ${
-                    player.isRed
+                    player.isRed || player.suspension_matches > 0 || player.is_suspended
                       ? 'border-rose-600 ring-2 ring-rose-600/80 bg-rose-950/90 text-rose-300 opacity-60 grayscale'
                       : player.is_injured || player.isInjured
                       ? 'border-amber-500 ring-2 ring-amber-500/80 bg-amber-950/90 text-amber-300 animate-pulse'

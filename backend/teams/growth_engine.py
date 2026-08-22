@@ -271,3 +271,26 @@ def graduates_count(club) -> int:
     if level >= 14: return 3
     if level >= 5:  return 2
     return 1
+
+def sync_youth_academy_potentials(team, level: int = None) -> list:
+    """
+    Step-by-step increases the potential OVR cap for all players under 25 years old
+    based on the Youth Academy level, up to a maximum cap of 90 OVR.
+    """
+    from teams.models import ClubFacilities, Player
+    if level is None:
+        level = team.facilities.academy_level if hasattr(team, 'facilities') and team.facilities else 0
+    
+    potential_boost = round(ClubFacilities.scaled_effect(level, 15.0))
+    young_players = Player.objects.filter(team=team, age__lt=25)
+    
+    updated_players = []
+    for yp in young_players:
+        base_pot = yp.base_overall or yp.overall
+        target_potential = min(90, max(yp.overall + 2, base_pot + 2 + int(potential_boost)))
+        if target_potential > yp.potential_ovr or yp.potential_ovr < target_potential:
+            yp.potential_ovr = target_potential
+            yp.save(update_fields=['potential_ovr'])
+            updated_players.append(yp)
+            
+    return updated_players

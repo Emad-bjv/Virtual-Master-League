@@ -223,16 +223,6 @@ const AdminFacilitiesBudget = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-gray-400 text-sm mb-1">سقف دستمزد</label>
-            <input
-              type="number"
-              className="w-full bg-gray-800 text-white rounded-lg p-2.5 border border-gray-700"
-              value={newCoachForm.wage_cap}
-              onChange={(e) => setNewCoachForm({ ...newCoachForm, wage_cap: e.target.value })}
-            />
-          </div>
-
           <div className="md:col-span-2 pt-2">
             <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-lg transition-colors">
               ثبت باشگاه و مربی جدید

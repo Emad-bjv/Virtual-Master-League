@@ -197,10 +197,6 @@ const CoachOversight = () => {
               <label className="admin-label">بودجه</label>
               <input type="number" name="budget" className="admin-input" value={teamForm.budget} onChange={handleInputChange} required />
             </div>
-            <div>
-              <label className="admin-label">سقف دستمزد (Wage Cap)</label>
-              <input type="number" name="wage_cap" className="admin-input" value={teamForm.wage_cap} onChange={handleInputChange} required />
-            </div>
             <div style={{gridColumn: '1 / -1'}}>
               <label className="admin-label">مربی (تخصیص حساب کاربری)</label>
               <select name="manager" className="admin-input" value={teamForm.manager || ''} onChange={handleInputChange}>
@@ -233,10 +229,6 @@ const CoachOversight = () => {
             <div>
               <label className="admin-label">بودجه</label>
               <input type="number" name="budget" className="admin-input" value={teamForm.budget} onChange={handleInputChange} required />
-            </div>
-            <div>
-              <label className="admin-label">سقف دستمزد (Wage Cap)</label>
-              <input type="number" name="wage_cap" className="admin-input" value={teamForm.wage_cap} onChange={handleInputChange} required />
             </div>
             <div style={{gridColumn: '1 / -1'}}>
               <label className="admin-label">مربی (تخصیص حساب کاربری)</label>

@@ -139,7 +139,6 @@ export default function DashboardOverview() {
             <div className="text-2xl sm:text-3xl font-black text-[#00ff87] font-sport tracking-tight">
               ${Math.round((overview.total_budget || 0) / 1000000).toLocaleString()}M
             </div>
-            <span className="text-[10px] text-emerald-400/80 mt-1 block">سقف دستمزد کل: ${Number(overview.total_wage_cap || 0).toLocaleString()}</span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-300 shadow-inner">
             <DollarSign size={24} />

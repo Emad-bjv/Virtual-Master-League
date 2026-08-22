@@ -182,6 +182,9 @@ class TeamViewSet(viewsets.ModelViewSet):
                     except Player.DoesNotExist:
                         continue
 
+            from teams.lineup_services import auto_replace_ineligible_starters
+            auto_replace_ineligible_starters(team, target_match)
+
             try:
                 from season_pass.services import increment_task_progress
                 increment_task_progress(team, 'SUBMIT_LINEUP', 1)
@@ -289,27 +292,30 @@ class TeamViewSet(viewsets.ModelViewSet):
         from .level_engine import grant_facility_xp
         grant_facility_xp(team, field_name, current_level + 1)
         
-        # --- Youth Academy: Milestone Potential OVR Boost (Levels 5, 10, 15, 20 - Max +4) ---
+        # --- Youth Academy: Step-by-step Potential OVR Boost for U25 players (Max 90 OVR) ---
         boosted_young_count = 0
         new_level = current_level + 1
         if field_name == 'academy_level':
-            is_milestone = new_level in [5, 10, 15, 20]
-            if is_milestone:
-                young_players = Player.objects.filter(team=team, age__lte=23)
-                for yp in young_players:
-                    if yp.potential_ovr < 99:
-                        yp.potential_ovr = min(99, yp.potential_ovr + 1)
-                        yp.save(update_fields=['potential_ovr'])
-                        boosted_young_count += 1
-                
-                if boosted_young_count > 0:
-                    from notifications.models import Notification
-                    Notification.objects.create(
-                        team=team,
-                        category='TRANSFER',
-                        title=f"🌟 مایلستون سطح {new_level} آکادمی: افزایش پتانسیل جوانان",
-                        message=f"با دستیابی آکادمی به سطح طلایی {new_level}، سقف پتانسیل (Potential OVR) تعداد {boosted_young_count} بازیکن جوان و آینده‌دار تیم شما (+1) افزایش یافت!"
-                    )
+            from .growth_engine import sync_youth_academy_potentials
+            updated_players = sync_youth_academy_potentials(team, new_level)
+            boosted_young_count = len(updated_players)
+            
+            if boosted_young_count > 0:
+                from notifications.models import Notification
+                Notification.objects.create(
+                    team=team,
+                    category='TRANSFER',
+                    title=f"🌟 ارتقای آکادمی به سطح {new_level}: افزایش سقف پتانسیل جوانان",
+                    message=f"با دستیابی آکادمی جوانان به سطح {new_level}، سقف پتانسیل رشد (Potential OVR) تعداد {boosted_young_count} بازیکن زیر ۲۵ سال تیم تا سقف اورال ۹۰ افزایش یافت!"
+                )
+        elif field_name == 'training_camp_level':
+            from notifications.models import Notification
+            Notification.objects.create(
+                team=team,
+                category='TRANSFER',
+                title=f"⚡ ارتقای کمپ تمرینی به سطح {new_level}",
+                message=f"ظرفیت لیست بازیکنان تیم شما به {team.max_squad_size} بازیکن (از سقف ۳۲ نفر) افزایش یافت!"
+            )
         
         return Response({
             'status': 'ارتقاء با موفقیت انجام شد',
@@ -318,7 +324,8 @@ class TeamViewSet(viewsets.ModelViewSet):
             'gem_cost': gem_cost,
             'remaining_gems': team.gems,
             'boosted_young_count': boosted_young_count,
-            'facilities': ClubFacilitiesSerializer(facilities).data
+            'facilities': ClubFacilitiesSerializer(facilities).data,
+            'team': TeamSerializer(team).data
         })
 
     # === ADMIN MANAGEMENT ACTIONS ===
@@ -558,7 +565,7 @@ class PlayerViewSet(viewsets.ModelViewSet):
         if not player.is_injured and not player.injury_return_date:
             return Response({'error': 'این بازیکن در حال حاضر مصدوم نیست.'}, status=status.HTTP_400_BAD_REQUEST)
             
-        INJURY_HEAL_COST = 25
+        INJURY_HEAL_COST = player.team.injury_heal_cost
         from economy.services import process_atomic_wallet_update
         wallet_res = process_atomic_wallet_update(
             team_id=player.team.id,
@@ -569,7 +576,7 @@ class PlayerViewSet(viewsets.ModelViewSet):
         )
         if not wallet_res.get('success'):
             return Response({
-                'error': f"جم کافی نیست. هزینه درمان فوری: {INJURY_HEAL_COST} جم. (موجودی فعلی: {player.team.gems} جم)",
+                'error': f"جم کافی نیست. هزینه درمان فوری با امکانات فعلی: {INJURY_HEAL_COST} جم. (موجودی فعلی: {player.team.gems} جم)",
                 'required_gems': INJURY_HEAL_COST,
                 'current_gems': player.team.gems
             }, status=status.HTTP_400_BAD_REQUEST)

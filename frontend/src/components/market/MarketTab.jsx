@@ -240,7 +240,7 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
                               {p.name}
                             </h4>
                             <div className="text-[10px] text-slate-400">
-                              سن: <strong className="text-slate-200">{p.age || 25}</strong> • دستمزد: <strong className="text-amber-300">€{Number(p.wage || 0).toLocaleString()}</strong>
+                              سن: <strong className="text-slate-200">{p.age || 25} سال</strong>
                             </div>
                           </div>
                         </div>
@@ -334,7 +334,7 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
                       {/* Bottom Action */}
                       <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2 font-sport">
                         <span className="text-[10px] text-slate-400">
-                          بازگشت مالی: <strong className="text-amber-300">+${Math.round(Number(p.wage || 1000) * 10).toLocaleString()}</strong>
+                          بازگشت مالی: <strong className="text-emerald-400">+${Math.round(estValue * 0.2).toLocaleString()}</strong>
                         </span>
 
                         <button 
@@ -385,13 +385,7 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
               <div className="flex justify-between text-slate-300">
                 <span>هزینه جذب به خزانه:</span>
                 <span className="text-amber-400 font-bold dir-ltr">
-                  ${Number(playerToSign.market_value || (playerToSign.wage ? playerToSign.wage * 50 : 1000000)).toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-300">
-                <span>دستمزد هفتگی بازیکن:</span>
-                <span className="text-cyan-300 font-bold dir-ltr">
-                  €{Number(playerToSign.wage || 0).toLocaleString()}/هفته
+                  ${Number(playerToSign.market_value || 1000000).toLocaleString()}
                 </span>
               </div>
             </div>
@@ -419,7 +413,7 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
               <div className="flex justify-between text-slate-300">
                 <span>بازگشت بودجه به خزانه (۲۰٪):</span>
                 <span className="text-[#00ff87] font-black font-sport">
-                  +${Math.round(Number(playerToRelease.wage || 1000) * 10).toLocaleString()}
+                  +${Math.round(Number(playerToRelease.market_value || 1000000) * 0.2).toLocaleString()}
                 </span>
               </div>
             </div>

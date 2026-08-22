@@ -8,6 +8,7 @@ from .views import (
     AdminPaymentRequestListView,
     AdminApprovePaymentView,
     TransactionHistoryView,
+    TeamRevenueBreakdownView,
 )
 
 urlpatterns = [
@@ -19,4 +20,5 @@ urlpatterns = [
     path('payment/admin-list/', AdminPaymentRequestListView.as_view(), name='payment-admin-list'),
     path('payment/<int:payment_id>/admin-review/', AdminApprovePaymentView.as_view(), name='payment-admin-review'),
     path('transactions/history/', TransactionHistoryView.as_view(), name='transaction-history'),
+    path('teams/<int:team_id>/revenue-breakdown/', TeamRevenueBreakdownView.as_view(), name='team-revenue-breakdown'),
 ]
