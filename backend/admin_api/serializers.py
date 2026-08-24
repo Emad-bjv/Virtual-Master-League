@@ -15,7 +15,31 @@ def create_model_serializer(target_model):
     meta_cls = type('Meta', (), {'model': target_model, 'fields': '__all__'})
     return type(f"{target_model.__name__}Serializer", (serializers.ModelSerializer,), {'Meta': meta_cls})
 
-UserSerializer = create_model_serializer(User)
+class UserSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
+
+    class Meta:
+        model = User
+        fields = '__all__'
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False}
+        }
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        user = super().create(validated_data)
+        if password:
+            user.set_password(password)
+            user.save(update_fields=['password'])
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+        user = super().update(instance, validated_data)
+        if password:
+            user.set_password(password)
+            user.save(update_fields=['password'])
+        return user
 
 StorePackageSerializer = create_model_serializer(StorePackage)
 TransactionSerializer = create_model_serializer(Transaction)
