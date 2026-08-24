@@ -44,6 +44,7 @@ class TransferOfferSerializer(serializers.ModelSerializer):
     receiver_team_name = serializers.CharField(source='receiver_team.name', read_only=True)
     receiver_team_logo = serializers.CharField(source='receiver_team.logo', read_only=True)
     receiver_budget = serializers.DecimalField(source='receiver_team.budget', max_digits=15, decimal_places=2, read_only=True)
+    target_player_name = serializers.CharField(source='target_player.name', read_only=True)
     target_player_overall = serializers.IntegerField(source='target_player.overall', read_only=True)
     target_player_potential_ovr = serializers.IntegerField(source='target_player.potential_ovr', read_only=True)
     target_player_position = serializers.CharField(source='target_player.position', read_only=True)
@@ -188,6 +189,10 @@ class TransferLogSerializer(serializers.ModelSerializer):
             return "🚫 لغو پیشنهاد نقل‌وانتقالات"
         elif obj.event_type == 'PLAYER_RELEASED':
             return "📄 فسخ قرارداد و بازیکن آزاد جدید در مستر لیگ"
+        elif obj.event_type == 'LOAN_EXPIRED':
+            return "🔄 پایان قرارداد قرضی و بازگشت بازیکن به باشگاه اصلی"
+        elif obj.event_type == 'FREE_AGENT_SIGNED':
+            return "🌟 جذب رسمی بازیکن آزاد در مستر لیگ"
         return "📰 گزارش رسمی رویداد مستر لیگ"
 
     def get_news_content(self, obj):

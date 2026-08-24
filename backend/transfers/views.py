@@ -24,7 +24,7 @@ class TransferMarketListView(generics.ListAPIView):
 
     def get_queryset(self):
         queryset = TransferListing.objects.filter(status='ACTIVE').select_related(
-            'player', 'seller_team', 'buyer_team', 'highest_bidder'
+            'player', 'seller_team', 'highest_bidder'
         )
         position = self.request.query_params.get('position')
         min_price = self.request.query_params.get('min_price')
@@ -180,24 +180,16 @@ class TransferOfferCreateView(views.APIView):
             
         sender_team_id = user_team.id
         receiver_team_id = request.data.get('receiver_team_id')
-        player_id = request.data.get('player_id')
-        offer_type = request.data.get('offer_type', 'PERMANENT')
-        cash_amount = request.data.get('cash_amount', 0)
-        offered_player_id = request.data.get('offered_player_id')
-        loan_matches = request.data.get('loan_matches')
-        loan_wage_percentage = request.data.get('loan_wage_percentage', 100)
-        message = request.data.get('message', '')
+        target_player_id = request.data.get('target_player_id') or request.data.get('player_id')
+        
+        if not target_player_id or not receiver_team_id:
+            return Response({'error': 'شناسه بازیکن و تیم مقصد الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
         
         result = create_transfer_offer(
             sender_team_id=sender_team_id,
             receiver_team_id=receiver_team_id,
-            player_id=player_id,
-            offer_type=offer_type,
-            cash_amount=cash_amount,
-            offered_player_id=offered_player_id,
-            loan_matches=loan_matches,
-            loan_wage_percentage=loan_wage_percentage,
-            message=message
+            target_player_id=target_player_id,
+            data=request.data
         )
         
         if result.get('success'):
@@ -215,7 +207,9 @@ class TransferOfferListView(generics.ListAPIView):
         return TransferOffer.objects.filter(
             Q(sender_team=user_team) | Q(receiver_team=user_team)
         ).select_related(
-            'player', 'sender_team', 'receiver_team', 'offered_player'
+            'target_player', 'sender_team', 'receiver_team'
+        ).prefetch_related(
+            'swap_players'
         ).exclude(
             status='SUPERSEDED'
         ).order_by('-updated_at')
@@ -295,6 +289,13 @@ class SignFreeAgentAPIView(views.APIView):
             ensure_team_starting_eleven(user_team)
             user_team.update_star_rating(save=True)
             
+            TransferHistory.objects.create(
+                player=player,
+                seller_team=None,
+                buyer_team=user_team,
+                price_usd=signing_fee,
+                transfer_type='FREE_AGENT'
+            )
             TransferLog.objects.create(
                 event_type='FREE_AGENT_SIGNED',
                 description=f"تیم {user_team.name} بازیکن آزاد «{player.name}» را با مبلغ {float(signing_fee):,.0f} $ جذب کرد."

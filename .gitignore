@@ -1,6 +1,9 @@
-/gemini-code-1785504060357.md
-/review_results.md
-/سیاست ترک مربی وسط فصل — تیم و بودجه چه می_شود؟_س.md
+# Environment & Secrets (NEVER COMMIT REAL SECRETS)
+.env
+.env.local
+.env.production
+.env.*.local
+!.env.production.example
 
 # Virtual Environments
 venv/
@@ -18,15 +21,31 @@ dist/
 frontend/dist/
 .eslintcache
 
-# Databases & Environment
+# Databases & Runtime State
 *.sqlite3
 *.db
-.env
-.env.local
-.env.*.local
 celerybeat-schedule*
+*.log
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE & Tooling
+.vscode/
+.idea/
+.claude/
 .agents/
 
-# System Files
+# System Files & Temporary
 .DS_Store
 Thumbs.db
+gemini-code-*.md
+review_results.md
+سیاست*.md
+/*.webp
+
+# Scratch/Raw Extract folders
+New folder/
+New folder (2)/

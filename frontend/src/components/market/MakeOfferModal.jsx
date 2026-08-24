@@ -53,6 +53,7 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
     const payload = {
       sender_team_id: myTeam?.id,
       target_player_id: player.id,
+      player_id: player.id,
       receiver_team_id: targetTeam.id,
       offer_type: activeTab,
       cash_amount: numCash,

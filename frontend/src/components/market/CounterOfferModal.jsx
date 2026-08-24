@@ -75,6 +75,7 @@ export default function CounterOfferModal({ offer, myTeam, onClose, onSubmitCoun
       sender_team_id: myTeam?.id,
       receiver_team_id: offer.sender_team, // Send counter-offer back to the buyer
       target_player_id: offer.target_player,
+      player_id: offer.target_player,
       offer_type: activeTab,
       cash_amount: numCash,
       swap_players: activeTab === 'SWAP' ? selectedSwapPlayers : [],

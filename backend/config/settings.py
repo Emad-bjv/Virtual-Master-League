@@ -26,13 +26,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 from dotenv import load_dotenv
 
-load_dotenv(BASE_DIR / '.env', override=True)
-
-# Clear DATABASE_URL from memory if it was commented out in .env
-with open(BASE_DIR / '.env', 'r', encoding='utf-8') as f:
-    env_content = f.read()
-    if 'DATABASE_URL=' not in env_content or env_content.strip().startswith('# DATABASE_URL'):
-        os.environ.pop('DATABASE_URL', None)
+env_file = BASE_DIR / '.env'
+if env_file.exists():
+    load_dotenv(env_file, override=True)
+    # Clear DATABASE_URL from memory if it was commented out in .env
+    with open(env_file, 'r', encoding='utf-8') as f:
+        env_content = f.read()
+        if 'DATABASE_URL=' not in env_content or env_content.strip().startswith('# DATABASE_URL'):
+            os.environ.pop('DATABASE_URL', None)
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-uu#!f=3v)e=wo^gl5q!mqhf$)iyj=031#iuvn0t&28(6--)1_+')
@@ -47,12 +48,12 @@ else:
     ALLOWED_HOSTS = ['*'] if DEBUG else ['testserver', 'localhost', '127.0.0.1', '.onrender.com', '.netlify.app']
 
 # CORS & CSRF Settings
-CORS_ALLOW_ALL_ORIGINS = DEBUG
-CORS_ALLOW_CREDENTIALS = True
 cors_allowed_env = os.environ.get('CORS_ALLOWED_ORIGINS')
 if cors_allowed_env:
     CORS_ALLOWED_ORIGINS = [o.strip() for o in cors_allowed_env.split(',') if o.strip()]
+    CORS_ALLOW_ALL_ORIGINS = False
 else:
+    CORS_ALLOW_ALL_ORIGINS = DEBUG
     CORS_ALLOWED_ORIGINS = [
         'http://localhost:3000',
         'http://127.0.0.1:3000',
@@ -61,6 +62,8 @@ else:
         'http://localhost:5174',
         'http://127.0.0.1:5174',
     ]
+
+CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
@@ -306,15 +309,13 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
-cors_origins = os.environ.get('CORS_ALLOWED_ORIGINS')
-if cors_origins:
-    CORS_ALLOWED_ORIGINS = [o.strip() for o in cors_origins.split(',') if o.strip()]
-elif not DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True
-else:
-    # In DEBUG/development: allow all origins (frontend port may vary)
-    CORS_ALLOW_ALL_ORIGINS = True
 from datetime import timedelta
+
+# Security headers for production
+if not DEBUG:
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -352,25 +353,25 @@ SIMPLE_JWT = {
 
 # ZarinPal Gateway Settings
 ZARINPAL_MERCHANT_ID = os.environ.get('ZARINPAL_MERCHANT_ID', '00000000-0000-0000-0000-000000000000')
-ZARINPAL_SANDBOX = True # Sandbox mode for testing
+ZARINPAL_SANDBOX = os.environ.get('ZARINPAL_SANDBOX', 'True') == 'True'
 
 
 # Sentry Configuration
-try:
-    import sentry_sdk
-    from sentry_sdk.integrations.django import DjangoIntegration
+sentry_dsn = os.environ.get('SENTRY_DSN')
+if sentry_dsn and sentry_dsn.startswith('http'):
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.django import DjangoIntegration
 
-    SENTRY_DSN = "https://examplePublicKey@o0.ingest.sentry.io/0" # Dummy DSN for demonstration
-
-    sentry_sdk.init(
-        dsn=SENTRY_DSN,
-        integrations=[DjangoIntegration()],
-        traces_sample_rate=1.0,
-        send_default_pii=True
-    )
-except ImportError:
-    pass
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            integrations=[DjangoIntegration()],
+            traces_sample_rate=0.5,
+            send_default_pii=False
+        )
+    except Exception:
+        pass
 
 # Telegram Bot Settings
-TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', 'YOUR_TELEGRAM_BOT_TOKEN')
-TELEGRAM_CHAT_ID = '@vml_channel_dummy' # Dummy chat id
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')

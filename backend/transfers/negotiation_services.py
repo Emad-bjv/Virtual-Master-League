@@ -1,14 +1,8 @@
-import os
-import django
-
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
-django.setup()
-
 from decimal import Decimal
 from django.db import transaction
 from django.db.models import Q
 from teams.models import Team, Player
-from transfers.models import TransferOffer, TransferLog
+from transfers.models import TransferOffer, TransferLog, TransferHistory
 from economy.services import process_atomic_wallet_update
 from realtime.events import notify_admin
 from notifications.services import create_notification
@@ -163,12 +157,14 @@ def accept_transfer_offer(offer_id, user_team_id):
                 if buyer.budget < offer.cash_amount:
                     return {'success': False, 'error': f'تیم {buyer.name} بودجه کافی برای پرداخت مبلغ معامله ({float(offer.cash_amount):,.0f} $) ندارد.'}
                     
-                # Perform atomic wallet transfer
+                # Perform atomic wallet transfer (with 5% transfer tax)
                 if offer.cash_amount > 0:
                     res_b = process_atomic_wallet_update(buyer.id, -offer.cash_amount, 'BUDGET', 'TRANSFER_BUY', f"خرید {target_p.name}")
                     if not res_b.get('success'):
                         return {'success': False, 'error': res_b.get('error', 'خطا در کسر بودجه خریدار')}
-                    res_s = process_atomic_wallet_update(seller.id, offer.cash_amount, 'BUDGET', 'TRANSFER_SELL', f"فروش {target_p.name}")
+                    tax_rate = Decimal('0.05')
+                    net_seller_amount = offer.cash_amount * (Decimal('1.00') - tax_rate)
+                    res_s = process_atomic_wallet_update(seller.id, net_seller_amount, 'BUDGET', 'TRANSFER_SELL', f"فروش {target_p.name} (با کسر ۵٪ مالیات)")
                     if not res_s.get('success'):
                         return {'success': False, 'error': res_s.get('error', 'خطا در افزایش بودجه فروشنده')}
                     
@@ -200,7 +196,9 @@ def accept_transfer_offer(offer_id, user_team_id):
                     res_b = process_atomic_wallet_update(buyer.id, -offer.cash_amount, 'BUDGET', 'LOAN_FEE', f"قرض {target_p.name}")
                     if not res_b.get('success'):
                         return {'success': False, 'error': res_b.get('error', 'خطا در کسر بودجه قرضی')}
-                    res_s = process_atomic_wallet_update(seller.id, offer.cash_amount, 'BUDGET', 'LOAN_FEE_RECEIVED', f"انتقال قرضی {target_p.name}")
+                    tax_rate = Decimal('0.05')
+                    net_seller_amount = offer.cash_amount * (Decimal('1.00') - tax_rate)
+                    res_s = process_atomic_wallet_update(seller.id, net_seller_amount, 'BUDGET', 'LOAN_FEE_RECEIVED', f"انتقال قرضی {target_p.name} (با کسر ۵٪ مالیات)")
                     if not res_s.get('success'):
                         return {'success': False, 'error': res_s.get('error', 'خطا در افزایش بودجه قرض‌دهنده')}
                     
@@ -240,6 +238,14 @@ def accept_transfer_offer(offer_id, user_team_id):
             ensure_team_starting_eleven(seller)
             ensure_team_starting_eleven(buyer)
             
+            # Log Transfer History
+            TransferHistory.objects.create(
+                player=offer.target_player,
+                seller_team=seller,
+                buyer_team=buyer,
+                price_usd=offer.cash_amount,
+                transfer_type=offer.offer_type
+            )
             deal_desc = f"انتقال رسمی: {offer.target_player.name} با مبلغ {float(offer.cash_amount):,.0f} $ از {seller.name} به تیم {buyer.name} پیوست."
             TransferLog.objects.create(
                 event_type='TRANSFER_FINALIZED',
@@ -325,36 +331,48 @@ def reject_transfer_offer(offer_id, user_team_id):
         return {'success': False, 'error': f'خطا در لغو یا رد پیشنهاد: {str(e)}'}
 
 def release_player(player_id, user_team_id):
-    with transaction.atomic():
-        player = Player.objects.get(id=player_id, team__id=user_team_id)
-        if player.loan_owner_team is not None:
-            raise ValueError("این بازیکن به صورت قرضی در تیم شما حضور دارد و قابلیت آزادسازی یا فسخ یکطرفه ندارد.")
-        team = player.team
-        
-        # 20% of (wage * 50) as market value
-        market_val = player.wage * Decimal('50.0')
-        refund = market_val * Decimal('0.20')
-        
-        player.team = None
-        player.is_starting = False
-        player.save()
-        
-        # Ensure team retains 11 starting players if available
-        ensure_team_starting_eleven(team)
-        
-        if refund > 0:
-            process_atomic_wallet_update(team.id, refund, 'BUDGET', 'PLAYER_RELEASE', f"آزادسازی {player.name}")
+    try:
+        with transaction.atomic():
+            player = Player.objects.filter(id=player_id, team__id=user_team_id).first()
+            if not player:
+                return {'success': False, 'error': 'بازیکن یافت نشد یا متعلق به این تیم نیست.'}
+            if player.loan_owner_team is not None:
+                return {'success': False, 'error': 'این بازیکن به صورت قرضی در تیم شما حضور دارد و قابلیت آزادسازی یا فسخ یکطرفه ندارد.'}
+            team = player.team
             
-        release_desc = f"تیم {team.name} قرارداد {player.name} را فسخ کرد و {float(refund):,.0f} دلار دریافت نمود."
-        TransferLog.objects.create(
-            event_type='PLAYER_RELEASED',
-            description=release_desc
-        )
-        notify_admin(f"📄 فسخ قرارداد: تیم {team.name} قرارداد {player.name} را فسخ کرد و بازیکن آزاد شد.")
-        create_notification(
-            team=team,
-            category='TRANSFER',
-            title='📄 فسخ قرارداد بازیکن',
-            message=f"قرارداد بازیکن {player.name} فسخ گردید و مبلغ ${float(refund):,.0f} به عنوان غرامت/بازگشت مالی به بودجه باشگاه واریز شد."
-        )
-        return {'success': True, 'refund': float(refund)}
+            # 20% of market value (or wage * 50 fallback)
+            market_val = Decimal(str(player.market_value)) if (player.market_value and player.market_value > 0) else (player.wage * Decimal('50.0'))
+            refund = market_val * Decimal('0.20')
+            
+            player.team = None
+            player.is_starting = False
+            player.save()
+            
+            # Ensure team retains 11 starting players if available
+            ensure_team_starting_eleven(team)
+            
+            if refund > 0:
+                process_atomic_wallet_update(team.id, refund, 'BUDGET', 'PLAYER_RELEASE', f"آزادسازی {player.name}")
+                
+            TransferHistory.objects.create(
+                player=player,
+                seller_team=team,
+                buyer_team=None,
+                price_usd=refund,
+                transfer_type='RELEASE'
+            )
+            release_desc = f"تیم {team.name} قرارداد {player.name} را فسخ کرد و {float(refund):,.0f} دلار دریافت نمود."
+            TransferLog.objects.create(
+                event_type='PLAYER_RELEASED',
+                description=release_desc
+            )
+            notify_admin(f"📄 فسخ قرارداد: تیم {team.name} قرارداد {player.name} را فسخ کرد و بازیکن آزاد شد.")
+            create_notification(
+                team=team,
+                category='TRANSFER',
+                title='📄 فسخ قرارداد بازیکن',
+                message=f"قرارداد بازیکن {player.name} فسخ گردید و مبلغ ${float(refund):,.0f} به عنوان غرامت/بازگشت مالی به بودجه باشگاه واریز شد."
+            )
+            return {'success': True, 'refund': float(refund)}
+    except Exception as e:
+        return {'success': False, 'error': f'خطا در فسخ قرارداد: {str(e)}'}

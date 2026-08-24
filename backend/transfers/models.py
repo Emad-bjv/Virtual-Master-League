@@ -171,8 +171,11 @@ class TransferLog(models.Model):
         ('OFFER_MADE', 'ثبت پیشنهاد اولیه'),
         ('COUNTER_OFFER', 'پیشنهاد متقابل'),
         ('OFFER_REJECTED', 'رد پیشنهاد'),
+        ('OFFER_CANCELLED', 'لغو پیشنهاد'),
         ('TRANSFER_FINALIZED', 'تکمیل انتقال'),
         ('PLAYER_RELEASED', 'فسخ قرارداد بازیکن'),
+        ('LOAN_EXPIRED', 'پایان قرارداد قرضی'),
+        ('FREE_AGENT_SIGNED', 'جذب بازیکن آزاد'),
     ]
 
     event_type = models.CharField(max_length=30, choices=EVENT_TYPES, verbose_name="نوع رویداد")
