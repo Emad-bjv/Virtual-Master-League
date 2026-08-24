@@ -64,6 +64,14 @@ def create_transfer_offer(sender_team_id, receiver_team_id, target_player_id, da
                     'success': False,
                     'error': f'تمام بازیکنان معاوضه‌ای باید متعلق به تیم خریدار ({buyer.name}) باشند.'
                 }
+
+        # Validate buyer squad capacity (25 base, up to 32 with training camp)
+        net_incoming = 1 - (len(swap_player_ids) if swap_player_ids else 0)
+        if net_incoming > 0 and (buyer.players.count() + net_incoming) > buyer.max_squad_size:
+            return {
+                'success': False,
+                'error': f'ظرفیت لیست بازیکنان تیم خریدار ({buyer.name}) تکمیل است ({buyer.players.count()} از حداکثر {buyer.max_squad_size} بازیکن). ابتدا باید بازیکن مازاد را آزاد یا معاوضه کنید.'
+            }
                 
         parent_offer_id = data.get('parent_offer', None)
         
@@ -151,6 +159,15 @@ def accept_transfer_offer(offer_id, user_team_id):
             if not seller or seller.id not in [offer.sender_team_id, offer.receiver_team_id]:
                 return {'success': False, 'error': 'تیم مالک بازیکن هدف مشخص نیست.'}
             buyer = offer.sender_team if offer.receiver_team_id == seller.id else offer.receiver_team
+
+            # Squad capacity validation for buyer
+            swap_count = offer.swap_players.count() if offer.offer_type == 'SWAP' else 0
+            net_incoming = 1 - swap_count
+            if net_incoming > 0 and (buyer.players.count() + net_incoming) > buyer.max_squad_size:
+                return {
+                    'success': False,
+                    'error': f'تکمیل سقف لیست بازیکنان: تیم خریدار ({buyer.name}) دارای {buyer.players.count()} بازیکن است و نمی‌تواند بازیکن جدید جذب کند (سقف مجاز: {buyer.max_squad_size} بازیکن). ابتدا باید بازیکن مازاد را آزاد یا معاوضه نمایید.'
+                }
 
             if offer.offer_type in ['DIRECT_TRANSFER', 'SWAP']:
                 # Budget check for buyer
