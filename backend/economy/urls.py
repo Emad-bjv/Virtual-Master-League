@@ -9,6 +9,9 @@ from .views import (
     AdminApprovePaymentView,
     TransactionHistoryView,
     TeamRevenueBreakdownView,
+    AdminStorePackageListCreateView,
+    AdminStorePackageDetailView,
+    AdminStorePackageToggleView,
 )
 
 urlpatterns = [
@@ -19,6 +22,9 @@ urlpatterns = [
     path('payment/my-requests/', MyPaymentRequestsView.as_view(), name='payment-my-requests'),
     path('payment/admin-list/', AdminPaymentRequestListView.as_view(), name='payment-admin-list'),
     path('payment/<int:payment_id>/admin-review/', AdminApprovePaymentView.as_view(), name='payment-admin-review'),
+    path('admin/packages/', AdminStorePackageListCreateView.as_view(), name='admin-store-packages'),
+    path('admin/packages/<int:pk>/', AdminStorePackageDetailView.as_view(), name='admin-store-package-detail'),
+    path('admin/packages/<int:pk>/toggle/', AdminStorePackageToggleView.as_view(), name='admin-store-package-toggle'),
     path('transactions/history/', TransactionHistoryView.as_view(), name='transaction-history'),
     path('teams/<int:team_id>/revenue-breakdown/', TeamRevenueBreakdownView.as_view(), name='team-revenue-breakdown'),
 ]

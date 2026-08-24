@@ -2,7 +2,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from matches.models import Match
 from transfers.models import TransferHistory
-from gacha.models import PackOpeningLog
+from gacha.models import PackOpeningSession
 from .services import send_telegram_message, create_notification
 
 @receiver(post_save, sender=Match)
@@ -43,16 +43,17 @@ def notify_big_transfer(sender, instance, created, **kwargs):
             create_notification(team=instance.buyer_team, category='TRANSFER', title=title, message=message)
 
 
-@receiver(post_save, sender=PackOpeningLog)
+@receiver(post_save, sender=PackOpeningSession)
 def notify_legendary_pull(sender, instance, created, **kwargs):
-    if created and instance.rarity_drawn == 'LEGENDARY':
-        team = instance.team.name
-        player = instance.player_obtained.name if instance.player_obtained else "Unknown"
+    if not created and instance.status == 'COMPLETED' and instance.picked_card:
+        if instance.picked_card.overall >= 87 or instance.pack.tier == 'LEGENDARY' or instance.picked_card.rarity == 'LEGENDARY':
+            team = instance.team.name
+            player = instance.picked_card.name
 
-        title = "🌟 استخراج لجندری!"
-        message = f"تیم {team} توانست از طریق گاشا یک بازیکن افسانه‌ای جذب کند!\n👤 بازیکن: {player}\n🔥 تبریک به مربی!"
+            title = "🌟 استخراج لجندری!"
+            message = f"تیم {team} توانست از طریق پک «{instance.pack.name}» بازیکن درخشان «{player}» را جذب کند!\n🔥 تبریک به مربی!"
 
-        send_telegram_message(f"{title}\n\n{message}")
+            send_telegram_message(f"{title}\n\n{message}")
 
-        if instance.team:
-            create_notification(team=instance.team, category='GACHA', title=title, message=message)
+            if instance.team:
+                create_notification(team=instance.team, category='GACHA', title=title, message=message)

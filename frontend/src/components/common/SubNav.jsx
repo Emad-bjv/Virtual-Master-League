@@ -26,6 +26,11 @@ export default function SubNav({ items, activeId, onChange }) {
             )}
             <span className="relative z-10 flex items-center gap-1.5 font-sport text-xs md:text-sm">
               {item.label}
+              {item.badge !== undefined && item.badge !== null && item.badge > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 font-sans">
+                  {item.badge}
+                </span>
+              )}
             </span>
           </button>
         );

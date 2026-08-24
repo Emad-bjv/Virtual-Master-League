@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import useBodyScrollLock from '../../hooks/useBodyScrollLock';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import ConfirmModal from '../common/ConfirmModal';
+import { formatWithCommas, makeFormattedChangeHandler } from '../../utils/formatNumber';
 
 /**
  * CounterOfferModal - Role-Locked for the SELLER (owner of target_player)
@@ -58,7 +59,7 @@ export default function CounterOfferModal({ offer, myTeam, onClose, onSubmitCoun
     e.preventDefault();
     setClientError('');
 
-    const numCash = cashAmount ? parseFloat(cashAmount) : 0;
+    const numCash = cashAmount ? parseFloat(String(cashAmount).replace(/,/g, '')) : 0;
     if (numCash < 0) {
       setClientError('مبلغ درخواستی نمی‌تواند منفی باشد.');
       return;
@@ -215,13 +216,14 @@ export default function CounterOfferModal({ offer, myTeam, onClose, onSubmitCoun
               </label>
               <div className="relative">
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   required
                   min="0"
-                  value={cashAmount}
-                  onChange={(e) => setCashAmount(e.target.value)}
-                  className="w-full bg-[#05080e] border border-slate-700/80 rounded-2xl py-3 pr-4 pl-10 text-white text-xs outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 dir-ltr font-mono"
-                  placeholder="مبلغ موردنظر شما برای فروش قطعی"
+                  value={formatWithCommas(cashAmount)}
+                  onChange={makeFormattedChangeHandler(setCashAmount)}
+                  className="w-full bg-[#05080e] border border-slate-700/80 rounded-2xl py-3 pr-4 pl-10 text-white text-xs outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 dir-ltr font-mono tracking-wider"
+                  placeholder="250,000"
                 />
                 <DollarSign className="absolute left-3 top-3 text-cyan-400" size={16} />
               </div>
@@ -346,11 +348,12 @@ export default function CounterOfferModal({ offer, myTeam, onClose, onSubmitCoun
                   مبلغ نقدی درخواستی مازاد (اختیاری):
                 </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   min="0"
-                  value={cashAmount}
-                  onChange={(e) => setCashAmount(e.target.value)}
-                  className="w-full bg-[#05080e] border border-slate-700/80 rounded-2xl py-2.5 pr-4 pl-4 text-white text-xs outline-none focus:border-cyan-400 dir-ltr font-mono"
+                  value={formatWithCommas(cashAmount)}
+                  onChange={makeFormattedChangeHandler(setCashAmount)}
+                  className="w-full bg-[#05080e] border border-slate-700/80 rounded-2xl py-2.5 pr-4 pl-4 text-white text-xs outline-none focus:border-cyan-400 dir-ltr font-mono tracking-wider"
                   placeholder="مبلغی که خریدار باید علاوه بر بازیکنان بپردازد (در صورت معاوضه سر به سر ۰ بگذارید)"
                 />
               </div>
@@ -365,13 +368,14 @@ export default function CounterOfferModal({ offer, myTeam, onClose, onSubmitCoun
                   مبلغ درخواستی برای اجاره قرضی (دلار):
                 </label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   required
                   min="0"
-                  value={cashAmount}
-                  onChange={(e) => setCashAmount(e.target.value)}
-                  className="w-full bg-[#05080e] border border-slate-700/80 rounded-2xl py-2.5 pr-4 pl-4 text-white text-xs outline-none focus:border-cyan-400 dir-ltr font-mono"
-                  placeholder="مثلاً: 100000"
+                  value={formatWithCommas(cashAmount)}
+                  onChange={makeFormattedChangeHandler(setCashAmount)}
+                  className="w-full bg-[#05080e] border border-slate-700/80 rounded-2xl py-2.5 pr-4 pl-4 text-white text-xs outline-none focus:border-cyan-400 dir-ltr font-mono tracking-wider"
+                  placeholder="100,000"
                 />
               </div>
               <div>

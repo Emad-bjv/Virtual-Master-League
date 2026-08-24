@@ -5,7 +5,12 @@ from .models import StorePackage, Transaction, PaymentRequest, CardToCardSetting
 class StorePackageSerializer(serializers.ModelSerializer):
     class Meta:
         model = StorePackage
-        fields = ['id', 'name', 'currency_type', 'reward_amount', 'usd_amount', 'price_irr', 'is_active']
+        fields = [
+            'id', 'name', 'currency_type', 'reward_amount', 'usd_amount',
+            'price_irr', 'is_active', 'description', 'icon_code',
+            'bonus_amount', 'sort_order', 'created_at'
+        ]
+        read_only_fields = ['created_at']
 
 
 class TransactionSerializer(serializers.ModelSerializer):

@@ -12,9 +12,9 @@ router.register(r'transactions', views.TransactionAdminViewSet, basename='admin-
 router.register(r'global-settings', views.GlobalSettingsAdminViewSet, basename='admin-globalsettings')
 router.register(r'audit-logs', views.AdminAuditLogAdminViewSet, basename='admin-auditlogs')
 
-router.register(r'gacha-packs', views.GachaPackAdminViewSet, basename='admin-gachapacks')
-router.register(r'gacha-pity', views.GachaPityAdminViewSet, basename='admin-gachapity')
-router.register(r'pack-opening-logs', views.PackOpeningLogAdminViewSet, basename='admin-packopeninglogs')
+router.register(r'packs', views.PackAdminViewSet, basename='admin-packs')
+router.register(r'pack-players', views.PackPlayerAdminViewSet, basename='admin-packplayers')
+router.register(r'pack-opening-sessions', views.PackOpeningSessionAdminViewSet, basename='admin-packopeningsessions')
 
 router.register(r'seasons', views.SeasonAdminViewSet, basename='admin-seasons')
 router.register(r'tournaments', views.TournamentAdminViewSet, basename='admin-tournaments')
@@ -45,5 +45,10 @@ router.register(r'team-game-plans', views.TeamGamePlanAdminViewSet, basename='ad
 
 urlpatterns = [
     path('overview-stats/', views.AdminOverviewStatsView.as_view(), name='admin-overview-stats'),
+    path('feature-flags/', views.AdminFeatureFlagsView.as_view(), name='admin-feature-flags'),
+    path('system-settings/', views.AdminSystemSettingsView.as_view(), name='admin-system-settings'),
+    path('reset/<str:action>/', views.AdminResetActionView.as_view(), name='admin-reset-action-slug'),
+    path('reset/', views.AdminResetActionView.as_view(), name='admin-reset-action'),
     path('', include(router.urls)),
 ]
+

@@ -17,6 +17,10 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Allow Axios & Browser to properly set multipart/form-data with boundary when data is FormData
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
     return config;
   },
   (error) => Promise.reject(error)
@@ -92,12 +96,28 @@ export const economyApi = {
   getRevenueBreakdown: (teamId) => api.get(`/economy/teams/${teamId}/revenue-breakdown/`),
   adminGetPaymentRequests: (params) => api.get('/economy/payment/admin-list/', { params }),
   adminReviewPayment: (paymentId, data) => api.post(`/economy/payment/${paymentId}/admin-review/`, data),
+  adminGetAllPackages: (params) => api.get('/economy/admin/packages/', { params }),
+  adminCreatePackage: (data) => api.post('/economy/admin/packages/', data),
+  adminUpdatePackage: (id, data) => api.patch(`/economy/admin/packages/${id}/`, data),
+  adminDeletePackage: (id) => api.delete(`/economy/admin/packages/${id}/`),
+  adminTogglePackage: (id) => api.post(`/economy/admin/packages/${id}/toggle/`),
 };
 
 export const gachaApi = {
   getPacks: () => api.get('/gacha/packs/'),
   openPack: (data) => api.post('/gacha/open/', data),
+  pickCard: (data) => api.post('/gacha/pick/', data),
   getPity: (teamId) => api.get(`/gacha/pity/${teamId}/`),
+  adminGetPacks: () => api.get('/gacha/admin/packs/'),
+  adminSavePack: (data) => api.post('/gacha/admin/packs/', data),
+  adminCreatePack: (formData) => api.post('/gacha/admin/packs/', formData),
+  adminUpdatePack: (id, formData) => api.put(`/gacha/admin/packs/${id}/`, formData),
+  adminDeletePack: (packId) => api.delete(`/gacha/admin/packs/${packId}/`),
+  adminGetPackPlayers: (packId) => api.get(`/gacha/admin/packs/${packId}/players/`),
+  adminAddPackPlayer: (packId, formData) => api.post(`/gacha/admin/packs/${packId}/players/`, formData),
+  adminBulkUploadPackPlayers: (packId, data) => api.post(`/gacha/admin/packs/${packId}/players/bulk/`, data),
+  adminDeletePackPlayer: (packId, playerId) => api.delete(`/gacha/admin/packs/${packId}/players/${playerId}/`),
+  adminGetPackSessions: (params) => api.get('/gacha/admin/sessions/', { params }),
 };
 
 export const adminApi = {
@@ -110,8 +130,32 @@ export const adminApi = {
   adjustBudget: (data) => api.post('/teams/admin_adjust_budget/', data),
   registerCoach: (data) => api.post('/teams/admin_register_coach/', data),
   getAuditLogs: () => api.get('/admin/audit-logs/'),
-  getUsers: () => api.get('/users/admin/users/'),
+  // System Settings & Feature Flags Control Center
+  getFeatureFlags: () => api.get('/admin/feature-flags/'),
+  updateFeatureFlags: (data) => api.patch('/admin/feature-flags/', data),
+  getSystemSettings: () => api.get('/admin/system-settings/'),
+  updateSystemSettings: (data) => api.patch('/admin/system-settings/', data),
+  executeReset: (action, confirmation) => api.post(`/admin/reset/${action}/`, { confirmation }),
+
+  // League & Cup Tournament Management
+  configureLeague: (data) => api.post('/matches/admin/league/configure/', data),
+  resetLeague: (data) => api.post('/matches/admin/league/reset/', data),
+  gameweekAction: (data) => api.post('/matches/admin/gameweek-action/', data),
+  getCups: () => api.get('/matches/admin/cups/'),
+  createCup: (data) => api.post('/matches/admin/cups/', data),
+  deleteCup: (cupId) => api.delete(`/matches/admin/cups/${cupId}/`),
+  resetCup: (data) => api.post('/matches/admin/cups/reset/', data),
+  getCupBracket: (tournamentId) => api.get(`/matches/admin/cups/${tournamentId}/bracket/`),
+  advanceCupWinner: (matchId) => api.post(`/matches/admin/cups/${matchId}/advance/`),
+  syncCupWithLeague: (data) => api.post('/matches/admin/sync-cup-league/', data),
+  forfeitMatch: (matchId, data) => api.post(`/matches/${matchId}/forfeit/`, data),
 };
+
+export const coreApi = {
+  getPublicFeatureFlags: () => api.get('/core/feature-flags/'),
+  getGlobalSettings: () => api.get('/core/settings/'),
+};
+
 
 export const matchApi = {
   getGameweeksStatus: () => api.get('/matches/gameweeks-status/'),
@@ -153,6 +197,15 @@ export const seasonPassApi = {
   getStatus: () => api.get('/season-pass/status/'),
   claimTask: (taskProgressId) => api.post('/season-pass/claim-task/', { task_progress_id: taskProgressId }),
   claimLevel: (level) => api.post('/season-pass/claim-level/', { level }),
+  // Admin Methods
+  getAdminOverview: () => api.get('/season-pass/admin-overview/'),
+  adminSeedLevels: () => api.post('/season-pass/admin-seed-levels/'),
+  adminSeedTasks: () => api.post('/season-pass/admin-seed-tasks/'),
+  adminAutoAssignLegends: () => api.post('/season-pass/admin-auto-assign-legends/'),
+  adminAssignLegend: (data) => api.post('/season-pass/admin-assign-legend/', data),
+  adminSaveLevel: (data) => api.post('/season-pass/admin-save-level/', data),
+  adminResetTeamPass: (data) => api.post('/season-pass/admin-reset-team-pass/', data),
+  adminResetAllTeamPasses: () => api.post('/season-pass/admin-reset-all-team-passes/'),
 };
 
 export default api;

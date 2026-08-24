@@ -27,16 +27,30 @@ class StorePackage(models.Model):
     is_active = models.BooleanField(
         default=True, verbose_name="فعال است؟"
     )
+    description = models.TextField(
+        blank=True, default='', verbose_name="توضیحات بسته"
+    )
+    icon_code = models.CharField(
+        max_length=50, blank=True, default='', verbose_name="کد آیکن یا تم"
+    )
+    bonus_amount = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0.00,
+        verbose_name="مقدار بونوس هدیه"
+    )
+    sort_order = models.PositiveIntegerField(
+        default=0, verbose_name="ترتیب نمایش"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         verbose_name = "بسته فروشگاه"
         verbose_name_plural = "بسته‌های فروشگاه"
+        ordering = ['sort_order', 'id']
 
     def save(self, *args, **kwargs):
         if self.reward_amount == 0 and self.usd_amount > 0:
             self.reward_amount = self.usd_amount
-        elif self.usd_amount == 0 and self.reward_amount > 0 and self.currency_type == 'BUDGET':
+        elif self.currency_type == 'BUDGET':
             self.usd_amount = self.reward_amount
         super().save(*args, **kwargs)
 

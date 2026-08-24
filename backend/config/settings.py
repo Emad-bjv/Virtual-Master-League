@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+# Trigger autoreload with local environment
 from pathlib import Path
 import os
 import datetime
@@ -25,7 +26,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 from dotenv import load_dotenv
 
-load_dotenv(BASE_DIR / '.env')
+load_dotenv(BASE_DIR / '.env', override=True)
+
+# Clear DATABASE_URL from memory if it was commented out in .env
+with open(BASE_DIR / '.env', 'r', encoding='utf-8') as f:
+    env_content = f.read()
+    if 'DATABASE_URL=' not in env_content or env_content.strip().startswith('# DATABASE_URL'):
+        os.environ.pop('DATABASE_URL', None)
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-uu#!f=3v)e=wo^gl5q!mqhf$)iyj=031#iuvn0t&28(6--)1_+')
@@ -38,6 +45,32 @@ if allowed_hosts_env:
     ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_env.split(',') if h.strip()]
 else:
     ALLOWED_HOSTS = ['*'] if DEBUG else ['testserver', 'localhost', '127.0.0.1', '.onrender.com', '.netlify.app']
+
+# CORS & CSRF Settings
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOW_CREDENTIALS = True
+cors_allowed_env = os.environ.get('CORS_ALLOWED_ORIGINS')
+if cors_allowed_env:
+    CORS_ALLOWED_ORIGINS = [o.strip() for o in cors_allowed_env.split(',') if o.strip()]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:5174',
+        'http://127.0.0.1:5174',
+    ]
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5174',
+]
+
 
 
 # Application definition
@@ -153,14 +186,22 @@ def _get_database_config():
     if database_url:
         import urllib.parse
         url = urllib.parse.urlparse(database_url)
+        query_params = urllib.parse.parse_qs(url.query)
+        options = {}
+        if 'sslmode' in query_params:
+            options['sslmode'] = query_params['sslmode'][0]
+        elif 'neon.tech' in (url.hostname or ''):
+            options['sslmode'] = 'require'
+
         return {
             'default': {
                 'ENGINE': 'django.db.backends.postgresql',
-                'NAME': url.path[1:],
+                'NAME': url.path.lstrip('/'),
                 'USER': url.username,
                 'PASSWORD': url.password,
                 'HOST': url.hostname,
                 'PORT': url.port or 5432,
+                'OPTIONS': options,
                 'ATOMIC_REQUESTS': False,
                 'CONN_MAX_AGE': 600,
             }
@@ -224,9 +265,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/6.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'fa-ir'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Tehran'
 
 USE_I18N = True
 

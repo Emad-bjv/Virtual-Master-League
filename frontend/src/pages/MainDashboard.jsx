@@ -6,11 +6,11 @@ import FCBackground from '../components/common/FCBackground';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import HomeTab from '../components/home/HomeTab';
 import AuthModal from '../components/auth/AuthModal';
-import { teamApi, matchApi, notificationApi } from '../services/api';
+import { teamApi, matchApi, notificationApi, coreApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useTeam } from '../context/TeamContext';
 import notificationSoundService from '../services/notificationSound';
-import { AlertTriangle, Radio, X } from 'lucide-react';
+import { AlertTriangle, Radio, X, Lock, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Dynamic Code-Splitting
@@ -22,6 +22,30 @@ const ProfileView = lazy(() => import('../components/profile/ProfileView'));
 const AdminDashboard = lazy(() => import('../components/admin/AdminDashboard'));
 const LiveStreamTab = lazy(() => import('../components/live/LiveStreamTab'));
 
+const DisabledModuleNotice = ({ title, message, onBackHome }) => (
+  <div className="glass-panel p-8 rounded-3xl border border-slate-700/80 bg-slate-950/60 shadow-2xl text-center max-w-lg mx-auto my-12 space-y-4 font-sans dir-rtl">
+    <div className="w-16 h-16 rounded-3xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto shadow-inner">
+      <Lock size={32} />
+    </div>
+    <div className="space-y-2">
+      <h2 className="text-lg font-black text-white">{title || 'این بخش موقتاً غیرفعال است'}</h2>
+      <p className="text-xs text-slate-400 leading-relaxed">
+        {message || 'مدیریت سامانه این قسمت را به صورت موقت جهت تنظیمات فنی یا آغاز فصل جدید خاموش کرده است. لطفاً بعداً مراجعه فرمایید.'}
+      </p>
+    </div>
+    <div className="pt-3 border-t border-slate-800">
+      <button
+        onClick={onBackHome}
+        className="px-6 py-2.5 rounded-2xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-all shadow-md shadow-cyan-500/20 active:scale-95 cursor-pointer flex items-center justify-center gap-2 mx-auto"
+      >
+        <ArrowRight size={14} />
+        <span>بازگشت به خانه</span>
+      </button>
+    </div>
+  </div>
+);
+
+
 export default function MainDashboard() {
   const { user, isAuthenticated, loading: authLoading, logout } = useAuth();
   const { hydrateTeamData } = useTeam();
@@ -32,6 +56,25 @@ export default function MainDashboard() {
   const [storeSub, setStoreSub] = useState('gems');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [featureFlags, setFeatureFlags] = useState({});
+
+  // Fetch Public Feature Flags
+  useEffect(() => {
+    const fetchPublicFlags = async () => {
+      try {
+        const res = await coreApi.getPublicFeatureFlags();
+        if (res?.data) {
+          setFeatureFlags(res.data);
+        }
+      } catch (_e) {
+        // quiet fallback
+      }
+    };
+    fetchPublicFlags();
+    const interval = setInterval(fetchPublicFlags, 20000);
+    return () => clearInterval(interval);
+  }, []);
+
 
   // Lineup Submission Status for Next Match Alert
   const [isLineupSubmitted, setIsLineupSubmitted] = useState(false);
@@ -175,6 +218,12 @@ export default function MainDashboard() {
     sessionStorage.removeItem('vml_test_session');
 
     fetchTeamData();
+
+    const handleSync = () => fetchTeamData();
+    window.addEventListener('vml_team_updated', handleSync);
+    return () => {
+      window.removeEventListener('vml_team_updated', handleSync);
+    };
   }, [fetchTeamData]);
 
   const handleTabChange = useCallback((newTab) => {
@@ -320,29 +369,61 @@ export default function MainDashboard() {
                       )}
 
                       {activeTab === 'live' && (
-                        <LiveStreamTab
-                          liveStreamUrl={liveStreamUrl}
-                          liveEvents={liveEvents}
-                          onAddEvent={handlePushLiveEvent}
-                          currentMatchStatus={currentMatchStatus}
-                          onMatchStatusChange={setCurrentMatchStatus}
-                          teamData={teamData}
-                          initialPlayers={playersData}
-                          userRole={user?.role}
-                          onOpenAdminControl={() => handleTabChange('admin')}
-                        />
+                        featureFlags.feature_live_broadcast === false ? (
+                          <DisabledModuleNotice
+                            title="پخش زنده موقتاً غیرفعال است"
+                            message="پخش زنده مسابقات در حال حاضر توسط مدیریت سامانه خاموش شده است."
+                            onBackHome={() => handleTabChange('home')}
+                          />
+                        ) : (
+                          <LiveStreamTab
+                            liveStreamUrl={liveStreamUrl}
+                            liveEvents={liveEvents}
+                            onAddEvent={handlePushLiveEvent}
+                            currentMatchStatus={currentMatchStatus}
+                            onMatchStatusChange={setCurrentMatchStatus}
+                            teamData={teamData}
+                            initialPlayers={playersData}
+                            userRole={user?.role}
+                            onOpenAdminControl={() => handleTabChange('admin')}
+                          />
+                        )
                       )}
 
                       {activeTab === 'club' && (
-                        <ClubTab teamData={teamData} onRefreshTeam={fetchTeamData} />
+                        featureFlags.feature_club_facilities === false ? (
+                          <DisabledModuleNotice
+                            title="امکانات باشگاه در دسترس نیست"
+                            message="سیستم تسهیلات و ارتقای باشگاه در حال حاضر توسط مدیریت سامانه موقتاً غیرفعال شده است."
+                            onBackHome={() => handleTabChange('home')}
+                          />
+                        ) : (
+                          <ClubTab teamData={teamData} onRefreshTeam={fetchTeamData} />
+                        )
                       )}
 
                       {activeTab === 'market' && (
-                        <MarketTab teamData={teamData} onRefreshTeam={fetchTeamData} />
+                        featureFlags.feature_transfer_market === false ? (
+                          <DisabledModuleNotice
+                            title="بازار نقل و انتقالات بسته است"
+                            message="پنجره نقل و انتقالات و خرید و فروش بازیکن در حال حاضر بسته است."
+                            onBackHome={() => handleTabChange('home')}
+                          />
+                        ) : (
+                          <MarketTab teamData={teamData} onRefreshTeam={fetchTeamData} />
+                        )
                       )}
 
                       {activeTab === 'store' && (
-                        <StoreTab teamData={teamData} initialSub={storeSub} onRefreshTeam={fetchTeamData} />
+                        featureFlags.feature_store === false ? (
+                          <DisabledModuleNotice
+                            title="فروشگاه موقتاً تعطیل است"
+                            message="امکان خرید بسته‌ها و الماس در حال حاضر در دسترس نیست."
+                            onBackHome={() => handleTabChange('home')}
+                          />
+                        ) : (
+                          <StoreTab teamData={teamData} initialSub={storeSub} onRefreshTeam={fetchTeamData} />
+                        )
                       )}
                     </>
                   )}
@@ -438,8 +519,9 @@ export default function MainDashboard() {
 
           {/* Bottom Navigation Dock */}
           {activeTab !== 'profile' && activeTab !== 'admin' && (
-            <BottomNav activeTab={activeTab} onTabChange={handleTabChange} />
+            <BottomNav activeTab={activeTab} onTabChange={handleTabChange} featureFlags={featureFlags} />
           )}
+
         </>
       )}
     </div>

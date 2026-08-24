@@ -75,10 +75,21 @@ def update_standings_and_rewards(sender, instance, **kwargs):
         except Exception:
             pass  # Never block standings update if economy fails
             
-        # Update Season Pass Tasks
+        # Update Season Pass XP and Tasks
         try:
-            from season_pass.services import increment_task_progress
+            from season_pass.services import increment_task_progress, add_match_season_pass_xp
             
+            # Award direct match result XP to Season Pass (+165 Win, +70 Draw, +20 Loss)
+            if home_result[0] == 'won':
+                add_match_season_pass_xp(home, 'WON')
+                add_match_season_pass_xp(away, 'LOST')
+            elif away_result[0] == 'won':
+                add_match_season_pass_xp(home, 'LOST')
+                add_match_season_pass_xp(away, 'WON')
+            else:
+                add_match_season_pass_xp(home, 'DRAW')
+                add_match_season_pass_xp(away, 'DRAW')
+
             # WIN_MATCHES
             if home_result[0] == 'won':
                 increment_task_progress(home, 'WIN_MATCHES', 1)

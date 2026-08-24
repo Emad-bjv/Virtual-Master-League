@@ -37,3 +37,19 @@ def broadcast_match_event(match_id, event_data):
         )
     except Exception as e:
         logger.warning(f"WebSocket broadcast_match_event failed for match {match_id}: {e}")
+
+def broadcast_global_event(event_type, payload=None):
+    try:
+        channel_layer = get_channel_layer()
+        if not channel_layer:
+            return
+        async_to_sync(channel_layer.group_send)(
+            "global_broadcast",
+            {
+                "type": "global_event",
+                "event_type": event_type,
+                "data": payload or {}
+            }
+        )
+    except Exception as e:
+        logger.warning(f"WebSocket broadcast_global_event failed: {e}")

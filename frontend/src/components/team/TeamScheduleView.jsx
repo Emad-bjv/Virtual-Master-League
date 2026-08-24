@@ -32,11 +32,17 @@ export default function TeamScheduleView({ teamId, teamName }) {
   const [selectedMatchId, setSelectedMatchId] = useState(null);
 
   const fetchSchedule = async () => {
-    if (!teamId) return;
     setLoading(true);
     try {
-      const res = await matchApi.getTeamSchedule(teamId);
-      setMatches(res.data || []);
+      let mList = [];
+      if (teamId) {
+        const res = await matchApi.getTeamSchedule(teamId);
+        mList = res.data || [];
+      } else {
+        const res = await matchApi.getLeagueSchedule({ status: 'ALL' });
+        mList = res.data || [];
+      }
+      setMatches(mList);
     } catch (err) {
       console.error('Failed to load team schedule:', err);
     } finally {
@@ -46,12 +52,24 @@ export default function TeamScheduleView({ teamId, teamName }) {
 
   useEffect(() => {
     fetchSchedule();
+    const handleSync = () => fetchSchedule();
+    window.addEventListener('vml_league_schedule_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('focus', handleSync);
+    return () => {
+      window.removeEventListener('vml_league_schedule_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('focus', handleSync);
+    };
   }, [teamId]);
 
   // Filtered matches
   const filteredMatches = matches.filter((m) => {
     const isHome = m.home_team === teamId;
-    if (activeFilter === 'UPCOMING') return m.status === 'SCHEDULED';
+    const isCup = Boolean(m.is_knockout || m.tournament_name?.includes('حذفی') || m.tournament?.tournament_type === 'CUP');
+    if (activeFilter === 'LEAGUE') return !isCup;
+    if (activeFilter === 'CUP') return isCup;
+    if (activeFilter === 'UPCOMING') return m.status === 'SCHEDULED' || m.status === 'LIVE';
     if (activeFilter === 'FINISHED') return m.status === 'FINISHED';
     if (activeFilter === 'HOME') return isHome;
     if (activeFilter === 'AWAY') return !isHome;
@@ -59,11 +77,17 @@ export default function TeamScheduleView({ teamId, teamName }) {
   });
 
   const totalMatches = matches.length || 30;
+  const leagueCount = matches.filter((m) => !m.is_knockout && !m.tournament_name?.includes('حذفی') && m.tournament?.tournament_type !== 'CUP').length;
+  const cupCount = matches.filter((m) => Boolean(m.is_knockout || m.tournament_name?.includes('حذفی') || m.tournament?.tournament_type === 'CUP')).length;
   const finishedCount = matches.filter((m) => m.status === 'FINISHED').length;
-  const upcomingCount = matches.filter((m) => m.status === 'SCHEDULED').length;
+  const upcomingCount = matches.filter((m) => m.status === 'SCHEDULED' || m.status === 'LIVE').length;
 
   const FILTERS = [
     { id: 'ALL', label: `همه (${totalMatches})` },
+    ...(cupCount > 0 ? [
+      { id: 'LEAGUE', label: `⚽ لیگ برتر (${leagueCount})` },
+      { id: 'CUP', label: `🏆 جام حذفی (${cupCount})` },
+    ] : []),
     { id: 'UPCOMING', label: `پیش‌رو (${upcomingCount})` },
     { id: 'FINISHED', label: `پایان‌یافته (${finishedCount})` },
     { id: 'HOME', label: 'میزبان (خانگی)' },
@@ -192,6 +216,8 @@ export default function TeamScheduleView({ teamId, teamName }) {
               );
             }
 
+            const isCup = Boolean(m.is_knockout || m.tournament_name?.includes('حذفی') || m.tournament?.tournament_type === 'CUP');
+
             return (
               <motion.div
                 key={m.id || idx}
@@ -200,6 +226,8 @@ export default function TeamScheduleView({ teamId, teamName }) {
                 className={`p-3.5 rounded-3xl border transition-all flex items-center justify-between gap-3 ${
                   isLive
                     ? 'bg-gradient-to-r from-rose-950/50 to-slate-900 border-rose-500/60 shadow-[0_0_20px_rgba(244,63,94,0.25)]'
+                    : isCup
+                    ? 'border-amber-500/50 bg-gradient-to-r from-amber-950/40 via-slate-900/95 to-amber-950/25 hover:border-amber-400 shadow-lg shadow-amber-950/30'
                     : isFinished
                     ? 'fut-card border-slate-700/60 hover:border-cyan-500/40 cursor-pointer'
                     : 'fc-card border-slate-700/60 hover:border-cyan-500/40'
@@ -208,48 +236,64 @@ export default function TeamScheduleView({ teamId, teamName }) {
                 {/* Left side: Matchday Badge, Date & Opponent with Logo */}
                 <div className="flex items-center gap-3 min-w-0">
                   {/* Round Badge */}
-                  <div className="w-11 h-11 rounded-2xl bg-[#05080e] border border-cyan-500/30 flex flex-col items-center justify-center text-center shrink-0 shadow-inner">
-                    <span className="text-[8.5px] text-slate-400 font-bold leading-none">هفته</span>
-                    <span className="text-sm font-black text-cyan-300 font-sport leading-tight">
-                      {m.round_name ? m.round_name.replace('هفته', '').trim() : idx + 1}
+                  <div className={`w-11 h-11 rounded-2xl flex flex-col items-center justify-center text-center shrink-0 shadow-inner ${
+                    isCup
+                      ? 'bg-gradient-to-b from-amber-500/20 to-amber-950/90 border border-amber-500/60 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
+                      : 'bg-[#05080e] border border-cyan-500/30 text-cyan-300'
+                  }`}>
+                    <span className="text-[8.5px] font-bold leading-none text-slate-400">
+                      {isCup ? '🏆 حذفی' : 'هفته'}
+                    </span>
+                    <span className="text-xs font-black font-sport leading-tight truncate px-1">
+                      {isCup 
+                        ? String(m.round_name || 'حذفی').replace('یک‌', '۱/').replace(' نهایی', '')
+                        : (m.round_name ? String(m.round_name).replace('هفته', '').trim() : idx + 1)
+                      }
                     </span>
                   </div>
 
                   {/* Opponent Crest */}
                   <div className="w-10 h-10 rounded-2xl team-crest-badge flex items-center justify-center p-1 overflow-hidden shrink-0 shadow-md relative">
                     {getTeamLogoUrl(m.opponent_logo || opponentName) ? (
-                      <img src={getTeamLogoUrl(m.opponent_logo || opponentName)} alt={opponentName} className="w-full h-full object-contain" />
+                      <img src={getTeamLogoUrl(m.opponent_logo || opponentName)} alt={opponentName || 'Team'} className="w-full h-full object-contain" />
                     ) : (
-                      <span className="text-[10px] font-black text-slate-800 font-sport">{opponentName.slice(0, 2).toUpperCase()}</span>
+                      <span className="text-[10px] font-black text-slate-800 font-sport">{(opponentName ? opponentName.slice(0, 2) : 'OP').toUpperCase()}</span>
                     )}
                   </div>
 
                   {/* Details */}
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-black text-sm text-white truncate">
                         {opponentName || 'حریف'}
                       </span>
-                      <span
-                        className={`text-[9px] font-black px-1.5 py-0.2 rounded-md shrink-0 flex items-center gap-1 font-sport ${
-                          isHome
-                            ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40'
-                            : 'bg-amber-950 text-amber-300 border border-amber-500/40'
-                        }`}
-                      >
-                        {isHome ? <Home size={9} /> : <Plane size={9} />}
-                        <span>{isHome ? 'HOME' : 'AWAY'}</span>
-                      </span>
+                      {isCup ? (
+                        <span className="text-[10px] font-black px-2.5 py-0.5 rounded-lg flex items-center gap-1 font-sport bg-gradient-to-r from-amber-500/30 to-orange-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
+                          <span>🏆</span>
+                          <span>جام حذفی ({m.round_name || 'مرحله حذفی'})</span>
+                        </span>
+                      ) : (
+                        <span
+                          className={`text-[9px] font-black px-1.5 py-0.2 rounded-md shrink-0 flex items-center gap-1 font-sport ${
+                            isHome
+                              ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40'
+                              : 'bg-amber-950 text-amber-300 border border-amber-500/40'
+                          }`}
+                        >
+                          {isHome ? <Home size={9} /> : <Plane size={9} />}
+                          <span>{isHome ? 'HOME' : 'AWAY'}</span>
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-2 mt-1 text-[10.5px] text-slate-400 font-sport">
                       <span className="flex items-center gap-1 font-sans">
-                        <Calendar size={11} className="text-cyan-400" />
+                        <Calendar size={11} className={isCup ? 'text-amber-400' : 'text-cyan-400'} />
                         <span>{dateStr}</span>
                       </span>
                       <span>•</span>
                       <span className="flex items-center gap-1 font-bold">
-                        <Clock size={11} className="text-cyan-400" />
+                        <Clock size={11} className={isCup ? 'text-amber-400' : 'text-cyan-400'} />
                         <span>{timeStr}</span>
                       </span>
                     </div>

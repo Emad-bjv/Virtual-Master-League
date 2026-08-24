@@ -180,13 +180,21 @@ export default function LiveBroadcastControl() {
 
   useEffect(() => {
     fetchGameweeksAndFixtures();
+    const handleSync = () => fetchGameweeksAndFixtures(selectedGameweek);
+    window.addEventListener('vml_league_schedule_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+
     const interval = setInterval(() => {
       if (selectedGameweek) {
         fetchGameweeksAndFixtures(selectedGameweek);
       }
     }, 25000);
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('vml_league_schedule_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, [selectedGameweek]);
 
   // -------------------------------------------------------------
   // 3. Real-Time WebSocket Bi-Directional Synchronization

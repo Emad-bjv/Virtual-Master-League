@@ -426,3 +426,72 @@ class TeamRevenueBreakdownView(views.APIView):
                 }
             }
         }, status=status.HTTP_200_OK)
+
+
+class AdminStorePackageListCreateView(generics.ListCreateAPIView):
+    """
+    Admin API to list all store packages (including inactive) and create new packages.
+    """
+    serializer_class = StorePackageSerializer
+    permission_classes = [IsAdminUser]
+
+    def get_queryset(self):
+        qs = StorePackage.objects.all().order_by('sort_order', '-id')
+        currency_type = self.request.query_params.get('currency_type')
+        is_active = self.request.query_params.get('is_active')
+
+        if currency_type:
+            qs = qs.filter(currency_type=currency_type)
+        if is_active is not None:
+            if is_active.lower() in ('true', '1'):
+                qs = qs.filter(is_active=True)
+            elif is_active.lower() in ('false', '0'):
+                qs = qs.filter(is_active=False)
+
+        return qs
+
+
+class AdminStorePackageDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    Admin API to retrieve, update, or soft-delete a store package.
+    """
+    serializer_class = StorePackageSerializer
+    permission_classes = [IsAdminUser]
+    queryset = StorePackage.objects.all()
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.is_active = False
+        instance.save()
+        return Response(
+            {'message': f'بسته «{instance.name}» با موفقیت غیرفعال شد.', 'id': instance.id},
+            status=status.HTTP_200_OK
+        )
+
+
+class AdminStorePackageToggleView(views.APIView):
+    """
+    Admin API to quickly toggle the active status of a store package.
+    """
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, pk):
+        try:
+            package = StorePackage.objects.get(pk=pk)
+        except StorePackage.DoesNotExist:
+            return Response(
+                {'error': 'بسته مورد نظر یافت نشد.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        package.is_active = not package.is_active
+        package.save()
+        serializer = StorePackageSerializer(package)
+        return Response(
+            {
+                'message': f'وضعیت بسته «{package.name}» به {"فعال" if package.is_active else "غیرفعال"} تغییر یافت.',
+                'package': serializer.data
+            },
+            status=status.HTTP_200_OK
+        )
+

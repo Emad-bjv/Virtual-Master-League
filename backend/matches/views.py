@@ -12,7 +12,7 @@ from django.utils import timezone
 from teams.models import Team, Player
 from .models import (
     LiveSubstitutionRequest, LiveInGameChangeRequest, Match, MatchEvent,
-    MatchTeamStat, PlayerMatchStat, LeagueStanding, Tournament
+    MatchTeamStat, PlayerMatchStat, LeagueStanding, Tournament, Season
 )
 from .serializers import (
     LiveSubstitutionRequestSerializer, LiveInGameChangeSerializer, MatchSerializer,
@@ -128,7 +128,7 @@ class UpcomingMatchesView(generics.ListAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        return Match.objects.filter(status='SCHEDULED').order_by('date')[:5]
+        return Match.objects.filter(status='SCHEDULED').select_related('home_team', 'away_team', 'tournament').order_by('date', 'id')[:10]
 
 
 class MatchHistoryView(generics.ListAPIView):
@@ -136,21 +136,31 @@ class MatchHistoryView(generics.ListAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        return Match.objects.filter(status='FINISHED').order_by('-date')[:10]
+        return Match.objects.filter(status='FINISHED').select_related('home_team', 'away_team', 'tournament').order_by('-date', '-id')[:10]
 
 
 class LeagueStandingsView(generics.GenericAPIView):
     """
     Returns full league standings from the database.
-    Since we don't pass a tournament ID here, we just get the most recent tournament's standings.
+    Since we don't pass a tournament ID here, we just get the most recent active tournament's standings.
     """
     permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
-        # Fetch standings from the most recent active tournament (or any for now)
-        tournament = Tournament.objects.filter(tournament_type='LEAGUE').order_by('-created_at').first()
+        # Fetch standings from the active tournament that has standings
+        tournament = (
+            Tournament.objects.filter(tournament_type='LEAGUE', is_active=True, standings__isnull=False)
+            .distinct()
+            .order_by('-created_at')
+            .first()
+        )
+        if not tournament:
+            tournament = Tournament.objects.filter(tournament_type='LEAGUE', is_active=True).order_by('-created_at').first()
+        if not tournament:
+            tournament = Tournament.objects.filter(tournament_type='LEAGUE').order_by('-created_at').first()
         if not tournament:
             tournament = Tournament.objects.first()
+
         if not tournament:
             return Response([])
 
@@ -569,19 +579,19 @@ class TeamMatchHistoryView(generics.ListAPIView):
 
 class GameweekStatusView(APIView):
     """
-    Returns summary of all Gameweeks/Rounds, tracking completed/live/scheduled matches,
+    Returns summary of all Gameweeks/Rounds (both League and Cup), tracking completed/live/scheduled matches,
     and identifies the current active Gameweek for auto-progression.
-    Optimized with single SQL aggregation.
+    Optimized with single SQL aggregation and chronological ordering.
     """
     permission_classes = [AllowAny]
 
     def get(self, request):
-        from django.db.models import Count, Q
-        tournament = Tournament.objects.filter(tournament_type='LEAGUE').order_by('-created_at').first()
-        if not tournament:
-            tournament = Tournament.objects.first()
-
-        match_qs = Match.objects.filter(tournament=tournament) if tournament else Match.objects.all()
+        from django.db.models import Count, Q, Min
+        active_tourneys = Tournament.objects.filter(is_active=True, matches__isnull=False).distinct()
+        if active_tourneys.exists():
+            match_qs = Match.objects.filter(tournament__in=active_tourneys)
+        else:
+            match_qs = Match.objects.all()
 
         aggregated_rounds = (
             match_qs
@@ -591,6 +601,7 @@ class GameweekStatusView(APIView):
                 finished_matches=Count('id', filter=Q(status='FINISHED')),
                 live_matches=Count('id', filter=Q(status='LIVE')),
                 scheduled_matches=Count('id', filter=Q(status='SCHEDULED')),
+                first_match_date=Min('date'),
             )
         )
 
@@ -598,7 +609,15 @@ class GameweekStatusView(APIView):
             is_gw, r_num, _ = normalize_round_query(name)
             return r_num if (is_gw and r_num is not None) else 999
 
-        sorted_rows = sorted(aggregated_rounds, key=lambda r: extract_round_num(r.get('round_name', '')))
+        def extract_sort_key(row):
+            name = row.get('round_name', '')
+            dt = row.get('first_match_date')
+            r_num = extract_round_num(name)
+            if dt:
+                return (0, dt.isoformat())
+            return (1, f"{r_num:03d}_{name}")
+
+        sorted_rows = sorted(aggregated_rounds, key=extract_sort_key)
         if not sorted_rows:
             sorted_rows = [{'round_name': f"هفته {i}", 'total_matches': 0, 'finished_matches': 0, 'live_matches': 0, 'scheduled_matches': 0} for i in range(1, 31)]
 
@@ -622,13 +641,27 @@ class GameweekStatusView(APIView):
                 'scheduled_matches': scheduled,
                 'is_finished': is_finished,
                 'is_live': live > 0,
+                'date': row.get('first_match_date').isoformat() if row.get('first_match_date') else None,
             })
 
-            if active_gameweek is None and not is_finished and total > 0:
+            # 1. First prioritize live matches
+            if live > 0 and active_gameweek is None:
+                active_gameweek = r_name
+            # 2. Or the earliest incomplete gameweek that has scheduled matches
+            elif active_gameweek is None and not is_finished and total > 0:
                 active_gameweek = r_name
 
-        if not active_gameweek and gameweeks:
-            active_gameweek = gameweeks[-1]['round_name']
+        # If still not found, default to week 1 (gameweeks[0]), or last week only if all are finished
+        if not active_gameweek:
+            if gameweeks:
+                has_matches = any(gw['total_matches'] > 0 for gw in gameweeks)
+                all_finished = has_matches and all(gw['is_finished'] for gw in gameweeks if gw['total_matches'] > 0)
+                if all_finished:
+                    active_gameweek = gameweeks[-1]['round_name']
+                else:
+                    active_gameweek = gameweeks[0]['round_name']
+            else:
+                active_gameweek = 'هفته ۱'
 
         return Response({
             'active_gameweek': active_gameweek or 'هفته ۱',
@@ -736,12 +769,26 @@ class TeamScheduleView(generics.ListAPIView):
         status_filter = self.request.query_params.get('status')
         round_filter = self.request.query_params.get('round')
         venue_filter = self.request.query_params.get('venue')
+        tournament_id = self.request.query_params.get('tournament_id')
 
-        qs = Match.objects.all().select_related(
+        if tournament_id:
+            qs = Match.objects.filter(tournament_id=tournament_id)
+        elif self.request.query_params.get('tournament_type'):
+            t_type = self.request.query_params.get('tournament_type').upper()
+            qs = Match.objects.filter(tournament__tournament_type=t_type)
+        else:
+            # Return all matches from active tournaments (both League and Cup)
+            active_tourneys = Tournament.objects.filter(is_active=True, matches__isnull=False).distinct()
+            if active_tourneys.exists():
+                qs = Match.objects.filter(tournament__in=active_tourneys)
+            else:
+                qs = Match.objects.all()
+
+        qs = qs.select_related(
             'home_team__manager', 'away_team__manager',
             'home_team__gameplan', 'away_team__gameplan',
             'tournament'
-        ).prefetch_related('gameplans')
+        ).prefetch_related('gameplans').order_by('date', 'id')
 
         if team_id:
             if venue_filter == 'HOME':
@@ -1577,6 +1624,491 @@ class LiveInGameChangeRejectView(APIView):
             'change': serialized,
             'match': match_detail
         }, status=status.HTTP_200_OK)
+
+
+# =====================================================================
+# Comprehensive League & Knockout Cup Management Views
+# =====================================================================
+
+def parse_time_slots(raw_slots):
+    """
+    Parses and standardizes time slots from frontend request.
+    Handles 'HH:MM' strings, [hour, minute] arrays, or tuple formats,
+    sorting them chronologically.
+    """
+    if not raw_slots or not isinstance(raw_slots, list):
+        return None
+    time_slots = []
+    for slot in raw_slots:
+        if isinstance(slot, str) and ':' in slot:
+            parts = slot.strip().split(':')
+            try:
+                h = int(parts[0])
+                m = int(parts[1])
+                time_slots.append((h, m))
+            except (ValueError, IndexError):
+                pass
+        elif isinstance(slot, (list, tuple)) and len(slot) == 2:
+            try:
+                time_slots.append((int(slot[0]), int(slot[1])))
+            except (ValueError, TypeError):
+                pass
+    if time_slots:
+        time_slots.sort(key=lambda s: s[0] * 60 + s[1])
+    return time_slots or None
+
+
+class AdminLeagueConfigureView(APIView):
+    """
+    Admin endpoint to configure and generate league fixtures with full custom parameters.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request):
+        from .fixture_engine import generate_league_fixtures, DEFAULT_START_DATE
+        import datetime
+
+        league_name = request.data.get('name', 'مستر لیگ مجازی')
+        start_date_str = request.data.get('start_date')
+        days_between_rounds = int(request.data.get('days_between_rounds', 1))
+        is_double_round_robin = request.data.get('is_double_round_robin', True)
+        clear_existing = request.data.get('clear_existing', True)
+        team_ids = request.data.get('team_ids')
+
+        start_date = None
+        if start_date_str:
+            try:
+                start_date = datetime.datetime.strptime(str(start_date_str).strip(), '%Y-%m-%d').date()
+            except ValueError:
+                start_date = DEFAULT_START_DATE
+        else:
+            start_date = DEFAULT_START_DATE
+
+        time_slots = parse_time_slots(request.data.get('time_slots'))
+
+        season, _ = Season.objects.get_or_create(
+            is_active=True,
+            defaults={'name': 'فصل ۱۴۰۵', 'started_at': timezone.now()}
+        )
+
+        tournament, _ = Tournament.objects.get_or_create(
+            name=league_name,
+            tournament_type='LEAGUE',
+            defaults={'season': season, 'is_active': True}
+        )
+
+        if clear_existing:
+            Match.objects.filter(tournament=tournament).delete()
+            Match.objects.filter(is_knockout=False).delete()
+            LeagueStanding.objects.filter(tournament=tournament).delete()
+
+        if team_ids and isinstance(team_ids, list):
+            teams = Team.objects.filter(id__in=team_ids).order_by('id')
+        else:
+            teams = Team.objects.all().order_by('id')
+
+        reserve_cup_days = request.data.get('reserve_cup_days', request.data.get('skip_fridays', True))
+        if isinstance(reserve_cup_days, str):
+            reserve_cup_days = (reserve_cup_days.lower() in ['true', '1', 'yes'])
+
+        interval_gameweeks = int(request.data.get('interval_gameweeks', 6))
+
+        count = generate_league_fixtures(
+            tournament=tournament,
+            teams=teams,
+            start_date=start_date,
+            days_between_rounds=days_between_rounds,
+            time_slots=time_slots,
+            is_double_round_robin=is_double_round_robin,
+            reserve_cup_days=reserve_cup_days,
+            interval_gameweeks=interval_gameweeks,
+            clear_existing=clear_existing
+        )
+
+        from realtime.events import broadcast_global_event
+        broadcast_global_event('league_schedule_updated', {
+            'action': 'FIXTURES_GENERATED',
+            'tournament_id': tournament.id,
+            'matches_count': count
+        })
+
+        return Response({
+            'status': 'success',
+            'message': f'برنامه مسابقات لیگ با {count} مسابقه با موفقیت تولید و ذخیره شد.',
+            'tournament_id': tournament.id,
+            'tournament_name': tournament.name,
+            'matches_count': count,
+            'teams_count': teams.count(),
+            'start_date': str(start_date)
+        }, status=status.HTTP_201_CREATED)
+
+
+class AdminLeagueResetView(APIView):
+    """
+    Admin endpoint to completely purge/reset all League matches, results, and standings,
+    returning the system to a clean, fresh state ready for fixture re-generation.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request):
+        league_id = request.data.get('league_id')
+        with transaction.atomic():
+            m_qs = Match.objects.filter(is_knockout=False)
+            deleted_matches_count = m_qs.count()
+            m_qs.delete()
+            LeagueStanding.objects.all().delete()
+
+        from realtime.events import broadcast_global_event
+        broadcast_global_event('league_schedule_updated', {
+            'action': 'LEAGUE_RESET',
+            'deleted_matches_count': deleted_matches_count
+        })
+
+        return Response({
+            'status': 'success',
+            'message': f'تمامی {deleted_matches_count} مسابقه لیگ و جدول رده‌بندی با موفقیت حذف شدند و سیستم به حالت خام بازگشت.',
+            'deleted_matches_count': deleted_matches_count
+        }, status=status.HTTP_200_OK)
+
+
+class AdminGameweekActionView(APIView):
+    """
+    Admin control actions on a specific gameweek/round:
+    - LOCK_TACTICS: Lock gameplan submissions
+    - UNLOCK_TACTICS: Re-open gameplan submissions
+    - AUTO_FORFEIT_UNSUBMITTED: Automatically award 3-0 forfeit against teams that didn't submit tactics
+    - NOTIFY_COACHES: Send high-priority notification to coaches of this gameweek
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request):
+        action = request.data.get('action')
+        gameweek = request.data.get('gameweek', 'هفته ۱')
+        tournament_id = request.data.get('tournament_id')
+
+        if not action or not gameweek:
+            return Response({'error': 'action and gameweek are required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        match_qs = Match.objects.filter(round_name__iexact=gameweek)
+        if tournament_id:
+            match_qs = match_qs.filter(tournament_id=tournament_id)
+
+        if not match_qs.exists():
+            return Response({'error': f'هیچ مسابقه‌ای برای «{gameweek}» یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        from realtime.events import broadcast_global_event
+
+        if action == 'LOCK_TACTICS':
+            # Mark gameplans as locked / freeze submissions
+            for m in match_qs:
+                if m.home_team and hasattr(m.home_team, 'gameplan'):
+                    m.home_team.gameplan.is_submitted = True
+                    m.home_team.gameplan.save(update_fields=['is_submitted'])
+                if m.away_team and hasattr(m.away_team, 'gameplan'):
+                    m.away_team.gameplan.is_submitted = True
+                    m.away_team.gameplan.save(update_fields=['is_submitted'])
+                m.gameplans.all().update(is_submitted=True)
+            broadcast_global_event('league_schedule_updated', {'action': 'LOCK_TACTICS', 'gameweek': gameweek})
+            return Response({'status': 'success', 'message': f'مهلت ثبت تاکتیک برای {gameweek} با موفقیت قفل شد.'})
+
+        elif action == 'UNLOCK_TACTICS':
+            for m in match_qs:
+                if m.home_team and hasattr(m.home_team, 'gameplan'):
+                    m.home_team.gameplan.is_submitted = False
+                    m.home_team.gameplan.save(update_fields=['is_submitted'])
+                if m.away_team and hasattr(m.away_team, 'gameplan'):
+                    m.away_team.gameplan.is_submitted = False
+                    m.away_team.gameplan.save(update_fields=['is_submitted'])
+                m.gameplans.all().update(is_submitted=False)
+            broadcast_global_event('league_schedule_updated', {'action': 'UNLOCK_TACTICS', 'gameweek': gameweek})
+            return Response({'status': 'success', 'message': f'ارسال ترکیب برای {gameweek} مجدداً باز شد.'})
+
+        elif action == 'NOTIFY_COACHES':
+            from notifications.models import Notification
+            notified_count = 0
+            for m in match_qs:
+                for team in [m.home_team, m.away_team]:
+                    if team and team.manager:
+                        Notification.objects.create(
+                            user=team.manager,
+                            title=f"⏰ مهلت ارسال تاکتیک {gameweek}",
+                            message=f"سرمربی گرامی {team.name}، لطفاً هرچه سریع‌تر تاکتیک و ترکیب خود را برای مسابقه پیش‌رو ثبت نمایید.",
+                            type='MATCH'
+                        )
+                        notified_count += 1
+            return Response({'status': 'success', 'message': f'اعلان برای {notified_count} مربی با موفقیت ارسال شد.'})
+
+        elif action == 'AUTO_FORFEIT_UNSUBMITTED':
+            forfeited = []
+            for m in match_qs.filter(status='SCHEDULED'):
+                home_sub = getattr(m.home_team, 'gameplan', None)
+                away_sub = getattr(m.away_team, 'gameplan', None)
+                home_ready = home_sub and home_sub.is_submitted
+                away_ready = away_sub and away_sub.is_submitted
+
+                if not home_ready and away_ready:
+                    m.home_score = 0
+                    m.away_score = 3
+                    m.status = 'FINISHED'
+                    m.half_status = 'FINISHED'
+                    m.save(update_fields=['home_score', 'away_score', 'status', 'half_status'])
+                    forfeited.append(f"{m.home_team.name} (0-3 باخت فنی)")
+                elif home_ready and not away_ready:
+                    m.home_score = 3
+                    m.away_score = 0
+                    m.status = 'FINISHED'
+                    m.half_status = 'FINISHED'
+                    m.save(update_fields=['home_score', 'away_score', 'status', 'half_status'])
+                    forfeited.append(f"{m.away_team.name} (3-0 باخت فنی)")
+
+            return Response({
+                'status': 'success',
+                'message': f'باخت فنی برای {len(forfeited)} مسابقه ثبت شد.',
+                'forfeited': forfeited
+            })
+
+        return Response({'error': 'Invalid action.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminCupTournamentView(APIView):
+    """
+    CRUD endpoint for Knockout Cup Tournaments.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def get(self, request):
+        from .cup_engine import serialize_cup_bracket
+        cups = Tournament.objects.filter(tournament_type='CUP').order_by('-created_at')
+        res = []
+        for c in cups:
+            bracket_data = serialize_cup_bracket(c)
+            total_matches = c.matches.count()
+            finished_matches = c.matches.filter(status='FINISHED').count()
+            res.append({
+                'id': c.id,
+                'name': c.name,
+                'is_active': c.is_active,
+                'created_at': c.created_at.isoformat(),
+                'total_matches': total_matches,
+                'finished_matches': finished_matches,
+                'bracket': bracket_data
+            })
+        return Response(res, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        from .cup_engine import generate_cup_bracket
+        import datetime
+
+        cup_name = request.data.get('name', 'جام حذفی مستر لیگ')
+        start_date_str = request.data.get('start_date')
+        team_ids = request.data.get('team_ids')
+        days_between_rounds = int(request.data.get('days_between_rounds', 3))
+
+        start_date = None
+        if start_date_str:
+            try:
+                start_date = datetime.datetime.strptime(str(start_date_str).strip(), '%Y-%m-%d').date()
+            except ValueError:
+                start_date = datetime.date.today() + datetime.timedelta(days=1)
+        else:
+            start_date = datetime.date.today() + datetime.timedelta(days=1)
+
+        season, _ = Season.objects.get_or_create(
+            is_active=True,
+            defaults={'name': 'فصل ۱۴۰۵', 'started_at': timezone.now()}
+        )
+
+        tournament = Tournament.objects.create(
+            name=cup_name,
+            tournament_type='CUP',
+            season=season,
+            is_active=True
+        )
+
+        if team_ids and isinstance(team_ids, list):
+            teams = list(Team.objects.filter(id__in=team_ids).order_by('id'))
+        else:
+            # Pick top 16 or 8 teams
+            all_teams = list(Team.objects.all().order_by('id'))
+            target_count = 16 if len(all_teams) >= 16 else (8 if len(all_teams) >= 8 else 4)
+            teams = all_teams[:target_count]
+
+        # Ensure power of 2
+        import math
+        while len(teams) > 2 and not math.log2(len(teams)).is_integer():
+            teams.pop()
+
+        time_slots = parse_time_slots(request.data.get('time_slots'))
+        interval_gameweeks = int(request.data.get('interval_gameweeks', request.data.get('days_between_rounds', 6)))
+
+        bracket_result = generate_cup_bracket(
+            tournament=tournament,
+            teams=teams,
+            start_date=start_date,
+            time_slots=time_slots,
+            days_between_rounds=days_between_rounds,
+            clear_existing=True
+        )
+
+        # Automatically synchronize Cup dates with active League schedule (gap days)
+        from .fixture_engine import interleave_cup_with_league
+        active_league = (
+            Tournament.objects.filter(tournament_type='LEAGUE', is_active=True, matches__isnull=False)
+            .distinct()
+            .order_by('-id')
+            .first()
+        )
+        if active_league:
+            try:
+                interleave_cup_with_league(
+                    league_tournament=active_league,
+                    cup_tournament=tournament,
+                    interval_gameweeks=interval_gameweeks,
+                    time_slots=time_slots
+                )
+            except Exception:
+                pass
+
+        return Response({
+            'status': 'success',
+            'message': f'تورنمنت جام حذفی «{cup_name}» با موفقیت ایجاد و با لیگ سینک شد.',
+            'tournament_id': tournament.id,
+            'bracket_result': bracket_result
+        }, status=status.HTTP_201_CREATED)
+
+    def delete(self, request, cup_id=None):
+        target_id = cup_id or request.data.get('tournament_id')
+        if not target_id:
+            return Response({'error': 'tournament_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        tournament = get_object_or_404(Tournament, id=target_id, tournament_type='CUP')
+        tournament.delete()
+        from realtime.events import broadcast_global_event
+        broadcast_global_event('league_schedule_updated', {'action': 'CUP_DELETED', 'cup_id': target_id})
+        return Response({'status': 'success', 'message': 'تورنمنت جام حذفی با موفقیت حذف گردید.'}, status=status.HTTP_200_OK)
+
+
+class AdminCupResetView(APIView):
+    """
+    Admin endpoint to completely purge/reset Knockout Cup tournament(s) and all knockout matches,
+    returning the cup system to a clean, fresh state ready for re-creation.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request):
+        cup_id = request.data.get('cup_id')
+        with transaction.atomic():
+            if cup_id:
+                cup_tourneys = Tournament.objects.filter(id=cup_id, tournament_type='CUP')
+                m_qs = Match.objects.filter(tournament__in=cup_tourneys)
+            else:
+                cup_tourneys = Tournament.objects.filter(tournament_type='CUP')
+                m_qs = Match.objects.filter(is_knockout=True)
+
+            deleted_matches_count = m_qs.count()
+            m_qs.delete()
+            deleted_cups_count = cup_tourneys.count()
+            cup_tourneys.delete()
+
+        from realtime.events import broadcast_global_event
+        broadcast_global_event('league_schedule_updated', {
+            'action': 'CUP_RESET',
+            'deleted_matches_count': deleted_matches_count,
+            'deleted_cups_count': deleted_cups_count
+        })
+
+        return Response({
+            'status': 'success',
+            'message': f'تمامی {deleted_matches_count} مسابقه جام حذفی با موفقیت پاکسازی شدند و سیستم به حالت خام بازگشت.',
+            'deleted_matches_count': deleted_matches_count,
+            'deleted_cups_count': deleted_cups_count
+        }, status=status.HTTP_200_OK)
+
+
+class AdminCupBracketView(APIView):
+    """
+    Returns full visual bracket tree for a cup tournament or forces advance of a winner.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, tournament_id):
+        from .cup_engine import serialize_cup_bracket
+        tournament = get_object_or_404(Tournament, id=tournament_id)
+        data = serialize_cup_bracket(tournament)
+        return Response(data, status=status.HTTP_200_OK)
+
+    def post(self, request, match_id):
+        from .cup_engine import advance_winner
+        match = get_object_or_404(Match, id=match_id)
+        res = advance_winner(match)
+        return Response(res, status=status.HTTP_200_OK if res.get('success') else status.HTTP_400_BAD_REQUEST)
+
+
+class AdminSyncCupLeagueView(APIView):
+    """
+    Synchronizes and interleaves Cup tournament dates with League gameweek schedule.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request):
+        from .fixture_engine import interleave_cup_with_league
+
+        league_id = request.data.get('league_id')
+        cup_id = request.data.get('cup_id')
+        interval = int(request.data.get('interval_gameweeks', 4))
+        time_slots = parse_time_slots(request.data.get('time_slots'))
+
+        if league_id:
+            league_tourney = get_object_or_404(Tournament, id=league_id, tournament_type='LEAGUE')
+        else:
+            league_tourney = Tournament.objects.filter(tournament_type='LEAGUE').first()
+
+        if cup_id:
+            cup_tourney = get_object_or_404(Tournament, id=cup_id, tournament_type='CUP')
+        else:
+            cup_tourney = Tournament.objects.filter(tournament_type='CUP').first()
+
+        if not league_tourney or not cup_tourney:
+            return Response({'error': 'هر دو تورنمنت لیگ و جام حذفی باید موجود باشند.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        res = interleave_cup_with_league(league_tourney, cup_tourney, interval_gameweeks=interval, time_slots=time_slots)
+        return Response(res, status=status.HTTP_200_OK if res.get('success') else status.HTTP_400_BAD_REQUEST)
+
+
+class AdminMatchForfeitView(APIView):
+    """
+    Registers a 3-0 forfeit for either home or away team and auto-processes standings.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request, match_id):
+        match = get_object_or_404(Match, id=match_id)
+        forfeit_target = request.data.get('forfeit_team', 'home')  # 'home' or 'away'
+
+        if forfeit_target == 'home':
+            match.home_score = 0
+            match.away_score = 3
+        else:
+            match.home_score = 3
+            match.away_score = 0
+
+        match.status = 'FINISHED'
+        match.half_status = 'FINISHED'
+        match.save(update_fields=['home_score', 'away_score', 'status', 'half_status'])
+
+        if match.tournament and match.tournament.tournament_type == 'LEAGUE':
+            from .views import update_standings_for_match
+            update_standings_for_match(match)
+
+        if match.is_knockout:
+            from .cup_engine import advance_winner
+            advance_winner(match)
+
+        return Response({
+            'status': 'success',
+            'message': f'باخت فنی ۳-۰ با موفقیت برای تیم {forfeit_target} ثبت شد.',
+            'match': MatchDetailSerializer(match).data
+        }, status=status.HTTP_200_OK)
+
 
 
 

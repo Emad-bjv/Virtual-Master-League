@@ -39,24 +39,42 @@ class TeamTaskProgress(models.Model):
 
 
 class SeasonPassLevel(models.Model):
-    """تعریف جدول پاداش هر سطح — یک بار توسط ادمین ست می‌شود."""
-    level = models.PositiveIntegerField(unique=True)
-    xp_required = models.PositiveIntegerField()
-    free_reward_gems = models.PositiveIntegerField(default=0)
-    vip_reward_gems = models.PositiveIntegerField(default=0)
-    vip_reward_player_rarity = models.CharField(max_length=20, blank=True)  # فقط سطح آخر: 'LEGENDARY'
-    is_final_level = models.BooleanField(default=False)
+    """تعریف جدول پاداش هر سطح — پاداش‌ها شامل دلار، جم و در سطح آخر بازیکن لجند اختصاصی است."""
+    level = models.PositiveIntegerField(unique=True, verbose_name="شماره سطح")
+    xp_required = models.PositiveIntegerField(verbose_name="XP مورد نیاز")
+    reward_title = models.CharField(max_length=150, blank=True, default="", verbose_name="عنوان پاداش")
+    free_reward_coins = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="پاداش دلاری رایگان")
+    free_reward_gems = models.PositiveIntegerField(default=0, verbose_name="پاداش جم رایگان")
+    vip_reward_coins = models.DecimalField(max_digits=15, decimal_places=2, default=0.00, verbose_name="پاداش دلاری VIP")
+    vip_reward_gems = models.PositiveIntegerField(default=0, verbose_name="پاداش جم VIP")
+    vip_reward_player_rarity = models.CharField(max_length=20, blank=True, default="")  # فقط سطح آخر: 'LEGENDARY'
+    is_final_level = models.BooleanField(default=False, verbose_name="سطح نهایی (پاداش لجند)")
     
+    class Meta:
+        verbose_name = "سطح سیزن پس"
+        verbose_name_plural = "سطوح سیزن پس"
+        ordering = ['level']
+
     def __str__(self):
-        return f"Level {self.level} ({self.xp_required} XP)"
+        return f"Level {self.level} ({self.xp_required} XP) - {self.reward_title or 'Reward'}"
 
 
 class TeamSeasonPass(models.Model):
-    team = models.OneToOneField(Team, on_delete=models.CASCADE, related_name='season_pass')
-    current_xp = models.PositiveIntegerField(default=0)
-    current_level = models.PositiveIntegerField(default=1)
-    is_vip = models.BooleanField(default=False)
-    claimed_levels = models.JSONField(default=list)
+    team = models.OneToOneField(Team, on_delete=models.CASCADE, related_name='season_pass', verbose_name="تیم")
+    current_xp = models.PositiveIntegerField(default=0, verbose_name="XP فعلی")
+    current_level = models.PositiveIntegerField(default=1, verbose_name="سطح فعلی")
+    is_vip = models.BooleanField(default=False, verbose_name="عضویت VIP")
+    claimed_levels = models.JSONField(default=list, verbose_name="سطوح دریافت شده")
+    assigned_legend_player = models.ForeignKey(
+        'teams.Player', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='season_pass_assigned_team', verbose_name="بازیکن لجند اختصاصی تیم"
+    )
+    legend_claimed = models.BooleanField(default=False, verbose_name="لجند دریافت شده است؟")
+
+    class Meta:
+        verbose_name = "سیزن پس تیم"
+        verbose_name_plural = "سیزن پس تیم‌ها"
 
     def __str__(self):
-        return f"{self.team.name} - Level {self.current_level} (VIP: {self.is_vip})"
+        leg_name = self.assigned_legend_player.name if self.assigned_legend_player else "بدون لجند"
+        return f"{self.team.name} - Level {self.current_level} (XP: {self.current_xp}) | Legend: {leg_name}"

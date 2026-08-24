@@ -39,9 +39,9 @@ TransactionAdminViewSet = create_admin_viewset(e_models.Transaction, s.Transacti
 GlobalSettingsAdminViewSet = create_admin_viewset(c_models.GlobalSettings, s.GlobalSettingsSerializer)
 AdminAuditLogAdminViewSet = create_admin_viewset(a_models.AdminAuditLog, s.AdminAuditLogSerializer)
 
-GachaPackAdminViewSet = create_admin_viewset(g_models.GachaPack, s.GachaPackSerializer)
-GachaPityAdminViewSet = create_admin_viewset(g_models.GachaPity, s.GachaPitySerializer)
-PackOpeningLogAdminViewSet = create_admin_viewset(g_models.PackOpeningLog, s.PackOpeningLogSerializer)
+PackAdminViewSet = create_admin_viewset(g_models.Pack, s.PackSerializer)
+PackPlayerAdminViewSet = create_admin_viewset(g_models.PackPlayer, s.PackPlayerSerializer)
+PackOpeningSessionAdminViewSet = create_admin_viewset(g_models.PackOpeningSession, s.PackOpeningSessionSerializer)
 
 SeasonAdminViewSet = create_admin_viewset(m_models.Season, s.SeasonSerializer)
 TournamentAdminViewSet = create_admin_viewset(m_models.Tournament, s.TournamentSerializer)
@@ -165,12 +165,13 @@ class AdminOverviewStatsView(APIView):
 
         # Audit Logs Summary
         recent_audit = []
-        for log in a_models.AdminAuditLog.objects.select_related('admin_user').order_by('-created_at')[:5]:
+        for log in a_models.AdminAuditLog.objects.select_related('admin_user', 'target_team').order_by('-created_at')[:5]:
+            team_name = log.target_team.name if log.target_team else ''
             recent_audit.append({
                 'id': log.id,
                 'action_type': log.action_type,
                 'admin': log.admin_user.username if log.admin_user else 'سیستم',
-                'team_name': log.team_name,
+                'team_name': team_name,
                 'reason': log.reason,
                 'created_at': log.created_at.isoformat(),
             })
@@ -207,3 +208,322 @@ class AdminOverviewStatsView(APIView):
             },
             'recent_audit_logs': recent_audit,
         }, status=status.HTTP_200_OK)
+
+
+class AdminFeatureFlagsView(APIView):
+    """
+    Endpoint for reading and updating all 9 system feature flags.
+    Modifications require superadmin privileges and are logged to AdminAuditLog.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def get(self, request):
+        settings = c_models.GlobalSettings.get_settings()
+        from core.serializers import FeatureFlagsSerializer
+        serializer = FeatureFlagsSerializer(settings)
+        is_super = request.user.is_superuser or getattr(request.user, 'role', '') == 'superadmin'
+        return Response({
+            'flags': serializer.data,
+            'can_edit': is_super
+        }, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        is_super = request.user.is_superuser or getattr(request.user, 'role', '') == 'superadmin'
+        if not is_super:
+            return Response(
+                {'detail': 'تنها مدیر ارشد سامانه (SuperAdmin) مجاز به تغییر فلگ‌های سیستم است.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        settings = c_models.GlobalSettings.get_settings()
+        from core.serializers import FeatureFlagsSerializer
+        
+        # Capture before state for audit log
+        before_state = FeatureFlagsSerializer(settings).data
+        serializer = FeatureFlagsSerializer(settings, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            after_state = serializer.data
+
+            # Find changed keys
+            changed_keys = [k for k in request.data if before_state.get(k) != after_state.get(k)]
+            if changed_keys:
+                a_models.AdminAuditLog.objects.create(
+                    admin_user=request.user,
+                    action_type='FEATURE_FLAGS_UPDATED',
+                    before_value={k: before_state[k] for k in changed_keys},
+                    after_value={k: after_state[k] for k in changed_keys},
+                    reason=f"تغییر وضعیت فلگ‌های: {', '.join(changed_keys)}"
+                )
+
+            return Response({
+                'flags': serializer.data,
+                'can_edit': True,
+                'message': 'فلگ‌های بخش‌های سیستم با موفقیت بروزرسانی شدند.'
+            }, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminSystemSettingsView(APIView):
+    """
+    Endpoint for reading and updating all detailed settings (Economy, Market, Matches, Gacha, SeasonPass, Facilities).
+    Modifications require superadmin privileges and are logged to AdminAuditLog.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def get(self, request):
+        settings = c_models.GlobalSettings.get_settings()
+        from core.serializers import GlobalSettingsSerializer
+        serializer = GlobalSettingsSerializer(settings)
+        is_super = request.user.is_superuser or getattr(request.user, 'role', '') == 'superadmin'
+        return Response({
+            'settings': serializer.data,
+            'can_edit': is_super
+        }, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        is_super = request.user.is_superuser or getattr(request.user, 'role', '') == 'superadmin'
+        if not is_super:
+            return Response(
+                {'detail': 'تنها مدیر ارشد سامانه (SuperAdmin) مجاز به ویرایش تنظیمات کلان سیستم است.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        settings = c_models.GlobalSettings.get_settings()
+        from core.serializers import GlobalSettingsSerializer
+        
+        before_state = GlobalSettingsSerializer(settings).data
+        serializer = GlobalSettingsSerializer(settings, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            after_state = serializer.data
+
+            changed_keys = [k for k in request.data if str(before_state.get(k)) != str(after_state.get(k))]
+            if changed_keys:
+                a_models.AdminAuditLog.objects.create(
+                    admin_user=request.user,
+                    action_type='SYSTEM_SETTINGS_UPDATED',
+                    before_value={k: before_state.get(k) for k in changed_keys},
+                    after_value={k: after_state.get(k) for k in changed_keys},
+                    reason=f"بروزرسانی پارامترهای کلان: {', '.join(changed_keys)}"
+                )
+
+            return Response({
+                'settings': serializer.data,
+                'can_edit': True,
+                'message': 'تنظیمات کلان سیستم با موفقیت ذخیره شدند.'
+            }, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AdminResetActionView(APIView):
+    """
+    Endpoint for executing destructive reset operations with security confirmation string check.
+    Requires superadmin privileges and mandatory confirmation 'ریست'.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request, action=None):
+        is_super = request.user.is_superuser or getattr(request.user, 'role', '') == 'superadmin'
+        if not is_super:
+            return Response(
+                {'detail': 'تنها مدیر ارشد سامانه (SuperAdmin) مجاز به اجرای عملیات حساس ریست است.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        confirmation = str(request.data.get('confirmation', '')).strip()
+        if confirmation != 'ریست':
+            return Response(
+                {'detail': 'عبارت تأیید نادرست است. برای اجرای عملیات باید عبارت «ریست» را تایپ کنید.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        target_action = action or request.data.get('action')
+        from django.db import transaction
+
+        try:
+            with transaction.atomic():
+                if target_action == 'reset-season':
+                    standings_count = m_models.LeagueStanding.objects.count()
+                    events_count = m_models.MatchEvent.objects.count()
+                    stats_count = m_models.PlayerMatchStat.objects.count()
+                    matches_count = m_models.Match.objects.count()
+
+                    m_models.LeagueStanding.objects.all().delete()
+                    m_models.MatchEvent.objects.all().delete()
+                    m_models.PlayerMatchStat.objects.all().delete()
+                    m_models.MatchTeamStat.objects.all().delete()
+                    m_models.Match.objects.all().update(
+                        status='SCHEDULED',
+                        home_score=0,
+                        away_score=0,
+                        half_status='NOT_STARTED'
+                    )
+                    
+                    settings = c_models.GlobalSettings.get_settings()
+                    settings.current_week = 1
+                    settings.save(update_fields=['current_week'])
+
+                    a_models.AdminAuditLog.objects.create(
+                        admin_user=request.user,
+                        action_type='RESET_SEASON',
+                        before_value={'standings': standings_count, 'events': events_count, 'stats': stats_count},
+                        after_value={'standings': 0, 'events': 0, 'stats': 0, 'matches_reset': matches_count},
+                        reason='ریست کامل فصل، رده‌بندی‌ها، رویدادها و آمار مسابقات'
+                    )
+                    return Response({
+                        'success': True,
+                        'message': f'فصل با موفقیت ریست شد. {matches_count} مسابقه به حالت اولیه بازگشتند و رده‌بندی‌ها پاک شدند.'
+                    })
+
+                elif target_action == 'reset-budgets':
+                    settings = c_models.GlobalSettings.get_settings()
+                    default_budget = settings.default_team_budget
+                    default_wage = settings.default_wage_cap
+                    teams_count = t_models.Team.objects.count()
+
+                    t_models.Team.objects.all().update(
+                        budget=default_budget,
+                        wage_cap=default_wage
+                    )
+
+                    a_models.AdminAuditLog.objects.create(
+                        admin_user=request.user,
+                        action_type='RESET_BUDGETS',
+                        before_value={'teams_affected': teams_count},
+                        after_value={'default_budget': float(default_budget), 'default_wage': float(default_wage)},
+                        reason=f'ریست بودجه و سقف دستمزد تمامی {teams_count} تیم به مقدار پیش‌فرض'
+                    )
+                    return Response({
+                        'success': True,
+                        'message': f'بودجه تمامی {teams_count} باشگاه به مقدار پیش‌فرض ({float(default_budget):,.0f} دلار) بازگردانده شد.'
+                    })
+
+                elif target_action == 'reset-player-stats':
+                    deleted_stats = m_models.PlayerMatchStat.objects.count()
+                    m_models.PlayerMatchStat.objects.all().delete()
+                    players_count = t_models.Player.objects.count()
+                    t_models.Player.objects.all().update(
+                        yellow_card_accumulator=0,
+                        suspension_matches=0,
+                        consecutive_games=0,
+                        matches_benched_streak=0
+                    )
+
+                    a_models.AdminAuditLog.objects.create(
+                        admin_user=request.user,
+                        action_type='RESET_PLAYER_STATS',
+                        before_value={'stats_records': deleted_stats},
+                        after_value={'stats_records': 0, 'players_reset': players_count},
+                        reason='ریست آمار عملکردی، کارت‌های زرد و محرومیت‌های بازیکنان'
+                    )
+                    return Response({
+                        'success': True,
+                        'message': f'آمار مسابقات، کارت‌ها و محرومیت‌های تمامی {players_count} بازیکن با موفقیت صفر شد.'
+                    })
+
+                elif target_action == 'reset-transfers':
+                    active_listings = tr_models.TransferListing.objects.filter(status='ACTIVE').count()
+                    tr_models.TransferListing.objects.filter(status='ACTIVE').update(status='CANCELLED')
+                    deleted_bids = tr_models.TransferBid.objects.count()
+                    tr_models.TransferBid.objects.all().delete()
+
+                    a_models.AdminAuditLog.objects.create(
+                        admin_user=request.user,
+                        action_type='RESET_TRANSFERS',
+                        before_value={'active_listings': active_listings, 'bids': deleted_bids},
+                        after_value={'active_listings': 0, 'bids': 0},
+                        reason='ریست بازار نقل و انتقالات و پاکسازی پیشنهادات'
+                    )
+                    return Response({
+                        'success': True,
+                        'message': f'تمام {active_listings} لیستینگ فعال لغو و {deleted_bids} پیشنهاد قیمت حذف شدند.'
+                    })
+
+                elif target_action == 'reset-season-pass':
+                    passes_count = sp_models.TeamSeasonPass.objects.count()
+                    sp_models.TeamSeasonPass.objects.all().update(
+                        current_xp=0,
+                        current_level=1,
+                        claimed_levels=[],
+                        legend_claimed=False
+                    )
+                    sp_models.TeamTaskProgress.objects.all().update(
+                        current_value=0,
+                        is_completed=False,
+                        is_claimed=False
+                    )
+
+                    a_models.AdminAuditLog.objects.create(
+                        admin_user=request.user,
+                        action_type='RESET_SEASON_PASS',
+                        before_value={'passes_affected': passes_count},
+                        after_value={'current_level': 1, 'current_xp': 0},
+                        reason='ریست پیشرفت سیزن پس و تسک‌های هفتگی تیم‌ها'
+                    )
+                    return Response({
+                        'success': True,
+                        'message': f'پیشرفت سیزن پس و تسک‌های تمامی {passes_count} تیم با موفقیت ریست شد.'
+                    })
+
+                elif target_action == 'reset-facilities':
+                    facilities_count = t_models.ClubFacilities.objects.count()
+                    t_models.ClubFacilities.objects.all().update(
+                        training_camp_level=0,
+                        gym_level=0,
+                        medical_level=0,
+                        pool_level=0,
+                        stadium_level=0,
+                        academy_level=0
+                    )
+
+                    a_models.AdminAuditLog.objects.create(
+                        admin_user=request.user,
+                        action_type='RESET_FACILITIES',
+                        before_value={'facilities_count': facilities_count},
+                        after_value={'all_levels': 0},
+                        reason='ریست سطح تمام تسهیلات و امکانات باشگاه‌ها به صفر'
+                    )
+                    return Response({
+                        'success': True,
+                        'message': f'سطح تمامی ۶ بخش تسهیلات در {facilities_count} باشگاه به صفر بازگردانده شد.'
+                    })
+
+                elif target_action == 'clear-audit-logs':
+                    logs_count = a_models.AdminAuditLog.objects.count()
+                    a_models.AdminAuditLog.objects.all().delete()
+                    return Response({
+                        'success': True,
+                        'message': f'تمامی {logs_count} لاگ حسابرسی سامانه با موفقیت پاکسازی شدند.'
+                    })
+
+                elif target_action == 'clear-notifications':
+                    notifs_count = n_models.Notification.objects.count()
+                    admin_notifs_count = r_models.AdminNotification.objects.count()
+                    n_models.Notification.objects.all().delete()
+                    r_models.AdminNotification.objects.all().delete()
+
+                    a_models.AdminAuditLog.objects.create(
+                        admin_user=request.user,
+                        action_type='CLEAR_NOTIFICATIONS',
+                        before_value={'notifications': notifs_count, 'admin_notifications': admin_notifs_count},
+                        after_value={'total': 0},
+                        reason='پاکسازی تمامی نوتیفیکیشن‌ها و اعلان‌های سیستم'
+                    )
+                    return Response({
+                        'success': True,
+                        'message': f'تمامی {notifs_count + admin_notifs_count} اعلان با موفقیت حذف شدند.'
+                    })
+
+                else:
+                    return Response(
+                        {'detail': f'عملیات ناشناخته: {target_action}'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+        except Exception as e:
+            return Response(
+                {'detail': f'خطا در اجرای عملیات ریست: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+

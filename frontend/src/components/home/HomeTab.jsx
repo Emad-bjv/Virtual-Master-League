@@ -9,13 +9,16 @@ import {
   Flame,
   ChevronLeft,
   CheckCircle,
+  CheckCircle2,
   Radio,
   Zap,
   Shield,
+  Gift,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { matchApi, notificationApi } from '../../services/api';
+import { matchApi, notificationApi, seasonPassApi } from '../../services/api';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
+import Toast from '../common/Toast';
 
 function formatMatchDate(dateString) {
   if (!dateString) return { dateStr: '۳۰ مرداد ۱۴۰۵', timeStr: '۱۴:۰۰' };
@@ -39,6 +42,9 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
   const [recentMatches, setRecentMatches] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [allStandings, setAllStandings] = useState([]);
+  const [activeSeasonTasks, setActiveSeasonTasks] = useState([]);
+  const [taskToast, setTaskToast] = useState('');
+  const [claimingTaskId, setClaimingTaskId] = useState(null);
   const [_loadingData, setLoadingData] = useState(true);
 
   const teamId = teamData?.id;
@@ -69,6 +75,21 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
     return () => clearInterval(timer);
   }, []);
 
+  const handleClaimHomeTask = async (taskProgressId, rewardXp = 56) => {
+    setClaimingTaskId(taskProgressId);
+    try {
+      await seasonPassApi.claimTask(taskProgressId);
+      setTaskToast(`امتیاز تسک دریافت شد (+${rewardXp} XP به سیزن پس) 🎉`);
+      const passRes = await seasonPassApi.getStatus();
+      setActiveSeasonTasks(passRes.data?.weekly_tasks || []);
+    } catch (err) {
+      setTaskToast(err.response?.data?.error || 'خطا در دریافت امتیاز تسک');
+    } finally {
+      setClaimingTaskId(null);
+      setTimeout(() => setTaskToast(''), 3500);
+    }
+  };
+
   useEffect(() => {
     async function loadDashboardData() {
       setLoadingData(true);
@@ -95,6 +116,14 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
         // 4. Fetch Full Standings
         const standRes = await matchApi.getLeagueStandings();
         setAllStandings(standRes.data || []);
+
+        // 5. Fetch Season Pass Active Tasks
+        try {
+          const passRes = await seasonPassApi.getStatus();
+          setActiveSeasonTasks(passRes.data?.weekly_tasks || []);
+        } catch (passErr) {
+          console.error('Failed to load season pass tasks:', passErr);
+        }
       } catch (err) {
         console.error('Failed to load dashboard home data:', err);
       } finally {
@@ -349,7 +378,7 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
           </div>
         </motion.div>
 
-        {/* Daily / Season Tasks */}
+        {/* Daily & Season Pass Active Missions */}
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -359,21 +388,112 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
           <div className="flex items-center justify-between mb-3 border-b border-slate-700/50 pb-2">
             <div className="flex items-center gap-2 text-xs font-black text-white">
               <Flame size={16} className="text-amber-400" />
-              <span>ماموریت‌های فصلی مربی</span>
+              <span>ماموریت‌های فعال سیزن پس</span>
             </div>
-            <span className="text-[10px] text-amber-300 bg-amber-950/60 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-sport font-black">
-              SEASON 01
-            </span>
+            <button
+              onClick={() => onNavigateTab?.('store', 'pass')}
+              className="text-[10px] text-amber-300 bg-amber-950/60 hover:bg-amber-900/80 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-sport font-black transition-all cursor-pointer flex items-center gap-1"
+            >
+              <span>SEASON PASS</span>
+              <ChevronLeft size={12} />
+            </button>
           </div>
 
-          <div className="py-5 px-3 text-center rounded-2xl bg-[#05080e]/60 border border-slate-700/50 text-xs text-slate-300 space-y-1.5 my-auto">
-            <span className="font-black text-amber-300 block font-sport">✨ ACTIVE SEASON PASS MISSIONS</span>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              ماموریت‌های هفتگی و جوایز امتیازی سیزن پس به زودی با آغاز مسابقات فعال خواهند شد.
-            </p>
+          <div className="space-y-2 text-xs max-h-36 overflow-y-auto custom-scrollbar pr-1">
+            {(activeSeasonTasks || []).length === 0 ? (
+              <div className="py-6 text-center text-slate-500">
+                ماموریت جدیدی در حال حاضر فعال نیست.
+              </div>
+            ) : (
+              (activeSeasonTasks || [])
+                .slice()
+                .sort((a, b) => {
+                  // Put completed but unclaimed first, then in-progress, then claimed
+                  if (a.is_completed && !a.is_claimed) return -1;
+                  if (b.is_completed && !b.is_claimed) return 1;
+                  if (!a.is_claimed && b.is_claimed) return -1;
+                  if (a.is_claimed && !b.is_claimed) return 1;
+                  return 0;
+                })
+                .slice(0, 3)
+                .map((task) => {
+                  if (!task) return null;
+                  const taskObj = task.task || {};
+                  const title = String(taskObj.title || 'ماموریت فصلی');
+                  const curVal = Number(task.current_value || 0);
+                  const targetVal = Number(taskObj.target_value || 1);
+                  const rewardXp = Number(taskObj.reward_xp || 56);
+                  const isCompleted = Boolean(task.is_completed);
+                  const isClaimed = Boolean(task.is_claimed);
+                  const pct = Math.min(100, Math.round((curVal / Math.max(1, targetVal)) * 100));
+
+                  return (
+                    <div
+                      key={task.id}
+                      className={`p-2.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                        isClaimed
+                          ? 'bg-[#05080e]/40 border-slate-800 text-slate-400'
+                          : isCompleted
+                          ? 'bg-gradient-to-r from-amber-950/60 to-purple-950/60 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                          : 'bg-[#05080e]/70 border-slate-700/60'
+                      }`}
+                    >
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-slate-200 text-xs truncate">{title}</span>
+                          <span className="text-[10px] font-sport text-cyan-300 font-bold shrink-0 mr-2">
+                            +{rewardXp} XP
+                          </span>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                            <div
+                              style={{ width: `${pct}%` }}
+                              className={`h-full rounded-full ${
+                                isCompleted
+                                  ? 'bg-gradient-to-r from-amber-400 to-yellow-300'
+                                  : 'bg-cyan-400'
+                              }`}
+                            />
+                          </div>
+                          <span className="text-[9.5px] text-slate-400 font-sport shrink-0">
+                            {curVal}/{targetVal}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Claim or Status Button */}
+                      <div className="shrink-0">
+                        {isClaimed ? (
+                          <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-0.5 bg-emerald-950/60 px-2 py-1 rounded-xl border border-emerald-500/30">
+                            <CheckCircle2 size={12} /> دریافت شد
+                          </span>
+                        ) : isCompleted ? (
+                          <button
+                            disabled={claimingTaskId === task.id}
+                            onClick={() => handleClaimHomeTask(task.id, rewardXp)}
+                            className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-300 hover:from-amber-300 hover:to-yellow-400 text-slate-950 font-black text-[10.5px] shadow-[0_0_12px_rgba(245,158,11,0.5)] cursor-pointer active:scale-95 transition-all flex items-center gap-1"
+                          >
+                            <Gift size={12} />
+                            <span>دریافت XP</span>
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 bg-slate-900 px-2 py-1 rounded-xl border border-slate-800">
+                            در جریان
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+            )}
           </div>
         </motion.div>
       </div>
+
+      <Toast message={taskToast} type="success" isVisible={Boolean(taskToast)} />
 
       {/* League Standings Summary (Championship Leaderboard Format) */}
       <motion.div

@@ -3,7 +3,7 @@ from users.models import User
 from economy.models import StorePackage, Transaction
 from core.models import GlobalSettings
 from audit.models import AdminAuditLog
-from gacha.models import GachaPack, GachaPity, PackOpeningLog
+from gacha.models import Pack, PackPlayer, PackOpeningSession
 from matches.models import Season, Tournament, Match, MatchEvent, PlayerMatchStat, LiveSubstitutionRequest, MatchTeamStat, LeagueStanding
 from notifications.models import Notification
 from realtime.models import AdminNotification
@@ -23,9 +23,9 @@ TransactionSerializer = create_model_serializer(Transaction)
 GlobalSettingsSerializer = create_model_serializer(GlobalSettings)
 AdminAuditLogSerializer = create_model_serializer(AdminAuditLog)
 
-GachaPackSerializer = create_model_serializer(GachaPack)
-GachaPitySerializer = create_model_serializer(GachaPity)
-PackOpeningLogSerializer = create_model_serializer(PackOpeningLog)
+PackSerializer = create_model_serializer(Pack)
+PackPlayerSerializer = create_model_serializer(PackPlayer)
+PackOpeningSessionSerializer = create_model_serializer(PackOpeningSession)
 
 SeasonSerializer = create_model_serializer(Season)
 TournamentSerializer = create_model_serializer(Tournament)

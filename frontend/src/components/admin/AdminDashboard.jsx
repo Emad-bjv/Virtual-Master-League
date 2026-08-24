@@ -1,24 +1,33 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import SubNav from '../common/SubNav';
 import {
   ShieldAlert, Coins, RefreshCw, HeartPulse, Sliders, CheckCircle2, ArrowLeft,
   UserPlus, UserCheck, Building, Mail, Lock, Unlock, Info, DollarSign, Tv, PlusCircle,
   Calendar, Play, Pause, Square, AlertTriangle, Trophy, Star, Radio, Activity, Check,
   ChevronDown, ChevronRight, Eye, Flag, Trash2, Zap, Clock, Shield, Sparkles, Send,
-  Plus, Minus, ArrowLeftRight, Bell, CheckCircle, BarChart2, Award, User, X
+  Plus, Minus, ArrowLeftRight, Bell, CheckCircle, BarChart2, Award, User, X,
+  CreditCard, Gem, FileImage, UploadCloud, XCircle, Filter, Image, CheckCheck,
+  Edit2, Package, ToggleLeft, ToggleRight, Layers, Tag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import api, { adminApi, matchApi, teamApi } from '../../services/api';
+import api, { adminApi, matchApi, teamApi, economyApi } from '../../services/api';
 import EFootballGamePlan from '../team/EFootballGamePlan';
 import ErrorBoundary from '../common/ErrorBoundary';
 import CustomSelect from '../common/CustomSelect';
 import PostMatchComparisonCard from './PostMatchComparisonCard';
+import AdminTournamentHub from './AdminTournamentHub';
+import AdminPacksSeasonPassHub from './AdminPacksSeasonPassHub';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import { useTranslation } from 'react-i18next';
 
-const ADMIN_SUBNAV = [
+const DEFAULT_ADMIN_SUBNAV = [
   { id: 'overview', label: 'داشبورد ارشد' },
+  { id: 'transactions', label: 'مدیریت واریزی‌ها و تراکنش‌ها' },
+  { id: 'store_packages', label: 'مدیریت بسته‌های فروشگاه' },
   { id: 'live_admin', label: 'اتاق داوری و کنترل مسابقات' },
+  { id: 'tournament_hub', label: 'مدیریت لیگ و جام حذفی' },
+  { id: 'packs_season_pass', label: 'مدیریت پک‌ها و سیزن پس' },
   { id: 'match_team_stats', label: 'ثبت سریع آمار تیمی' },
   { id: 'match_player_ratings', label: 'ثبت سریع نمرات بازیکنان' },
   { id: 'register_coach', label: 'مدیریت و ثبت مربیان' },
@@ -151,6 +160,13 @@ export default function AdminDashboard({
 
   useEffect(() => {
     loadMatchesAndWeeks();
+    const handleSync = () => loadMatchesAndWeeks();
+    window.addEventListener('vml_league_schedule_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('vml_league_schedule_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
   }, []);
 
   // -------------------------------------------------------------
@@ -825,6 +841,187 @@ export default function AdminDashboard({
   };
 
   // -------------------------------------------------------------
+  // PAYMENT REQUESTS STATE (TRANSACTIONS MANAGEMENT)
+  // -------------------------------------------------------------
+  const [adminPayments, setAdminPayments] = useState([]);
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('ALL');
+  const [reviewingPayment, setReviewingPayment] = useState(null); // { payment, action: 'approve' | 'reject' }
+  const [adminReviewNote, setAdminReviewNote] = useState('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [adminViewReceipt, setAdminViewReceipt] = useState(null);
+
+  const fetchAdminPayments = useCallback(async () => {
+    setLoadingPayments(true);
+    try {
+      const params = paymentStatusFilter !== 'ALL' ? { status: paymentStatusFilter } : {};
+      const res = await economyApi.adminGetPaymentRequests(params);
+      setAdminPayments(res.data || []);
+    } catch (err) {
+      console.warn('Failed to load admin payment requests', err);
+      showNotification('خطا در دریافت لیست تراکنش‌ها', 'error');
+    } finally {
+      setLoadingPayments(false);
+    }
+  }, [paymentStatusFilter]);
+
+  useEffect(() => {
+    fetchAdminPayments();
+  }, [fetchAdminPayments]);
+
+  const handleAdminReviewSubmit = async () => {
+    if (!reviewingPayment) return;
+    const { payment, action } = reviewingPayment;
+    if (action === 'reject' && !adminReviewNote.trim()) {
+      showNotification('لطفاً دلیل رد درخواست را در بخش یادداشت وارد کنید.', 'error');
+      return;
+    }
+
+    setIsSubmittingReview(true);
+    try {
+      await economyApi.adminReviewPayment(payment.id, {
+        action,
+        admin_note: adminReviewNote.trim(),
+      });
+      showNotification(
+        action === 'approve'
+          ? `واریز با موفقیت تایید شد و به حساب تیم ${payment.team_name || ''} اعمال گردید!`
+          : `درخواست واریز تیم ${payment.team_name || ''} با موفقیت رد شد.`
+      );
+      setReviewingPayment(null);
+      setAdminReviewNote('');
+      fetchAdminPayments();
+    } catch (err) {
+      showNotification(err.response?.data?.error || 'خطا در ثبت بررسی ادمین', 'error');
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
+  const pendingPaymentsCount = useMemo(() => {
+    return (adminPayments || []).filter((p) => p && p.status === 'PENDING_REVIEW').length;
+  }, [adminPayments]);
+
+  // -------------------------------------------------------------
+  // STORE PACKAGES STATE (DIAMONDS & DOLLARS MANAGEMENT)
+  // -------------------------------------------------------------
+  const [adminPackages, setAdminPackages] = useState([]);
+  const [loadingAdminPackages, setLoadingAdminPackages] = useState(false);
+  const [packageFilter, setPackageFilter] = useState('ALL'); // 'ALL' | 'GEMS' | 'BUDGET' | 'ACTIVE' | 'INACTIVE'
+  const [editingPackage, setEditingPackage] = useState(null); // form object or null
+  const [isSavingPackage, setIsSavingPackage] = useState(false);
+  const [isTogglingPackageId, setIsTogglingPackageId] = useState(null);
+  const [deletingPackage, setDeletingPackage] = useState(null);
+
+  const fetchAdminPackages = useCallback(async () => {
+    setLoadingAdminPackages(true);
+    try {
+      const res = await economyApi.adminGetAllPackages();
+      setAdminPackages(res.data || []);
+    } catch (err) {
+      console.warn('Failed to load admin store packages', err);
+      showNotification('خطا در دریافت لیست بسته‌های فروشگاه', 'error');
+    } finally {
+      setLoadingAdminPackages(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAdminPackages();
+  }, [fetchAdminPackages]);
+
+  const handleTogglePackage = async (pkg) => {
+    if (!pkg?.id) return;
+    setIsTogglingPackageId(pkg.id);
+    try {
+      const res = await economyApi.adminTogglePackage(pkg.id);
+      showNotification(res.data?.message || 'وضعیت بسته تغییر یافت.');
+      fetchAdminPackages();
+    } catch (err) {
+      showNotification(err.response?.data?.error || 'خطا در تغییر وضعیت بسته', 'error');
+    } finally {
+      setIsTogglingPackageId(null);
+    }
+  };
+
+  const handleSavePackage = async (e) => {
+    if (e) e.preventDefault();
+    if (!editingPackage) return;
+    if (!editingPackage.name?.trim()) {
+      showNotification('لطفاً نام بسته را وارد کنید.', 'error');
+      return;
+    }
+    if (!editingPackage.reward_amount || Number(editingPackage.reward_amount) <= 0) {
+      showNotification('لطفاً مقدار ارز اعطایی معتبر وارد کنید.', 'error');
+      return;
+    }
+    if (!editingPackage.price_irr || Number(editingPackage.price_irr) <= 0) {
+      showNotification('لطفاً قیمت به تومان معتبر وارد کنید.', 'error');
+      return;
+    }
+
+    setIsSavingPackage(true);
+    try {
+      const payload = {
+        name: editingPackage.name.trim(),
+        currency_type: editingPackage.currency_type || 'GEMS',
+        reward_amount: Number(editingPackage.reward_amount),
+        bonus_amount: Number(editingPackage.bonus_amount || 0),
+        price_irr: Number(editingPackage.price_irr),
+        description: editingPackage.description?.trim() || '',
+        icon_code: editingPackage.icon_code?.trim() || '',
+        sort_order: Number(editingPackage.sort_order || 0),
+        is_active: editingPackage.is_active !== false,
+      };
+
+      if (editingPackage.id) {
+        await economyApi.adminUpdatePackage(editingPackage.id, payload);
+        showNotification(`بسته «${payload.name}» با موفقیت ویرایش شد.`);
+      } else {
+        await economyApi.adminCreatePackage(payload);
+        showNotification(`بسته جدید «${payload.name}» با موفقیت ساخته شد.`);
+      }
+
+      setEditingPackage(null);
+      fetchAdminPackages();
+    } catch (err) {
+      showNotification(err.response?.data?.error || 'خطا در ذخیره بسته', 'error');
+    } finally {
+      setIsSavingPackage(false);
+    }
+  };
+
+  const handleDeletePackageConfirm = async () => {
+    if (!deletingPackage?.id) return;
+    setIsSavingPackage(true);
+    try {
+      const res = await economyApi.adminDeletePackage(deletingPackage.id);
+      showNotification(res.data?.message || 'بسته غیرفعال شد.');
+      setDeletingPackage(null);
+      fetchAdminPackages();
+    } catch (err) {
+      showNotification(err.response?.data?.error || 'خطا در غیرفعال‌سازی بسته', 'error');
+    } finally {
+      setIsSavingPackage(false);
+    }
+  };
+
+  const adminSubnavItems = useMemo(() => {
+    return [
+      { id: 'overview', label: 'داشبورد ارشد' },
+      { id: 'transactions', label: 'مدیریت واریزی‌ها و تراکنش‌ها', badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : null },
+      { id: 'store_packages', label: 'مدیریت بسته‌های فروشگاه' },
+      { id: 'live_admin', label: 'اتاق داوری و کنترل مسابقات' },
+      { id: 'tournament_hub', label: 'مدیریت لیگ و جام حذفی' },
+      { id: 'packs_season_pass', label: 'مدیریت پک‌ها و سیزن پس' },
+      { id: 'match_team_stats', label: 'ثبت سریع آمار تیمی' },
+      { id: 'match_player_ratings', label: 'ثبت سریع نمرات بازیکنان' },
+      { id: 'register_coach', label: 'مدیریت و ثبت مربیان' },
+      { id: 'audit_logs', label: 'گزارش تغییرات سیستم' },
+    ];
+  }, [pendingPaymentsCount]);
+
+  // -------------------------------------------------------------
   // AUDIT LOGS STATE (SUBTAB 6)
   // -------------------------------------------------------------
   const [auditLogs, setAuditLogs] = useState([]);
@@ -853,7 +1050,7 @@ export default function AdminDashboard({
   return (
     <div className="space-y-4 pb-20 font-sans dir-rtl text-slate-200">
       {/* Sub Navigation Bar */}
-      <SubNav items={ADMIN_SUBNAV} activeId={activeSub} onChange={setActiveSub} />
+      <SubNav items={adminSubnavItems} activeId={activeSub} onChange={setActiveSub} />
 
       {/* Global Admin Toast Notification */}
       <AnimatePresence>
@@ -938,6 +1135,556 @@ export default function AdminDashboard({
               </button>
             </div>
           </div>
+        </motion.div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUBTAB: TRANSACTIONS & CARD-TO-CARD PAYMENT REQUESTS                      */}
+      {/* ========================================================================= */}
+      {activeSub === 'transactions' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 text-xs">
+          {/* Header & KPI Summary Cards */}
+          <div className="glass-panel p-5 rounded-3xl border border-cyan-500/40 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950/40 space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-slate-950 shadow-[0_0_20px_rgba(6,182,212,0.4)] shrink-0">
+                  <CreditCard size={24} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-base flex items-center gap-2">
+                    <span>مدیریت واریزی‌ها و درخواست‌های خرید</span>
+                    {pendingPaymentsCount > 0 && (
+                      <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-sport font-bold animate-pulse">
+                        {pendingPaymentsCount} در انتظار بررسی
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    بررسی فیش‌های کارت‌به‌کارت واریزی کاربران، تایید شارژ جم یا بودجه دلاری و رد درخواست‌های نامعتبر
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={fetchAdminPayments}
+                  disabled={loadingPayments}
+                  className="px-3 py-2 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-cyan-500/50 text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-md active:scale-95"
+                >
+                  <RefreshCw size={14} className={`text-cyan-400 ${loadingPayments ? 'animate-spin' : ''}`} />
+                  <span>بروزرسانی لیست</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-800/80">
+              <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
+                <span className="text-[11px] text-slate-400 block">کل درخواست‌ها:</span>
+                <span className="text-xl font-black text-white font-sport">
+                  {(adminPayments || []).length}
+                </span>
+              </div>
+              <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/40 space-y-1 shadow-[0_0_15px_rgba(245,158,11,0.15)]">
+                <span className="text-[11px] text-amber-300 block">در انتظار بررسی:</span>
+                <span className="text-xl font-black text-amber-400 font-sport">
+                  {pendingPaymentsCount}
+                </span>
+              </div>
+              <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 space-y-1">
+                <span className="text-[11px] text-emerald-300 block">تایید شده:</span>
+                <span className="text-xl font-black text-emerald-400 font-sport">
+                  {(adminPayments || []).filter((p) => p && p.status === 'APPROVED').length}
+                </span>
+              </div>
+              <div className="p-3 rounded-2xl bg-rose-950/40 border border-rose-500/40 space-y-1">
+                <span className="text-[11px] text-rose-300 block">رد شده:</span>
+                <span className="text-xl font-black text-rose-400 font-sport">
+                  {(adminPayments || []).filter((p) => p && p.status === 'REJECTED').length}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Status Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {[
+              { id: 'ALL', label: 'همه تراکنش‌ها' },
+              { id: 'PENDING_REVIEW', label: `منتظر بررسی ادمین (${pendingPaymentsCount})` },
+              { id: 'AWAITING_RECEIPT', label: 'در انتظار ارسال فیش' },
+              { id: 'APPROVED', label: 'تایید شده' },
+              { id: 'REJECTED', label: 'رد شده' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setPaymentStatusFilter(tab.id)}
+                className={`px-3.5 py-1.5 rounded-2xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  paymentStatusFilter === tab.id
+                    ? 'bg-cyan-500 text-slate-950 shadow-[0_0_15px_rgba(6,182,212,0.4)]'
+                    : 'bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Payment Requests List */}
+          {loadingPayments ? (
+            <div className="p-12 text-center text-slate-400 glass-panel rounded-3xl border border-slate-800 space-y-2">
+              <RefreshCw size={24} className="mx-auto text-cyan-400 animate-spin" />
+              <p className="text-xs font-bold">در حال دریافت لیست درخواست‌های واریز...</p>
+            </div>
+          ) : (adminPayments || []).length === 0 ? (
+            <div className="p-12 text-center text-slate-400 glass-panel rounded-3xl border border-slate-800 space-y-2">
+              <CreditCard size={32} className="mx-auto text-slate-600" />
+              <p className="font-bold text-slate-300">هیچ درخواست پرداختی در این وضعیت یافت نشد.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {(adminPayments || []).map((req) => {
+                if (!req) return null;
+                const isPending = req.status === 'PENDING_REVIEW';
+                const isApproved = req.status === 'APPROVED';
+                const isRejected = req.status === 'REJECTED';
+                const isAwaiting = req.status === 'AWAITING_RECEIPT';
+                const rewardAmt = req.reward_amount || req.usd_amount || 0;
+                const isGem = req.currency_type === 'GEMS';
+
+                return (
+                  <div
+                    key={req.id}
+                    className={`glass-panel p-4 rounded-3xl border transition-all space-y-3 relative overflow-hidden ${
+                      isPending
+                        ? 'border-amber-500/60 bg-gradient-to-b from-amber-950/30 via-slate-900 to-slate-950 shadow-[0_0_20px_rgba(245,158,11,0.15)]'
+                        : isApproved
+                        ? 'border-emerald-500/40 bg-gradient-to-b from-emerald-950/20 via-slate-900 to-slate-950'
+                        : isRejected
+                        ? 'border-rose-500/40 bg-gradient-to-b from-rose-950/20 via-slate-900 to-slate-950'
+                        : 'border-slate-800 bg-slate-900/70'
+                    }`}
+                  >
+                    {/* Top Row: Team & Status */}
+                    <div className="flex justify-between items-start border-b border-slate-800/80 pb-2.5">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+                          {getTeamLogoUrl(req.team_name) ? (
+                            <img
+                              src={getTeamLogoUrl(req.team_name)}
+                              alt={String(req.team_name || '')}
+                              className="w-8 h-8 object-contain"
+                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                            />
+                          ) : (
+                            <Building size={20} className="text-cyan-400" />
+                          )}
+                        </div>
+                        <div>
+                          <strong className="text-white font-bold text-sm block">
+                            {String(req.team_name || 'تیم ناشناس')}
+                          </strong>
+                          <span className="text-[10px] text-slate-400 font-sport">
+                            شناسه: #{req.id} • {req.created_at ? new Date(req.created_at).toLocaleDateString('fa-IR') + ' ' + new Date(req.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Status Badge */}
+                      <div>
+                        {isPending && (
+                          <span className="text-amber-300 font-bold flex items-center gap-1 bg-amber-500/20 px-2.5 py-1 rounded-xl border border-amber-500/40 text-[10px] animate-pulse">
+                            <Clock size={12} /> در انتظار تایید
+                          </span>
+                        )}
+                        {isApproved && (
+                          <span className="text-emerald-300 font-bold flex items-center gap-1 bg-emerald-500/20 px-2.5 py-1 rounded-xl border border-emerald-500/40 text-[10px]">
+                            <CheckCircle size={12} /> تایید شده
+                          </span>
+                        )}
+                        {isRejected && (
+                          <span className="text-rose-300 font-bold flex items-center gap-1 bg-rose-500/20 px-2.5 py-1 rounded-xl border border-rose-500/40 text-[10px]">
+                            <XCircle size={12} /> رد شده
+                          </span>
+                        )}
+                        {isAwaiting && (
+                          <span className="text-cyan-300 font-bold flex items-center gap-1 bg-cyan-500/20 px-2.5 py-1 rounded-xl border border-cyan-500/40 text-[10px]">
+                            <UploadCloud size={12} /> منتظر ارسال فیش
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Middle Row: Package Info & Amount */}
+                    <div className="grid grid-cols-2 gap-2 bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800/80">
+                      <div>
+                        <span className="text-slate-400 text-[10px] block">بسته درخواستی:</span>
+                        <span className="font-bold text-white text-xs block">{String(req.package_name || 'بسته شارژ')}</span>
+                        <span className={`text-[11px] font-black font-sport dir-ltr inline-block mt-0.5 ${isGem ? 'text-cyan-400' : 'text-amber-400'}`}>
+                          {isGem ? `+${Number(rewardAmt).toLocaleString('fa-IR')} 💎 الماس` : `+$${Number(rewardAmt).toLocaleString('fa-IR')} USD`}
+                        </span>
+                      </div>
+                      <div className="text-left">
+                        <span className="text-slate-400 text-[10px] block">مبلغ واریزی:</span>
+                        <strong className="text-amber-400 font-black text-sm dir-ltr font-sport block">
+                          {(req.amount_irr || 0).toLocaleString('fa-IR')} تومان
+                        </strong>
+                      </div>
+                    </div>
+
+                    {/* Admin Note if already reviewed */}
+                    {req.admin_note && (
+                      <div className="p-2 rounded-xl bg-slate-950 border border-slate-800 text-[10.5px] text-slate-300">
+                        <span className="text-slate-500 block text-[9.5px]">یادداشت بررسی ادمین:</span>
+                        <span>{req.admin_note}</span>
+                      </div>
+                    )}
+
+                    {/* Bottom Actions Row */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                      {/* Receipt Image Button */}
+                      {req.receipt_image ? (
+                        <button
+                          onClick={() => setAdminViewReceipt(req.receipt_image)}
+                          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-bold flex items-center gap-1.5 border border-slate-700 hover:border-cyan-500/40 transition-all cursor-pointer"
+                        >
+                          <Eye size={14} />
+                          <span>مشاهده فیش واریز</span>
+                        </button>
+                      ) : (
+                        <span className="text-slate-500 text-[10px] italic">فیش ارسال نشده</span>
+                      )}
+
+                      {/* Review Action Buttons */}
+                      {(isPending || isAwaiting) && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              setReviewingPayment({ payment: req, action: 'reject' });
+                              setAdminReviewNote('');
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-500/40 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                          >
+                            <XCircle size={13} />
+                            <span>رد</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setReviewingPayment({ payment: req, action: 'approve' });
+                              setAdminReviewNote('');
+                            }}
+                            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-[11px] font-black flex items-center gap-1.5 shadow-md cursor-pointer transition-all active:scale-95"
+                          >
+                            <CheckCircle2 size={14} />
+                            <span>تایید و شارژ حساب</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUBTAB: STORE PACKAGES MANAGEMENT (GEMS & DOLLARS)                        */}
+      {/* ========================================================================= */}
+      {activeSub === 'store_packages' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 text-xs">
+          {/* Header & KPI Summary Cards */}
+          <div className="glass-panel p-5 rounded-3xl border border-indigo-500/40 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-cyan-500 flex items-center justify-center text-slate-950 shadow-[0_0_20px_rgba(99,102,241,0.4)] shrink-0">
+                  <Package size={24} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-base flex items-center gap-2">
+                    <span>مدیریت بسته‌های فروشگاه (الماس 💎 و دلار 💵)</span>
+                    <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded-full font-sport font-bold">
+                      {(adminPackages || []).length} بسته
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    تعریف بسته‌های شارژ جدید، تغییر نرخ قیمت‌ها، مدیریت بونوس‌های هدیه و فعال‌سازی/غیرفعال‌سازی سریع
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() =>
+                    setEditingPackage({
+                      id: null,
+                      name: '',
+                      currency_type: 'GEMS',
+                      reward_amount: 100,
+                      bonus_amount: 0,
+                      price_irr: 49000,
+                      is_active: true,
+                      description: '',
+                      icon_code: '',
+                      sort_order: (adminPackages || []).length + 1,
+                    })
+                  }
+                  className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.35)] transition-all active:scale-95"
+                >
+                  <Plus size={16} />
+                  <span>افزودن بسته جدید</span>
+                </button>
+                <button
+                  onClick={fetchAdminPackages}
+                  disabled={loadingAdminPackages}
+                  className="px-3 py-2 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-indigo-500/50 text-slate-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-md active:scale-95"
+                >
+                  <RefreshCw size={14} className={`text-indigo-400 ${loadingAdminPackages ? 'animate-spin' : ''}`} />
+                  <span>بروزرسانی</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick KPI Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-800/80">
+              <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1">
+                <span className="text-[11px] text-slate-400 block">کل بسته‌های ثبت‌شده:</span>
+                <span className="text-xl font-black text-white font-sport">
+                  {(adminPackages || []).length}
+                </span>
+              </div>
+              <div className="p-3 rounded-2xl bg-cyan-950/40 border border-cyan-500/40 space-y-1 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
+                <span className="text-[11px] text-cyan-300 block">بسته‌های الماس (💎):</span>
+                <span className="text-xl font-black text-cyan-400 font-sport">
+                  {(adminPackages || []).filter((p) => p && p.currency_type === 'GEMS').length}
+                </span>
+              </div>
+              <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 space-y-1">
+                <span className="text-[11px] text-emerald-300 block">بسته‌های دلاری (💵):</span>
+                <span className="text-xl font-black text-emerald-400 font-sport">
+                  {(adminPackages || []).filter((p) => p && p.currency_type === 'BUDGET').length}
+                </span>
+              </div>
+              <div className="p-3 rounded-2xl bg-indigo-950/40 border border-indigo-500/40 space-y-1">
+                <span className="text-[11px] text-indigo-300 block">بسته‌های فعال در فروشگاه:</span>
+                <span className="text-xl font-black text-indigo-400 font-sport">
+                  {(adminPackages || []).filter((p) => p && p.is_active).length}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Filter Status Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {[
+              { id: 'ALL', label: `همه بسته‌ها (${(adminPackages || []).length})` },
+              { id: 'GEMS', label: `الماس 💎 (${(adminPackages || []).filter((p) => p && p.currency_type === 'GEMS').length})` },
+              { id: 'BUDGET', label: `بودجه دلاری 💵 (${(adminPackages || []).filter((p) => p && p.currency_type === 'BUDGET').length})` },
+              { id: 'ACTIVE', label: `فقط فعال‌ها 🟢 (${(adminPackages || []).filter((p) => p && p.is_active).length})` },
+              { id: 'INACTIVE', label: `فقط غیرفعال‌ها 🔴 (${(adminPackages || []).filter((p) => p && !p.is_active).length})` },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setPackageFilter(tab.id)}
+                className={`px-3.5 py-1.5 rounded-2xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  packageFilter === tab.id
+                    ? 'bg-indigo-600 text-white shadow-[0_0_15px_rgba(99,102,241,0.4)]'
+                    : 'bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Packages Table / Grid */}
+          {loadingAdminPackages ? (
+            <div className="p-12 text-center text-slate-400 glass-panel rounded-3xl border border-slate-800 space-y-2">
+              <RefreshCw size={24} className="mx-auto text-indigo-400 animate-spin" />
+              <p className="text-xs font-bold">در حال دریافت لیست بسته‌های فروشگاه...</p>
+            </div>
+          ) : (adminPackages || []).length === 0 ? (
+            <div className="p-12 text-center text-slate-400 glass-panel rounded-3xl border border-slate-800 space-y-2">
+              <Package size={32} className="mx-auto text-slate-600" />
+              <p className="font-bold text-slate-300">هیچ بسته‌ای در دیتابیس ثبت نشده است.</p>
+              <button
+                onClick={() =>
+                  setEditingPackage({
+                    id: null,
+                    name: '',
+                    currency_type: 'GEMS',
+                    reward_amount: 100,
+                    bonus_amount: 0,
+                    price_irr: 49000,
+                    is_active: true,
+                    description: '',
+                    icon_code: '',
+                    sort_order: 1,
+                  })
+                }
+                className="mt-2 px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs inline-flex items-center gap-1"
+              >
+                <Plus size={14} /> ساخت اولین بسته
+              </button>
+            </div>
+          ) : (
+            <div className="glass-panel rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-right border-collapse">
+                  <thead>
+                    <tr className="bg-slate-950/80 border-b border-slate-800 text-slate-400 font-bold text-[11px]">
+                      <th className="p-3.5 w-14 text-center">ترتیب</th>
+                      <th className="p-3.5">عنوان و توضیحات بسته</th>
+                      <th className="p-3.5">نوع ارز</th>
+                      <th className="p-3.5">ارز اصلی</th>
+                      <th className="p-3.5">بونوس هدیه</th>
+                      <th className="p-3.5">قیمت (تومان)</th>
+                      <th className="p-3.5 text-center">وضعیت</th>
+                      <th className="p-3.5 text-center">عملیات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {(adminPackages || [])
+                      .filter((p) => {
+                        if (!p) return false;
+                        if (packageFilter === 'GEMS') return p.currency_type === 'GEMS';
+                        if (packageFilter === 'BUDGET') return p.currency_type === 'BUDGET';
+                        if (packageFilter === 'ACTIVE') return p.is_active;
+                        if (packageFilter === 'INACTIVE') return !p.is_active;
+                        return true;
+                      })
+                      .map((pkg) => {
+                        const isGem = pkg.currency_type === 'GEMS';
+                        const isToggling = isTogglingPackageId === pkg.id;
+
+                        return (
+                          <tr
+                            key={pkg.id}
+                            className={`transition-colors ${
+                              pkg.is_active
+                                ? 'hover:bg-slate-900/60'
+                                : 'bg-slate-950/40 opacity-60 hover:opacity-90'
+                            }`}
+                          >
+                            {/* Sort Order */}
+                            <td className="p-3.5 text-center">
+                              <span className="font-mono text-xs font-bold text-slate-500 bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-800">
+                                #{pkg.sort_order || 0}
+                              </span>
+                            </td>
+
+                            {/* Name & Description */}
+                            <td className="p-3.5">
+                              <div className="flex items-center gap-2.5">
+                                <div
+                                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                                    isGem
+                                      ? 'bg-cyan-950/80 border-cyan-500/40 text-cyan-400 shadow-[0_0_10px_rgba(6,182,212,0.2)]'
+                                      : 'bg-emerald-950/80 border-emerald-500/40 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
+                                  }`}
+                                >
+                                  {isGem ? <Gem size={18} /> : <DollarSign size={18} />}
+                                </div>
+                                <div>
+                                  <strong className="text-white font-bold text-xs block">
+                                    {String(pkg.name || 'بدون عنوان')}
+                                  </strong>
+                                  {pkg.description ? (
+                                    <span className="text-[10px] text-slate-400 line-clamp-1 block">
+                                      {pkg.description}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-600 block">بدون توضیحات</span>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Currency Type */}
+                            <td className="p-3.5">
+                              {isGem ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                                  <Gem size={11} /> الماس (جم)
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                  <DollarSign size={11} /> بودجه دلار
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Main Reward */}
+                            <td className="p-3.5">
+                              <span className="font-bold text-white font-sport text-xs dir-ltr inline-block">
+                                {isGem
+                                  ? `+${Number(pkg.reward_amount || pkg.usd_amount || 0).toLocaleString('fa-IR')} 💎`
+                                  : `+$${Number(pkg.reward_amount || pkg.usd_amount || 0).toLocaleString('fa-IR')}`}
+                              </span>
+                            </td>
+
+                            {/* Bonus Amount */}
+                            <td className="p-3.5">
+                              {Number(pkg.bonus_amount || 0) > 0 ? (
+                                <span className="font-sport font-bold text-amber-300 bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-lg text-[10.5px] dir-ltr inline-block animate-pulse">
+                                  +{Number(pkg.bonus_amount).toLocaleString('fa-IR')} هدیه
+                                </span>
+                              ) : (
+                                <span className="text-slate-600 text-[11px]">—</span>
+                              )}
+                            </td>
+
+                            {/* Price (Toman) */}
+                            <td className="p-3.5">
+                              <strong className="text-amber-400 font-bold text-xs font-sport dir-ltr inline-block">
+                                {Number(pkg.price_irr || 0).toLocaleString('fa-IR')} تومان
+                              </strong>
+                            </td>
+
+                            {/* Is Active Toggle */}
+                            <td className="p-3.5 text-center">
+                              <button
+                                onClick={() => handleTogglePackage(pkg)}
+                                disabled={isToggling}
+                                className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors cursor-pointer focus:outline-none ${
+                                  pkg.is_active ? 'bg-emerald-500' : 'bg-slate-700'
+                                }`}
+                                title={pkg.is_active ? 'کلیک برای غیرفعال‌سازی' : 'کلیک برای فعال‌سازی'}
+                              >
+                                <span
+                                  className={`inline-block w-4 h-4 transform bg-slate-950 rounded-full transition-transform ${
+                                    pkg.is_active ? 'translate-x-6' : 'translate-x-1'
+                                  }`}
+                                />
+                              </button>
+                            </td>
+
+                            {/* Actions */}
+                            <td className="p-3.5 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => setEditingPackage({ ...pkg })}
+                                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 hover:border-cyan-500/40 transition-all cursor-pointer"
+                                  title="ویرایش بسته"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button
+                                  onClick={() => setDeletingPackage(pkg)}
+                                  className="p-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-500/30 transition-all cursor-pointer"
+                                  title="غیرفعال‌سازی و حذف نرم"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </motion.div>
       )}
 
@@ -2213,6 +2960,34 @@ export default function AdminDashboard({
       )}
 
       {/* ========================================================================= */}
+      {/* SUBTAB: TOURNAMENT & CUP MANAGEMENT HUB                                  */}
+      {/* ========================================================================= */}
+      {activeSub === 'tournament_hub' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <AdminTournamentHub 
+            onNotification={showNotification}
+            onOpenRefereeRoom={(match) => {
+              if (match) {
+                setSelectedLiveMatch(match);
+                const gw = extractRoundNumber(match.round_name);
+                if (gw) setSelectedGameweek(`هفته ${gw}`);
+              }
+              setActiveSub('live_admin');
+            }}
+          />
+        </motion.div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUBTAB: PACKS & SEASON PASS HUB                                           */}
+      {/* ========================================================================= */}
+      {activeSub === 'packs_season_pass' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <AdminPacksSeasonPassHub />
+        </motion.div>
+      )}
+
+      {/* ========================================================================= */}
       {/* SUBTAB 3: QUICK MATCH TEAM STATS (Dropdown mode)                          */}
       {/* ========================================================================= */}
       {activeSub === 'match_team_stats' && (
@@ -2397,6 +3172,435 @@ export default function AdminDashboard({
             )}
           </div>
         </motion.div>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          Admin Payment Review Confirmation Modal (createPortal)
+      ────────────────────────────────────────────────────────────── */}
+      {typeof document !== 'undefined' && reviewingPayment && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto font-sans dir-rtl">
+          <div className="fixed inset-0" onClick={() => !isSubmittingReview && setReviewingPayment(null)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.92, y: 20 }}
+            className="relative z-10 w-full max-w-md my-auto glass-panel p-5 rounded-3xl border border-slate-700 space-y-4 text-xs bg-gradient-to-b from-[#0e1626] to-[#070b14] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <span className="font-bold text-white text-sm flex items-center gap-2">
+                {reviewingPayment.action === 'approve' ? (
+                  <>
+                    <CheckCircle size={18} className="text-emerald-400" />
+                    <span>تایید نهایی و واریز شارژ به حساب تیم</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle size={18} className="text-rose-400" />
+                    <span>رد درخواست واریز کاربر</span>
+                  </>
+                )}
+              </span>
+              <button
+                onClick={() => !isSubmittingReview && setReviewingPayment(null)}
+                className="text-slate-400 hover:text-white p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Target Payment Summary */}
+            <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-400">تیم درخواست‌دهنده:</span>
+                <strong className="text-white font-bold">{reviewingPayment.payment.team_name}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">بسته خریداری‌شده:</span>
+                <span className="text-cyan-300 font-bold">{reviewingPayment.payment.package_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">مبلغ واریزی:</span>
+                <strong className="text-amber-400 font-bold dir-ltr font-sport">
+                  {(reviewingPayment.payment.amount_irr || 0).toLocaleString('fa-IR')} تومان
+                </strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">ارز اعطایی پس از تایید:</span>
+                <strong className="text-emerald-400 font-bold dir-ltr font-sport">
+                  {reviewingPayment.payment.currency_type === 'GEMS'
+                    ? `+${reviewingPayment.payment.reward_amount || reviewingPayment.payment.usd_amount} 💎 الماس`
+                    : `+$${Number(reviewingPayment.payment.reward_amount || reviewingPayment.payment.usd_amount || 0).toLocaleString('fa-IR')} USD`}
+                </strong>
+              </div>
+            </div>
+
+            {/* Admin Note Input */}
+            <div className="space-y-1.5">
+              <label className="text-slate-300 font-bold block text-[11px]">
+                {reviewingPayment.action === 'reject'
+                  ? 'دلیل رد درخواست (برای کاربر نمایش داده می‌شود)*:'
+                  : 'یادداشت ادمین (اختیاری):'}
+              </label>
+              <textarea
+                value={adminReviewNote}
+                onChange={(e) => setAdminReviewNote(e.target.value)}
+                placeholder={
+                  reviewingPayment.action === 'reject'
+                    ? 'مثال: تصویر فیش خوانا نیست یا مبلغ واریز با بسته مطابقت ندارد.'
+                    : 'توضیحات تکمیلی تایید واریز...'
+                }
+                rows={3}
+                className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs placeholder:text-slate-500 focus:border-cyan-500 focus:outline-none"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setReviewingPayment(null)}
+                disabled={isSubmittingReview}
+                className="w-1/3 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold cursor-pointer transition-colors"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={handleAdminReviewSubmit}
+                disabled={isSubmittingReview}
+                className={`w-2/3 py-2.5 rounded-xl font-black transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                  reviewingPayment.action === 'approve'
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.4)]'
+                    : 'bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)]'
+                }`}
+              >
+                {isSubmittingReview ? (
+                  <RefreshCw size={14} className="animate-spin" />
+                ) : reviewingPayment.action === 'approve' ? (
+                  <CheckCircle size={14} />
+                ) : (
+                  <XCircle size={14} />
+                )}
+                <span>
+                  {isSubmittingReview
+                    ? 'در حال ثبت...'
+                    : reviewingPayment.action === 'approve'
+                    ? 'تایید قطعی و شارژ حساب'
+                    : 'رد درخواست واریز'}
+                </span>
+              </button>
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          Admin Full Receipt Preview Modal (createPortal)
+      ────────────────────────────────────────────────────────────── */}
+      {typeof document !== 'undefined' && adminViewReceipt && createPortal(
+        <div
+          onClick={() => setAdminViewReceipt(null)}
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md cursor-pointer overflow-y-auto"
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="relative z-10 max-w-lg max-h-[85vh] my-auto p-3 glass-panel rounded-3xl border border-slate-700 overflow-hidden bg-slate-950 space-y-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <FileImage size={15} className="text-cyan-400" />
+                <span>تصویر فیش واریز بانکی</span>
+              </span>
+              <button
+                onClick={() => setAdminViewReceipt(null)}
+                className="text-slate-400 hover:text-white text-xs px-2.5 py-1 bg-slate-800 rounded-lg cursor-pointer"
+              >
+                بستن ✕
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-auto rounded-2xl border border-slate-800">
+              <img
+                src={adminViewReceipt}
+                alt="Admin Receipt View"
+                className="w-full h-full object-contain"
+              />
+            </div>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          Admin Store Package Create / Edit Modal (createPortal)
+      ────────────────────────────────────────────────────────────── */}
+      {typeof document !== 'undefined' && editingPackage && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto font-sans dir-rtl">
+          <div className="fixed inset-0" onClick={() => !isSavingPackage && setEditingPackage(null)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.92, y: 20 }}
+            className="relative z-10 w-full max-w-xl my-auto glass-panel p-5 sm:p-6 rounded-3xl border border-indigo-500/50 space-y-4 text-xs bg-gradient-to-b from-[#0e1626] to-[#070b14] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+              <span className="font-bold text-white text-sm flex items-center gap-2">
+                <Package size={18} className="text-indigo-400" />
+                <span>{editingPackage.id ? 'ویرایش بسته فروشگاه' : 'ساخت بسته جدید فروشگاه'}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => !isSavingPackage && setEditingPackage(null)}
+                className="text-slate-400 hover:text-white p-1 cursor-pointer transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePackage} className="space-y-4">
+              {/* Package Name */}
+              <div className="space-y-1.5">
+                <label className="text-slate-300 font-bold block text-[11px]">
+                  عنوان و نام بسته*:
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingPackage.name}
+                  onChange={(e) => setEditingPackage({ ...editingPackage, name: e.target.value })}
+                  placeholder="مثال: کیسه جم ۱۰۰ عددی، بودجه ۱۰ هزار دلاری باشگاه"
+                  className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none"
+                />
+              </div>
+
+              {/* Currency Type Selection */}
+              <div className="space-y-1.5">
+                <label className="text-slate-300 font-bold block text-[11px]">
+                  نوع ارز اعطایی*:
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditingPackage({ ...editingPackage, currency_type: 'GEMS' })}
+                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                      editingPackage.currency_type === 'GEMS'
+                        ? 'bg-cyan-950/80 border-cyan-400 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.3)] font-bold'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900'
+                    }`}
+                  >
+                    <Gem size={16} />
+                    <span>الماس (جم 💎)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingPackage({ ...editingPackage, currency_type: 'BUDGET' })}
+                    className={`p-3 rounded-2xl border text-center transition-all cursor-pointer flex items-center justify-center gap-2 ${
+                      editingPackage.currency_type === 'BUDGET'
+                        ? 'bg-emerald-950/80 border-emerald-400 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.3)] font-bold'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900'
+                    }`}
+                  >
+                    <DollarSign size={16} />
+                    <span>بودجه باشگاه (دلار 💵)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Numeric Inputs Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-bold block text-[11px]">
+                    مقدار ارز اصلی*:
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={editingPackage.reward_amount}
+                    onChange={(e) => setEditingPackage({ ...editingPackage, reward_amount: e.target.value })}
+                    className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-sport text-xs focus:border-indigo-500 focus:outline-none dir-ltr"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-bold block text-[11px]">
+                    بونوس هدیه (اختیاری):
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingPackage.bonus_amount || 0}
+                    onChange={(e) => setEditingPackage({ ...editingPackage, bonus_amount: e.target.value })}
+                    className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-amber-300 font-sport text-xs focus:border-indigo-500 focus:outline-none dir-ltr"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-bold block text-[11px]">
+                    قیمت (تومان)*:
+                  </label>
+                  <input
+                    type="number"
+                    min="1000"
+                    step="1000"
+                    required
+                    value={editingPackage.price_irr}
+                    onChange={(e) => setEditingPackage({ ...editingPackage, price_irr: e.target.value })}
+                    className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-emerald-400 font-sport font-bold text-xs focus:border-indigo-500 focus:outline-none dir-ltr"
+                  />
+                </div>
+              </div>
+
+              {/* Description and Sort Order */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2 space-y-1">
+                  <label className="text-slate-300 font-bold block text-[11px]">
+                    توضیحات / بنر تبلیغاتی (اختیاری):
+                  </label>
+                  <input
+                    type="text"
+                    value={editingPackage.description || ''}
+                    onChange={(e) => setEditingPackage({ ...editingPackage, description: e.target.value })}
+                    placeholder="مثال: پرفروش‌ترین بسته ماه / ۲۰٪ تخفیف ویژه"
+                    className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-slate-300 font-bold block text-[11px]">
+                    ترتیب نمایش:
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingPackage.sort_order || 0}
+                    onChange={(e) => setEditingPackage({ ...editingPackage, sort_order: e.target.value })}
+                    className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-sport text-xs focus:border-indigo-500 focus:outline-none dir-ltr"
+                  />
+                </div>
+              </div>
+
+              {/* Is Active Checkbox */}
+              <label className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editingPackage.is_active !== false}
+                  onChange={(e) => setEditingPackage({ ...editingPackage, is_active: e.target.checked })}
+                  className="rounded border-slate-700 text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer"
+                />
+                <span className="text-slate-200 font-bold text-[11.5px]">
+                  بسته فعال باشد (در فروشگاه کاربران نمایش داده شود)
+                </span>
+              </label>
+
+              {/* Live Preview Card */}
+              <div className="p-3 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 border border-indigo-500/30 space-y-1.5">
+                <span className="text-[10px] text-indigo-300 font-bold block">پیش‌نمایش کارت در فروشگاه:</span>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${editingPackage.currency_type === 'GEMS' ? 'bg-cyan-950 text-cyan-400' : 'bg-emerald-950 text-emerald-400'}`}>
+                      {editingPackage.currency_type === 'GEMS' ? <Gem size={16} /> : <DollarSign size={16} />}
+                    </div>
+                    <div>
+                      <strong className="text-white text-xs block">{editingPackage.name || 'نام بسته'}</strong>
+                      <span className="text-[10.5px] text-cyan-300 font-sport dir-ltr block">
+                        {editingPackage.currency_type === 'GEMS'
+                          ? `+${Number(editingPackage.reward_amount || 0).toLocaleString('fa-IR')} 💎 الماس`
+                          : `+$${Number(editingPackage.reward_amount || 0).toLocaleString('fa-IR')} USD`}
+                        {Number(editingPackage.bonus_amount || 0) > 0 && ` (+${Number(editingPackage.bonus_amount).toLocaleString('fa-IR')} هدیه)`}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-left">
+                    <span className="text-amber-400 font-bold text-xs font-sport dir-ltr block">
+                      {Number(editingPackage.price_irr || 0).toLocaleString('fa-IR')} تومان
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingPackage(null)}
+                  disabled={isSavingPackage}
+                  className="w-1/3 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold cursor-pointer transition-colors"
+                >
+                  انصراف
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingPackage}
+                  className="w-2/3 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-cyan-500 text-white font-black shadow-[0_0_15px_rgba(99,102,241,0.4)] hover:opacity-95 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {isSavingPackage ? <RefreshCw size={14} className="animate-spin" /> : <Check size={16} />}
+                  <span>{isSavingPackage ? 'در حال ذخیره‌سازی...' : editingPackage.id ? 'ذخیره تغییرات بسته' : 'ساخت و انتشار بسته'}</span>
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────
+          Admin Store Package Soft-Delete Confirmation Modal (createPortal)
+      ────────────────────────────────────────────────────────────── */}
+      {typeof document !== 'undefined' && deletingPackage && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto font-sans dir-rtl">
+          <div className="fixed inset-0" onClick={() => !isSavingPackage && setDeletingPackage(null)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.92, y: 20 }}
+            className="relative z-10 w-full max-w-sm my-auto glass-panel p-5 rounded-3xl border border-rose-500/50 space-y-4 text-xs bg-gradient-to-b from-[#0e1626] to-[#070b14] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2.5 text-rose-400 border-b border-slate-800 pb-3">
+              <div className="p-2 rounded-xl bg-rose-950/80 border border-rose-500/40">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h4 className="font-bold text-white text-sm">غیرفعال‌سازی بسته فروشگاه</h4>
+                <span className="text-[10px] text-slate-400">حذف نرم و پنهان‌سازی از دید کاربران</span>
+              </div>
+            </div>
+
+            <p className="text-slate-300 leading-relaxed text-xs">
+              آیا از غیرفعال‌سازی بسته <strong className="text-white">«{deletingPackage.name}»</strong> اطمینان دارید؟
+              این بسته از لیست فروشگاه کاربران خارج خواهد شد، اما تاریخچه تراکنش‌های گذشته محفوظ می‌ماند.
+            </p>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setDeletingPackage(null)}
+                disabled={isSavingPackage}
+                className="w-1/2 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold cursor-pointer transition-colors"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={handleDeletePackageConfirm}
+                disabled={isSavingPackage}
+                className="w-1/2 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black shadow-[0_0_15px_rgba(225,29,72,0.4)] cursor-pointer transition-all flex items-center justify-center gap-1.5"
+              >
+                {isSavingPackage ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                <span>{isSavingPackage ? 'در حال حذف...' : 'تایید غیرفعال‌سازی'}</span>
+              </button>
+            </div>
+          </motion.div>
+        </div>,
+        document.body
       )}
     </div>
   );

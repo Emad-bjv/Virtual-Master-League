@@ -1,21 +1,23 @@
 from django.contrib import admin
-from .models import GachaPack, GachaPity, PackOpeningLog
+from .models import Pack, PackPlayer, PackOpeningSession
 
 
-@admin.register(GachaPack)
-class GachaPackAdmin(admin.ModelAdmin):
-    list_display = ('name', 'cost_gems', 'cost_irr', 'rate_rare', 'rate_epic', 'rate_legendary', 'is_active')
-    list_filter = ('is_active',)
+@admin.register(Pack)
+class PackAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'tier', 'cost_gems', 'cost_usd', 'cost_irr', 'purchase_method', 'is_active', 'total_players_count', 'unclaimed_players_count']
+    list_filter = ['tier', 'purchase_method', 'is_active']
+    search_fields = ['name', 'description', 'featured_team']
 
 
-@admin.register(GachaPity)
-class GachaPityAdmin(admin.ModelAdmin):
-    list_display = ('team', 'counter_gems', 'counter_direct', 'total_pulls', 'updated_at')
-    search_fields = ('team__name',)
+@admin.register(PackPlayer)
+class PackPlayerAdmin(admin.ModelAdmin):
+    list_display = ['id', 'name', 'position', 'overall', 'pack', 'rarity', 'is_claimed', 'claimed_by_team']
+    list_filter = ['pack', 'position', 'rarity', 'is_claimed']
+    search_fields = ['name', 'pack__name']
 
 
-@admin.register(PackOpeningLog)
-class PackOpeningLogAdmin(admin.ModelAdmin):
-    list_display = ('team', 'pack', 'player_obtained', 'rarity_drawn', 'pity_applied', 'payment_method', 'cost', 'opened_at')
-    list_filter = ('rarity_drawn', 'pity_applied', 'opened_at')
-    search_fields = ('team__name', 'player_obtained__name')
+@admin.register(PackOpeningSession)
+class PackOpeningSessionAdmin(admin.ModelAdmin):
+    list_display = ['id', 'team', 'pack', 'status', 'picked_card', 'payment_method', 'cost', 'created_at']
+    list_filter = ['status', 'payment_method', 'pack']
+    search_fields = ['team__name', 'pack__name']

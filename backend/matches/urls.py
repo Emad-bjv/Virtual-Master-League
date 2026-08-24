@@ -27,6 +27,15 @@ from .views import (
     LiveInGameChangeListView,
     LiveInGameChangeApplyView,
     LiveInGameChangeRejectView,
+    # Tournament & Cup Management Views
+    AdminLeagueConfigureView,
+    AdminLeagueResetView,
+    AdminGameweekActionView,
+    AdminCupTournamentView,
+    AdminCupResetView,
+    AdminCupBracketView,
+    AdminSyncCupLeagueView,
+    AdminMatchForfeitView,
 )
 
 urlpatterns = [
@@ -71,4 +80,17 @@ urlpatterns = [
     path('matches/<int:match_id>/in-game-changes/list/', LiveInGameChangeListView.as_view(), name='match-in-game-changes-list'),
     path('matches/<int:match_id>/in-game-changes/<int:change_id>/apply/', LiveInGameChangeApplyView.as_view(), name='match-in-game-change-apply'),
     path('matches/<int:match_id>/in-game-changes/<int:change_id>/reject/', LiveInGameChangeRejectView.as_view(), name='match-in-game-change-reject'),
+
+    # League & Cup Tournament Admin Hub Endpoints
+    path('matches/admin/league/configure/', AdminLeagueConfigureView.as_view(), name='admin-league-configure'),
+    path('matches/admin/league/reset/', AdminLeagueResetView.as_view(), name='admin-league-reset'),
+    path('matches/admin/gameweek-action/', AdminGameweekActionView.as_view(), name='admin-gameweek-action'),
+    path('matches/admin/cups/', AdminCupTournamentView.as_view(), name='admin-cups'),
+    path('matches/admin/cups/reset/', AdminCupResetView.as_view(), name='admin-cup-reset'),
+    path('matches/admin/cups/<int:cup_id>/', AdminCupTournamentView.as_view(), name='admin-cup-detail'),
+    path('matches/admin/cups/<int:tournament_id>/bracket/', AdminCupBracketView.as_view(), name='admin-cup-bracket'),
+    path('matches/admin/cups/<int:match_id>/advance/', AdminCupBracketView.as_view(), name='admin-cup-advance'),
+    path('matches/admin/sync-cup-league/', AdminSyncCupLeagueView.as_view(), name='admin-sync-cup-league'),
+    path('matches/<int:match_id>/forfeit/', AdminMatchForfeitView.as_view(), name='admin-match-forfeit'),
 ]
+

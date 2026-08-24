@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import useBodyScrollLock from '../../hooks/useBodyScrollLock';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import ConfirmModal from '../common/ConfirmModal';
+import { formatWithCommas, makeFormattedChangeHandler } from '../../utils/formatNumber';
 
 export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, onSubmitOffer }) {
   useBodyScrollLock(true);
@@ -38,7 +39,7 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
       return;
     }
 
-    const numCash = cashAmount ? parseFloat(cashAmount) : 0;
+    const numCash = cashAmount ? parseFloat(String(cashAmount).replace(/,/g, '')) : 0;
     if (numCash < 0) {
       setClientError('مبلغ پیشنهادی نمی‌تواند منفی باشد.');
       return;
@@ -140,15 +141,19 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
           {activeTab === 'DIRECT_TRANSFER' && (
             <div className="space-y-2">
               <label className="block text-slate-300 font-bold">مبلغ پیشنهادی (دلار مجازی)</label>
-              <input 
-                type="number" 
-                required 
-                value={cashAmount} 
-                onChange={e => setCashAmount(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white outline-none focus:border-indigo-500 dir-ltr"
-                placeholder="مثلاً: 250000"
-              />
-              <p className="text-[10px] text-cyan-400 mt-1">* بودجه فعلی شما: {Number(myTeam?.budget || 0).toLocaleString()} دلار</p>
+              <div className="relative">
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold pointer-events-none">$</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  required
+                  value={formatWithCommas(cashAmount)}
+                  onChange={makeFormattedChangeHandler(setCashAmount)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 pr-7 text-white outline-none focus:border-indigo-500 dir-ltr font-mono tracking-wider"
+                  placeholder="250,000"
+                />
+              </div>
+              <p className="text-[10px] text-cyan-400 mt-1">* بودجه فعلی شما: <strong className="font-mono">{Number(myTeam?.budget || 0).toLocaleString('en-US')}</strong> دلار</p>
             </div>
           )}
 
@@ -193,13 +198,17 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
               </div>
               <div className="pt-2">
                 <label className="block text-slate-300 font-bold mb-2">مبلغ نقدی مکمل (اختیاری)</label>
-                <input 
-                  type="number" 
-                  value={cashAmount} 
-                  onChange={e => setCashAmount(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white outline-none focus:border-indigo-500 dir-ltr"
-                  placeholder="در صورت معاوضه سر به سر خالی بگذارید"
-                />
+                <div className="relative">
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold pointer-events-none">$</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatWithCommas(cashAmount)}
+                    onChange={makeFormattedChangeHandler(setCashAmount)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 pr-7 text-white outline-none focus:border-indigo-500 dir-ltr font-mono tracking-wider"
+                    placeholder="در صورت معاوضه سر به سر خالی بگذارید"
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -208,21 +217,25 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
             <div className="space-y-3">
               <div>
                 <label className="block text-slate-300 font-bold mb-2">مبلغ انتقال قرضی (دلار)</label>
-                <input 
-                  type="number" 
-                  required
-                  value={cashAmount} 
-                  onChange={e => setCashAmount(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white outline-none focus:border-indigo-500 dir-ltr"
-                  placeholder="مبلغی که بابت قرض به باشگاه مقابل می‌پردازید"
-                />
+                <div className="relative">
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold pointer-events-none">$</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    value={formatWithCommas(cashAmount)}
+                    onChange={makeFormattedChangeHandler(setCashAmount)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 pr-7 text-white outline-none focus:border-indigo-500 dir-ltr font-mono tracking-wider"
+                    placeholder="مبلغی که بابت قرض به باشگاه مقابل می‌پردازید"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-slate-300 font-bold mb-2">مدت زمان (تعداد بازی)</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   required
-                  value={loanDuration} 
+                  value={loanDuration}
                   onChange={e => setLoanDuration(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white outline-none focus:border-indigo-500 dir-ltr"
                   placeholder="مثلاً: 15"

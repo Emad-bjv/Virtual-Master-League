@@ -20,10 +20,27 @@ class GlobalSettingsView(views.APIView):
         serializer = GlobalSettingsSerializer(settings)
         return Response(serializer.data)
 
+    def patch(self, request, *args, **kwargs):
+        return self.put(request, *args, **kwargs)
+
     def put(self, request, *args, **kwargs):
         settings = GlobalSettings.get_settings()
         serializer = GlobalSettingsSerializer(settings, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class PublicFeatureFlagsView(views.APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        settings = GlobalSettings.get_settings()
+        from .serializers import FeatureFlagsSerializer
+        serializer = FeatureFlagsSerializer(settings)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 
 def _serialize_value(val):
@@ -79,9 +96,9 @@ class AdminDatabaseSummaryView(views.APIView):
             'economy.TicketSales': 'فروش بلیط',
             'economy.PrizeMoneyHistory': 'پاداش‌ها و جوایز',
             'economy.FinancialTransaction': 'تراکنش‌های مالی',
-            'gacha.PackType': 'انواع پک شانس',
-            'gacha.UserPack': 'پک‌های کاربران',
-            'gacha.GachaPullLog': 'تاریخچه پک‌های بازشده',
+            'gacha.Pack': 'پک‌های بازیکنان',
+            'gacha.PackPlayer': 'بازیکنان پک‌ها',
+            'gacha.PackOpeningSession': 'سشن‌های بازکردن پک',
             'season_pass.SeasonPass': 'سیزن پس‌ها',
             'season_pass.SeasonPassTask': 'ماموریت‌های سیزن پس',
             'season_pass.UserSeasonProgress': 'پیشرفت سیزن پس کاربران',

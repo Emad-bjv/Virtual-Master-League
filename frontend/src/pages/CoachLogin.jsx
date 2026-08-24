@@ -60,7 +60,11 @@ const CoachLogin = () => {
       await passwordLogin(username, password);
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'نام کاربری یا رمز عبور اشتباه است.';
+      const errorMsg =
+        err.response?.data?.error ||
+        (err.message === 'Network Error' || !err.response
+          ? 'خطا در برقراری ارتباط با سرور (بک‌اند در دسترس نیست).'
+          : 'نام کاربری یا رمز عبور اشتباه است.');
       setError(errorMsg);
     } finally {
       setIsLoading(false);

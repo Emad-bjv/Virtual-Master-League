@@ -163,8 +163,114 @@ export default function DashboardOverview() {
         </div>
       </div>
 
+      {/* Quick Control Center Strip */}
+      <div className="glass-panel p-6 rounded-3xl border border-slate-700/80 bg-slate-950/70 shadow-2xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-md">
+              <Shield size={16} />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-white">مرکز فرماندهی و کنترل بخش‌های سایت</h2>
+              <span className="text-[10px] text-cyan-400 font-sport">FEATURE FLAGS & SYSTEM MANAGEMENT</span>
+            </div>
+          </div>
+          <Link 
+            to="/admin/settings"
+            className="text-xs text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 transition-colors"
+          >
+            <span>ورود به صفحه کامل تنظیمات</span>
+            <ArrowUpRight size={14} />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Card 1: Feature Flags */}
+          <Link
+            to="/admin/settings"
+            className="group p-4 rounded-2xl bg-gradient-to-b from-cyan-950/30 to-slate-900/60 border border-cyan-500/30 hover:border-cyan-400 transition-all shadow-lg flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 group-hover:scale-110 transition-transform">
+                  <Activity size={16} />
+                </span>
+                <span className="text-[10px] font-bold text-cyan-300 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+                  ۹ سوئیچ مجزا
+                </span>
+              </div>
+              <h3 className="text-xs font-bold text-white group-hover:text-cyan-300 transition-colors">
+                سوئیچ‌های بخش‌های سیستم
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">
+                روشن/خاموش کردن بازار، فروشگاه، گاچا، پخش زنده، سیزن پس و ثبت‌نام.
+              </p>
+            </div>
+            <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-cyan-400 font-bold">
+              <span>مدیریت فلگ‌ها</span>
+              <ArrowUpRight size={12} className="group-hover:translate-x-[-2px] transition-transform" />
+            </div>
+          </Link>
+
+          {/* Card 2: Detailed Parameters */}
+          <Link
+            to="/admin/settings"
+            className="group p-4 rounded-2xl bg-gradient-to-b from-emerald-950/30 to-slate-900/60 border border-emerald-500/30 hover:border-emerald-400 transition-all shadow-lg flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 group-hover:scale-110 transition-transform">
+                  <DollarSign size={16} />
+                </span>
+                <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  ۶ حوزه فنی
+                </span>
+              </div>
+              <h3 className="text-xs font-bold text-white group-hover:text-emerald-300 transition-colors">
+                تنظیمات اقتصادی و فنی
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">
+                بودجه پیش‌فرض، سقف قیمت بازیکن، شانس گاچا، زمان نیمه و ضرایب امکانات.
+              </p>
+            </div>
+            <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-emerald-400 font-bold">
+              <span>ویرایش پارامترها</span>
+              <ArrowUpRight size={12} className="group-hover:translate-x-[-2px] transition-transform" />
+            </div>
+          </Link>
+
+          {/* Card 3: Reset Actions */}
+          <Link
+            to="/admin/settings"
+            className="group p-4 rounded-2xl bg-gradient-to-b from-rose-950/30 to-slate-900/60 border border-rose-500/30 hover:border-rose-400 transition-all shadow-lg flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 group-hover:scale-110 transition-transform">
+                  <AlertTriangle size={16} />
+                </span>
+                <span className="text-[10px] font-bold text-rose-300 bg-rose-500/10 px-2 py-0.5 rounded-full border border-rose-500/20">
+                  تأییدیه امنیتی
+                </span>
+              </div>
+              <h3 className="text-xs font-bold text-white group-hover:text-rose-300 transition-colors">
+                عملیات حساس ریست داده‌ها
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">
+                ریست فصل، بازنشانی بودجه‌ها، صفر کردن کارت‌ها و آمار بازیکنان و امکانات.
+              </p>
+            </div>
+            <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-rose-400 font-bold">
+              <span>منطقه ریست داده‌ها</span>
+              <ArrowUpRight size={12} className="group-hover:translate-x-[-2px] transition-transform" />
+            </div>
+          </Link>
+        </div>
+      </div>
+
       {/* Main Grid: League Standings & Live Operations Strip */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
         {/* Top 5 League Standings */}
         <div className="lg:col-span-6 glass-panel p-6 rounded-3xl border border-slate-700/80 bg-slate-950/60 shadow-2xl">
           <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">

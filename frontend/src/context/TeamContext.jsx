@@ -421,18 +421,31 @@ export function TeamProvider({ children }) {
     }
   }, []);
 
-  const fetchTeam = useCallback(async (teamId) => {
-    if (!teamId) return;
+  const fetchTeam = useCallback(async (targetTeamId) => {
+    let id = targetTeamId || team?.id;
+    if (!id) {
+      try {
+        const storedUser = localStorage.getItem('vml_user');
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser);
+          id = parsed?.team_id || parsed?.team?.id;
+        }
+      } catch (_e) {}
+    }
+    if (!id) return;
     setLoading(true);
     try {
-      const res = await teamApi.getTeam(teamId);
+      const res = await teamApi.getTeam(id);
       hydrateTeamData(res.data);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('vml_team_updated', { detail: res.data }));
+      }
     } catch (err) {
       console.error('Failed to fetch team roster:', err);
     } finally {
       setLoading(false);
     }
-  }, [hydrateTeamData]);
+  }, [hydrateTeamData, team?.id]);
 
   // Derived squad partitions: Starting XI, Substitutes (11), Reserves
   const startingXi = useMemo(() => {

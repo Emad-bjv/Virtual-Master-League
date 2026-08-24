@@ -58,7 +58,7 @@ export default function TeamTab({
     return 'matches';
   };
 
-  const { team, updateTeamGems, updatePlayerState } = useTeam();
+  const { team, players: contextPlayers, fetchTeam, updateTeamGems, updatePlayerState } = useTeam();
   const [activeSub, setActiveSub] = useState(() => normalizeSubTab(initialSub));
   
   // Use the manager's real team when available
@@ -108,11 +108,16 @@ export default function TeamTab({
 
   // 1. Fetch Complete Schedule
   const fetchSchedule = async () => {
-    if (!teamId) return;
     setLoadingSchedule(true);
     try {
-      const res = await matchApi.getTeamSchedule(teamId);
-      const mList = res.data || [];
+      let mList = [];
+      if (teamId) {
+        const res = await matchApi.getTeamSchedule(teamId);
+        mList = res.data || [];
+      } else {
+        const res = await matchApi.getLeagueSchedule({ status: 'ALL' });
+        mList = res.data || [];
+      }
       setScheduleMatches(mList);
     } catch (err) {
       console.error('Failed to load team schedule:', err);
@@ -123,6 +128,20 @@ export default function TeamTab({
 
   useEffect(() => {
     fetchSchedule();
+    const handleSync = () => {
+      fetchSchedule();
+      if (fetchTeam && teamId) fetchTeam(teamId);
+    };
+    window.addEventListener('vml_league_schedule_updated', handleSync);
+    window.addEventListener('vml_team_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('focus', handleSync);
+    return () => {
+      window.removeEventListener('vml_league_schedule_updated', handleSync);
+      window.removeEventListener('vml_team_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('focus', handleSync);
+    };
   }, [teamId]);
 
   useEffect(() => {
@@ -340,6 +359,9 @@ export default function TeamTab({
   const filteredScheduleMatches = useMemo(() => {
     return scheduleMatches.filter((m) => {
       const isHome = m.home_team === teamId;
+      const isCup = Boolean(m.is_knockout || m.tournament_name?.includes('حذفی') || m.tournament?.tournament_type === 'CUP');
+      if (scheduleFilter === 'LEAGUE') return !isCup;
+      if (scheduleFilter === 'CUP') return isCup;
       if (scheduleFilter === 'UPCOMING') return m.status === 'SCHEDULED' || m.status === 'LIVE';
       if (scheduleFilter === 'FINISHED') return m.status === 'FINISHED';
       if (scheduleFilter === 'HOME') return isHome;
@@ -349,11 +371,17 @@ export default function TeamTab({
   }, [scheduleMatches, scheduleFilter, teamId]);
 
   const totalMatches = scheduleMatches.length || 30;
+  const leagueCount = scheduleMatches.filter((m) => !m.is_knockout && !m.tournament_name?.includes('حذفی') && m.tournament?.tournament_type !== 'CUP').length;
+  const cupCount = scheduleMatches.filter((m) => Boolean(m.is_knockout || m.tournament_name?.includes('حذفی') || m.tournament?.tournament_type === 'CUP')).length;
   const finishedCount = scheduleMatches.filter((m) => m.status === 'FINISHED').length;
   const upcomingCount = scheduleMatches.filter((m) => m.status === 'SCHEDULED' || m.status === 'LIVE').length;
 
   const SCHEDULE_FILTERS = [
     { id: 'ALL', label: `همه (${totalMatches})` },
+    ...(cupCount > 0 ? [
+      { id: 'LEAGUE', label: `⚽ لیگ برتر (${leagueCount})` },
+      { id: 'CUP', label: `🏆 جام حذفی (${cupCount})` },
+    ] : []),
     { id: 'UPCOMING', label: `پیش‌رو (${upcomingCount})` },
     { id: 'FINISHED', label: `پایان‌یافته (${finishedCount})` },
     { id: 'HOME', label: 'میزبان (خانگی)' },
@@ -363,12 +391,13 @@ export default function TeamTab({
   // Formula Inspector Modal State
   const [selectedPlayerForFormula, setSelectedPlayerForFormula] = useState(null);
 
-  const [players, setPlayers] = useState(initialPlayers || []);
+  const [players, setPlayers] = useState(() => (contextPlayers?.length > 0 ? contextPlayers : (initialPlayers || [])));
 
   useEffect(() => {
-    if (initialPlayers && initialPlayers.length > 0) {
+    const rawList = (contextPlayers && contextPlayers.length > 0) ? contextPlayers : (initialPlayers || []);
+    if (rawList && rawList.length > 0) {
       // Map players with suspension status
-      const mapped = initialPlayers.map((p, idx) => ({
+      const mapped = rawList.map((p, idx) => ({
         ...p,
         id: p.id.toString(),
         naturalPosition: p.naturalPosition || p.position,
@@ -400,7 +429,7 @@ export default function TeamTab({
 
       setPlayers([...starters, ...nonStarters.filter((p) => !starters.some((s) => s.id === p.id))]);
     }
-  }, [initialPlayers]);
+  }, [contextPlayers, initialPlayers]);
 
   const handleSaveGameplan = async () => {
     if (!teamId) {
@@ -1056,6 +1085,8 @@ export default function TeamTab({
                       );
                     }
 
+                    const isCup = Boolean(m.is_knockout || m.tournament_name?.includes('حذفی') || m.tournament?.tournament_type === 'CUP');
+
                     return (
                       <motion.div
                         key={m.id || idx}
@@ -1066,6 +1097,8 @@ export default function TeamTab({
                         className={`p-3.5 sm:p-4 rounded-3xl border transition-all flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 cursor-pointer ${
                           isImminentUnsubmitted
                             ? 'border-2 border-rose-500 bg-gradient-to-r from-rose-950/85 via-slate-900/90 to-amber-950/80 shadow-[0_0_25px_rgba(244,63,94,0.35)] animate-pulse'
+                            : isCup
+                            ? 'border-amber-500/50 bg-gradient-to-r from-amber-950/40 via-slate-900/95 to-amber-950/25 hover:border-amber-400 shadow-lg shadow-amber-950/30'
                             : isLineupDone && !isFinished
                             ? 'border border-emerald-500/40 bg-[#07131e]/90 hover:border-emerald-400 shadow-md'
                             : isLive
@@ -1081,13 +1114,20 @@ export default function TeamTab({
                           <div className={`w-12 h-12 rounded-2xl flex flex-col items-center justify-center text-center shrink-0 shadow-inner border ${
                             isImminentUnsubmitted
                               ? 'bg-rose-950/90 border-rose-500/50 text-rose-300'
+                              : isCup
+                              ? 'bg-gradient-to-b from-amber-500/20 to-amber-950/90 border-amber-500/60 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.25)]'
                               : isLineupDone && !isFinished
                               ? 'bg-emerald-950/90 border-emerald-500/40 text-emerald-300'
                               : 'bg-[#05080e] border-cyan-500/30 text-cyan-300'
                           }`}>
-                            <span className="text-[8.5px] font-bold leading-none text-slate-400">هفته</span>
-                            <span className="text-sm font-black font-sport leading-tight">
-                              {m.round_name ? String(m.round_name).replace('هفته', '').trim() : idx + 1}
+                            <span className="text-[8.5px] font-bold leading-none text-slate-400">
+                              {isCup ? '🏆 حذفی' : 'هفته'}
+                            </span>
+                            <span className="text-xs font-black font-sport leading-tight truncate px-1">
+                              {isCup
+                                ? String(m.round_name || 'حذفی').replace('یک‌', '۱/').replace(' نهایی', '')
+                                : (m.round_name ? String(m.round_name).replace('هفته', '').trim() : idx + 1)
+                              }
                             </span>
                           </div>
 
@@ -1104,30 +1144,38 @@ export default function TeamTab({
 
                           {/* Match Details */}
                           <div className="min-w-0">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-black text-sm text-white truncate">
                                 {opponentName || 'حریف'}
                               </span>
-                              <span
-                                className={`text-[9px] font-black px-1.5 py-0.2 rounded-md shrink-0 flex items-center gap-1 font-sport ${
-                                  isHome
-                                    ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40'
-                                    : 'bg-amber-950 text-amber-300 border border-amber-500/40'
-                                }`}
-                              >
-                                {isHome ? <Home size={9} /> : <Plane size={9} />}
-                                <span>{isHome ? 'HOME' : 'AWAY'}</span>
-                              </span>
+
+                              {isCup ? (
+                                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-lg flex items-center gap-1 font-sport bg-gradient-to-r from-amber-500/30 to-orange-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
+                                  <span>🏆</span>
+                                  <span>جام حذفی ({m.round_name || 'مرحله حذفی'})</span>
+                                </span>
+                              ) : (
+                                <span
+                                  className={`text-[9px] font-black px-1.5 py-0.2 rounded-md shrink-0 flex items-center gap-1 font-sport ${
+                                    isHome
+                                      ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40'
+                                      : 'bg-amber-950 text-amber-300 border border-amber-500/40'
+                                  }`}
+                                >
+                                  {isHome ? <Home size={9} /> : <Plane size={9} />}
+                                  <span>{isHome ? 'HOME' : 'AWAY'}</span>
+                                </span>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-2 mt-1 text-[10.5px] text-slate-400 font-sport">
                               <span className="flex items-center gap-1 font-sans">
-                                <Calendar size={11} className="text-cyan-400" />
+                                <Calendar size={11} className={isCup ? 'text-amber-400' : 'text-cyan-400'} />
                                 <span>{dateStr}</span>
                               </span>
                               <span>•</span>
                               <span className="flex items-center gap-1 font-bold">
-                                <Clock size={11} className="text-cyan-400" />
+                                <Clock size={11} className={isCup ? 'text-amber-400' : 'text-cyan-400'} />
                                 <span>{timeStr}</span>
                               </span>
                             </div>
