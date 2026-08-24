@@ -492,8 +492,12 @@ export default function AdminPacks() {
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-purple-950 to-slate-900 border border-purple-500/30 flex items-center justify-center shrink-0 shadow-md text-purple-300">
-                        <Gift size={20} />
+                      <div className="w-12 h-16 rounded-xl overflow-hidden shrink-0 border border-white/20 shadow-md">
+                        <img
+                          src={pack.cover_image || (pack.tier === 'LEGENDARY' ? '/assets/cards/legendary_card_bg.jpg' : pack.tier === 'SILVER' ? '/assets/cards/epic_card_bg.jpg' : '/assets/cards/rare_card_bg.jpg')}
+                          alt={pack.name}
+                          className="w-full h-full object-cover"
+                        />
                       </div>
                       <div>
                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${tierBadge}`}>

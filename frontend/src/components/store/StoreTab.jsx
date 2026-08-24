@@ -484,56 +484,49 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
               gachaPacks.map((pack) => {
                 const tierStyles = {
                   BRONZE: {
-                    border: 'border-amber-700/70',
-                    bg: 'from-amber-950 via-slate-900 to-slate-950',
-                    badge: 'bg-amber-800/90 text-amber-200 border-amber-500 shadow-md',
-                    glow: 'hover:shadow-[0_0_30px_rgba(180,83,9,0.45)] hover:border-amber-500',
-                    btn: 'from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white',
-                    label: 'پک برنز',
-                    tintOverlay: 'from-amber-950/40 via-transparent to-amber-950/80'
+                    defaultBg: '/assets/cards/rare_card_bg.jpg',
+                    border: 'border-blue-500/80',
+                    badge: 'bg-blue-900/90 text-blue-200 border-blue-400 shadow-md',
+                    glow: 'hover:shadow-[0_0_35px_rgba(37,99,235,0.5)] hover:border-blue-400',
+                    btn: 'from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold',
+                    label: 'پک آبی کمیاب (Rare)',
+                    tintOverlay: 'from-blue-950/40 via-transparent to-black/80'
                   },
                   SILVER: {
-                    border: 'border-cyan-500/70',
-                    bg: 'from-slate-800 via-slate-900 to-slate-950',
-                    badge: 'bg-cyan-900/90 text-cyan-200 border-cyan-400 shadow-md',
-                    glow: 'hover:shadow-[0_0_30px_rgba(6,182,212,0.45)] hover:border-cyan-400',
-                    btn: 'from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white',
-                    label: 'پک نقره',
-                    tintOverlay: 'from-cyan-950/30 via-transparent to-slate-950/80'
+                    defaultBg: '/assets/cards/epic_card_bg.jpg',
+                    border: 'border-purple-500/80',
+                    badge: 'bg-purple-900/90 text-purple-200 border-purple-400 shadow-md',
+                    glow: 'hover:shadow-[0_0_35px_rgba(168,85,247,0.5)] hover:border-purple-400',
+                    btn: 'from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white font-bold',
+                    label: 'پک حماسی (Epic)',
+                    tintOverlay: 'from-purple-950/40 via-transparent to-black/80'
                   },
                   LEGENDARY: {
-                    border: 'border-yellow-400/80',
-                    bg: 'from-yellow-950/90 via-purple-950/70 to-slate-950',
-                    badge: 'bg-gradient-to-r from-yellow-500 to-amber-500 text-slate-950 font-black border-yellow-300 shadow-lg',
-                    glow: 'hover:shadow-[0_0_40px_rgba(234,179,8,0.55)] hover:border-yellow-300',
-                    btn: 'from-amber-500 via-yellow-400 to-amber-600 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black shadow-[0_0_15px_rgba(245,158,11,0.5)]',
-                    label: 'پک لجندری اساطیر',
-                    tintOverlay: 'from-amber-950/40 via-transparent to-purple-950/90'
+                    defaultBg: '/assets/cards/legendary_card_bg.jpg',
+                    border: 'border-yellow-400/90',
+                    badge: 'bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-500 text-slate-950 font-black border-yellow-300 shadow-lg',
+                    glow: 'hover:shadow-[0_0_45px_rgba(234,179,8,0.6)] hover:border-yellow-300',
+                    btn: 'from-amber-500 via-yellow-400 to-amber-600 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black shadow-[0_0_20px_rgba(245,158,11,0.6)]',
+                    label: 'پک اساطیر (Legendary)',
+                    tintOverlay: 'from-amber-950/40 via-transparent to-black/80'
                   }
                 }[pack.tier || 'BRONZE'];
 
                 return (
                   <motion.div
                     key={pack.id}
-                    whileHover={{ y: -6, scale: 1.01 }}
+                    whileHover={{ y: -6, scale: 1.02 }}
                     transition={{ duration: 0.25 }}
-                    className={`group rounded-3xl border ${tierStyles.border} ${tierStyles.glow} relative overflow-hidden flex flex-col justify-between min-h-[380px] p-5 shadow-2xl transition-all duration-300`}
+                    className={`group rounded-[2rem] border ${tierStyles.border} ${tierStyles.glow} relative overflow-hidden flex flex-col justify-between min-h-[400px] p-5 shadow-2xl transition-all duration-300`}
                   >
-                    {/* Immersive Card Background (Image or Gradient) */}
-                    {pack.cover_image ? (
-                      <>
-                        <img
-                          src={pack.cover_image}
-                          alt={pack.name}
-                          className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out"
-                        />
-                        {/* Gradient Vignette Overlays to guarantee typography contrast */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-black/50" />
-                        <div className={`absolute inset-0 bg-gradient-to-b ${tierStyles.tintOverlay} mix-blend-overlay`} />
-                      </>
-                    ) : (
-                      <div className={`absolute inset-0 bg-gradient-to-b ${tierStyles.bg}`} />
-                    )}
+                    {/* Immersive Borderless Card Background */}
+                    <img
+                      src={pack.cover_image || tierStyles.defaultBg}
+                      alt={pack.name}
+                      className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out"
+                    />
+                    {/* Vignette Overlay for Crisp Typography Contrast */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-black/30 pointer-events-none" />
 
                     {/* Top Row: Floating Tier Badge & Remaining Pool */}
                     <div className="relative z-10 flex justify-between items-center">

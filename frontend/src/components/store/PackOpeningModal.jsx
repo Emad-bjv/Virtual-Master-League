@@ -65,34 +65,31 @@ export default function PackOpeningModal({
 
   if (!isOpen || !pack) return null;
 
-  // Tier Theme Config
+  // Tier Theme Config with FUT Card Template Artworks
   const tierConfig = {
     BRONZE: {
-      gradient: 'from-amber-900 via-amber-950 to-slate-950',
-      border: 'border-amber-700/60',
-      glow: 'shadow-[0_0_30px_rgba(180,83,9,0.35)]',
-      badgeBg: 'bg-amber-800/80 text-amber-200 border-amber-600',
-      cardBack: 'from-amber-800 via-amber-900 to-amber-950 border-amber-500/50',
-      accent: 'text-amber-400',
-      label: 'برنز'
+      cardBg: '/assets/cards/rare_card_bg.jpg',
+      border: 'border-blue-400/80',
+      glow: 'shadow-[0_0_35px_rgba(37,99,235,0.5)]',
+      badgeBg: 'bg-blue-900/90 text-blue-200 border-blue-400',
+      accent: 'text-cyan-300',
+      label: 'پک آبی کمیاب (Rare)'
     },
     SILVER: {
-      gradient: 'from-slate-700 via-slate-900 to-slate-950',
-      border: 'border-cyan-400/60',
-      glow: 'shadow-[0_0_35px_rgba(34,211,238,0.35)]',
-      badgeBg: 'bg-cyan-900/80 text-cyan-200 border-cyan-500',
-      cardBack: 'from-slate-700 via-slate-800 to-cyan-950 border-cyan-400/50',
-      accent: 'text-cyan-300',
-      label: 'نقره'
+      cardBg: '/assets/cards/epic_card_bg.jpg',
+      border: 'border-purple-400/90',
+      glow: 'shadow-[0_0_40px_rgba(168,85,247,0.55)]',
+      badgeBg: 'bg-purple-900/90 text-purple-200 border-purple-400',
+      accent: 'text-purple-300',
+      label: 'پک حماسی بنفش (Epic)'
     },
     LEGENDARY: {
-      gradient: 'from-yellow-700 via-amber-900 to-purple-950',
-      border: 'border-yellow-400/80',
-      glow: 'shadow-[0_0_45px_rgba(234,179,8,0.5)]',
-      badgeBg: 'bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-950 font-black border-yellow-300',
-      cardBack: 'from-yellow-600 via-amber-800 to-purple-950 border-yellow-400',
+      cardBg: '/assets/cards/legendary_card_bg.jpg',
+      border: 'border-yellow-400',
+      glow: 'shadow-[0_0_50px_rgba(234,179,8,0.7)]',
+      badgeBg: 'bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-500 text-slate-950 font-black border-yellow-200',
       accent: 'text-yellow-300',
-      label: 'لجندری اساطیری'
+      label: 'پک اساطیر طلایی (Legendary)'
     }
   }[pack.tier || 'BRONZE'];
 
@@ -229,19 +226,15 @@ export default function PackOpeningModal({
             <div className="mt-6 grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
               {/* Left Column: Pack Artwork & Cover */}
               <div className="md:col-span-5 flex flex-col items-center justify-center text-center">
-                <div className={`relative group w-48 h-64 sm:w-56 sm:h-76 rounded-3xl overflow-hidden border-2 ${tierConfig.border} ${tierConfig.glow} shadow-2xl flex flex-col justify-between p-4`}>
-                  {pack.cover_image ? (
-                    <>
-                      <img
-                        src={pack.cover_image}
-                        alt={pack.name}
-                        className="absolute inset-0 w-full h-full object-cover object-center"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/60 to-black/30" />
-                    </>
-                  ) : (
-                    <div className={`absolute inset-0 bg-gradient-to-b ${tierConfig.gradient}`} />
-                  )}
+                <div
+                  className={`relative group w-48 h-68 sm:w-56 sm:h-80 rounded-[2rem] overflow-hidden ${tierConfig.glow} shadow-2xl flex flex-col justify-between p-4`}
+                  style={{
+                    backgroundImage: `url(${pack.cover_image || tierConfig.cardBg})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center'
+                  }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-transparent to-black/30 pointer-events-none" />
 
                   {/* Top Tier Tag */}
                   <div className="relative z-10 flex justify-between items-center">
@@ -254,19 +247,19 @@ export default function PackOpeningModal({
                   {/* Center OVR Badge */}
                   <div className="relative z-10 my-auto flex flex-col items-center justify-center">
                     {pack.ovr_range_text ? (
-                      <div className="px-3.5 py-1.5 rounded-2xl bg-black/75 backdrop-blur-md border border-white/20 text-xs font-black text-amber-300 font-sport shadow-lg">
+                      <div className="px-3.5 py-1.5 rounded-2xl bg-black/80 backdrop-blur-md border border-white/20 text-xs font-black text-amber-300 font-sport shadow-2xl">
                         {pack.ovr_range_text}
                       </div>
                     ) : (
-                      <div className="w-16 h-16 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-inner">
+                      <div className="w-16 h-16 rounded-2xl bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-inner">
                         <Trophy size={36} className={tierConfig.accent} />
                       </div>
                     )}
                   </div>
 
                   {/* Bottom Title */}
-                  <div className="relative z-10 text-center">
-                    <span className="text-sm font-black text-white block drop-shadow-md">{pack.name}</span>
+                  <div className="relative z-10 text-center pb-1">
+                    <span className="text-sm font-black text-white block drop-shadow-lg">{pack.name}</span>
                   </div>
                 </div>
               </div>
@@ -450,77 +443,101 @@ export default function PackOpeningModal({
                         >
                           {/* ================= CARD BACK (Face Down) ================= */}
                           <div
-                            className={`absolute inset-0 w-full h-full [backface-visibility:hidden] rounded-3xl border-2 ${tierConfig.border} bg-gradient-to-b ${tierConfig.cardBack} p-5 flex flex-col items-center justify-between shadow-2xl overflow-hidden`}
+                            className="absolute inset-0 w-full h-full [backface-visibility:hidden] rounded-[2rem] overflow-hidden shadow-2xl flex flex-col justify-between p-4"
+                            style={{
+                              backgroundImage: `url(${tierConfig.cardBg})`,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center'
+                            }}
                           >
-                            <div className="w-full flex justify-between items-center text-[11px] font-bold text-white/70">
-                              <span>کارت #{index + 1}</span>
-                              <Sparkles size={14} className="text-amber-300 animate-pulse" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-black/30 to-transparent pointer-events-none" />
+
+                            <div className="relative z-10 flex justify-between items-center text-[11px] font-bold text-white/90">
+                              <span className="px-2.5 py-0.5 rounded-full bg-black/60 backdrop-blur-md border border-white/20">
+                                کارت #{index + 1}
+                              </span>
+                              <Sparkles size={16} className="text-yellow-400 animate-pulse" />
                             </div>
 
-                            <div className="w-24 h-24 rounded-2xl bg-white/10 border border-white/20 flex flex-col items-center justify-center shadow-inner group-hover:scale-105 transition-transform duration-300">
-                              <Shield size={44} className="text-white/80" />
-                              <span className="text-[10px] font-black text-amber-200 mt-1 uppercase">VML</span>
+                            <div className="relative z-10 my-auto flex flex-col items-center justify-center">
+                              <motion.div
+                                animate={{ scale: [1, 1.06, 1] }}
+                                transition={{ duration: 2, repeat: Infinity }}
+                                className="w-20 h-20 rounded-2xl bg-black/55 backdrop-blur-md border border-white/30 flex flex-col items-center justify-center shadow-2xl"
+                              >
+                                <Sparkles size={30} className="text-yellow-400" />
+                                <span className="text-[10px] font-black text-amber-200 mt-1 uppercase font-sport tracking-widest">VML</span>
+                              </motion.div>
                             </div>
 
-                            <div className="text-center">
-                              <span className="text-xs font-black text-white block">کلیک کنید</span>
-                              <span className="text-[10px] text-white/60">برای مشاهده بازیکن</span>
+                            <div className="relative z-10 text-center pb-2">
+                              <span className="text-xs font-black text-white block drop-shadow-md">برای مشاهده کلیک کنید</span>
+                              <span className="text-[10px] text-amber-300 font-bold">آشکارسازی بازیکن</span>
                             </div>
                           </div>
 
                           {/* ================= CARD FRONT (Face Up) ================= */}
                           <div
-                            className={`absolute inset-0 w-full h-full [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-3xl border-2 ${
-                              card.overall >= 88 ? 'border-yellow-400 bg-gradient-to-b from-yellow-950 via-slate-900 to-black' : 'border-cyan-400 bg-gradient-to-b from-slate-800 via-slate-900 to-black'
-                            } p-4 flex flex-col justify-between shadow-2xl overflow-hidden`}
+                            className="absolute inset-0 w-full h-full [backface-visibility:hidden] [transform:rotateY(180deg)] rounded-[2rem] overflow-hidden shadow-2xl flex flex-col justify-between p-3"
+                            style={{
+                              backgroundImage: `url(${tierConfig.cardBg})`,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center'
+                            }}
                           >
-                            {/* Card Top Stats */}
-                            <div className="flex justify-between items-start">
-                              <div className="flex flex-col items-center bg-black/60 px-2 py-1 rounded-xl border border-white/10">
-                                <span className="text-xl font-black font-sport text-amber-300 leading-none">
+                            {/* Ambient subtle vignette to ensure crisp stats readability */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-transparent to-black/20 pointer-events-none" />
+
+                            {/* Card Top: OVR + Position Badge & Age */}
+                            <div className="relative z-10 flex justify-between items-start pt-2 px-1">
+                              <div className="flex flex-col items-center bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-2xl border border-white/20 shadow-lg">
+                                <span className="text-2xl font-black font-sport text-amber-300 leading-none drop-shadow-[0_2px_8px_rgba(245,158,11,0.6)]">
                                   {card.overall}
                                 </span>
-                                <span className="text-[11px] font-black text-cyan-300 dir-ltr uppercase">
+                                <span className="text-[11px] font-black text-cyan-300 dir-ltr uppercase tracking-wider font-sport mt-0.5">
                                   {card.position}
                                 </span>
                               </div>
 
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white/10 text-slate-300">
+                              <span className="text-[10px] font-bold px-2.5 py-1 rounded-xl bg-black/75 backdrop-blur-md border border-white/20 text-slate-200">
                                 سن: {card.age}
                               </span>
                             </div>
 
-                            {/* Player Photo / Graphic */}
-                            <div className="flex flex-col items-center justify-center my-auto py-1">
-                              <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white/5 border border-white/20 overflow-hidden flex items-center justify-center shadow-inner relative">
+                            {/* Center Player Cutout / Photo Area */}
+                            <div className="relative z-10 flex flex-col items-center justify-center my-auto">
+                              <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden flex items-center justify-center relative drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]">
                                 {card.card_image ? (
                                   <img
                                     src={card.card_image}
                                     alt={card.name}
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-cover rounded-2xl"
                                   />
                                 ) : (
-                                  <div className="flex flex-col items-center justify-center text-slate-400">
+                                  <div className="w-full h-full bg-black/40 backdrop-blur-sm rounded-2xl border border-white/15 flex flex-col items-center justify-center text-slate-300">
                                     <Star size={36} className="text-amber-400 mb-1" />
-                                    <span className="text-[10px] font-bold">بدون تصویر</span>
+                                    <span className="text-[10px] font-bold">بدون عکس</span>
                                   </div>
                                 )}
                               </div>
 
-                              <h4 className="text-sm font-black text-white mt-2 text-center truncate max-w-[190px]">
-                                {card.name}
-                              </h4>
+                              {/* Player Name Banner */}
+                              <div className="mt-1 px-3 py-1 rounded-xl bg-black/80 backdrop-blur-md border border-amber-500/40 shadow-lg max-w-[200px]">
+                                <h4 className="text-xs sm:text-sm font-black text-white text-center truncate tracking-wide font-sport">
+                                  {card.name}
+                                </h4>
+                              </div>
                             </div>
 
                             {/* Card Footer Details */}
-                            <div className="grid grid-cols-2 gap-1 text-[10.5px] bg-black/50 p-2 rounded-xl border border-white/10 text-slate-300">
-                              <div>
-                                <span className="text-slate-400 block text-[9.5px]">استقامت:</span>
-                                <span className="font-bold text-emerald-400 font-sport">{card.base_stamina}</span>
+                            <div className="relative z-10 grid grid-cols-2 gap-1.5 text-[10.5px] bg-black/75 backdrop-blur-md p-2 rounded-2xl border border-white/20 text-slate-200">
+                              <div className="text-center">
+                                <span className="text-slate-400 block text-[9px]">استقامت (STA)</span>
+                                <span className="font-black text-emerald-400 font-sport text-xs">{card.base_stamina}</span>
                               </div>
-                              <div className="text-left">
-                                <span className="text-slate-400 block text-[9.5px]">پتانسیل:</span>
-                                <span className="font-bold text-yellow-300 font-sport">{card.potential_ovr}</span>
+                              <div className="text-center border-r border-white/10">
+                                <span className="text-slate-400 block text-[9px]">پتانسیل (POT)</span>
+                                <span className="font-black text-amber-300 font-sport text-xs">{card.potential_ovr}</span>
                               </div>
                             </div>
                           </div>
