@@ -182,9 +182,11 @@ export default function MainDashboard() {
   }, [isAuthenticated, user?.role, user?.is_superuser, user?.team_id, teamData?.id, isMatchAlertDismissed]);
 
   const fetchTeamData = useCallback(() => {
-    if (user && user.team_id) {
+    const targetTeamId = user?.team_id || user?.team?.id;
+    if (targetTeamId) {
+      setLoading(true);
       teamApi
-        .getTeam(user.team_id)
+        .getTeam(targetTeamId)
         .then((res) => {
           setTeamData(res.data);
           hydrateTeamData(res.data);
@@ -194,22 +196,30 @@ export default function MainDashboard() {
           } else {
             setPlayersData([]);
           }
-          setLoading(false);
         })
-        .catch((_err) => {
-          console.log('Backend API failed.');
+        .catch((err) => {
+          console.error('Backend API getTeam failed:', err);
           setTeamData(null);
           hydrateTeamData(null);
           setPlayersData([]);
+        })
+        .finally(() => {
           setLoading(false);
         });
-    } else {
+    } else if (!authLoading) {
       setTeamData(null);
       hydrateTeamData(null);
       setPlayersData([]);
       setLoading(false);
     }
-  }, [user, hydrateTeamData]);
+  }, [user, hydrateTeamData, authLoading]);
+
+  // Automatically route admin users to admin tab
+  useEffect(() => {
+    if (isAuthenticated && (user?.role === 'admin' || user?.is_superuser)) {
+      setActiveTab('admin');
+    }
+  }, [isAuthenticated, user?.role, user?.is_superuser]);
 
   // Fetch Team data from backend REST API using user's actual team_id
   useEffect(() => {
@@ -219,7 +229,16 @@ export default function MainDashboard() {
 
     fetchTeamData();
 
-    const handleSync = () => fetchTeamData();
+    const handleSync = (e) => {
+      if (e?.detail && e.detail.id) {
+        setTeamData(e.detail);
+        if (e.detail.players && e.detail.players.length > 0) {
+          setPlayersData(e.detail.players);
+        }
+      } else {
+        fetchTeamData();
+      }
+    };
     window.addEventListener('vml_team_updated', handleSync);
     return () => {
       window.removeEventListener('vml_team_updated', handleSync);

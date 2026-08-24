@@ -15,6 +15,7 @@ from .serializers import (
 class CoachPasswordLoginView(APIView):
     """
     Direct username + password authentication for coaches and admins.
+    Supports login via username or team name.
     """
     permission_classes = [permissions.AllowAny]
 
@@ -27,10 +28,21 @@ class CoachPasswordLoginView(APIView):
 
         username = str(username).strip()
 
-        # Check if user exists by username
-        try:
-            user = User.objects.get(username__iexact=username)
-        except User.DoesNotExist:
+        # Check if user exists by username or team name
+        user = User.objects.filter(username__iexact=username).first()
+        if not user:
+            # Fallback 1: coach_<username>
+            user = User.objects.filter(username__iexact=f"coach_{username}").first()
+        if not user:
+            # Fallback 2: Team name manager
+            from teams.models import Team
+            team = Team.objects.filter(name__iexact=username).first()
+            if not team:
+                team = Team.objects.filter(name__icontains=username).first()
+            if team and team.manager:
+                user = team.manager
+
+        if not user:
             return Response({'error': 'نام کاربری یا رمز عبور اشتباه است.'}, status=status.HTTP_401_UNAUTHORIZED)
 
         # Check password strictly
@@ -66,7 +78,7 @@ class QuickLoginView(APIView):
         role = request.data.get('role', 'coach')
         is_admin = (role == 'admin')
 
-        target_username = 'admin' if is_admin else 'coach_test'
+        target_username = 'admin' if is_admin else 'coach_milan'
 
         user, created = User.objects.get_or_create(
             username=target_username,
