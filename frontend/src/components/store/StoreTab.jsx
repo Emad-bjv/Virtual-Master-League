@@ -16,6 +16,10 @@ import ConfirmModal from '../common/ConfirmModal';
 import PackOpeningModal from './PackOpeningModal';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 
+import rareCardBg from '../../assets/cards/rare_card_bg.jpg';
+import epicCardBg from '../../assets/cards/epic_card_bg.jpg';
+import legendaryCardBg from '../../assets/cards/legendary_card_bg.jpg';
+
 const STORE_SUBNAV = [
   { id: 'gems', label: 'الماس (جم 💎)' },
   { id: 'coins', label: 'بودجه باشگاه (دلار 💵)' },
@@ -484,31 +488,28 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
               gachaPacks.map((pack) => {
                 const tierStyles = {
                   BRONZE: {
-                    defaultBg: '/assets/cards/rare_card_bg.jpg',
-                    border: 'border-blue-500/80',
-                    badge: 'bg-blue-900/90 text-blue-200 border-blue-400 shadow-md',
-                    glow: 'hover:shadow-[0_0_35px_rgba(37,99,235,0.5)] hover:border-blue-400',
+                    defaultBg: rareCardBg,
+                    border: 'border-blue-500/60',
+                    badge: 'bg-blue-950 text-blue-300 border-blue-500/40 shadow-md',
+                    glow: 'hover:shadow-[0_0_35px_rgba(37,99,235,0.5)]',
                     btn: 'from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold',
                     label: 'پک آبی کمیاب (Rare)',
-                    tintOverlay: 'from-blue-950/40 via-transparent to-black/80'
                   },
                   SILVER: {
-                    defaultBg: '/assets/cards/epic_card_bg.jpg',
-                    border: 'border-purple-500/80',
-                    badge: 'bg-purple-900/90 text-purple-200 border-purple-400 shadow-md',
-                    glow: 'hover:shadow-[0_0_35px_rgba(168,85,247,0.5)] hover:border-purple-400',
+                    defaultBg: epicCardBg,
+                    border: 'border-purple-500/60',
+                    badge: 'bg-purple-950 text-purple-300 border-purple-500/40 shadow-md',
+                    glow: 'hover:shadow-[0_0_35px_rgba(168,85,247,0.5)]',
                     btn: 'from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white font-bold',
                     label: 'پک حماسی (Epic)',
-                    tintOverlay: 'from-purple-950/40 via-transparent to-black/80'
                   },
                   LEGENDARY: {
-                    defaultBg: '/assets/cards/legendary_card_bg.jpg',
-                    border: 'border-yellow-400/90',
-                    badge: 'bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-500 text-slate-950 font-black border-yellow-300 shadow-lg',
-                    glow: 'hover:shadow-[0_0_45px_rgba(234,179,8,0.6)] hover:border-yellow-300',
+                    defaultBg: legendaryCardBg,
+                    border: 'border-amber-500/60',
+                    badge: 'bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-950 font-black border-yellow-300 shadow-lg',
+                    glow: 'hover:shadow-[0_0_45px_rgba(245,158,11,0.6)]',
                     btn: 'from-amber-500 via-yellow-400 to-amber-600 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black shadow-[0_0_20px_rgba(245,158,11,0.6)]',
                     label: 'پک اساطیر (Legendary)',
-                    tintOverlay: 'from-amber-950/40 via-transparent to-black/80'
                   }
                 }[pack.tier || 'BRONZE'];
 
@@ -517,16 +518,16 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                     key={pack.id}
                     whileHover={{ y: -6, scale: 1.02 }}
                     transition={{ duration: 0.25 }}
-                    className={`group rounded-[2rem] border ${tierStyles.border} ${tierStyles.glow} relative overflow-hidden flex flex-col justify-between min-h-[400px] p-5 shadow-2xl transition-all duration-300`}
+                    className="group rounded-[2rem] border border-slate-800 hover:border-slate-700 relative overflow-hidden flex flex-col justify-between min-h-[420px] p-5 shadow-2xl transition-all duration-300"
                   >
                     {/* Immersive Borderless Card Background */}
                     <img
                       src={pack.cover_image || tierStyles.defaultBg}
                       alt={pack.name}
-                      className="absolute inset-0 w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out"
+                      className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none group-hover:scale-105 transition-transform duration-700 ease-out"
                     />
-                    {/* Vignette Overlay for Crisp Typography Contrast */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-black/30 pointer-events-none" />
+                    {/* Subtle Vignette for Crisp Typography Contrast */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-transparent to-black/30 pointer-events-none" />
 
                     {/* Top Row: Floating Tier Badge & Remaining Pool */}
                     <div className="relative z-10 flex justify-between items-center">

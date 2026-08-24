@@ -8,6 +8,10 @@ import {
 import { gachaApi } from '../../services/api';
 import { useTeam } from '../../context/TeamContext';
 
+import rareCardBg from '../../assets/cards/rare_card_bg.jpg';
+import epicCardBg from '../../assets/cards/epic_card_bg.jpg';
+import legendaryCardBg from '../../assets/cards/legendary_card_bg.jpg';
+
 export default function PackOpeningModal({
   pack,
   isOpen,
@@ -68,26 +72,26 @@ export default function PackOpeningModal({
   // Tier Theme Config with FUT Card Template Artworks
   const tierConfig = {
     BRONZE: {
-      cardBg: '/assets/cards/rare_card_bg.jpg',
-      border: 'border-blue-400/80',
-      glow: 'shadow-[0_0_35px_rgba(37,99,235,0.5)]',
-      badgeBg: 'bg-blue-900/90 text-blue-200 border-blue-400',
+      cardBg: rareCardBg,
+      border: 'border-blue-500/50',
+      glow: 'shadow-[0_0_40px_rgba(37,99,235,0.3)]',
+      badgeBg: 'bg-blue-950 text-blue-300 border-blue-500/40',
       accent: 'text-cyan-300',
       label: 'پک آبی کمیاب (Rare)'
     },
     SILVER: {
-      cardBg: '/assets/cards/epic_card_bg.jpg',
-      border: 'border-purple-400/90',
-      glow: 'shadow-[0_0_40px_rgba(168,85,247,0.55)]',
-      badgeBg: 'bg-purple-900/90 text-purple-200 border-purple-400',
+      cardBg: epicCardBg,
+      border: 'border-purple-500/50',
+      glow: 'shadow-[0_0_40px_rgba(168,85,247,0.35)]',
+      badgeBg: 'bg-purple-950 text-purple-300 border-purple-500/40',
       accent: 'text-purple-300',
       label: 'پک حماسی بنفش (Epic)'
     },
     LEGENDARY: {
-      cardBg: '/assets/cards/legendary_card_bg.jpg',
-      border: 'border-yellow-400',
-      glow: 'shadow-[0_0_50px_rgba(234,179,8,0.7)]',
-      badgeBg: 'bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-500 text-slate-950 font-black border-yellow-200',
+      cardBg: legendaryCardBg,
+      border: 'border-amber-500/50',
+      glow: 'shadow-[0_0_45px_rgba(245,158,11,0.4)]',
+      badgeBg: 'bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-950 font-black border-yellow-300',
       accent: 'text-yellow-300',
       label: 'پک اساطیر طلایی (Legendary)'
     }
@@ -117,7 +121,7 @@ export default function PackOpeningModal({
         setIsOpening(false);
       }
     } catch (err) {
-      setErrorMsg(err.response?.data?.error || 'خطا در برقراری ارتباط با سرور');
+      setErrorMsg(err.response?.data?.error || 'خطا در برقراری ارتباط با سرور.');
       setIsOpening(false);
     }
   };
@@ -129,51 +133,52 @@ export default function PackOpeningModal({
   };
 
   const handleFlipAll = () => {
-    setRevealedCardIds((cards || []).map((c) => c.id));
+    setRevealedCardIds(cards.map((c) => c.id));
   };
 
   const handlePickCard = async (card) => {
+    if (!sessionId) return;
     setIsPicking(true);
     setErrorMsg('');
     try {
       const res = await gachaApi.pickCard({
         session_id: sessionId,
-        pack_player_id: card.id
+        player_id: card.id
       });
 
       if (res.data?.success) {
-        setPickedPlayer(res.data.player);
+        setPickedPlayer(card);
         setStep('PICKED_SUCCESS');
-        if (fetchTeam) fetchTeam(team?.id);
-        if (onPlayerClaimed) onPlayerClaimed(res.data.player);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('vml_team_updated'));
-          window.dispatchEvent(new CustomEvent('vml_league_schedule_updated'));
-        }
+        if (onPlayerClaimed) onPlayerClaimed(card);
+        if (fetchTeam) fetchTeam();
       } else {
         setErrorMsg(res.data?.error || 'خطا در انتخاب بازیکن');
       }
     } catch (err) {
-      setErrorMsg(err.response?.data?.error || 'خطا در برقراری ارتباط');
+      setErrorMsg(err.response?.data?.error || 'خطا در افزودن بازیکن به ترکیب.');
     } finally {
       setIsPicking(false);
     }
   };
 
-  const formatTimer = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  const formatTimer = (sec) => {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
   return typeof document !== 'undefined' && createPortal(
-    <AnimatePresence>
-      <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
-        {/* Backdrop Click */}
+    <div
+      className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto"
+      style={{ fontFamily: 'Vazirmatn, Tahoma, sans-serif' }}
+    >
+      <div className="fixed inset-0" onClick={onClose} />
+
+      <AnimatePresence>
         <div
           className="fixed inset-0"
           onClick={() => {
-            if (step === 'INITIAL' || step === 'PICKED_SUCCESS') {
+            if (!isOpening && (step !== 'CARDS_REVEAL' || !isPicking)) {
               onClose();
             }
           }}
@@ -184,7 +189,7 @@ export default function PackOpeningModal({
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 15 }}
           transition={{ duration: 0.25 }}
-          className={`relative z-10 my-auto w-full max-w-4xl rounded-3xl border ${tierConfig.border} ${tierConfig.glow} bg-gradient-to-b ${tierConfig.gradient} text-white p-5 sm:p-7 shadow-2xl overflow-hidden`}
+          className="relative z-10 my-auto w-full max-w-4xl rounded-3xl border border-slate-800 bg-slate-950 text-white p-5 sm:p-7 shadow-2xl overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Top Header */}
@@ -227,14 +232,14 @@ export default function PackOpeningModal({
               {/* Left Column: Pack Artwork & Cover */}
               <div className="md:col-span-5 flex flex-col items-center justify-center text-center">
                 <div
-                  className={`relative group w-48 h-68 sm:w-56 sm:h-80 rounded-[2rem] overflow-hidden ${tierConfig.glow} shadow-2xl flex flex-col justify-between p-4`}
-                  style={{
-                    backgroundImage: `url(${pack.cover_image || tierConfig.cardBg})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center'
-                  }}
+                  className="relative group w-52 h-76 sm:w-60 sm:h-88 rounded-[2rem] overflow-hidden shadow-[0_0_35px_rgba(0,0,0,0.9)] flex flex-col justify-between p-4"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-transparent to-black/30 pointer-events-none" />
+                  <img
+                    src={pack.cover_image || tierConfig.cardBg}
+                    alt={pack.name}
+                    className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-black/30 pointer-events-none" />
 
                   {/* Top Tier Tag */}
                   <div className="relative z-10 flex justify-between items-center">
@@ -250,11 +255,7 @@ export default function PackOpeningModal({
                       <div className="px-3.5 py-1.5 rounded-2xl bg-black/80 backdrop-blur-md border border-white/20 text-xs font-black text-amber-300 font-sport shadow-2xl">
                         {pack.ovr_range_text}
                       </div>
-                    ) : (
-                      <div className="w-16 h-16 rounded-2xl bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-inner">
-                        <Trophy size={36} className={tierConfig.accent} />
-                      </div>
-                    )}
+                    ) : null}
                   </div>
 
                   {/* Bottom Title */}
@@ -632,8 +633,8 @@ export default function PackOpeningModal({
             </motion.div>
           )}
         </motion.div>
-      </div>
-    </AnimatePresence>,
+      </AnimatePresence>
+    </div>,
     document.body
   );
 }
