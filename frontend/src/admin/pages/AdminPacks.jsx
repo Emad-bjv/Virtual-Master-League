@@ -243,7 +243,12 @@ export default function AdminPacks() {
     e.preventDefault();
     const data = new FormData();
     Object.keys(packFormData).forEach((key) => {
-      data.append(key, packFormData[key]);
+      const val = packFormData[key];
+      // Skip empty optional datetimes so backend doesn't receive empty string
+      if ((key === 'available_from' || key === 'available_until') && (!val || val === '')) {
+        return;
+      }
+      data.append(key, val !== undefined && val !== null ? val : '');
     });
     if (coverImageFile) {
       data.append('cover_image', coverImageFile);
