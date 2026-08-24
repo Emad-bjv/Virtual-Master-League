@@ -24,6 +24,76 @@ const STORE_SUBNAV = [
   { id: 'receipts', label: 'پیگیری واریزها' },
 ];
 
+function StorePackCountdownBadge({ available_from, available_until }) {
+  const [timeLeft, setTimeLeft] = useState('');
+  const [statusText, setStatusText] = useState('');
+  const [isExpired, setIsExpired] = useState(false);
+
+  useEffect(() => {
+    const calc = () => {
+      const now = new Date().getTime();
+      const start = available_from ? new Date(available_from).getTime() : null;
+      const end = available_until ? new Date(available_until).getTime() : null;
+
+      if (start && now < start) {
+        setStatusText('شروع در آینده');
+        const diff = start - now;
+        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+        setTimeLeft(`${d > 0 ? `${d} روز و ` : ''}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        setIsExpired(false);
+        return;
+      }
+
+      if (end) {
+        if (now > end) {
+          setStatusText('مهلت پایان یافته');
+          setTimeLeft('منقضی شده');
+          setIsExpired(true);
+          return;
+        }
+        const diff = end - now;
+        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+        setTimeLeft(`${d > 0 ? `${d} روز و ` : ''}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        setStatusText('مهلت باقیمانده');
+        setIsExpired(false);
+        return;
+      }
+
+      setTimeLeft('');
+      setStatusText('');
+      setIsExpired(false);
+    };
+
+    calc();
+    const interval = setInterval(calc, 1000);
+    return () => clearInterval(interval);
+  }, [available_from, available_until]);
+
+  if (!timeLeft) return null;
+
+  return (
+    <div
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-black font-sport border backdrop-blur-md shadow-lg ${
+        isExpired
+          ? 'bg-rose-950/90 text-rose-300 border-rose-500/60'
+          : statusText === 'شروع در آینده'
+          ? 'bg-blue-950/90 text-blue-300 border-blue-500/60'
+          : 'bg-gradient-to-r from-amber-950/95 to-yellow-950/90 text-amber-300 border-amber-500/80 shadow-[0_0_15px_rgba(245,158,11,0.3)] animate-pulse'
+      }`}
+    >
+      <Clock size={13} className={!isExpired ? 'animate-spin' : ''} style={{ animationDuration: '6s' }} />
+      <span>{statusText}:</span>
+      <span className="font-mono tracking-wider font-black dir-ltr">{timeLeft}</span>
+    </div>
+  );
+}
+
 export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam }) {
   const { team, fetchTeam } = useTeam();
   const [activeSub, setActiveSub] = useState(initialSub || 'gems');
@@ -482,8 +552,8 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                       )}
                     </div>
 
-                    {/* Center Spotlight: OVR Range Floating Badge */}
-                    <div className="relative z-10 my-auto py-6 flex flex-col items-center justify-center text-center">
+                    {/* Center Spotlight: OVR Range Floating Badge & Live Countdown Timer */}
+                    <div className="relative z-10 my-auto py-4 flex flex-col items-center justify-center text-center space-y-2">
                       {pack.ovr_range_text ? (
                         <div className="px-4 py-1.5 rounded-2xl bg-black/75 backdrop-blur-md border border-white/20 shadow-[0_0_20px_rgba(0,0,0,0.8)] text-sm font-black text-amber-300 tracking-wider font-sport">
                           {pack.ovr_range_text}
@@ -492,6 +562,14 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                         <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-center shadow-inner">
                           <Trophy size={28} className="text-amber-400" />
                         </div>
+                      )}
+
+                      {/* Live Animated Countdown Timer */}
+                      {(pack.available_from || pack.available_until) && (
+                        <StorePackCountdownBadge
+                          available_from={pack.available_from}
+                          available_until={pack.available_until}
+                        />
                       )}
                     </div>
 
@@ -530,14 +608,31 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                           </div>
                         </div>
 
-                        <button
-                          disabled={pack.is_sold_out}
-                          onClick={() => setSelectedPackForModal(pack)}
-                          className={`px-4 py-2.5 rounded-2xl bg-gradient-to-r ${tierStyles.btn} font-black text-xs shadow-xl transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 hover:scale-105 active:scale-95`}
-                        >
-                          <Sparkles size={15} />
-                          <span>مشاهده و باز کردن</span>
-                        </button>
+                        {(() => {
+                          const now = Date.now();
+                          const isTimeExpired = pack.available_until && now > new Date(pack.available_until).getTime();
+                          const isNotStarted = pack.available_from && now < new Date(pack.available_from).getTime();
+                          const isButtonDisabled = pack.is_sold_out || isTimeExpired || isNotStarted;
+
+                          return (
+                            <button
+                              disabled={isButtonDisabled}
+                              onClick={() => setSelectedPackForModal(pack)}
+                              className={`px-4 py-2.5 rounded-2xl bg-gradient-to-r ${tierStyles.btn} font-black text-xs shadow-xl transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 hover:scale-105 active:scale-95`}
+                            >
+                              <Sparkles size={15} />
+                              <span>
+                                {pack.is_sold_out
+                                  ? 'تکمیل ظرفیت'
+                                  : isTimeExpired
+                                  ? 'مهلت پایان یافته'
+                                  : isNotStarted
+                                  ? 'به زودی'
+                                  : 'مشاهده و باز کردن'}
+                              </span>
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   </motion.div>

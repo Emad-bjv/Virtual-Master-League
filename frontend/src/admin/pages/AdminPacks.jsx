@@ -9,6 +9,88 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { gachaApi } from '../../services/api';
 
+const formatDateForInput = (iso) => {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    const tzOffset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+  } catch {
+    return '';
+  }
+};
+
+export function PackCountdownBadge({ available_from, available_until, is_active }) {
+  const [timeLeft, setTimeLeft] = useState('');
+  const [statusText, setStatusText] = useState('');
+  const [isExpired, setIsExpired] = useState(false);
+
+  useEffect(() => {
+    const calc = () => {
+      const now = new Date().getTime();
+      const start = available_from ? new Date(available_from).getTime() : null;
+      const end = available_until ? new Date(available_until).getTime() : null;
+
+      if (start && now < start) {
+        setStatusText('شروع در آینده');
+        const diff = start - now;
+        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+        setTimeLeft(`${d > 0 ? `${d} روز و ` : ''}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        setIsExpired(false);
+        return;
+      }
+
+      if (end) {
+        if (now > end) {
+          setStatusText('مهلت پایان یافته');
+          setTimeLeft('منقضی شده');
+          setIsExpired(true);
+          return;
+        }
+        const diff = end - now;
+        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+        setTimeLeft(`${d > 0 ? `${d} روز و ` : ''}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+        setStatusText('مهلت باقیمانده');
+        setIsExpired(false);
+        return;
+      }
+
+      setTimeLeft('');
+      setStatusText('');
+      setIsExpired(false);
+    };
+
+    calc();
+    const interval = setInterval(calc, 1000);
+    return () => clearInterval(interval);
+  }, [available_from, available_until]);
+
+  if (!timeLeft) return null;
+
+  return (
+    <div
+      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[11px] font-black font-sport border backdrop-blur-md shadow-md ${
+        isExpired
+          ? 'bg-rose-950/90 text-rose-300 border-rose-500/50'
+          : statusText === 'شروع در آینده'
+          ? 'bg-blue-950/90 text-blue-300 border-blue-500/50'
+          : 'bg-amber-950/90 text-amber-300 border-amber-500/60 animate-pulse'
+      }`}
+    >
+      <Clock size={13} className={!isExpired ? 'animate-spin' : ''} style={{ animationDuration: '6s' }} />
+      <span>{statusText}:</span>
+      <span className="font-mono tracking-wider font-black dir-ltr">{timeLeft}</span>
+    </div>
+  );
+}
+
 export default function AdminPacks() {
   const [activeTab, setActiveTab] = useState('packs'); // 'packs' | 'sessions'
   const [packs, setPacks] = useState([]);
@@ -33,6 +115,8 @@ export default function AdminPacks() {
     cost_irr: 0,
     purchase_method: 'BOTH',
     featured_team: '',
+    available_from: '',
+    available_until: '',
     is_active: true,
     sort_order: 0
   });
@@ -126,6 +210,8 @@ export default function AdminPacks() {
         cost_irr: pack.cost_irr || 0,
         purchase_method: pack.purchase_method || 'BOTH',
         featured_team: pack.featured_team || '',
+        available_from: formatDateForInput(pack.available_from),
+        available_until: formatDateForInput(pack.available_until),
         is_active: pack.is_active,
         sort_order: pack.sort_order || 0
       });
@@ -142,6 +228,8 @@ export default function AdminPacks() {
         cost_irr: 0,
         purchase_method: 'BOTH',
         featured_team: '',
+        available_from: '',
+        available_until: '',
         is_active: true,
         sort_order: 0
       });
@@ -437,6 +525,17 @@ export default function AdminPacks() {
                     </p>
                   )}
 
+                  {/* Countdown Timer Badge */}
+                  {(pack.available_from || pack.available_until) && (
+                    <div className="pt-1">
+                      <PackCountdownBadge
+                        available_from={pack.available_from}
+                        available_until={pack.available_until}
+                        is_active={pack.is_active}
+                      />
+                    </div>
+                  )}
+
                   {/* Pricing and Pool Badges */}
                   <div className="grid grid-cols-2 gap-2 text-xs bg-slate-950/60 p-3 rounded-2xl border border-white/5">
                     <div>
@@ -720,6 +819,108 @@ export default function AdminPacks() {
                       <option value="GEMS">فقط با جم</option>
                       <option value="DIRECT">فقط پرداخت مستقیم / دلار</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* Scheduling & Countdown Timer */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/40 via-slate-900 to-amber-950/30 border border-purple-500/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-amber-300 flex items-center gap-1.5 text-xs">
+                      <Clock size={15} className="text-amber-400" />
+                      <span>زمان‌بندی و تایمر فعال بودن پک (اختیاری)</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400">تایمر معکوس زنده روی کارت پک</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1">تاریخ و ساعت شروع (از کی در دسترس باشد):</label>
+                      <div className="relative">
+                        <input
+                          type="datetime-local"
+                          value={packFormData.available_from}
+                          onChange={(e) => setPackFormData({ ...packFormData, available_from: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-sport text-xs outline-none focus:border-cyan-500"
+                        />
+                        {packFormData.available_from && (
+                          <button
+                            type="button"
+                            onClick={() => setPackFormData({ ...packFormData, available_from: '' })}
+                            className="absolute left-2.5 top-2.5 text-slate-400 hover:text-white text-[11px]"
+                            title="پاک کردن"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 mb-1">تاریخ و ساعت انقضا (تا کی مهلت دارد):</label>
+                      <div className="relative">
+                        <input
+                          type="datetime-local"
+                          value={packFormData.available_until}
+                          onChange={(e) => setPackFormData({ ...packFormData, available_until: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white font-sport text-xs outline-none focus:border-amber-500"
+                        />
+                        {packFormData.available_until && (
+                          <button
+                            type="button"
+                            onClick={() => setPackFormData({ ...packFormData, available_until: '' })}
+                            className="absolute left-2.5 top-2.5 text-slate-400 hover:text-white text-[11px]"
+                            title="پاک کردن"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quick Preset Buttons */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1 text-[11px]">
+                    <span className="text-slate-500 text-[10.5px]">تنظیم سریع مهلت:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(Date.now() + 24 * 60 * 60 * 1000);
+                        const tzOffset = d.getTimezoneOffset() * 60000;
+                        setPackFormData({ ...packFormData, available_until: new Date(d.getTime() - tzOffset).toISOString().slice(0, 16) });
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer"
+                    >
+                      +۲۴ ساعت (۱ روز)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+                        const tzOffset = d.getTimezoneOffset() * 60000;
+                        setPackFormData({ ...packFormData, available_until: new Date(d.getTime() - tzOffset).toISOString().slice(0, 16) });
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer"
+                    >
+                      +۳ روز
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+                        const tzOffset = d.getTimezoneOffset() * 60000;
+                        setPackFormData({ ...packFormData, available_until: new Date(d.getTime() - tzOffset).toISOString().slice(0, 16) });
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer"
+                    >
+                      +۷ روز (۱ هفته)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPackFormData({ ...packFormData, available_from: '', available_until: '' })}
+                      className="px-2.5 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/40 mr-auto cursor-pointer"
+                    >
+                      بدون محدودیت زمانی
+                    </button>
                   </div>
                 </div>
 
