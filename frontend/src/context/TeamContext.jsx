@@ -437,9 +437,6 @@ export function TeamProvider({ children }) {
     try {
       const res = await teamApi.getTeam(id);
       hydrateTeamData(res.data);
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('vml_team_updated', { detail: res.data }));
-      }
     } catch (err) {
       console.error('Failed to fetch team roster:', err);
     } finally {

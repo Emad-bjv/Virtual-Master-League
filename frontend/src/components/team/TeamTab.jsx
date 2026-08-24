@@ -107,8 +107,10 @@ export default function TeamTab({
   const currentGems = team?.gems ?? teamData?.gems ?? 0;
 
   // 1. Fetch Complete Schedule
-  const fetchSchedule = async () => {
-    setLoadingSchedule(true);
+  const fetchSchedule = async (isBackground = false) => {
+    if (!isBackground && scheduleMatches.length === 0) {
+      setLoadingSchedule(true);
+    }
     try {
       let mList = [];
       if (teamId) {
@@ -127,20 +129,15 @@ export default function TeamTab({
   };
 
   useEffect(() => {
-    fetchSchedule();
+    fetchSchedule(false);
     const handleSync = () => {
-      fetchSchedule();
-      if (fetchTeam && teamId) fetchTeam(teamId);
+      fetchSchedule(true);
     };
     window.addEventListener('vml_league_schedule_updated', handleSync);
     window.addEventListener('vml_team_updated', handleSync);
-    window.addEventListener('storage', handleSync);
-    window.addEventListener('focus', handleSync);
     return () => {
       window.removeEventListener('vml_league_schedule_updated', handleSync);
       window.removeEventListener('vml_team_updated', handleSync);
-      window.removeEventListener('storage', handleSync);
-      window.removeEventListener('focus', handleSync);
     };
   }, [teamId]);
 

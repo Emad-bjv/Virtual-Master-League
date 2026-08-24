@@ -31,8 +31,10 @@ export default function TeamScheduleView({ teamId, teamName }) {
   const [activeFilter, setActiveFilter] = useState('ALL'); // 'ALL', 'UPCOMING', 'FINISHED', 'HOME', 'AWAY'
   const [selectedMatchId, setSelectedMatchId] = useState(null);
 
-  const fetchSchedule = async () => {
-    setLoading(true);
+  const fetchSchedule = async (isBackground = false) => {
+    if (!isBackground && matches.length === 0) {
+      setLoading(true);
+    }
     try {
       let mList = [];
       if (teamId) {
@@ -51,15 +53,11 @@ export default function TeamScheduleView({ teamId, teamName }) {
   };
 
   useEffect(() => {
-    fetchSchedule();
-    const handleSync = () => fetchSchedule();
+    fetchSchedule(false);
+    const handleSync = () => fetchSchedule(true);
     window.addEventListener('vml_league_schedule_updated', handleSync);
-    window.addEventListener('storage', handleSync);
-    window.addEventListener('focus', handleSync);
     return () => {
       window.removeEventListener('vml_league_schedule_updated', handleSync);
-      window.removeEventListener('storage', handleSync);
-      window.removeEventListener('focus', handleSync);
     };
   }, [teamId]);
 
