@@ -145,15 +145,16 @@ const CoachOversight = () => {
                 <th>شناسه</th>
                 <th>نام تیم</th>
                 <th>مربی تخصیص یافته</th>
-                <th>بودجه (تومان)</th>
+                <th>بودجه ($ / تومان)</th>
+                <th>جم باشگاه (💎)</th>
                 <th>عملیات</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="5" style={{textAlign: 'center'}}>در حال بارگذاری تیم‌ها...</td></tr>
+                <tr><td colSpan="6" style={{textAlign: 'center'}}>در حال بارگذاری تیم‌ها...</td></tr>
               ) : teams.length === 0 ? (
-                <tr><td colSpan="5" style={{textAlign: 'center', padding: '2rem', color: 'var(--admin-text-muted)'}}>هیچ تیمی ثبت نشده است.</td></tr>
+                <tr><td colSpan="6" style={{textAlign: 'center', padding: '2rem', color: 'var(--admin-text-muted)'}}>هیچ تیمی ثبت نشده است.</td></tr>
               ) : (
                 teams.map(team => (
                   <tr key={team.id}>
@@ -165,7 +166,12 @@ const CoachOversight = () => {
                       {team.name}
                     </td>
                     <td dir="ltr" style={{textAlign: 'right'}}>{getManagerUsername(team.manager)}</td>
-                    <td>{Number(team.budget || 0).toLocaleString()} تومان</td>
+                    <td style={{fontWeight: 'bold', color: '#10b981'}}>${Number(team.budget || 0).toLocaleString()}</td>
+                    <td>
+                      <span style={{color: '#38bdf8', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px'}}>
+                        💎 {Number(team.gems || 0).toLocaleString()}
+                      </span>
+                    </td>
                     <td>
                       <div style={{display: 'flex', gap: '0.5rem', justifyContent: 'center'}}>
                         <button className="admin-btn" style={{padding: '0.3rem 0.6rem', fontSize: '0.8rem'}} onClick={() => openEditModal(team)}>ویرایش / تخصیص</button>
@@ -194,8 +200,12 @@ const CoachOversight = () => {
               <input type="text" name="logo" className="admin-input" value={teamForm.logo} onChange={handleInputChange} dir="ltr" />
             </div>
             <div>
-              <label className="admin-label">بودجه</label>
+              <label className="admin-label">بودجه باشگاه ($ / تومان)</label>
               <input type="number" name="budget" className="admin-input" value={teamForm.budget} onChange={handleInputChange} required />
+            </div>
+            <div>
+              <label className="admin-label">جم باشگاه (💎)</label>
+              <input type="number" name="gems" min="0" className="admin-input" value={teamForm.gems} onChange={handleInputChange} required />
             </div>
             <div style={{gridColumn: '1 / -1'}}>
               <label className="admin-label">مربی (تخصیص حساب کاربری)</label>
@@ -227,8 +237,12 @@ const CoachOversight = () => {
               <input type="text" name="logo" className="admin-input" value={teamForm.logo} onChange={handleInputChange} dir="ltr" />
             </div>
             <div>
-              <label className="admin-label">بودجه</label>
+              <label className="admin-label">بودجه باشگاه ($ / تومان)</label>
               <input type="number" name="budget" className="admin-input" value={teamForm.budget} onChange={handleInputChange} required />
+            </div>
+            <div>
+              <label className="admin-label">جم باشگاه (💎)</label>
+              <input type="number" name="gems" min="0" className="admin-input" value={teamForm.gems} onChange={handleInputChange} required />
             </div>
             <div style={{gridColumn: '1 / -1'}}>
               <label className="admin-label">مربی (تخصیص حساب کاربری)</label>

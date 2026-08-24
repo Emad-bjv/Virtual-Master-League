@@ -18,8 +18,18 @@ import transfers.models as tr_models
 import teams.models as t_models
 
 
+class IsAdminUserOrRole(permissions.BasePermission):
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user and user.is_authenticated and (
+                user.is_staff or user.is_superuser or getattr(user, 'role', '') in ['admin', 'superadmin']
+            )
+        )
+
+
 class AdminModelViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+    permission_classes = [IsAdminUserOrRole]
 
 
 def create_admin_viewset(model_class, serializer_cls):
@@ -66,7 +76,20 @@ TransferHistoryAdminViewSet = create_admin_viewset(tr_models.TransferHistory, s.
 
 TeamAdminViewSet = create_admin_viewset(t_models.Team, s.TeamSerializer)
 ClubFacilitiesAdminViewSet = create_admin_viewset(t_models.ClubFacilities, s.ClubFacilitiesSerializer)
-PlayerAdminViewSet = create_admin_viewset(t_models.Player, s.PlayerSerializer)
+
+
+class PlayerAdminViewSet(AdminModelViewSet):
+    queryset = t_models.Player.objects.all().order_by('-overall', 'name')
+    serializer_class = s.PlayerSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        team_id = self.request.query_params.get('team') or self.request.query_params.get('team_id')
+        if team_id:
+            qs = qs.filter(team_id=team_id)
+        return qs
+
+
 PlayerGrowthLogAdminViewSet = create_admin_viewset(t_models.PlayerGrowthLog, s.PlayerGrowthLogSerializer)
 TeamGamePlanAdminViewSet = create_admin_viewset(t_models.TeamGamePlan, s.TeamGamePlanSerializer)
 
