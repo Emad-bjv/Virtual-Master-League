@@ -25,10 +25,10 @@ const AdminMatches = () => {
   const fetchData = async () => {
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
-      const url = filter ? `http://127.0.0.1:8000/api/matches/admin-list/?status=${filter}` : 'http://127.0.0.1:8000/api/matches/admin-list/';
+      const url = filter ? `/api/matches/admin-list/?status=${filter}` : '/api/matches/admin-list/';
       const [matchesRes, teamsRes] = await Promise.all([
         axios.get(url, { headers }),
-        axios.get('http://127.0.0.1:8000/api/teams/', { headers })
+        axios.get('/api/teams/', { headers })
       ]);
       setMatches(matchesRes.data);
       setTeams(teamsRes.data);
@@ -52,7 +52,7 @@ const AdminMatches = () => {
 
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
-      await axios.post('http://127.0.0.1:8000/api/matches/admin-create/', newMatch, { headers });
+      await axios.post('/api/matches/admin-create/', newMatch, { headers });
       setShowCreateModal(false);
       setNewMatch({ home_team_id: '', away_team_id: '', round_name: 'هفته ۱', date: '' });
       fetchData();
@@ -66,7 +66,7 @@ const AdminMatches = () => {
   const handleUpdateMatch = async (matchId) => {
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
-      await axios.put(`http://127.0.0.1:8000/api/matches/${matchId}/admin-update/`, editingMatch, { headers });
+      await axios.put(`/api/matches/${matchId}/admin-update/`, editingMatch, { headers });
       setEditingMatch(null);
       fetchData();
       alert('اطلاعات مسابقه ویرایش شد.');

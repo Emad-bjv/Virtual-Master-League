@@ -14,8 +14,8 @@ const AdminTeams = () => {
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
       const [teamsRes, usersRes] = await Promise.all([
-        axios.get('http://127.0.0.1:8000/api/teams/', { headers }),
-        axios.get('http://127.0.0.1:8000/api/users/admin-list/', { headers })
+        axios.get('/api/teams/', { headers }),
+        axios.get('/api/users/admin-list/', { headers })
       ]);
       setTeams(teamsRes.data);
       // Only coaches
@@ -30,7 +30,7 @@ const AdminTeams = () => {
   const handleAssignCoach = async (teamId, managerId) => {
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
-      await axios.put(`http://127.0.0.1:8000/api/teams/${teamId}/assign_coach/`, 
+      await axios.put(`/api/teams/${teamId}/assign_coach/`, 
         { manager_id: managerId === '' ? null : managerId }, 
         { headers }
       );

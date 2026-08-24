@@ -18,8 +18,8 @@ const AdminPlayers = () => {
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
       const [playersRes, teamsRes] = await Promise.all([
-        axios.get('http://127.0.0.1:8000/api/players/', { headers }),
-        axios.get('http://127.0.0.1:8000/api/teams/', { headers })
+        axios.get('/api/players/', { headers }),
+        axios.get('/api/teams/', { headers })
       ]);
       setPlayers(playersRes.data);
       setTeams(teamsRes.data);
@@ -35,7 +35,7 @@ const AdminPlayers = () => {
 
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
-      await axios.post('http://127.0.0.1:8000/api/teams/admin_update_player/', {
+      await axios.post('/api/teams/admin_update_player/', {
         player_id: editingPlayer.id,
         overall: editingPlayer.overall,
         virtual_stamina: editingPlayer.virtual_stamina,

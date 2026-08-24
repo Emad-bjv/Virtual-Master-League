@@ -51,7 +51,7 @@ const AdminDatabase = () => {
     try {
       const token = localStorage.getItem('access_token');
       const headers = token && token !== 'null' && token !== 'undefined' ? { Authorization: `Bearer ${token}` } : {};
-      const res = await axios.get('http://127.0.0.1:8000/api/core/db-explorer/summary/', { headers });
+      const res = await axios.get('/api/core/db-explorer/summary/', { headers });
       setSummary(res.data);
       if (res.data.length > 0 && !selectedModel) {
         setSelectedModel(res.data[0]);
@@ -69,7 +69,7 @@ const AdminDatabase = () => {
     try {
       const token = localStorage.getItem('access_token');
       const headers = token && token !== 'null' && token !== 'undefined' ? { Authorization: `Bearer ${token}` } : {};
-      const url = `http://127.0.0.1:8000/api/core/db-explorer/table/?app_label=${app_label}&model_name=${model_name}&search=${encodeURIComponent(search)}&page=${page}`;
+      const url = `/api/core/db-explorer/table/?app_label=${app_label}&model_name=${model_name}&search=${encodeURIComponent(search)}&page=${page}`;
       const res = await axios.get(url, { headers });
       setTableData(res.data);
     } catch (error) {
@@ -86,7 +86,7 @@ const AdminDatabase = () => {
     try {
       const token = localStorage.getItem('access_token');
       const headers = token && token !== 'null' && token !== 'undefined' ? { Authorization: `Bearer ${token}` } : {};
-      const url = `http://127.0.0.1:8000/api/core/db-explorer/table/?app_label=${selectedModel.app_label}&model_name=${selectedModel.model_name}&id=${id}`;
+      const url = `/api/core/db-explorer/table/?app_label=${selectedModel.app_label}&model_name=${selectedModel.model_name}&id=${id}`;
       await axios.delete(url, { headers });
       showToast(`رکورد ${id} با موفقیت حذف شد.`);
       fetchTable(selectedModel.app_label, selectedModel.model_name, searchQuery, currentPage);
@@ -103,7 +103,7 @@ const AdminDatabase = () => {
     try {
       const token = localStorage.getItem('access_token');
       const headers = token && token !== 'null' && token !== 'undefined' ? { Authorization: `Bearer ${token}` } : {};
-      await axios.put('http://127.0.0.1:8000/api/core/db-explorer/table/', {
+      await axios.put('/api/core/db-explorer/table/', {
         app_label: selectedModel.app_label,
         model_name: selectedModel.model_name,
         id: editingRow.id,
@@ -123,7 +123,7 @@ const AdminDatabase = () => {
     try {
       const token = localStorage.getItem('access_token');
       const headers = token && token !== 'null' && token !== 'undefined' ? { Authorization: `Bearer ${token}` } : {};
-      await axios.post('http://127.0.0.1:8000/api/core/db-explorer/table/', {
+      await axios.post('/api/core/db-explorer/table/', {
         app_label: selectedModel.app_label,
         model_name: selectedModel.model_name,
         data: newRowData

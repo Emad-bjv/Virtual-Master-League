@@ -15,7 +15,7 @@ const AdminSettings = () => {
 
   const fetchSettings = async () => {
     try {
-      const response = await axios.get('http://127.0.0.1:8000/api/core/settings/');
+      const response = await axios.get('/api/core/settings/');
       setSettings(response.data);
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -27,7 +27,7 @@ const AdminSettings = () => {
   const handleUpdate = async () => {
     try {
       const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` };
-      await axios.put('http://127.0.0.1:8000/api/core/settings/', settings, { headers });
+      await axios.put('/api/core/settings/', settings, { headers });
       alert('تنظیمات با موفقیت ذخیره شد.');
     } catch (error) {
       console.error('Error updating settings:', error);
