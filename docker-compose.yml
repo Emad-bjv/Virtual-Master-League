@@ -83,6 +83,8 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+    volumes:
+      - media_data:/usr/share/nginx/html/media:ro
     depends_on:
       - backend
 
