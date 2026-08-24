@@ -143,6 +143,7 @@ export default function PackOpeningModal({
     try {
       const res = await gachaApi.pickCard({
         session_id: sessionId,
+        pack_player_id: card.id,
         player_id: card.id
       });
 
@@ -507,23 +508,22 @@ export default function PackOpeningModal({
 
                             {/* Center Player Cutout / Photo Area */}
                             <div className="relative z-10 flex flex-col items-center justify-center my-auto">
-                              <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden flex items-center justify-center relative drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]">
-                                {card.card_image ? (
+                              <div className="w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center relative">
+                                {card.card_image || card.photo ? (
                                   <img
-                                    src={card.card_image}
+                                    src={card.card_image || card.photo}
                                     alt={card.name}
-                                    className="w-full h-full object-cover rounded-2xl"
+                                    className="w-full h-full object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
                                   />
                                 ) : (
-                                  <div className="w-full h-full bg-black/40 backdrop-blur-sm rounded-2xl border border-white/15 flex flex-col items-center justify-center text-slate-300">
-                                    <Star size={36} className="text-amber-400 mb-1" />
-                                    <span className="text-[10px] font-bold">بدون عکس</span>
+                                  <div className="flex flex-col items-center justify-center text-amber-300/80 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]">
+                                    <Trophy size={48} className="text-yellow-400/90 drop-shadow-md" />
                                   </div>
                                 )}
                               </div>
 
                               {/* Player Name Banner */}
-                              <div className="mt-1 px-3 py-1 rounded-xl bg-black/80 backdrop-blur-md border border-amber-500/40 shadow-lg max-w-[200px]">
+                              <div className="mt-1 px-3.5 py-1 rounded-xl bg-black/80 backdrop-blur-md border border-amber-500/50 shadow-lg max-w-[210px]">
                                 <h4 className="text-xs sm:text-sm font-black text-white text-center truncate tracking-wide font-sport">
                                   {card.name}
                                 </h4>

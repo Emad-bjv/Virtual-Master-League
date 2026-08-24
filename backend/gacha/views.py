@@ -63,7 +63,11 @@ class PickCardView(views.APIView):
 
         team_id = request.user.team.id
         session_id = request.data.get('session_id')
-        pack_player_id = request.data.get('pack_player_id')
+        pack_player_id = (
+            request.data.get('pack_player_id') or
+            request.data.get('player_id') or
+            request.data.get('card_id')
+        )
 
         if not session_id or not pack_player_id:
             return Response({'error': 'شناسه سشن و شناسه کارت انتخابی الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
