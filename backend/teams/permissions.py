@@ -13,7 +13,7 @@ class IsManagerOrAdminOrReadOnly(permissions.BasePermission):
             return True
 
         # Admins can do anything
-        if request.user and request.user.is_staff:
+        if request.user and (request.user.is_staff or request.user.is_superuser or getattr(request.user, 'role', '') in ['admin', 'superadmin']):
             return True
             
         # Object is a Team

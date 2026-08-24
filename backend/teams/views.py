@@ -72,7 +72,8 @@ class TeamViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def update_gameplan(self, request, pk=None):
         team = self.get_object()
-        if not request.user.is_staff and team.manager != request.user:
+        is_admin = request.user.is_staff or request.user.is_superuser or getattr(request.user, 'role', '') in ['admin', 'superadmin']
+        if not is_admin and team.manager != request.user:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("شما دسترسی برای تغییر تاکتیک این تیم را ندارید.")
         serializer = GamePlanUpdateSerializer(data=request.data, many=True)
@@ -93,7 +94,8 @@ class TeamViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get', 'post'])
     def submit_gameplan(self, request, pk=None):
         team = self.get_object()
-        if not request.user.is_staff and team.manager != request.user:
+        is_admin = request.user.is_staff or request.user.is_superuser or getattr(request.user, 'role', '') in ['admin', 'superadmin']
+        if not is_admin and team.manager != request.user:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("شما دسترسی برای تغییر تاکتیک این تیم را ندارید.")
         
@@ -243,7 +245,8 @@ class TeamViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def upgrade_facility(self, request, pk=None):
         team = self.get_object()
-        if not request.user.is_staff and team.manager != request.user:
+        is_admin = request.user.is_staff or request.user.is_superuser or getattr(request.user, 'role', '') in ['admin', 'superadmin']
+        if not is_admin and team.manager != request.user:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("شما دسترسی برای ارتقای تسهیلات این تیم را ندارید.")
 
