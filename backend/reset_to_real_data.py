@@ -11,7 +11,7 @@ django.setup()
 from teams.models import Team, Player, ClubFacilities, TeamGamePlan
 from users.models import User
 from economy.models import StorePackage
-from gacha.models import GachaPack
+from gacha.models import Pack
 from transfers.models import TransferListing, TransferBid, TransferOffer, TransferHistory, TransferLog
 from notifications.models import Notification
 from matches.models import Match
@@ -189,7 +189,7 @@ def reset_db():
     )
 
     # 5. Clean Gacha Packs
-    GachaPack.objects.get_or_create(
+    Pack.objects.get_or_create(
         name='پک ستارگان FC 26',
         defaults={
             'cost_usd': Decimal('50.00'),
