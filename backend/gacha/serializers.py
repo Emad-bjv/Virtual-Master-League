@@ -27,6 +27,11 @@ class PackPlayerSerializer(serializers.ModelSerializer):
         if isinstance(card, str) or card is None or card == '':
             data.pop('card_image', None)
 
+        for num in ['overall', 'potential_ovr', 'age', 'base_stamina', 'wage', 'market_value']:
+            val = data.get(num)
+            if val == '' or val is None:
+                data[num] = 0
+
         return super().to_internal_value(data)
 
 
@@ -60,6 +65,22 @@ class PackSerializer(serializers.ModelSerializer):
         cover = data.get('cover_image')
         if isinstance(cover, str) or cover is None or cover == '':
             data.pop('cover_image', None)
+
+        # Sanitize optional datetime fields
+        for dt in ['available_from', 'available_until']:
+            val = data.get(dt)
+            if val == '' or val == 'null' or val == 'undefined' or val is None:
+                data.pop(dt, None)
+
+        # Sanitize numbers
+        for num in ['cost_usd', 'cost_irr', 'cost_gems', 'sort_order']:
+            val = data.get(num)
+            if val == '' or val is None:
+                data[num] = 0
+
+        # Sanitize boolean fields sent as strings from FormData
+        if 'is_active' in data:
+            data['is_active'] = str(data['is_active']).lower() in ['true', '1', 'yes']
 
         return super().to_internal_value(data)
 

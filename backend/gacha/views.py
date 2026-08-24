@@ -76,6 +76,15 @@ class PickCardView(views.APIView):
             return Response({'error': result.get('error', 'خطا در انتخاب کارت')}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class IsAdminRole(permissions.BasePermission):
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user and user.is_authenticated and (
+                user.is_staff or user.is_superuser or getattr(user, 'role', '') in ['admin', 'superadmin']
+            )
+        )
+
 # =========================================================================
 # Admin Views: Pack Management, Pool Management, JSON Upload & History
 # =========================================================================
@@ -84,7 +93,7 @@ class AdminPackListView(views.APIView):
     """
     Admin endpoint to view all packs, stats, and create or update packs.
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request):
@@ -130,7 +139,7 @@ class AdminPackDetailView(views.APIView):
     """
     Admin endpoint to update or delete a specific pack.
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request, pk):
@@ -179,7 +188,7 @@ class AdminPackPlayersView(views.APIView):
     """
     Admin endpoint to view all players in a pack's pool and add a single player.
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request, pack_id):
@@ -221,7 +230,7 @@ class AdminPackPlayersBulkView(views.APIView):
     """
     Admin endpoint to bulk upload players to a pack's pool via JSON array.
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def post(self, request, pack_id):
         try:
@@ -277,7 +286,7 @@ class AdminPackPlayerDetailView(views.APIView):
     """
     Admin endpoint to delete/remove a player from a pack pool.
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def delete(self, request, pack_id, player_id):
         try:
@@ -293,7 +302,7 @@ class AdminPackSessionsView(views.APIView):
     """
     Admin endpoint to view full history of pack opening sessions.
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminRole]
 
     def get(self, request):
         pack_id = request.query_params.get('pack_id')
