@@ -193,9 +193,7 @@ def reset_db():
         name='پک ستارگان FC 26',
         defaults={
             'cost_usd': Decimal('50.00'),
-            'rate_rare': Decimal('70.00'),
-            'rate_epic': Decimal('25.00'),
-            'rate_legendary': Decimal('5.00'),
+            'cost_gems': 500,
             'is_active': True
         }
     )
