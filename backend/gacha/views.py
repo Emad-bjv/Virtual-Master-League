@@ -80,6 +80,40 @@ class PickCardView(views.APIView):
             return Response({'error': result.get('error', 'خطا در انتخاب کارت')}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class ExpireSessionView(views.APIView):
+    """
+    Called when a pack opening session times out without picking a card.
+    Refunds the Gems or Budget paid by the team.
+    """
+    throttle_scope = 'gacha'
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        session_id = request.data.get('session_id')
+        if not session_id:
+            return Response({'error': 'شناسه سشن الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            session = PackOpeningSession.objects.get(id=int(session_id))
+        except PackOpeningSession.DoesNotExist:
+            return Response({'error': 'سشن یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not request.user.is_staff and session.team.manager != request.user:
+            return Response({'error': 'شما دسترسی به این سشن ندارید.'}, status=status.HTTP_403_FORBIDDEN)
+
+        refunded = expire_session(session)
+        team = session.team
+        team.refresh_from_db()
+
+        return Response({
+            'success': True,
+            'refunded': refunded,
+            'message': 'مهلت انتخاب کارت به پایان رسید و هزینه پرداختی به موجودی باشگاه عودت داده شد.',
+            'remaining_gems': team.gems,
+            'remaining_budget': float(team.budget)
+        })
+
+
 class IsAdminRole(permissions.BasePermission):
     def has_permission(self, request, view):
         user = request.user

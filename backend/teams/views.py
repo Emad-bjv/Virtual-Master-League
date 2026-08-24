@@ -619,3 +619,34 @@ class PlayerViewSet(viewsets.ModelViewSet):
             'remaining_gems': player.team.gems,
             'player': PlayerSerializer(player).data
         })
+
+    @action(detail=True, methods=['patch', 'post'])
+    def update_market_value(self, request, pk=None):
+        player = self.get_object()
+        if not player.team:
+            return Response({'error': 'بازیکن در تیمی عضو نیست.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        is_admin = request.user.is_staff or request.user.is_superuser or getattr(request.user, 'role', '') in ['admin', 'superadmin']
+        if not is_admin and player.team.manager != request.user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("شما دسترسی برای تغییر ارزش این بازیکن را ندارید.")
+
+        market_value_input = request.data.get('market_value')
+        if market_value_input is None:
+            return Response({'error': 'مقدار ارزش بازار (market_value) الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            val = Decimal(str(market_value_input))
+            if val < Decimal('0.00'):
+                return Response({'error': 'ارزش بازار نمی‌تواند منفی باشد.'}, status=status.HTTP_400_BAD_REQUEST)
+        except (InvalidOperation, ValueError, TypeError):
+            return Response({'error': 'مقدار وارد شده برای ارزش بازار نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        player.market_value = val
+        player.save(update_fields=['market_value'])
+
+        return Response({
+            'status': f'ارزش پایه بازیکن «{player.name}» با موفقیت به ${int(val):,} تغییر یافت.',
+            'market_value': float(player.market_value),
+            'player': PlayerSerializer(player).data
+        })

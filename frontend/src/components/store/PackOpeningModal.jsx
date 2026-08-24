@@ -58,14 +58,22 @@ export default function PackOpeningModal({
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          setErrorMsg('مهلت ۵ دقیقه‌ای سشن به پایان رسید و هزینه به حساب شما برگشت داده شد.');
+          if (sessionId) {
+            gachaApi.expireSession(sessionId).then(() => {
+              if (fetchTeam) fetchTeam();
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('vml_team_updated'));
+              }
+            }).catch(() => {});
+          }
+          setErrorMsg('مهلت ۵ دقیقه‌ای انتخاب کارت به پایان رسید و کل هزینه پرداختی به موجودی باشگاه شما عودت داده شد.');
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [step, timeLeft]);
+  }, [step, timeLeft, sessionId]);
 
   if (!isOpen || !pack) return null;
 
@@ -580,55 +588,95 @@ export default function PackOpeningModal({
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="py-8 flex flex-col items-center justify-center text-center space-y-6"
+              className="py-6 flex flex-col items-center justify-center text-center space-y-5"
             >
-              <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-emerald-400 to-teal-500 flex items-center justify-center shadow-[0_0_40px_rgba(16,185,129,0.7)]">
-                <Award size={44} className="text-slate-950" />
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-400 to-teal-500 flex items-center justify-center shadow-[0_0_35px_rgba(16,185,129,0.7)]">
+                <Award size={36} className="text-slate-950" />
               </div>
 
               <div className="space-y-1">
                 <h3 className="text-xl sm:text-2xl font-black text-emerald-300 font-sport">
-                  تبریک! بازیکن به ترکیب اضافه شد
+                  تبریک! بازیکن با موفقیت به ترکیب تیم اضافه شد
                 </h3>
                 <p className="text-xs text-slate-300">
-                  بازیکن جدید هم‌اکنون در بخش مدیریت ترکیب و لیست بازیکنان تیم شما قابل دسترسی است.
+                  بازیکن «{pickedPlayer.name}» هم‌اکنون در بخش مدیریت ترکیب و لیست بازیکنان تیم شما فعال است.
                 </p>
               </div>
 
-              {/* Showcase Card */}
-              <div className="w-64 p-5 rounded-3xl bg-gradient-to-b from-slate-800 to-slate-950 border-2 border-yellow-400 shadow-[0_0_30px_rgba(234,179,8,0.4)] space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-2xl font-black text-amber-400 font-sport">
-                    {pickedPlayer.overall}
-                  </span>
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-500">
-                    {pickedPlayer.position}
+              {/* Showcase Borderless FUT Card */}
+              <div
+                className="relative w-60 h-84 rounded-[2rem] overflow-hidden shadow-[0_0_40px_rgba(0,0,0,0.9)] flex flex-col justify-between p-3.5 my-2"
+                style={{
+                  backgroundImage: `url(${tierConfig.cardBg})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center'
+                }}
+              >
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-transparent to-black/20 pointer-events-none" />
+
+                {/* Top Stat Badge */}
+                <div className="relative z-10 flex justify-between items-start pt-1 px-1">
+                  <div className="flex flex-col items-center bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-2xl border border-white/20 shadow-lg">
+                    <span className="text-2xl font-black font-sport text-amber-300 leading-none">
+                      {pickedPlayer.overall}
+                    </span>
+                    <span className="text-[11px] font-black text-cyan-300 dir-ltr uppercase tracking-wider font-sport mt-0.5">
+                      {pickedPlayer.position}
+                    </span>
+                  </div>
+
+                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-xl bg-black/75 backdrop-blur-md border border-white/20 text-slate-200">
+                    سن: {pickedPlayer.age}
                   </span>
                 </div>
 
-                <div className="w-24 h-24 mx-auto rounded-2xl bg-white/5 border border-white/20 overflow-hidden flex items-center justify-center">
-                  {pickedPlayer.card_image ? (
-                    <img
-                      src={pickedPlayer.card_image}
-                      alt={pickedPlayer.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Star size={36} className="text-amber-400" />
-                  )}
+                {/* Center Cutout & Name */}
+                <div className="relative z-10 flex flex-col items-center justify-center my-auto">
+                  <div className="w-28 h-28 flex items-center justify-center relative">
+                    {pickedPlayer.card_image || pickedPlayer.photo ? (
+                      <img
+                        src={pickedPlayer.card_image || pickedPlayer.photo}
+                        alt={pickedPlayer.name}
+                        className="w-full h-full object-contain drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-amber-300/80 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]">
+                        <Trophy size={48} className="text-yellow-400/90 drop-shadow-md" />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-1 px-3.5 py-1 rounded-xl bg-black/80 backdrop-blur-md border border-amber-500/50 shadow-lg max-w-[210px]">
+                    <h4 className="text-sm font-black text-white text-center truncate tracking-wide font-sport">
+                      {pickedPlayer.name}
+                    </h4>
+                  </div>
                 </div>
 
-                <div>
-                  <h4 className="text-base font-black text-white">{pickedPlayer.name}</h4>
-                  <span className="text-[11px] text-slate-400">سن: {pickedPlayer.age} سال</span>
+                {/* Card Footer Details */}
+                <div className="relative z-10 grid grid-cols-2 gap-1.5 text-[10.5px] bg-black/75 backdrop-blur-md p-2 rounded-2xl border border-white/20 text-slate-200">
+                  <div className="text-center">
+                    <span className="text-slate-400 block text-[9px]">استقامت (STA)</span>
+                    <span className="font-black text-emerald-400 font-sport text-xs">{pickedPlayer.base_stamina}</span>
+                  </div>
+                  <div className="text-center border-r border-white/10">
+                    <span className="text-slate-400 block text-[9px]">پتانسیل (POT)</span>
+                    <span className="font-black text-amber-300 font-sport text-xs">{pickedPlayer.potential_ovr || 99}</span>
+                  </div>
                 </div>
               </div>
 
               <button
-                onClick={onClose}
-                className="px-8 py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-sm shadow-xl transition cursor-pointer"
+                onClick={() => {
+                  onClose();
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('vml_team_updated'));
+                    window.dispatchEvent(new CustomEvent('vml_roster_updated'));
+                  }
+                }}
+                className="px-8 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-sm shadow-[0_0_25px_rgba(16,185,129,0.5)] transition cursor-pointer"
               >
-                تایید و بستن
+                تایید و مشاهده در ترکیب تیم
               </button>
             </motion.div>
           )}

@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { 
   Shirt, Star, Search, ArrowUpDown, 
-  User, Sparkles, HeartPulse, Zap, X
+  User, Sparkles, HeartPulse, Zap, X, DollarSign, Check, Edit3
 } from 'lucide-react';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
+import { playerApi } from '../../services/api';
 
 // Position colors matching authentic PES / eFootball UI
 export const getPesPositionColor = (pos) => {
@@ -32,6 +33,9 @@ export default function PlayerOverallRecords({
   const [sortBy, setSortBy] = useState('position_order'); // 'matches', 'goals', 'assists', 'rating', 'yellow', 'red', 'position_order'
   const [sortOrder, setSortOrder] = useState('desc');
   const [selectedPlayer, setSelectedPlayer] = useState(null);
+  const [editMarketValueInput, setEditMarketValueInput] = useState('');
+  const [marketValueSaving, setMarketValueSaving] = useState(false);
+  const [marketValueSuccessMsg, setMarketValueSuccessMsg] = useState('');
 
   const recordTabs = [
     { id: 1, label: 'Overall Records', num: '1/4', subtitle: 'مجموع کلیه رقابت‌ها' },
@@ -332,7 +336,11 @@ export default function PlayerOverallRecords({
                   return (
                     <tr
                       key={p.id}
-                      onClick={() => setSelectedPlayer(p)}
+                      onClick={() => {
+                        setSelectedPlayer(p);
+                        setEditMarketValueInput(p.market_value ? String(Math.round(p.market_value)) : '1000000');
+                        setMarketValueSuccessMsg('');
+                      }}
                       className={`${rowBg} transition-colors border-b border-[#8ea0b5]/40 cursor-pointer font-bold`}
                     >
                       {/* Player Col: Photo Thumbnail + Position Badge + Name */}
@@ -545,6 +553,69 @@ export default function PlayerOverallRecords({
                   </div>
                 );
               })()}
+
+              {/* Market Value / Base Price Editor (Coach Management) */}
+              <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-emerald-500/30 space-y-2.5 text-xs shadow-inner">
+                <div className="flex justify-between items-center text-slate-300">
+                  <span className="font-bold flex items-center gap-1.5 text-emerald-300">
+                    <DollarSign size={15} className="text-emerald-400" />
+                    <span>ارزش بازار و قیمت پایه بازیکن (مدیریت مربی):</span>
+                  </span>
+                  <span className="font-sport font-black text-emerald-400 text-sm dir-ltr">
+                    ${Number(selectedPlayer.market_value || 0).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <div className="relative flex-1">
+                    <input
+                      type="number"
+                      min="0"
+                      step="50000"
+                      value={editMarketValueInput}
+                      onChange={(e) => {
+                        setEditMarketValueInput(e.target.value);
+                        setMarketValueSuccessMsg('');
+                      }}
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-emerald-300 font-sport focus:outline-none focus:border-emerald-500"
+                      placeholder="قیمت به دلار (مثلاً 1500000)"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={marketValueSaving || !editMarketValueInput}
+                    onClick={async () => {
+                      setMarketValueSaving(true);
+                      setMarketValueSuccessMsg('');
+                      try {
+                        const res = await playerApi.updateMarketValue(selectedPlayer.id, editMarketValueInput);
+                        selectedPlayer.market_value = res.data.market_value;
+                        const targetInList = players.find(p => p.id === selectedPlayer.id);
+                        if (targetInList) targetInList.market_value = res.data.market_value;
+                        setMarketValueSuccessMsg('ارزش پایه بازیکن با موفقیت ثبت شد!');
+                        if (typeof window !== 'undefined') {
+                          window.dispatchEvent(new CustomEvent('vml_team_updated'));
+                          window.dispatchEvent(new CustomEvent('vml_roster_updated'));
+                        }
+                      } catch (err) {
+                        alert(err.response?.data?.error || 'خطا در بروزرسانی ارزش بازار بازیکن.');
+                      } finally {
+                        setMarketValueSaving(false);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs shadow-md transition disabled:opacity-50 cursor-pointer shrink-0"
+                  >
+                    {marketValueSaving ? 'در حال ثبت...' : 'ذخیره قیمت'}
+                  </button>
+                </div>
+
+                {marketValueSuccessMsg && (
+                  <p className="text-[11px] text-emerald-400 font-bold text-center animate-pulse">
+                    ✓ {marketValueSuccessMsg}
+                  </p>
+                )}
+              </div>
 
               {/* Quick Actions (Heal, Recover, Level Boost) */}
               <div className="bg-slate-900/70 p-3 rounded-2xl border border-slate-800 space-y-2 text-xs">

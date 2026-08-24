@@ -65,6 +65,7 @@ export const playerApi = {
   recoverStamina: (id) => api.post(`/players/${id}/recover_stamina/`),
   healInjury: (id) => api.post(`/players/${id}/heal_injury/`),
   gemBoost: (id) => api.post(`/players/${id}/gem_boost/`),
+  updateMarketValue: (id, marketValue) => api.post(`/players/${id}/update_market_value/`, { market_value: marketValue }),
 };
 
 export const transferApi = {
@@ -107,6 +108,7 @@ export const gachaApi = {
   getPacks: () => api.get('/gacha/packs/'),
   openPack: (data) => api.post('/gacha/open/', data),
   pickCard: (data) => api.post('/gacha/pick/', data),
+  expireSession: (sessionId) => api.post('/gacha/expire-session/', { session_id: sessionId }),
   getPity: (teamId) => api.get(`/gacha/pity/${teamId}/`),
   adminGetPacks: () => api.get('/gacha/admin/packs/'),
   adminSavePack: (data) => api.post('/gacha/admin/packs/', data),
