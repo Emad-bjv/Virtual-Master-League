@@ -23,17 +23,16 @@ def process_atomic_wallet_update(team_id, amount, currency: str = 'BUDGET', tran
             # Normalize Transaction Type to match model choices
             TYPE_MAP = {
                 'TRANSFER_FEE': 'TRANSFER_BUY',
-                'FREE_AGENT_SIGNING': 'TRANSFER_BUY',
                 'TRANSFER_FEE_RECEIVED': 'TRANSFER_SELL',
                 'LOAN_FEE': 'LOAN_FEE',
                 'LOAN_FEE_RECEIVED': 'LOAN_FEE_RECEIVED',
-                'PLAYER_RELEASE': 'TRANSFER_SELL',
+                'PLAYER_RELEASE': 'PLAYER_RELEASE',
                 'MATCH_REWARD': 'MATCH_REWARD',
                 'WAGE': 'WAGE',
                 'FACILITY_UPGRADE': 'FACILITY_UPGRADE',
                 'STORE_PURCHASE': 'STORE_PURCHASE',
                 'GACHA_OPEN': 'GACHA_OPEN',
-                'PLAYER_LEVEL_UP': 'ADMIN_ADJUST',
+                'PLAYER_LEVEL_UP': 'PLAYER_LEVEL_UP',
             }
             tx_type = TYPE_MAP.get(transaction_type, transaction_type)
             valid_types = [c[0] for c in Transaction.TRANSACTION_TYPES]

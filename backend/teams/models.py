@@ -173,7 +173,6 @@ class Player(models.Model):
     x_coord = models.FloatField(default=0.0, verbose_name="مختصات X در ترکیب")
     y_coord = models.FloatField(default=0.0, verbose_name="مختصات Y در ترکیب")
     is_starting = models.BooleanField(default=False, verbose_name="فیکس است؟")
-    is_free_agent = models.BooleanField(default=False, verbose_name="آزاد شده از تیم / بازیکن آزاد")
 
     # --- Player Level Progression System ---
     level = models.PositiveIntegerField(
