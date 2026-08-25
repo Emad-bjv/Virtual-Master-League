@@ -215,15 +215,9 @@ def reset_db():
                 defaults={'formation': t.default_formation, 'is_submitted': False}
             )
 
-        # Ensure all existing users have usable default passwords
-        print("Ensuring all users have active passwords...")
-        for u in User.objects.all():
-            if u.role in ['admin', 'superadmin'] or u.username in ['coach_admin', 'admin']:
-                u.set_password('admin')
-            else:
-                u.set_password('123456')
-            u.is_active = True
-            u.save(update_fields=['password', 'is_active'])
+        # Apply official coach credentials for all 18 clubs
+        from setup_official_coaches import apply_official_credentials
+        apply_official_credentials()
 
     # 4. Clean & Seed Complete Store Packages (Gems and Virtual Budget)
     print("Re-seeding Store Packages...")
