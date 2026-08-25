@@ -46,6 +46,9 @@ def list_player_for_sale(team_id: int, player_id: int, price_usd: Decimal, listi
     except Player.DoesNotExist:
         return {'success': False, 'error': 'بازیکن یافت نشد یا متعلق به این تیم نیست.'}
 
+    if not getattr(team, 'is_active', True):
+        return {'success': False, 'error': 'تیم شما در حال حاضر توسط مدیریت غیرفعال شده است و امکان فعالیت در نقل‌وانتقالات را ندارد.'}
+
     if TransferListing.objects.filter(player=player, status='ACTIVE').exists():
         return {'success': False, 'error': 'این بازیکن در حال حاضر آگهی فعال در نقل‌وانتقالات دارد.'}
 
@@ -84,6 +87,9 @@ def buy_player_direct(buyer_team_id: int, listing_id: int) -> dict:
 
         if buyer.id == seller.id:
             return {'success': False, 'error': 'نمی‌توانید بازیکن خودتان را بخرید.'}
+
+        if not getattr(buyer, 'is_active', True):
+            return {'success': False, 'error': 'تیم شما در حال حاضر توسط مدیریت غیرفعال شده است و امکان فعالیت در نقل‌وانتقالات را ندارد.'}
 
         if buyer.manager is None:
             return {'success': False, 'error': 'تیم بدون مربی (سرپرستی) مجاز به خرید یا خرج بودجه نیست.'}
@@ -180,6 +186,9 @@ def place_bid(bidder_team_id: int, listing_id: int, bid_amount: Decimal) -> dict
 
         if listing.seller_team.id == bidder.id:
             return {'success': False, 'error': 'نمی‌توانید روی بازیکن خودتان پیشنهاد دهید.'}
+
+        if not getattr(bidder, 'is_active', True):
+            return {'success': False, 'error': 'تیم شما در حال حاضر توسط مدیریت غیرفعال شده است و امکان شرکت در مزایده را ندارد.'}
 
         if bidder.manager is None:
             return {'success': False, 'error': 'تیم بدون مربی (سرپرستی) مجاز به پیشنهاد قیمت نیست.'}

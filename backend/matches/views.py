@@ -169,7 +169,7 @@ class LeagueStandingsView(generics.GenericAPIView):
         except Exception:
             pass
 
-        qs = LeagueStanding.objects.filter(tournament=tournament).select_related('team')
+        qs = LeagueStanding.objects.filter(tournament=tournament, team__is_active=True).select_related('team')
 
         standings = []
         for row in qs:
@@ -1703,9 +1703,9 @@ class AdminLeagueConfigureView(APIView):
             LeagueStanding.objects.filter(tournament=tournament).delete()
 
         if team_ids and isinstance(team_ids, list):
-            teams = Team.objects.filter(id__in=team_ids).order_by('id')
+            teams = Team.objects.filter(id__in=team_ids, is_active=True).order_by('id')
         else:
-            teams = Team.objects.all().order_by('id')
+            teams = Team.objects.filter(is_active=True).order_by('id')
 
         reserve_cup_days = request.data.get('reserve_cup_days', request.data.get('skip_fridays', True))
         if isinstance(reserve_cup_days, str):

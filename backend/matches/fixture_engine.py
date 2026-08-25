@@ -41,11 +41,11 @@ def generate_league_fixtures(
       - Works dynamically with ANY start date (Monday, Saturday, Wednesday, etc.).
     """
     if teams is None:
-        teams = Team.objects.all().order_by('id')
+        teams = Team.objects.filter(is_active=True).order_by('id')
 
     import random
 
-    team_list = list(teams)
+    team_list = [t for t in list(teams) if getattr(t, 'is_active', True)]
     if len(team_list) < 2:
         return 0
 

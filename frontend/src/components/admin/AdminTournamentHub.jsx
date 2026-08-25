@@ -289,9 +289,15 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
     }
   };
 
+  const activeTeams = useMemo(() => (teams || []).filter(t => t.is_active !== false), [teams]);
+
   // Handle Configure / Generate League Fixtures
   const handleGenerateLeague = async () => {
-    if (!window.confirm(`آیا از بازتولید برنامه مسابقات لیگ با ${teams.length} تیم اطمینان دارید؟ تمام مسابقات قبلی لیگ پاک و مجدداً طبق تنظیمات زمان‌بندی می‌شوند.`)) {
+    if (activeTeams.length < 2) {
+      notify('حداقل ۲ تیم فعال برای تولید مسابقات لیگ مورد نیاز است.', 'error');
+      return;
+    }
+    if (!window.confirm(`آیا از بازتولید برنامه مسابقات لیگ با ${activeTeams.length} تیم فعال اطمینان دارید؟ تمام مسابقات قبلی لیگ پاک و مجدداً طبق تنظیمات زمان‌بندی می‌شوند.`)) {
       return;
     }
     setActionLoading(true);
@@ -304,6 +310,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         reserve_cup_days: reserveCupDays,
         interval_gameweeks: cupIntervalGameweeks,
         time_slots: timeSlots,
+        team_ids: activeTeams.map(t => t.id),
         clear_existing: true,
       });
       notify(res.data?.message || 'برنامه لیگ با موفقیت تولید شد.', 'success');
@@ -600,8 +607,10 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-slate-900/80 border border-white/5 rounded-2xl p-4 flex items-center justify-between">
               <div>
-                <span className="text-xs text-gray-400 block mb-1">تعداد کل تیم‌ها</span>
-                <span className="text-2xl font-black text-white">{teams.length}</span>
+                <span className="text-xs text-gray-400 block mb-1">تیم‌های فعال در لیگ</span>
+                <span className="text-2xl font-black text-emerald-400">
+                  {activeTeams.length} <span className="text-xs font-normal text-gray-400">از {teams.length}</span>
+                </span>
               </div>
               <Users className="w-8 h-8 text-blue-400/50" />
             </div>
@@ -800,9 +809,9 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                 <div className="flex items-center justify-between text-xs text-gray-400">
                   <span className="font-medium">ترتیب ساعات مسابقات در طول روز:</span>
                   <span className="text-[11px] text-gray-400">
-                    {teams.length > 0
-                      ? `نیاز روزانه برای ${teams.length} تیم: ${Math.floor(teams.length / 2)} مسابقه ${
-                          timeSlots.length >= Math.floor(teams.length / 2)
+                    {activeTeams.length > 0
+                      ? `نیاز روزانه برای ${activeTeams.length} تیم فعال: ${Math.floor(activeTeams.length / 2)} مسابقه ${
+                          timeSlots.length >= Math.floor(activeTeams.length / 2)
                             ? '✅ (پوشش کامل)'
                             : '⚠️ (تکرار اسلات‌ها)'
                         }`

@@ -20,6 +20,7 @@ class Team(models.Model):
         validators=[MinValueValidator(Decimal('0.5')), MaxValueValidator(Decimal('5.0'))],
         verbose_name="قدرت ستاره تیم (۰.۵ تا ۵)"
     )
+    is_active = models.BooleanField(default=True, db_index=True, verbose_name="فعال در سیستم لیگ")
 
     class Meta:
         verbose_name = "تیم"

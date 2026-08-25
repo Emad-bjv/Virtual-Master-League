@@ -134,7 +134,7 @@ class AdminOverviewStatsView(APIView):
         # Standings Summary (Top 5)
         top_standings = []
         if active_tourney:
-            standings_qs = m_models.LeagueStanding.objects.filter(tournament=active_tourney).select_related('team').order_by('-points', '-goals_for')[:5]
+            standings_qs = m_models.LeagueStanding.objects.filter(tournament=active_tourney, team__is_active=True).select_related('team').order_by('-points', '-goals_for')[:5]
             for idx, st in enumerate(standings_qs, start=1):
                 top_standings.append({
                     'rank': idx,
