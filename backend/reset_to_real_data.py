@@ -20,7 +20,8 @@ FC26_TEAMS = [
     'AC Milan', 'Arsenal', 'Atlético Madrid', 'BVB Borussia Dortmund',
     'Chelsea', 'FC Barcelona', 'FC Bayern München', 'Inter',
     'Juventus', 'Liverpool', 'Manchester City', 'Manchester United',
-    'Newcastle United', 'Paris Saint-Germain', 'Real Madrid', 'Tottenham Hotspur'
+    'Newcastle United', 'Paris Saint-Germain', 'Real Madrid', 'Tottenham Hotspur',
+    'AS Roma', 'SSC Napoli'
 ]
 
 def reset_db():
@@ -68,9 +69,9 @@ def reset_db():
     print(f"Deleting {dummy_users.count()} test users...")
     dummy_users.delete()
 
-    deleted_players, _ = Player.objects.filter(team__name__in=dummy_team_names).delete()
+    deleted_players, _ = Player.objects.all().delete()
     deleted_teams, _ = dummy_teams.delete()
-    print(f"Deleted {deleted_teams} dummy teams and {deleted_players} dummy players.")
+    print(f"Deleted {deleted_teams} dummy teams and reset all player records.")
 
     # Copy logos
     import shutil
@@ -104,6 +105,8 @@ def reset_db():
         'Paris Saint-Germain': '4-3-3 (4-3-3)',
         'Real Madrid': '4-3-3 (4-3-3)',
         'Tottenham Hotspur': '4-5-1 (4-2-3-1)',
+        'AS Roma': '4-5-1 (4-2-3-1)',
+        'SSC Napoli': '4-3-3 (4-3-3)',
     }
 
     # 3. Load / import FC 26 teams and players from fixture JSON if not present

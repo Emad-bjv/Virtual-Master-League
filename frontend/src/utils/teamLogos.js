@@ -102,6 +102,20 @@ export const TEAM_LOGOS = {
   'Tottenham': '/logos/tottenham.webp',
   'Spurs': '/logos/tottenham.webp',
   'tottenham': '/logos/tottenham.webp',
+
+  // AS Roma
+  'AS Roma': '/logos/as-roma.webp',
+  'Roma': '/logos/as-roma.webp',
+  'A.S. Roma': '/logos/as-roma.webp',
+  'as-roma': '/logos/as-roma.webp',
+  'as_roma': '/logos/as-roma.webp',
+
+  // SSC Napoli
+  'SSC Napoli': '/logos/napoli.webp',
+  'Napoli': '/logos/napoli.webp',
+  'S.S.C. Napoli': '/logos/napoli.webp',
+  'ssc-napoli': '/logos/napoli.webp',
+  'napoli': '/logos/napoli.webp',
 };
 
 // Persian Names Mapping
@@ -137,6 +151,9 @@ const PERSIAN_TEAM_MAP = {
   'رئال': '/logos/real-madrid.webp',
   'تاتنهام': '/logos/tottenham.webp',
   'تاتنهام هاتسپر': '/logos/tottenham.webp',
+  'رم': '/logos/as-roma.webp',
+  'آ اس رم': '/logos/as-roma.webp',
+  'ناپولی': '/logos/napoli.webp',
 };
 
 /**

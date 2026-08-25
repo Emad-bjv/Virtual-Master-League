@@ -8232,5 +8232,1098 @@
       "rarity": "RARE",
       "market_value": "45000000.0"
     }
+  },
+  {
+    "model": "teams.team",
+    "pk": 287,
+    "fields": {
+      "name": "AS Roma",
+      "logo": "/logos/as-roma.webp",
+      "budget": "100000000.00",
+      "wage_cap": "5000000.00",
+      "star_rating": "4.0"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1172,
+    "fields": {
+      "team": 287,
+      "name": "Artem Dovbyk",
+      "age": 25,
+      "position": "CF",
+      "overall": 83,
+      "potential_ovr": 85,
+      "base_stamina": 86,
+      "virtual_stamina": "100.00",
+      "wage": "64400",
+      "rarity": "EPIC",
+      "market_value": "32500000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1173,
+    "fields": {
+      "team": 287,
+      "name": "Paulo Dybala",
+      "age": 25,
+      "position": "SS",
+      "overall": 83,
+      "potential_ovr": 85,
+      "base_stamina": 86,
+      "virtual_stamina": "100.00",
+      "wage": "64400",
+      "rarity": "EPIC",
+      "market_value": "32500000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1174,
+    "fields": {
+      "team": 287,
+      "name": "Mile Svilar",
+      "age": 25,
+      "position": "GK",
+      "overall": 82,
+      "potential_ovr": 84,
+      "base_stamina": 75,
+      "virtual_stamina": "100.00",
+      "wage": "61600",
+      "rarity": "RARE",
+      "market_value": "30000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1175,
+    "fields": {
+      "team": 287,
+      "name": "Gianluca Mancini",
+      "age": 25,
+      "position": "CB",
+      "overall": 82,
+      "potential_ovr": 84,
+      "base_stamina": 85,
+      "virtual_stamina": "100.00",
+      "wage": "61600",
+      "rarity": "RARE",
+      "market_value": "30000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1176,
+    "fields": {
+      "team": 287,
+      "name": "Manu Koné",
+      "age": 25,
+      "position": "CMF",
+      "overall": 82,
+      "potential_ovr": 84,
+      "base_stamina": 87,
+      "virtual_stamina": "100.00",
+      "wage": "61600",
+      "rarity": "RARE",
+      "market_value": "30000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1177,
+    "fields": {
+      "team": 287,
+      "name": "Matìas Soulé",
+      "age": 25,
+      "position": "RWF",
+      "overall": 82,
+      "potential_ovr": 84,
+      "base_stamina": 85,
+      "virtual_stamina": "100.00",
+      "wage": "61600",
+      "rarity": "RARE",
+      "market_value": "30000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1178,
+    "fields": {
+      "team": 287,
+      "name": "Lorenzo Pellegrini",
+      "age": 25,
+      "position": "AMF",
+      "overall": 82,
+      "potential_ovr": 84,
+      "base_stamina": 85,
+      "virtual_stamina": "100.00",
+      "wage": "61600",
+      "rarity": "RARE",
+      "market_value": "30000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1179,
+    "fields": {
+      "team": 287,
+      "name": "Evan Ndicka",
+      "age": 25,
+      "position": "CB",
+      "overall": 81,
+      "potential_ovr": 83,
+      "base_stamina": 84,
+      "virtual_stamina": "100.00",
+      "wage": "42000",
+      "rarity": "RARE",
+      "market_value": "13200000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1180,
+    "fields": {
+      "team": 287,
+      "name": "Wesley França",
+      "age": 25,
+      "position": "RB",
+      "overall": 81,
+      "potential_ovr": 83,
+      "base_stamina": 86,
+      "virtual_stamina": "100.00",
+      "wage": "42000",
+      "rarity": "RARE",
+      "market_value": "13200000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1181,
+    "fields": {
+      "team": 287,
+      "name": "Mario Hermoso",
+      "age": 25,
+      "position": "CB",
+      "overall": 80,
+      "potential_ovr": 82,
+      "base_stamina": 83,
+      "virtual_stamina": "100.00",
+      "wage": "40000",
+      "rarity": "RARE",
+      "market_value": "12000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1182,
+    "fields": {
+      "team": 287,
+      "name": "Niccolò Pisilli",
+      "age": 25,
+      "position": "CMF",
+      "overall": 80,
+      "potential_ovr": 82,
+      "base_stamina": 85,
+      "virtual_stamina": "100.00",
+      "wage": "40000",
+      "rarity": "RARE",
+      "market_value": "12000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1183,
+    "fields": {
+      "team": 287,
+      "name": "S. El Shaarawy",
+      "age": 25,
+      "position": "LWF",
+      "overall": 80,
+      "potential_ovr": 82,
+      "base_stamina": 83,
+      "virtual_stamina": "100.00",
+      "wage": "40000",
+      "rarity": "RARE",
+      "market_value": "12000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1184,
+    "fields": {
+      "team": 287,
+      "name": "Angeliño",
+      "age": 25,
+      "position": "LB",
+      "overall": 80,
+      "potential_ovr": 82,
+      "base_stamina": 85,
+      "virtual_stamina": "100.00",
+      "wage": "40000",
+      "rarity": "RARE",
+      "market_value": "12000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1185,
+    "fields": {
+      "team": 287,
+      "name": "Tommaso Baldanzi",
+      "age": 25,
+      "position": "AMF",
+      "overall": 79,
+      "potential_ovr": 81,
+      "base_stamina": 82,
+      "virtual_stamina": "100.00",
+      "wage": "38000",
+      "rarity": "RARE",
+      "market_value": "10800000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1186,
+    "fields": {
+      "team": 287,
+      "name": "Zeki Çelik",
+      "age": 25,
+      "position": "RB",
+      "overall": 79,
+      "potential_ovr": 81,
+      "base_stamina": 84,
+      "virtual_stamina": "100.00",
+      "wage": "38000",
+      "rarity": "RARE",
+      "market_value": "10800000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1187,
+    "fields": {
+      "team": 287,
+      "name": "Bryan Cristante",
+      "age": 25,
+      "position": "DMF",
+      "overall": 79,
+      "potential_ovr": 81,
+      "base_stamina": 84,
+      "virtual_stamina": "100.00",
+      "wage": "38000",
+      "rarity": "RARE",
+      "market_value": "10800000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1188,
+    "fields": {
+      "team": 287,
+      "name": "Pierluigi Gollini",
+      "age": 25,
+      "position": "GK",
+      "overall": 78,
+      "potential_ovr": 80,
+      "base_stamina": 75,
+      "virtual_stamina": "100.00",
+      "wage": "36000",
+      "rarity": "RARE",
+      "market_value": "9600000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1189,
+    "fields": {
+      "team": 287,
+      "name": "Neil El Aynaoui",
+      "age": 25,
+      "position": "CMF",
+      "overall": 77,
+      "potential_ovr": 79,
+      "base_stamina": 82,
+      "virtual_stamina": "100.00",
+      "wage": "20400",
+      "rarity": "REGULAR",
+      "market_value": "6000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1190,
+    "fields": {
+      "team": 287,
+      "name": "Anass Salah-Eddine",
+      "age": 25,
+      "position": "LB",
+      "overall": 77,
+      "potential_ovr": 79,
+      "base_stamina": 82,
+      "virtual_stamina": "100.00",
+      "wage": "20400",
+      "rarity": "REGULAR",
+      "market_value": "6000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1191,
+    "fields": {
+      "team": 287,
+      "name": "Eldor Shomurodov",
+      "age": 25,
+      "position": "CF",
+      "overall": 77,
+      "potential_ovr": 79,
+      "base_stamina": 80,
+      "virtual_stamina": "100.00",
+      "wage": "20400",
+      "rarity": "REGULAR",
+      "market_value": "6000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1192,
+    "fields": {
+      "team": 287,
+      "name": "Devis Vásquez",
+      "age": 25,
+      "position": "GK",
+      "overall": 77,
+      "potential_ovr": 79,
+      "base_stamina": 75,
+      "virtual_stamina": "100.00",
+      "wage": "20400",
+      "rarity": "REGULAR",
+      "market_value": "6000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1193,
+    "fields": {
+      "team": 287,
+      "name": "Marash Kumbulla",
+      "age": 25,
+      "position": "CB",
+      "overall": 76,
+      "potential_ovr": 78,
+      "base_stamina": 79,
+      "virtual_stamina": "100.00",
+      "wage": "19200",
+      "rarity": "REGULAR",
+      "market_value": "5500000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1194,
+    "fields": {
+      "team": 287,
+      "name": "Saud Abdulhamid",
+      "age": 25,
+      "position": "RB",
+      "overall": 76,
+      "potential_ovr": 78,
+      "base_stamina": 81,
+      "virtual_stamina": "100.00",
+      "wage": "19200",
+      "rarity": "REGULAR",
+      "market_value": "5500000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1195,
+    "fields": {
+      "team": 287,
+      "name": "Devyne Rensch",
+      "age": 25,
+      "position": "RB",
+      "overall": 75,
+      "potential_ovr": 77,
+      "base_stamina": 80,
+      "virtual_stamina": "100.00",
+      "wage": "18000",
+      "rarity": "REGULAR",
+      "market_value": "5000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1196,
+    "fields": {
+      "team": 287,
+      "name": "Jan Ziolkowski",
+      "age": 25,
+      "position": "CB",
+      "overall": 74,
+      "potential_ovr": 76,
+      "base_stamina": 77,
+      "virtual_stamina": "100.00",
+      "wage": "16800",
+      "rarity": "REGULAR",
+      "market_value": "4500000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1197,
+    "fields": {
+      "team": 287,
+      "name": "Radoslaw Zelezny",
+      "age": 25,
+      "position": "GK",
+      "overall": 73,
+      "potential_ovr": 75,
+      "base_stamina": 75,
+      "virtual_stamina": "100.00",
+      "wage": "15600",
+      "rarity": "REGULAR",
+      "market_value": "4000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1198,
+    "fields": {
+      "team": 287,
+      "name": "Robinio Vaz",
+      "age": 25,
+      "position": "CF",
+      "overall": 71,
+      "potential_ovr": 73,
+      "base_stamina": 75,
+      "virtual_stamina": "100.00",
+      "wage": "13200",
+      "rarity": "REGULAR",
+      "market_value": "3000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1199,
+    "fields": {
+      "team": 287,
+      "name": "Buba Sangaré",
+      "age": 25,
+      "position": "RB",
+      "overall": 71,
+      "potential_ovr": 73,
+      "base_stamina": 78,
+      "virtual_stamina": "100.00",
+      "wage": "13200",
+      "rarity": "REGULAR",
+      "market_value": "3000000"
+    }
+  },
+  {
+    "model": "teams.team",
+    "pk": 288,
+    "fields": {
+      "name": "SSC Napoli",
+      "logo": "/logos/napoli.webp",
+      "budget": "100000000.00",
+      "wage_cap": "5000000.00",
+      "star_rating": "4.0"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1200,
+    "fields": {
+      "team": 288,
+      "name": "Kevin De Bruyne",
+      "age": 25,
+      "position": "AMF",
+      "overall": 87,
+      "potential_ovr": 89,
+      "base_stamina": 90,
+      "virtual_stamina": "100.00",
+      "wage": "108000",
+      "rarity": "EPIC",
+      "market_value": "85000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1201,
+    "fields": {
+      "team": 288,
+      "name": "Scott McTominay",
+      "age": 25,
+      "position": "CMF",
+      "overall": 85,
+      "potential_ovr": 87,
+      "base_stamina": 90,
+      "virtual_stamina": "100.00",
+      "wage": "70000",
+      "rarity": "EPIC",
+      "market_value": "37500000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1202,
+    "fields": {
+      "team": 288,
+      "name": "Romelu Lukaku",
+      "age": 25,
+      "position": "CF",
+      "overall": 84,
+      "potential_ovr": 86,
+      "base_stamina": 87,
+      "virtual_stamina": "100.00",
+      "wage": "67200",
+      "rarity": "EPIC",
+      "market_value": "35000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1203,
+    "fields": {
+      "team": 288,
+      "name": "Frank Anguissa",
+      "age": 25,
+      "position": "CMF",
+      "overall": 84,
+      "potential_ovr": 86,
+      "base_stamina": 89,
+      "virtual_stamina": "100.00",
+      "wage": "67200",
+      "rarity": "EPIC",
+      "market_value": "35000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1204,
+    "fields": {
+      "team": 288,
+      "name": "A. Buongiorno",
+      "age": 25,
+      "position": "CB",
+      "overall": 83,
+      "potential_ovr": 85,
+      "base_stamina": 86,
+      "virtual_stamina": "100.00",
+      "wage": "64400",
+      "rarity": "EPIC",
+      "market_value": "32500000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1205,
+    "fields": {
+      "team": 288,
+      "name": "Giovanni Di Lorenzo",
+      "age": 25,
+      "position": "RB",
+      "overall": 83,
+      "potential_ovr": 85,
+      "base_stamina": 88,
+      "virtual_stamina": "100.00",
+      "wage": "64400",
+      "rarity": "EPIC",
+      "market_value": "32500000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1206,
+    "fields": {
+      "team": 288,
+      "name": "Stanislav Lobotka",
+      "age": 25,
+      "position": "DMF",
+      "overall": 83,
+      "potential_ovr": 85,
+      "base_stamina": 88,
+      "virtual_stamina": "100.00",
+      "wage": "64400",
+      "rarity": "EPIC",
+      "market_value": "32500000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1207,
+    "fields": {
+      "team": 288,
+      "name": "David Neres",
+      "age": 25,
+      "position": "RWF",
+      "overall": 83,
+      "potential_ovr": 85,
+      "base_stamina": 86,
+      "virtual_stamina": "100.00",
+      "wage": "64400",
+      "rarity": "EPIC",
+      "market_value": "32500000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1208,
+    "fields": {
+      "team": 288,
+      "name": "Alex Meret",
+      "age": 25,
+      "position": "GK",
+      "overall": 82,
+      "potential_ovr": 84,
+      "base_stamina": 75,
+      "virtual_stamina": "100.00",
+      "wage": "61600",
+      "rarity": "RARE",
+      "market_value": "30000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1209,
+    "fields": {
+      "team": 288,
+      "name": "Amir Rrahmani",
+      "age": 25,
+      "position": "CB",
+      "overall": 82,
+      "potential_ovr": 84,
+      "base_stamina": 85,
+      "virtual_stamina": "100.00",
+      "wage": "61600",
+      "rarity": "RARE",
+      "market_value": "30000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1210,
+    "fields": {
+      "team": 288,
+      "name": "Mathías Olivera",
+      "age": 25,
+      "position": "LB",
+      "overall": 82,
+      "potential_ovr": 84,
+      "base_stamina": 87,
+      "virtual_stamina": "100.00",
+      "wage": "61600",
+      "rarity": "RARE",
+      "market_value": "30000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1211,
+    "fields": {
+      "team": 288,
+      "name": "Sam Beukema",
+      "age": 25,
+      "position": "CB",
+      "overall": 82,
+      "potential_ovr": 84,
+      "base_stamina": 85,
+      "virtual_stamina": "100.00",
+      "wage": "61600",
+      "rarity": "RARE",
+      "market_value": "30000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1212,
+    "fields": {
+      "team": 288,
+      "name": "Miguel Gutiérrez",
+      "age": 25,
+      "position": "LB",
+      "overall": 82,
+      "potential_ovr": 84,
+      "base_stamina": 87,
+      "virtual_stamina": "100.00",
+      "wage": "61600",
+      "rarity": "RARE",
+      "market_value": "30000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1213,
+    "fields": {
+      "team": 288,
+      "name": "Matteo Politano",
+      "age": 25,
+      "position": "RWF",
+      "overall": 82,
+      "potential_ovr": 84,
+      "base_stamina": 85,
+      "virtual_stamina": "100.00",
+      "wage": "61600",
+      "rarity": "RARE",
+      "market_value": "30000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1214,
+    "fields": {
+      "team": 288,
+      "name": "Noa Lang",
+      "age": 25,
+      "position": "LWF",
+      "overall": 82,
+      "potential_ovr": 84,
+      "base_stamina": 85,
+      "virtual_stamina": "100.00",
+      "wage": "61600",
+      "rarity": "RARE",
+      "market_value": "30000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1215,
+    "fields": {
+      "team": 288,
+      "name": "Lorenzo Lucca",
+      "age": 25,
+      "position": "CF",
+      "overall": 81,
+      "potential_ovr": 83,
+      "base_stamina": 84,
+      "virtual_stamina": "100.00",
+      "wage": "42000",
+      "rarity": "RARE",
+      "market_value": "13200000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1216,
+    "fields": {
+      "team": 288,
+      "name": "Giovanni Simeone",
+      "age": 25,
+      "position": "CF",
+      "overall": 81,
+      "potential_ovr": 83,
+      "base_stamina": 84,
+      "virtual_stamina": "100.00",
+      "wage": "42000",
+      "rarity": "RARE",
+      "market_value": "13200000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1217,
+    "fields": {
+      "team": 288,
+      "name": "Billy Gilmour",
+      "age": 25,
+      "position": "DMF",
+      "overall": 80,
+      "potential_ovr": 82,
+      "base_stamina": 85,
+      "virtual_stamina": "100.00",
+      "wage": "40000",
+      "rarity": "RARE",
+      "market_value": "12000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1218,
+    "fields": {
+      "team": 288,
+      "name": "L. Spinazzola",
+      "age": 25,
+      "position": "LB",
+      "overall": 79,
+      "potential_ovr": 81,
+      "base_stamina": 84,
+      "virtual_stamina": "100.00",
+      "wage": "38000",
+      "rarity": "RARE",
+      "market_value": "10800000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1219,
+    "fields": {
+      "team": 288,
+      "name": "Luca Marianucci",
+      "age": 25,
+      "position": "CB",
+      "overall": 78,
+      "potential_ovr": 80,
+      "base_stamina": 81,
+      "virtual_stamina": "100.00",
+      "wage": "36000",
+      "rarity": "RARE",
+      "market_value": "9600000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1220,
+    "fields": {
+      "team": 288,
+      "name": "Alessandro Zanoli",
+      "age": 25,
+      "position": "RB",
+      "overall": 78,
+      "potential_ovr": 80,
+      "base_stamina": 83,
+      "virtual_stamina": "100.00",
+      "wage": "36000",
+      "rarity": "RARE",
+      "market_value": "9600000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1221,
+    "fields": {
+      "team": 288,
+      "name": "Jesper Lindstrøm",
+      "age": 25,
+      "position": "RWF",
+      "overall": 78,
+      "potential_ovr": 80,
+      "base_stamina": 81,
+      "virtual_stamina": "100.00",
+      "wage": "36000",
+      "rarity": "RARE",
+      "market_value": "9600000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1222,
+    "fields": {
+      "team": 288,
+      "name": "Jens Cajuste",
+      "age": 25,
+      "position": "DMF",
+      "overall": 78,
+      "potential_ovr": 80,
+      "base_stamina": 83,
+      "virtual_stamina": "100.00",
+      "wage": "36000",
+      "rarity": "RARE",
+      "market_value": "9600000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1223,
+    "fields": {
+      "team": 288,
+      "name": "Michael Folorunsho",
+      "age": 25,
+      "position": "CMF",
+      "overall": 77,
+      "potential_ovr": 79,
+      "base_stamina": 82,
+      "virtual_stamina": "100.00",
+      "wage": "20400",
+      "rarity": "REGULAR",
+      "market_value": "6000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1224,
+    "fields": {
+      "team": 288,
+      "name": "Juan Jesus",
+      "age": 25,
+      "position": "CB",
+      "overall": 77,
+      "potential_ovr": 79,
+      "base_stamina": 80,
+      "virtual_stamina": "100.00",
+      "wage": "20400",
+      "rarity": "REGULAR",
+      "market_value": "6000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1225,
+    "fields": {
+      "team": 288,
+      "name": "Pasquale Mazzocchi",
+      "age": 25,
+      "position": "RB",
+      "overall": 77,
+      "potential_ovr": 79,
+      "base_stamina": 82,
+      "virtual_stamina": "100.00",
+      "wage": "20400",
+      "rarity": "REGULAR",
+      "market_value": "6000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1226,
+    "fields": {
+      "team": 288,
+      "name": "Cyril Ngonge",
+      "age": 25,
+      "position": "RWF",
+      "overall": 77,
+      "potential_ovr": 79,
+      "base_stamina": 80,
+      "virtual_stamina": "100.00",
+      "wage": "20400",
+      "rarity": "REGULAR",
+      "market_value": "6000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1227,
+    "fields": {
+      "team": 288,
+      "name": "Walid Cheddira",
+      "age": 25,
+      "position": "CF",
+      "overall": 76,
+      "potential_ovr": 78,
+      "base_stamina": 79,
+      "virtual_stamina": "100.00",
+      "wage": "19200",
+      "rarity": "REGULAR",
+      "market_value": "5500000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1228,
+    "fields": {
+      "team": 288,
+      "name": "Alisson Santos",
+      "age": 25,
+      "position": "LWF",
+      "overall": 75,
+      "potential_ovr": 77,
+      "base_stamina": 78,
+      "virtual_stamina": "100.00",
+      "wage": "18000",
+      "rarity": "REGULAR",
+      "market_value": "5000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1229,
+    "fields": {
+      "team": 288,
+      "name": "Alessio Zerbin",
+      "age": 25,
+      "position": "LWF",
+      "overall": 74,
+      "potential_ovr": 76,
+      "base_stamina": 77,
+      "virtual_stamina": "100.00",
+      "wage": "16800",
+      "rarity": "REGULAR",
+      "market_value": "4500000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1230,
+    "fields": {
+      "team": 288,
+      "name": "Nikita Contini",
+      "age": 25,
+      "position": "GK",
+      "overall": 73,
+      "potential_ovr": 75,
+      "base_stamina": 75,
+      "virtual_stamina": "100.00",
+      "wage": "15600",
+      "rarity": "REGULAR",
+      "market_value": "4000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1231,
+    "fields": {
+      "team": 288,
+      "name": "Giuseppe Ambrosino",
+      "age": 25,
+      "position": "CF",
+      "overall": 73,
+      "potential_ovr": 75,
+      "base_stamina": 76,
+      "virtual_stamina": "100.00",
+      "wage": "15600",
+      "rarity": "REGULAR",
+      "market_value": "4000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1232,
+    "fields": {
+      "team": 288,
+      "name": "Antonio Vergara",
+      "age": 25,
+      "position": "AMF",
+      "overall": 72,
+      "potential_ovr": 74,
+      "base_stamina": 75,
+      "virtual_stamina": "100.00",
+      "wage": "14400",
+      "rarity": "REGULAR",
+      "market_value": "3500000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1233,
+    "fields": {
+      "team": 288,
+      "name": "Mathias Ferrante",
+      "age": 25,
+      "position": "GK",
+      "overall": 71,
+      "potential_ovr": 73,
+      "base_stamina": 75,
+      "virtual_stamina": "100.00",
+      "wage": "13200",
+      "rarity": "REGULAR",
+      "market_value": "3000000"
+    }
+  },
+  {
+    "model": "teams.player",
+    "pk": 1234,
+    "fields": {
+      "team": 288,
+      "name": "Giovane",
+      "age": 25,
+      "position": "CF",
+      "overall": 70,
+      "potential_ovr": 72,
+      "base_stamina": 75,
+      "virtual_stamina": "100.00",
+      "wage": "12000",
+      "rarity": "REGULAR",
+      "market_value": "2500000"
+    }
   }
 ]
