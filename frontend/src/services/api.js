@@ -13,7 +13,7 @@ const api = axios.create({
 // Request Interceptor: Attach JWT Bearer token if available
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('vml_token');
+    const token = localStorage.getItem('vml_token') || localStorage.getItem('access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

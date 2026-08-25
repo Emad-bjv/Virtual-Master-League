@@ -51,6 +51,11 @@ class TeamViewSet(viewsets.ModelViewSet):
     serializer_class = TeamSerializer
     permission_classes = [permissions.IsAuthenticated, IsManagerOrAdminOrReadOnly]
 
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'live_stream']:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated(), IsManagerOrAdminOrReadOnly()]
+
     def get_throttles(self):
         if self.action in ['admin_adjust_budget', 'admin_override_facility', 'admin_update_player', 'admin_register_coach']:
             self.throttle_scope = 'admin_action'

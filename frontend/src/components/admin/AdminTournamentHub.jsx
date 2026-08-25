@@ -228,7 +228,8 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         adminApi.getCups().catch(() => ({ data: [] })),
       ]);
 
-      const loadedTeams = teamsRes.data || [];
+      const rawTeams = Array.isArray(teamsRes.data) ? teamsRes.data : (teamsRes.data?.results || []);
+      const loadedTeams = Array.isArray(rawTeams) ? rawTeams : [];
       const activeIds = loadedTeams.filter(t => t.is_active !== false).map(t => t.id);
       setTeams(loadedTeams);
       setSelectedLeagueTeamIds(prev => prev.length === 0 ? activeIds : prev);
