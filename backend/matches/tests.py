@@ -13,11 +13,11 @@ class CupEngineTestCase(TestCase):
             self.teams.append(t)
 
     def test_get_round_name(self):
-        self.assertEqual(get_round_name(2), "Final")
-        self.assertEqual(get_round_name(4), "Semi-Finals")
-        self.assertEqual(get_round_name(8), "Quarter-Finals")
-        self.assertEqual(get_round_name(16), "Round of 16")
-        self.assertEqual(get_round_name(32), "Round of 32")
+        self.assertEqual(get_round_name(2), "فینال")
+        self.assertEqual(get_round_name(4), "نیمه‌نهایی")
+        self.assertEqual(get_round_name(8), "یک‌چهارم نهایی")
+        self.assertEqual(get_round_name(16), "یک‌هشتم نهایی")
+        self.assertEqual(get_round_name(32), "یک‌شانزدهم نهایی")
 
     def test_generate_cup_bracket_8_teams(self):
         result = generate_cup_bracket(self.tournament, self.teams)
@@ -31,32 +31,32 @@ class CupEngineTestCase(TestCase):
         self.assertEqual(matches.count(), 7)
         
         # First round should have teams assigned
-        qf_matches = matches.filter(round_name="Quarter-Finals")
+        qf_matches = matches.filter(round_name="یک‌چهارم نهایی")
         self.assertEqual(qf_matches.count(), 4)
         for m in qf_matches:
             self.assertIsNotNone(m.home_team)
             self.assertIsNotNone(m.away_team)
             self.assertIsNotNone(m.next_match)
-            self.assertEqual(m.next_match.round_name, "Semi-Finals")
+            self.assertEqual(m.next_match.round_name, "نیمه‌نهایی")
             
         # Semi-Finals should be empty initially
-        sf_matches = matches.filter(round_name="Semi-Finals")
+        sf_matches = matches.filter(round_name="نیمه‌نهایی")
         self.assertEqual(sf_matches.count(), 2)
         for m in sf_matches:
             self.assertIsNone(m.home_team)
             self.assertIsNone(m.away_team)
             self.assertIsNotNone(m.next_match)
-            self.assertEqual(m.next_match.round_name, "Final")
+            self.assertEqual(m.next_match.round_name, "فینال")
             
         # Final should be empty and have no next match
-        final_match = matches.get(round_name="Final")
+        final_match = matches.get(round_name="فینال")
         self.assertIsNone(final_match.home_team)
         self.assertIsNone(final_match.away_team)
         self.assertIsNone(final_match.next_match)
 
     def test_advance_winner_normal_score(self):
         generate_cup_bracket(self.tournament, self.teams)
-        qf_match = Match.objects.filter(tournament=self.tournament, round_name="Quarter-Finals").first()
+        qf_match = Match.objects.filter(tournament=self.tournament, round_name="یک‌چهارم نهایی").first()
         
         # Simulate result
         qf_match.home_score = 2
@@ -74,7 +74,7 @@ class CupEngineTestCase(TestCase):
 
     def test_advance_winner_penalties(self):
         generate_cup_bracket(self.tournament, self.teams)
-        qf_match = Match.objects.filter(tournament=self.tournament, round_name="Quarter-Finals").first()
+        qf_match = Match.objects.filter(tournament=self.tournament, round_name="یک‌چهارم نهایی").first()
         
         # Simulate tie and penalties
         qf_match.home_score = 1
@@ -96,7 +96,7 @@ class CupEngineTestCase(TestCase):
         generate_cup_bracket(self.tournament, self.teams)
         
         # Get the final match and its two semi-final feeders
-        final_match = Match.objects.get(tournament=self.tournament, round_name="Final")
+        final_match = Match.objects.get(tournament=self.tournament, round_name="فینال")
         sf_matches = Match.objects.filter(next_match=final_match)
         sf1, sf2 = sf_matches[0], sf_matches[1]
         

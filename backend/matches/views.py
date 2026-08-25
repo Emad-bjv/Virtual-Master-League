@@ -1929,14 +1929,19 @@ class AdminCupTournamentView(APIView):
             teams = list(Team.objects.filter(id__in=team_ids).order_by('id'))
         else:
             # Pick top 16 or 8 teams
-            all_teams = list(Team.objects.all().order_by('id'))
+            all_teams = list(Team.objects.filter(is_active=True).order_by('id'))
             target_count = 16 if len(all_teams) >= 16 else (8 if len(all_teams) >= 8 else 4)
             teams = all_teams[:target_count]
 
-        # Ensure power of 2
         import math
-        while len(teams) > 2 and not math.log2(len(teams)).is_integer():
-            teams.pop()
+        if len(teams) < 2:
+            return Response({'error': 'حداقل ۲ تیم برای ایجاد جام حذفی مورد نیاز است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not math.log2(len(teams)).is_integer():
+            return Response(
+                {'error': f'تعداد تیم‌های انتخابی ({len(teams)} تیم) باید توانی از ۲ باشد (مثلاً ۴، ۸، ۱۶ یا ۳۲ تیم).'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         time_slots = parse_time_slots(request.data.get('time_slots'))
         interval_gameweeks = int(request.data.get('interval_gameweeks', request.data.get('days_between_rounds', 6)))

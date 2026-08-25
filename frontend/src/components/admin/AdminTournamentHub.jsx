@@ -68,6 +68,12 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
   const [reserveCupDays, setReserveCupDays] = useState(true);
   const [cupIntervalGameweeks, setCupIntervalGameweeks] = useState(6);
 
+  // Selected Teams for League & Cup
+  const [selectedLeagueTeamIds, setSelectedLeagueTeamIds] = useState([]);
+  const [selectedCupTeamIds, setSelectedCupTeamIds] = useState([]);
+  const [leagueTeamSearch, setLeagueTeamSearch] = useState('');
+  const [cupTeamSearch, setCupTeamSearch] = useState('');
+
   // Time Slots State & Persistence
   const [timeSlots, setTimeSlots] = useState(() => {
     try {
@@ -222,7 +228,18 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         adminApi.getCups().catch(() => ({ data: [] })),
       ]);
 
-      setTeams(teamsRes.data || []);
+      const loadedTeams = teamsRes.data || [];
+      const activeIds = loadedTeams.filter(t => t.is_active !== false).map(t => t.id);
+      setTeams(loadedTeams);
+      setSelectedLeagueTeamIds(prev => prev.length === 0 ? activeIds : prev);
+      setSelectedCupTeamIds(prev => {
+        if (prev.length > 0) return prev;
+        if (activeIds.length >= 16) return activeIds.slice(0, 16);
+        if (activeIds.length >= 8) return activeIds.slice(0, 8);
+        if (activeIds.length >= 4) return activeIds.slice(0, 4);
+        return activeIds;
+      });
+
       setGameweekStatus(gwRes.data || null);
       if (gwRes.data?.active_gameweek) {
         setSelectedGameweek(gwRes.data.active_gameweek);
@@ -265,7 +282,49 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
     }
   }, [selectedCupId]);
 
+  // Quick Team Selection Helpers
+  const activeTeams = useMemo(() => (teams || []).filter(t => t.is_active !== false), [teams]);
 
+  const handleToggleLeagueTeam = (teamId) => {
+    setSelectedLeagueTeamIds(prev =>
+      prev.includes(teamId) ? prev.filter(id => id !== teamId) : [...prev, teamId]
+    );
+  };
+
+  const handleSelectAllLeagueTeams = () => {
+    setSelectedLeagueTeamIds(activeTeams.map(t => t.id));
+  };
+
+  const handleDeselectAllLeagueTeams = () => {
+    setSelectedLeagueTeamIds([]);
+  };
+
+  const handleSelectTopLeagueTeams = (count) => {
+    setSelectedLeagueTeamIds(activeTeams.slice(0, count).map(t => t.id));
+  };
+
+  const handleToggleCupTeam = (teamId) => {
+    setSelectedCupTeamIds(prev =>
+      prev.includes(teamId) ? prev.filter(id => id !== teamId) : [...prev, teamId]
+    );
+  };
+
+  const handleSelectAllCupTeams = () => {
+    setSelectedCupTeamIds(activeTeams.map(t => t.id));
+  };
+
+  const handleDeselectAllCupTeams = () => {
+    setSelectedCupTeamIds([]);
+  };
+
+  const handleSelectTopCupTeams = (count) => {
+    setSelectedCupTeamIds(activeTeams.slice(0, count).map(t => t.id));
+  };
+
+  const handleCopyLeagueTeamsToCup = () => {
+    setSelectedCupTeamIds([...selectedLeagueTeamIds]);
+    notify(`لیست ${selectedLeagueTeamIds.length} تیم منتخب لیگ با موفقیت در جام حذفی کپی شد.`, 'success');
+  };
 
   // Handle Complete League Reset (Purge all fixtures and standings)
   const handleResetLeague = async () => {
@@ -289,15 +348,13 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
     }
   };
 
-  const activeTeams = useMemo(() => (teams || []).filter(t => t.is_active !== false), [teams]);
-
   // Handle Configure / Generate League Fixtures
   const handleGenerateLeague = async () => {
-    if (activeTeams.length < 2) {
-      notify('حداقل ۲ تیم فعال برای تولید مسابقات لیگ مورد نیاز است.', 'error');
+    if (selectedLeagueTeamIds.length < 2) {
+      notify('حداقل ۲ تیم برای تولید مسابقات لیگ مورد نیاز است.', 'error');
       return;
     }
-    if (!window.confirm(`آیا از بازتولید برنامه مسابقات لیگ با ${activeTeams.length} تیم فعال اطمینان دارید؟ تمام مسابقات قبلی لیگ پاک و مجدداً طبق تنظیمات زمان‌بندی می‌شوند.`)) {
+    if (!window.confirm(`آیا از بازتولید برنامه مسابقات لیگ با ${selectedLeagueTeamIds.length} تیم منتخب اطمینان دارید؟ تمام مسابقات قبلی لیگ پاک و مجدداً طبق تنظیمات زمان‌بندی می‌شوند.`)) {
       return;
     }
     setActionLoading(true);
@@ -310,7 +367,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         reserve_cup_days: reserveCupDays,
         interval_gameweeks: cupIntervalGameweeks,
         time_slots: timeSlots,
-        team_ids: activeTeams.map(t => t.id),
+        team_ids: selectedLeagueTeamIds,
         clear_existing: true,
       });
       notify(res.data?.message || 'برنامه لیگ با موفقیت تولید شد.', 'success');
@@ -390,6 +447,16 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
   // Create Cup Tournament
   const handleCreateCup = async (e) => {
     e.preventDefault();
+    if (selectedCupTeamIds.length < 2) {
+      notify('حداقل ۲ تیم برای ساخت جام حذفی انتخاب کنید.', 'error');
+      return;
+    }
+    const cupCount = selectedCupTeamIds.length;
+    if (!Number.isInteger(Math.log2(cupCount))) {
+      notify(`تعداد تیم‌های جام حذفی (${cupCount} تیم) باید توانی از ۲ باشد (مثلاً ۴، ۸، ۱۶ یا ۳۲ تیم).`, 'error');
+      return;
+    }
+
     setActionLoading(true);
     try {
       const res = await adminApi.createCup({
@@ -398,6 +465,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         days_between_rounds: parseInt(newCupDaysBetween, 10),
         interval_gameweeks: cupIntervalGameweeks || 6,
         time_slots: timeSlots,
+        team_ids: selectedCupTeamIds,
       });
       notify(res.data?.message || 'تورنمنت جام حذفی ساخته شد.', 'success');
       await loadData();
@@ -768,6 +836,137 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                   </select>
                 </div>
               )}
+            </div>
+
+            {/* League Participating Teams Selector Grid */}
+            <div className="bg-slate-950/85 border border-indigo-500/30 rounded-2xl p-4 sm:p-5 space-y-4 shadow-inner">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <span>انتخاب تیم‌های حاضر در لیگ</span>
+                      <span className="text-[11px] font-sport font-black bg-indigo-950 text-indigo-300 border border-indigo-500/40 px-2.5 py-0.5 rounded-full shadow-sm">
+                        {selectedLeagueTeamIds.length} تیم از {activeTeams.length} تیم فعال
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      {selectedLeagueTeamIds.length >= 2 ? (
+                        <>
+                          طول دوره لیگ: <strong>{(selectedLeagueTeamIds.length - 1) * (isDoubleRoundRobin ? 2 : 1)} هفته</strong> ({isDoubleRoundRobin ? 'رفت و برگشت' : 'تک‌بازی'}) | کل مسابقات: <strong>{Math.floor(selectedLeagueTeamIds.length / 2) * (selectedLeagueTeamIds.length - 1) * (isDoubleRoundRobin ? 2 : 1)} بازی</strong>
+                        </>
+                      ) : (
+                        <span className="text-rose-400">حداقل ۲ تیم برای ساخت لیگ انتخاب کنید</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleSelectAllLeagueTeams}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-500/30 transition-all cursor-pointer"
+                  >
+                    انتخاب همه ({activeTeams.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeselectAllLeagueTeams}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-white/10 transition-all cursor-pointer"
+                  >
+                    لغو همه
+                  </button>
+                  {activeTeams.length >= 16 && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTopLeagueTeams(16)}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-blue-950/80 hover:bg-blue-900 text-blue-300 border border-blue-500/30 transition-all cursor-pointer"
+                    >
+                      ۱۶ تیم برتر
+                    </button>
+                  )}
+                  {activeTeams.length >= 8 && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectTopLeagueTeams(8)}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/30 transition-all cursor-pointer"
+                    >
+                      ۸ تیم برتر
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Search Bar for Teams */}
+              {activeTeams.length > 8 && (
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="جستجوی نام تیم یا مربی..."
+                    value={leagueTeamSearch}
+                    onChange={(e) => setLeagueTeamSearch(e.target.value)}
+                    className="w-full bg-slate-900/90 border border-white/10 rounded-xl px-3.5 py-1.5 text-xs text-white placeholder:text-gray-500 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              )}
+
+              {/* Teams Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2.5 max-h-72 overflow-y-auto custom-scrollbar p-1">
+                {activeTeams
+                  .filter(t => {
+                    if (!leagueTeamSearch) return true;
+                    const q = leagueTeamSearch.toLowerCase();
+                    return (t.name || '').toLowerCase().includes(q) || (t.manager_name || t.manager?.username || '').toLowerCase().includes(q);
+                  })
+                  .map((t) => {
+                    const isSelected = selectedLeagueTeamIds.includes(t.id);
+                    const logoUrl = getTeamLogoUrl(t.name) || t.logo;
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={() => handleToggleLeagueTeam(t.id)}
+                        className={`p-2.5 rounded-2xl border-2 cursor-pointer flex flex-col items-center text-center transition-all relative select-none ${
+                          isSelected
+                            ? 'bg-gradient-to-b from-indigo-950/90 to-slate-950 border-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.3)] ring-1 ring-indigo-400 scale-[1.02]'
+                            : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 opacity-60 hover:opacity-90'
+                        }`}
+                      >
+                        <div className="absolute top-1.5 right-1.5">
+                          <div className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all ${
+                            isSelected ? 'bg-indigo-600 border-indigo-400 text-white' : 'bg-slate-950 border-slate-700'
+                          }`}>
+                            {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                          </div>
+                        </div>
+
+                        <div className="w-10 h-10 rounded-xl p-1 bg-slate-950/80 border border-white/10 flex items-center justify-center mb-1.5 shadow-inner">
+                          {logoUrl ? (
+                            <img src={logoUrl} alt={t.name} className="w-full h-full object-contain" />
+                          ) : (
+                            <Shield className="w-5 h-5 text-slate-600" />
+                          )}
+                        </div>
+
+                        <span className="font-bold text-xs text-white truncate w-full" title={t.name}>
+                          {t.name}
+                        </span>
+
+                        <span className="text-[9.5px] text-gray-400 truncate w-full mt-0.5">
+                          {t.manager_name || t.manager?.username || 'بدون مربی'}
+                        </span>
+
+                        <div className="flex items-center gap-1 mt-1 font-sport text-[10px] text-amber-300">
+                          <span>{t.star_rating || '4.5'}</span>
+                          <span>⭐</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
             </div>
 
             {/* Dedicated Interactive Daily Time Slots Configurator */}
@@ -1367,50 +1566,203 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
               </button>
             </div>
 
-            <form onSubmit={handleCreateCup} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-300 block mb-1.5">نام جام حذفی</label>
-                <input
-                  type="text"
-                  value={newCupName}
-                  onChange={(e) => setNewCupName(e.target.value)}
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
-                  required
-                />
+            <form onSubmit={handleCreateCup} className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-300 block mb-1.5">نام جام حذفی</label>
+                  <input
+                    type="text"
+                    value={newCupName}
+                    onChange={(e) => setNewCupName(e.target.value)}
+                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-300 block mb-1.5">تاریخ شروع مرحله اول</label>
+                  <input
+                    type="date"
+                    value={newCupStartDate}
+                    onChange={(e) => setNewCupStartDate(e.target.value)}
+                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-gray-300 block mb-1.5">فاصله بین مراحل (روز)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="14"
+                    value={newCupDaysBetween}
+                    onChange={(e) => setNewCupDaysBetween(e.target.value)}
+                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    disabled={actionLoading || selectedCupTeamIds.length < 2 || !Number.isInteger(Math.log2(selectedCupTeamIds.length))}
+                    className="w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-lg shadow-amber-600/30 transition-all disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    ایجاد و قرعه‌کشی جام حذفی ({selectedCupTeamIds.length} تیم)
+                  </button>
+                </div>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-gray-300 block mb-1.5">تاریخ شروع مرحله اول</label>
-                <input
-                  type="date"
-                  value={newCupStartDate}
-                  onChange={(e) => setNewCupStartDate(e.target.value)}
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
-                  required
-                />
-              </div>
+              {/* Cup Participating Teams Selector Grid */}
+              <div className="bg-slate-950/85 border border-amber-500/30 rounded-2xl p-4 sm:p-5 space-y-4 shadow-inner">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                      <Trophy className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                        <span>انتخاب تیم‌های حاضر در جام حذفی</span>
+                        <span className="text-[11px] font-sport font-black bg-amber-950 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded-full shadow-sm">
+                          {selectedCupTeamIds.length} تیم منتخب
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        {Number.isInteger(Math.log2(selectedCupTeamIds.length)) && selectedCupTeamIds.length >= 2 ? (
+                          <span className="text-emerald-400 font-bold">
+                            ✓ ساختار براکت متقارن: {selectedCupTeamIds.length === 16 ? '۴ مرحله (یک‌هشتم، یک‌چهارم، نیمه‌نهایی، فینال - ۱۵ مسابقه)' : selectedCupTeamIds.length === 8 ? '۳ مرحله (یک‌چهارم، نیمه‌نهایی، فینال - ۷ مسابقه)' : selectedCupTeamIds.length === 4 ? '۲ مرحله (نیمه‌نهایی، فینال - ۳ مسابقه)' : `${Math.log2(selectedCupTeamIds.length)} مرحله`}
+                          </span>
+                        ) : (
+                          <span className="text-amber-400 font-bold">
+                            ⚠️ توجه: برای تشکیل براکت متقارن، تعداد تیم‌ها باید توانی از ۲ باشد (مثلاً ۴، ۸، ۱۶ یا ۳۲ تیم).
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
 
-              <div>
-                <label className="text-xs font-semibold text-gray-300 block mb-1.5">فاصله بین مراحل (روز)</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="14"
-                  value={newCupDaysBetween}
-                  onChange={(e) => setNewCupDaysBetween(e.target.value)}
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
-                />
-              </div>
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleCopyLeagueTeamsToCup}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-500/40 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                      title="کپی کردن لیست تیم‌های انتخاب شده در فرم لیگ"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      <span>کپی از تیم‌های لیگ ({selectedLeagueTeamIds.length})</span>
+                    </button>
+                    {activeTeams.length >= 16 && (
+                      <button
+                        type="button"
+                        onClick={() => handleSelectTopCupTeams(16)}
+                        className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-500/30 transition-all cursor-pointer"
+                      >
+                        ۱۶ تیم 🏆
+                      </button>
+                    )}
+                    {activeTeams.length >= 8 && (
+                      <button
+                        type="button"
+                        onClick={() => handleSelectTopCupTeams(8)}
+                        className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-orange-950/80 hover:bg-orange-900 text-orange-300 border border-orange-500/30 transition-all cursor-pointer"
+                      >
+                        ۸ تیم ⭐
+                      </button>
+                    )}
+                    {activeTeams.length >= 4 && (
+                      <button
+                        type="button"
+                        onClick={() => handleSelectTopCupTeams(4)}
+                        className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-yellow-950/80 hover:bg-yellow-900 text-yellow-300 border border-yellow-500/30 transition-all cursor-pointer"
+                      >
+                        ۴ تیم ⚡
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleSelectAllCupTeams}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-white/10 transition-all cursor-pointer"
+                    >
+                      همه ({activeTeams.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeselectAllCupTeams}
+                      className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-white/10 transition-all cursor-pointer"
+                    >
+                      لغو همه
+                    </button>
+                  </div>
+                </div>
 
-              <div className="flex items-end">
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="w-full py-2.5 rounded-xl font-bold text-xs text-white bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 shadow-lg shadow-amber-600/30 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  ایجاد و قرعه‌کشی جام حذفی
-                </button>
+                {/* Search Bar for Cup Teams */}
+                {activeTeams.length > 8 && (
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="جستجوی نام تیم یا مربی..."
+                      value={cupTeamSearch}
+                      onChange={(e) => setCupTeamSearch(e.target.value)}
+                      className="w-full bg-slate-900/90 border border-white/10 rounded-xl px-3.5 py-1.5 text-xs text-white placeholder:text-gray-500 focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
+                )}
+
+                {/* Cup Teams Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2.5 max-h-72 overflow-y-auto custom-scrollbar p-1">
+                  {activeTeams
+                    .filter(t => {
+                      if (!cupTeamSearch) return true;
+                      const q = cupTeamSearch.toLowerCase();
+                      return (t.name || '').toLowerCase().includes(q) || (t.manager_name || t.manager?.username || '').toLowerCase().includes(q);
+                    })
+                    .map((t) => {
+                      const isSelected = selectedCupTeamIds.includes(t.id);
+                      const logoUrl = getTeamLogoUrl(t.name) || t.logo;
+                      return (
+                        <div
+                          key={t.id}
+                          onClick={() => handleToggleCupTeam(t.id)}
+                          className={`p-2.5 rounded-2xl border-2 cursor-pointer flex flex-col items-center text-center transition-all relative select-none ${
+                            isSelected
+                              ? 'bg-gradient-to-b from-amber-950/90 to-slate-950 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.3)] ring-1 ring-amber-400 scale-[1.02]'
+                              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700 opacity-60 hover:opacity-90'
+                          }`}
+                        >
+                          <div className="absolute top-1.5 right-1.5">
+                            <div className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all ${
+                              isSelected ? 'bg-amber-600 border-amber-400 text-white' : 'bg-slate-950 border-slate-700'
+                            }`}>
+                              {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
+                          </div>
+
+                          <div className="w-10 h-10 rounded-xl p-1 bg-slate-950/80 border border-white/10 flex items-center justify-center mb-1.5 shadow-inner">
+                            {logoUrl ? (
+                              <img src={logoUrl} alt={t.name} className="w-full h-full object-contain" />
+                            ) : (
+                              <Shield className="w-5 h-5 text-slate-600" />
+                            )}
+                          </div>
+
+                          <span className="font-bold text-xs text-white truncate w-full" title={t.name}>
+                            {t.name}
+                          </span>
+
+                          <span className="text-[9.5px] text-gray-400 truncate w-full mt-0.5">
+                            {t.manager_name || t.manager?.username || 'بدون مربی'}
+                          </span>
+
+                          <div className="flex items-center gap-1 mt-1 font-sport text-[10px] text-amber-300">
+                            <span>{t.star_rating || '4.5'}</span>
+                            <span>⭐</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
             </form>
           </div>
