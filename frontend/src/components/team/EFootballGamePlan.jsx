@@ -1329,37 +1329,37 @@ export default function EFootballGamePlan({
         )}
 
         {/* TOP: GREEN FOOTBALL PITCH CONTAINER */}
-        <div className="fc-pitch-turf rounded-3xl p-3 md:p-5 border-2 border-cyan-500/40 shadow-[0_20px_50px_rgba(0,0,0,0.85)] relative flex flex-col justify-between min-h-[600px] md:min-h-[700px] overflow-hidden select-none">
+        <div className="fc-pitch-turf rounded-2xl sm:rounded-3xl p-2 sm:p-3 md:p-5 border-2 border-cyan-500/40 shadow-[0_20px_50px_rgba(0,0,0,0.85)] relative flex flex-col justify-between min-h-[480px] sm:min-h-[560px] md:min-h-[680px] overflow-hidden select-none">
           {/* Turf Mowing Stripes & Center Spotlight */}
           <div className="absolute inset-0 fc-pitch-mow-stripes opacity-70 pointer-events-none"></div>
           <div 
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[450px] h-[450px] rounded-full pointer-events-none"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[400px] md:w-[450px] h-[320px] sm:h-[400px] md:h-[450px] rounded-full pointer-events-none"
             style={{
               background: 'radial-gradient(circle, rgba(0, 243, 255, 0.08) 0%, rgba(0, 255, 135, 0.04) 50%, transparent 80%)',
             }}
           />
 
           {/* Pitch Lines (Neon Cyan Line Art) */}
-          <div className="absolute inset-3 border-2 border-cyan-400/60 rounded-2xl pointer-events-none shadow-[0_0_15px_rgba(0,243,255,0.2)]"></div>
+          <div className="absolute inset-2 sm:inset-3 border-2 border-cyan-400/60 rounded-xl sm:rounded-2xl pointer-events-none shadow-[0_0_15px_rgba(0,243,255,0.2)]"></div>
 
           {/* Penalty Boxes & Circle */}
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 w-48 md:w-64 h-24 md:h-32 border-2 border-cyan-400/60 border-t-0 rounded-b-2xl pointer-events-none overflow-hidden">
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-10 border-2 border-cyan-400/40 border-t-0 rounded-b-xl"></div>
+          <div className="absolute top-2 sm:top-3 left-1/2 -translate-x-1/2 w-36 sm:w-48 md:w-64 h-16 sm:h-24 md:h-32 border-2 border-cyan-400/60 border-t-0 rounded-b-xl sm:rounded-b-2xl pointer-events-none overflow-hidden">
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-18 sm:w-24 h-7 sm:h-10 border-2 border-cyan-400/40 border-t-0 rounded-b-lg sm:rounded-b-xl"></div>
           </div>
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-48 md:w-64 h-24 md:h-32 border-2 border-cyan-400/60 border-b-0 rounded-t-2xl pointer-events-none overflow-hidden">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-10 border-2 border-cyan-400/40 border-b-0 rounded-t-xl"></div>
+          <div className="absolute bottom-2 sm:bottom-3 left-1/2 -translate-x-1/2 w-36 sm:w-48 md:w-64 h-16 sm:h-24 md:h-32 border-2 border-cyan-400/60 border-b-0 rounded-t-xl sm:rounded-t-2xl pointer-events-none overflow-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-18 sm:w-24 h-7 sm:h-10 border-2 border-cyan-400/40 border-b-0 rounded-t-lg sm:rounded-t-xl"></div>
           </div>
           <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-cyan-400/60 pointer-events-none shadow-[0_0_8px_rgba(0,243,255,0.3)]"></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 md:w-40 h-28 md:h-40 rounded-full border-2 border-cyan-400/60 pointer-events-none"></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-cyan-300 pointer-events-none shadow-[0_0_10px_#00f3ff]"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 sm:w-28 md:w-40 h-20 sm:h-28 md:h-40 rounded-full border-2 border-cyan-400/60 pointer-events-none"></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-cyan-300 pointer-events-none shadow-[0_0_10px_#00f3ff]"></div>
 
           {/* Watermark Logo Overlay */}
           <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
-            <Shield size={160} className="text-cyan-400" />
+            <Shield size={140} className="text-cyan-400" />
           </div>
 
           {/* PLAYERS ON PITCH */}
-          <div className="relative w-full h-[540px] md:h-[640px]">
+          <div className="relative w-full h-[450px] sm:h-[530px] md:h-[630px]">
             {startingXi.map((player) => {
               const isSelected = selectedPitchPlayerId === player.id;
               const isDimmed = selectedPitchPlayerId && !isSelected;
@@ -1386,7 +1386,7 @@ export default function EFootballGamePlan({
                   animate={{
                     left: `${player.x_coord}%`,
                     top: `${player.y_coord}%`,
-                    scale: isSelected ? 1.12 : 1,
+                    scale: isSelected ? 1.08 : 1,
                     opacity: isDimmed ? 0.35 : 1,
                   }}
                   transition={{
@@ -1395,29 +1395,29 @@ export default function EFootballGamePlan({
                     scale: { duration: 0.2 },
                     opacity: { duration: 0.2 },
                   }}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 w-[86px] md:w-[96px] flex flex-col items-center cursor-pointer group z-10 hover:z-30 transition-all active:scale-105 ${
-                    isSelected ? 'ring-4 ring-cyan-400 rounded-2xl p-1 bg-cyan-950/90 shadow-[0_0_30px_rgba(0,243,255,0.7)] animate-pulse' : ''
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 w-[62px] sm:w-[76px] md:w-[94px] flex flex-col items-center cursor-pointer group z-10 hover:z-30 transition-all active:scale-105 ${
+                    isSelected ? 'ring-2 sm:ring-4 ring-cyan-400 rounded-xl sm:rounded-2xl p-0.5 sm:p-1 bg-cyan-950/90 shadow-[0_0_30px_rgba(0,243,255,0.7)] animate-pulse' : ''
                   }`}
                 >
                   {/* Player Avatar Container + Floating Event Badges */}
                   <div className="relative flex items-center justify-center">
                     {/* Top-Right Blue Rating Pill Badge (Only in Live/Admin match mode) */}
                     {(isLiveMode || isAdminMode) && (player.rating != null || (isAdminMode && player.goals > 0)) && (
-                      <span className="absolute -top-2 -right-2.5 z-30 bg-sky-500 text-slate-950 font-black text-[9px] md:text-[10px] px-1.5 py-0.5 rounded-full shadow-md border border-sky-300 flex items-center gap-0.5 font-sport leading-none pointer-events-none">
+                      <span className="absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2.5 z-30 bg-sky-500 text-slate-950 font-black text-[7.5px] sm:text-[9px] md:text-[10px] px-1 sm:px-1.5 py-0.2 rounded-full shadow-md border border-sky-300 flex items-center gap-0.5 font-sport leading-none pointer-events-none">
                         {player.rating || (player.goals >= 3 ? '10.0' : player.goals >= 1 ? '8.5' : '7.0')} ★
                       </span>
                     )}
 
                     {/* Top-Left Subbed-Off / Booked Minute Badge (Only in Live/Admin match mode) */}
                     {(isLiveMode || isAdminMode) && player.subMinute && (
-                      <span className="absolute -top-2 -left-2.5 z-30 bg-black/95 text-white font-black text-[8.5px] md:text-[9.5px] px-1.5 py-0.5 rounded-full border border-rose-500 shadow-md flex items-center gap-1 font-sport leading-none pointer-events-none">
+                      <span className="absolute -top-1.5 -left-1.5 sm:-top-2 sm:-left-2.5 z-30 bg-black/95 text-white font-black text-[7px] sm:text-[8.5px] md:text-[9.5px] px-1 sm:px-1.5 py-0.2 rounded-full border border-rose-500 shadow-md flex items-center gap-0.5 font-sport leading-none pointer-events-none">
                         <span>{player.subMinute}'</span>
                         <span className="text-rose-400 font-black">←</span>
                       </span>
                     )}
 
                     {/* FUT Portrait Photo Card Frame (Circular/Pill Frame) */}
-                    <div className={`relative flex items-center justify-center w-12 h-14 md:w-14 md:h-16 rounded-2xl overflow-hidden border-2 shadow-xl transition-all ${
+                    <div className={`relative flex items-center justify-center w-10 h-12 sm:w-12 sm:h-14 md:w-14 md:h-16 rounded-xl sm:rounded-2xl overflow-hidden border-1.5 sm:border-2 shadow-xl transition-all ${
                       (player.isRed || player.is_suspended || player.suspension_matches > 0)
                         ? 'border-rose-600 ring-2 ring-rose-600/80 bg-rose-950/90 text-rose-300 opacity-70 grayscale'
                         : (player.isInjured || player.is_injured)
@@ -1444,12 +1444,12 @@ export default function EFootballGamePlan({
 
                       {/* Fallback Avatar Icon */}
                       <div className={`w-full h-full flex items-center justify-center bg-gradient-to-b from-[#0f172a] to-[#05080e] ${photoUrl ? 'hidden' : 'flex'}`}>
-                        <User size={26} className="text-slate-300 opacity-85" />
+                        <User size={20} className="text-slate-300 opacity-85" />
                       </div>
 
                       {/* Shirt Number Tag Overlay */}
                       {player.shirt_number != null && (
-                        <span className="absolute bottom-0 right-0 bg-[#05080e]/95 text-cyan-300 text-[8px] md:text-[9px] font-sport font-black px-1 rounded-tl-md border-t border-l border-cyan-500/30">
+                        <span className="absolute bottom-0 right-0 bg-[#05080e]/95 text-cyan-300 text-[7px] sm:text-[8px] md:text-[9px] font-sport font-black px-0.5 sm:px-1 rounded-tl-md border-t border-l border-cyan-500/30">
                           #{player.shirt_number}
                         </span>
                       )}
@@ -1459,11 +1459,11 @@ export default function EFootballGamePlan({
                     {!isLiveMode && !isAdminMode && (player.is_injured || player.isInjured || (player.suspension_matches > 0) || player.is_suspended) && (
                       <div className="absolute -bottom-2 z-30 flex items-center justify-center pointer-events-none drop-shadow">
                         {(player.is_injured || player.isInjured) ? (
-                          <span className="bg-rose-950 text-rose-300 border border-rose-500 text-[8px] font-black px-1.5 py-0.2 rounded-full shadow flex items-center gap-0.5">
+                          <span className="bg-rose-950 text-rose-300 border border-rose-500 text-[7px] sm:text-[8px] font-black px-1.5 py-0.2 rounded-full shadow flex items-center gap-0.5">
                             🩹 مصدوم
                           </span>
                         ) : (
-                          <span className="bg-red-950 text-red-300 border border-red-500 text-[8px] font-black px-1.5 py-0.2 rounded-full shadow flex items-center gap-0.5">
+                          <span className="bg-red-950 text-red-300 border border-red-500 text-[7px] sm:text-[8px] font-black px-1.5 py-0.2 rounded-full shadow flex items-center gap-0.5">
                             🟥 محروم
                           </span>
                         )}
@@ -1472,40 +1472,40 @@ export default function EFootballGamePlan({
 
                     {/* Bottom Overlapping Event Badges (Only in Live / Admin Match Broadcast) */}
                     {(isLiveMode || isAdminMode) && ((player.in_match_goals || 0) > 0 || (player.in_match_assists || 0) > 0 || player.yellowCards > 0 || player.isRed || player.isInjured) && (
-                      <div className="absolute -bottom-2.5 z-30 flex items-center justify-center -space-x-1.5 drop-shadow-md pointer-events-none">
+                      <div className="absolute -bottom-2.5 z-30 flex items-center justify-center -space-x-1 drop-shadow-md pointer-events-none">
                         {/* Assist Badges (Shoes) */}
                         {Array.from({ length: player.in_match_assists || 0 }).map((_, aIdx) => (
-                          <div key={`ast-${aIdx}`} className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-white border border-slate-400 shadow-md flex items-center justify-center text-[10px] md:text-[11px] shrink-0" title="پاس گل">
+                          <div key={`ast-${aIdx}`} className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 rounded-full bg-white border border-slate-400 shadow-md flex items-center justify-center text-[8px] sm:text-[10px] md:text-[11px] shrink-0" title="پاس گل">
                             👟
                           </div>
                         ))}
                         {/* Goal Badges (Soccer Balls) */}
                         {Array.from({ length: player.in_match_goals || 0 }).map((_, gIdx) => (
-                          <div key={`goal-${gIdx}`} className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-white border border-slate-400 shadow-md flex items-center justify-center text-[10px] md:text-[11px] shrink-0" title="گل">
+                          <div key={`goal-${gIdx}`} className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 rounded-full bg-white border border-slate-400 shadow-md flex items-center justify-center text-[8px] sm:text-[10px] md:text-[11px] shrink-0" title="گل">
                             ⚽
                           </div>
                         ))}
                         {/* Yellow Card Badge */}
                         {player.yellowCards === 1 && (
-                          <div className="w-4 h-5 rounded bg-amber-400 border border-amber-300 shadow flex items-center justify-center text-[9px] font-bold text-black shrink-0" title="کارت زرد">
+                          <div className="w-3.5 h-4 sm:w-4 sm:h-5 rounded bg-amber-400 border border-amber-300 shadow flex items-center justify-center text-[7.5px] sm:text-[9px] font-bold text-black shrink-0" title="کارت زرد">
                             🟨
                           </div>
                         )}
                         {/* Second Yellow / Red Card */}
                         {player.yellowCards === 2 && (
-                          <div className="w-4 h-5 rounded bg-rose-600 border border-rose-400 shadow flex items-center justify-center text-[9px] font-bold text-white shrink-0" title="کارت قرمز (دو کارته)">
+                          <div className="w-3.5 h-4 sm:w-4 sm:h-5 rounded bg-rose-600 border border-rose-400 shadow flex items-center justify-center text-[7.5px] sm:text-[9px] font-bold text-white shrink-0" title="کارت قرمز (دو کارته)">
                             🟥
                           </div>
                         )}
                         {/* Direct Red Card */}
                         {player.isRed && player.yellowCards !== 2 && (
-                          <div className="w-4 h-5 rounded bg-rose-600 border border-rose-400 shadow flex items-center justify-center text-[9px] font-bold text-white shrink-0" title="کارت قرمز مستقیم">
+                          <div className="w-3.5 h-4 sm:w-4 sm:h-5 rounded bg-rose-600 border border-rose-400 shadow flex items-center justify-center text-[7.5px] sm:text-[9px] font-bold text-white shrink-0" title="کارت قرمز مستقیم">
                             🟥
                           </div>
                         )}
                         {/* Injury Badge */}
                         {player.isInjured && (
-                          <div className="w-5 h-5 rounded-full bg-rose-950 border border-rose-400 shadow flex items-center justify-center text-[9px] shrink-0 animate-pulse" title="مصدوم">
+                          <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-rose-950 border border-rose-400 shadow flex items-center justify-center text-[8px] sm:text-[9px] shrink-0 animate-pulse" title="مصدوم">
                             🩹
                           </div>
                         )}
@@ -1514,23 +1514,23 @@ export default function EFootballGamePlan({
                   </div>
 
                   {/* Badge Pill: Position + Championship Gold OVR Rating */}
-                  <div className="flex items-center gap-1 mt-1 shadow-lg z-10">
+                  <div className="flex items-center gap-0.5 sm:gap-1 mt-0.5 sm:mt-1 shadow-lg z-10">
                     <span
-                      className={`text-[8px] md:text-[9px] px-1.5 py-0.2 rounded-md shadow ${
+                      className={`text-[7px] sm:text-[8px] md:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-md shadow ${
                         POSITION_COLORS[posCode] || 'bg-purple-600 text-white font-bold'
                       }`}
                     >
                       {posCode}
                     </span>
-                    <span className="text-[10.5px] md:text-xs font-black text-amber-300 bg-amber-950/90 border border-amber-400/50 px-1 rounded-md drop-shadow font-sport tracking-wide">
+                    <span className="text-[9px] sm:text-[10.5px] md:text-xs font-black text-amber-300 bg-amber-950/90 border border-amber-400/50 px-0.5 sm:px-1 rounded-md drop-shadow font-sport tracking-wide">
                       {player.overall}
                     </span>
                   </div>
 
                   {/* Player Name Tag */}
-                  <span className="text-[9px] md:text-[10px] font-black text-white tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] text-center whitespace-nowrap leading-none mt-0.5 max-w-[84px] md:max-w-[92px] truncate bg-[#05080e]/80 px-1.5 py-0.5 rounded-md border border-white/10">
+                  <span className="text-[7.5px] sm:text-[8.5px] md:text-[10px] font-black text-white tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] text-center whitespace-nowrap leading-none mt-0.5 max-w-[60px] sm:max-w-[74px] md:max-w-[90px] truncate bg-[#05080e]/85 px-1 sm:px-1.5 py-0.5 rounded-md border border-white/10">
                     {player.isCaptain && (
-                      <span className="bg-amber-400 text-black font-black text-[7.5px] px-1 ml-0.5 rounded">
+                      <span className="bg-amber-400 text-black font-black text-[6.5px] sm:text-[7.5px] px-0.5 ml-0.5 rounded">
                         C
                       </span>
                     )}
@@ -1539,7 +1539,7 @@ export default function EFootballGamePlan({
 
                   {/* Stamina / Readiness Bar under Player Name */}
                   <div 
-                    className="w-13 md:w-15 h-1.5 bg-[#05080e]/95 rounded-full overflow-hidden border border-white/15 p-0.2 mt-0.5 shadow-inner"
+                    className="w-9 sm:w-12 md:w-14 h-1 sm:h-1.5 bg-[#05080e]/95 rounded-full overflow-hidden border border-white/15 p-0.2 mt-0.5 shadow-inner"
                     title={`میزان آمادگی و استقامت: ${staminaPercent}٪`}
                   >
                     <div
@@ -1563,17 +1563,17 @@ export default function EFootballGamePlan({
                   scale: 1,
                   opacity: 1,
                 }}
-                className="absolute -translate-x-1/2 -translate-y-1/2 w-[86px] md:w-[96px] flex flex-col items-center cursor-pointer group z-10 hover:z-30 transition-all"
+                className="absolute -translate-x-1/2 -translate-y-1/2 w-[62px] sm:w-[76px] md:w-[94px] flex flex-col items-center cursor-pointer group z-10 hover:z-30 transition-all"
               >
-                <div className="relative flex items-center justify-center w-12 h-14 md:w-14 md:h-16 rounded-2xl border-2 border-dashed border-cyan-400/80 bg-cyan-950/40 hover:bg-cyan-900/60 shadow-lg flex-col gap-1 transition-all group-hover:scale-105 group-hover:border-cyan-300">
-                  <Plus size={20} className="text-cyan-300 animate-pulse" />
-                  <span className="text-[8px] font-black text-cyan-200">افزودن</span>
+                <div className="relative flex items-center justify-center w-10 h-12 sm:w-12 sm:h-14 md:w-14 md:h-16 rounded-xl sm:rounded-2xl border-2 border-dashed border-cyan-400/80 bg-cyan-950/40 hover:bg-cyan-900/60 shadow-lg flex-col gap-0.5 sm:gap-1 transition-all group-hover:scale-105 group-hover:border-cyan-300">
+                  <Plus size={16} className="text-cyan-300 animate-pulse" />
+                  <span className="text-[7px] sm:text-[8px] font-black text-cyan-200">افزودن</span>
                 </div>
-                <div className="flex items-center gap-1 mt-1 shadow-lg z-10">
-                  <span className={`text-[8px] md:text-[9px] px-1.5 py-0.2 rounded-md shadow ${POSITION_COLORS[slot.pos] || 'bg-purple-600 text-white font-bold'}`}>
+                <div className="flex items-center gap-0.5 sm:gap-1 mt-0.5 sm:mt-1 shadow-lg z-10">
+                  <span className={`text-[7px] sm:text-[8px] md:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-md shadow ${POSITION_COLORS[slot.pos] || 'bg-purple-600 text-white font-bold'}`}>
                     {slot.pos}
                   </span>
-                  <span className="text-[9px] text-cyan-300 bg-cyan-950/90 border border-cyan-500/40 px-1 rounded-md font-black">
+                  <span className="text-[8px] sm:text-[9px] text-cyan-300 bg-cyan-950/90 border border-cyan-500/40 px-0.5 sm:px-1 rounded-md font-black">
                     خالی
                   </span>
                 </div>
@@ -1582,7 +1582,7 @@ export default function EFootballGamePlan({
           </div>
 
           {/* Formation Label */}
-          <div className="relative z-20 text-right pt-1 pr-1 flex justify-between items-end bg-[#080c14]/70 p-2.5 rounded-2xl border border-white/10 backdrop-blur-md">
+          <div className="relative z-20 text-right pt-1 pr-1 flex justify-between items-end bg-[#080c14]/70 p-2 sm:p-2.5 rounded-xl sm:rounded-2xl border border-white/10 backdrop-blur-md">
             <span className="text-xs text-cyan-300 font-bold">ترکیب چیدمان تیمی</span>
             <span className="text-xl md:text-3xl font-black text-white font-sport tracking-wider drop-shadow-md">
               {currentFormation}

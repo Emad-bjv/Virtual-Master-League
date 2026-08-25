@@ -279,7 +279,7 @@ export default function LiveStreamTab({
       }).catch(() => {});
     }
 
-    // Background fallback sync interval (every 6s) to ensure resilience
+    // Background fallback sync interval (fast 2.5s interval during active/live matches) to ensure immediate resilience
     const syncInterval = setInterval(async () => {
       try {
         const res = await matchApi.getMatchLiveState(matchId);
@@ -302,7 +302,7 @@ export default function LiveStreamTab({
           res.data.events.forEach((ev) => handleProcessLiveEvent({ event: ev }));
         }
       } catch (_e) {}
-    }, 6000);
+    }, 2500);
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -313,7 +313,10 @@ export default function LiveStreamTab({
           const data = JSON.parse(event.data);
 
           if (data.match) {
-            setActiveMatch(data.match);
+            setActiveMatch((prev) => ({ ...prev, ...data.match }));
+            if (data.match.half_status) {
+              setMatchState(data.match.half_status);
+            }
             if (data.match.stoppage_time !== undefined) {
               setStoppageTime(data.match.stoppage_time);
             }
@@ -322,6 +325,25 @@ export default function LiveStreamTab({
             }
             if (data.match.in_game_changes) {
               setInGameChangesList(data.match.in_game_changes);
+            }
+          }
+
+          // Handle live stats updates broadcast (Immediate reflection on coach panel)
+          if (data.type === 'team_stats_update') {
+            if (data.team_stats && Array.isArray(data.team_stats)) {
+              setMatchTelemetryStats(data.team_stats);
+            } else if (data.stats) {
+              setMatchTelemetryStats((prev) => {
+                const list = Array.isArray(prev) ? [...prev] : [];
+                const targetTeamId = Number(data.team_id || data.stats.team_id || data.stats.team);
+                const idx = list.findIndex((s) => Number(s.team?.id || s.team || s.team_id) === targetTeamId);
+                if (idx >= 0) {
+                  list[idx] = { ...list[idx], ...data.stats };
+                } else {
+                  list.push(data.stats);
+                }
+                return list;
+              });
             }
           }
 
@@ -375,6 +397,9 @@ export default function LiveStreamTab({
             notificationSoundService.playMatchAlertChime();
           } else if (data.type === 'stoppage_time_update') {
             setStoppageTime(data.stoppage_time || 0);
+          } else if (data.type === 'clock_sync') {
+            if (data.stoppage_time !== undefined) setStoppageTime(data.stoppage_time);
+            if (data.half_status) setMatchState(data.half_status);
           }
 
           if (data.type === 'coach_tactics_applied' || data.custom_text?.includes('پیغام انجام شد') || data.message?.includes('پیغام انجام شد')) {
@@ -984,95 +1009,85 @@ export default function LiveStreamTab({
           </span>
         </div>
 
-        <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1 text-xs">
-          {events.length === 0 ? (
-            <div className="py-8 text-center text-slate-500 text-xs">
-              مسابقه در حال برگزاری است. رویدادهای مهم (گل، اخطار، تعویض) به صورت زنده در این قسمت ثبت خواهند شد.
+
+        {/* Live Score & In-Game Changes Monitor Trigger Bar */}
+        <div className="p-4 bg-gradient-to-b from-[#080c14] to-[#04060a] flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-800">
+          <div className="flex items-center gap-4 w-full sm:w-auto justify-center sm:justify-start">
+            <div className="flex items-center gap-2">
+              <span className="font-black text-sm md:text-base text-white">{homeName}</span>
+              <span className="font-sport font-black text-2xl md:text-3xl text-cyan-400 px-3 py-1 rounded-xl bg-slate-900/90 border border-cyan-500/30">
+                {homeScore}
+              </span>
             </div>
-          ) : (
-            events.map((ev) => (
-              <motion.div
-                key={ev.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className={`p-3 rounded-2xl border flex items-center justify-between shadow-sm ${ev.color || 'text-cyan-300 border-cyan-500/30 bg-[#080c14]/70'}`}
-              >
-                <div className="flex items-center gap-2.5 overflow-hidden">
-                  <span className="text-base shrink-0">{ev.icon || '📢'}</span>
-                  <span className="font-bold text-white text-xs truncate">{ev.text}</span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-sport font-bold shrink-0">{ev.team}</span>
-              </motion.div>
-            ))
-          )}
+            <span className="font-sport text-slate-500 font-black text-lg">:</span>
+            <div className="flex items-center gap-2">
+              <span className="font-sport font-black text-2xl md:text-3xl text-purple-400 px-3 py-1 rounded-xl bg-slate-900/90 border border-purple-500/30">
+                {awayScore}
+              </span>
+              <span className="font-black text-sm md:text-base text-white">{awayName}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <button
+              onClick={() => setShowInGameChangesModal(true)}
+              className="w-full sm:w-auto bg-gradient-to-r from-cyan-950 to-blue-950 hover:from-cyan-900 hover:to-blue-900 text-cyan-300 font-bold px-4 py-2 rounded-xl border border-cyan-500/40 text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer active:scale-95"
+            >
+              <ListChecks size={16} className="text-cyan-400" />
+              <span>وضعیت تغییرات و داوری</span>
+              {inGameChangesList.filter(c => c.status === 'PENDING').length > 0 && (
+                <span className="bg-amber-500 text-slate-950 font-black text-[10px] px-1.5 py-0.2 rounded-full animate-pulse">
+                  {inGameChangesList.filter(c => c.status === 'PENDING').length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* 2.5 LIVE MATCH TELEMETRY & STATS BARS (FotMob Style) */}
-      <div className="fc-card p-4 sm:p-5 rounded-3xl border border-slate-700/60 space-y-4 shadow-xl bg-[#080c14]/80">
-        <div className="flex items-center justify-between border-b border-slate-700/60 pb-2.5">
-          <h3 className="text-xs font-black text-white flex items-center gap-2">
-            <Sliders size={17} className="text-purple-400" />
-            <span>آمار مقایسه‌ای و تله‌متری زنده بازی (LIVE MATCH STATS)</span>
-          </h3>
-          <div className="flex items-center gap-3 text-[11px] font-bold font-sport">
+      {/* 2. MATCH TELEMETRY & STATS (REALTIME SYNCED) */}
+      <div className="fc-card-elevated p-4 sm:p-5 rounded-3xl border border-slate-700/60 shadow-2xl space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <Activity size={18} className="text-cyan-400" />
+            <span className="font-black text-sm sm:text-base text-white">آمار زنده و تله‌متری مسابقه (Match Stats)</span>
+          </div>
+          <div className="flex items-center gap-3 text-xs font-black font-sport">
             <span className="text-cyan-400">{homeName}</span>
             <span className="text-slate-500">VS</span>
             <span className="text-purple-400">{awayName}</span>
           </div>
         </div>
 
-        <div className="space-y-3 text-xs">
+        <div className="space-y-4">
           {/* Possession Bar */}
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <div className="flex justify-between font-sport font-black text-xs">
               <span className="text-cyan-400">{homeStatsObj.possession_percent}%</span>
-              <span className="text-slate-300 text-[11px] font-sans">درصد مالکیت توپ</span>
+              <span className="text-slate-300">درصد مالکیت توپ</span>
               <span className="text-purple-400">{awayStatsObj.possession_percent}%</span>
             </div>
-            <div className="w-full h-2 rounded-full overflow-hidden flex bg-purple-900/60">
-              <div 
-                className="h-full bg-gradient-to-r from-cyan-500 to-teal-400 transition-all duration-500" 
-                style={{ width: `${homeStatsObj.possession_percent}%` }}
-              />
-              <div 
-                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-500" 
-                style={{ width: `${awayStatsObj.possession_percent}%` }}
-              />
+            <div className="w-full h-3 rounded-full overflow-hidden flex bg-slate-900">
+              <div className="h-full bg-cyan-500 transition-all duration-500" style={{ width: `${homeStatsObj.possession_percent}%` }} />
+              <div className="h-full bg-purple-500 transition-all duration-500" style={{ width: `${awayStatsObj.possession_percent}%` }} />
             </div>
           </div>
 
-          {/* Metric Comparison Rows */}
-          {[
-            { label: 'شوت در چارچوب', h: homeStatsObj.shots_on_target, a: awayStatsObj.shots_on_target },
-            { label: 'کل شوت‌ها', h: homeStatsObj.shots, a: awayStatsObj.shots },
-            { label: 'خطاها', h: homeStatsObj.fouls, a: awayStatsObj.fouls },
-            { label: 'کرنرها', h: homeStatsObj.corners, a: awayStatsObj.corners },
-            { label: 'آفسایدها', h: homeStatsObj.offsides, a: awayStatsObj.offsides },
-            { label: 'سیوهای دروازه‌بان', h: homeStatsObj.saves, a: awayStatsObj.saves },
-          ].map((row, idx) => {
-            const total = (row.h || 0) + (row.a || 0) || 1;
-            const hPercent = Math.round(((row.h || 0) / total) * 100);
-            return (
-              <div key={idx} className="space-y-1">
-                <div className="flex justify-between font-sport font-bold text-[11px]">
-                  <span className="text-cyan-400 w-6 text-left">{row.h || 0}</span>
-                  <span className="text-slate-400 text-[10px] font-sans">{row.label}</span>
-                  <span className="text-purple-400 w-6 text-right">{row.a || 0}</span>
-                </div>
-                <div className="w-full h-1.5 rounded-full overflow-hidden flex bg-purple-950/60 border border-slate-800">
-                  <div 
-                    className="h-full bg-cyan-400 transition-all duration-500" 
-                    style={{ width: `${(row.h || 0) === 0 && (row.a || 0) === 0 ? 50 : hPercent}%` }}
-                  />
-                  <div 
-                    className="h-full bg-purple-500 transition-all duration-500" 
-                    style={{ width: `${(row.h || 0) === 0 && (row.a || 0) === 0 ? 50 : 100 - hPercent}%` }}
-                  />
-                </div>
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 gap-4">
+            {[
+              { label: 'شوت در چارچوب', h: homeStatsObj.shots_on_target, a: awayStatsObj.shots_on_target },
+              { label: 'کل شوت‌ها', h: homeStatsObj.shots, a: awayStatsObj.shots },
+              { label: 'خطاها', h: homeStatsObj.fouls, a: awayStatsObj.fouls },
+              { label: 'کرنرها', h: homeStatsObj.corners, a: awayStatsObj.corners },
+            ].map((stat, i) => (
+              <div key={i} className="bg-slate-900/50 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
+                <span className="text-cyan-400 font-black">{stat.h}</span>
+                <span className="text-slate-400 text-[10px]">{stat.label}</span>
+                <span className="text-purple-400 font-black">{stat.a}</span>
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1080,24 +1095,24 @@ export default function LiveStreamTab({
       <div className="fc-card-elevated rounded-3xl border border-slate-700/60 overflow-hidden shadow-2xl">
         <button
           onClick={() => setIsTacticsExpanded(!isTacticsExpanded)}
-          className="w-full p-4 sm:p-5 flex items-center justify-between bg-gradient-to-r from-[#080c14] to-[#0d162a] text-right hover:bg-slate-800/80 transition-all cursor-pointer"
+          className="w-full p-3.5 sm:p-5 flex items-center justify-between bg-gradient-to-r from-[#080c14] to-[#0d162a] text-right hover:bg-slate-800/80 transition-all cursor-pointer gap-2"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 shadow-[0_0_12px_rgba(0,243,255,0.3)]">
-              <Sliders size={20} />
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 shadow-[0_0_12px_rgba(0,243,255,0.3)] shrink-0">
+              <Sliders size={18} className="sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <span className="font-black text-white text-sm sm:text-base block tracking-tight">
+            <div className="min-w-0">
+              <span className="font-black text-white text-xs sm:text-base block tracking-tight truncate">
                 میز تعویض و تغییرات تاکتیکی زنده (TACTICS DESK)
               </span>
-              <span className="text-xs text-cyan-300 font-medium">
+              <span className="text-[10px] sm:text-xs text-cyan-300 font-medium block truncate">
                 {matchState === 'HALF_TIME'
                   ? '⚡ استراحت بین دو نیمه: تعویض نامحدود و تغییر فرمیشن بدون قفل'
                   : 'در جریان مسابقه: امکان انجام تعویض‌های فوری با ۵ سهمیه رسمی'}
               </span>
             </div>
           </div>
-          <span className="text-xs font-black text-cyan-300 font-sport bg-cyan-950/80 px-3 py-1 rounded-xl border border-cyan-500/40">
+          <span className="text-[10px] sm:text-xs font-black text-cyan-300 font-sport bg-cyan-950/80 px-2.5 sm:px-3 py-1 rounded-xl border border-cyan-500/40 shrink-0">
             {isTacticsExpanded ? 'بستن پنل ▲' : 'مشاهده و تغییر تاکتیک ▼'}
           </span>
         </button>
@@ -1108,47 +1123,47 @@ export default function LiveStreamTab({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="p-4 sm:p-6 border-t border-slate-700/60 bg-[#05080e]/95 space-y-6"
+              className="p-3 sm:p-6 border-t border-slate-700/60 bg-[#05080e]/95 space-y-4 sm:space-y-6"
             >
               {/* Tactical Instructions Tabs */}
-              <div className="space-y-4">
-                <div className="flex bg-[#080c14] p-1 rounded-2xl border border-slate-700/60 gap-1 text-xs">
+              <div className="space-y-3 sm:space-y-4">
+                <div className="flex bg-[#080c14] p-1 rounded-xl sm:rounded-2xl border border-slate-700/60 gap-1 text-[11px] sm:text-xs">
                   <button
                     onClick={() => setTacticTab('attack')}
-                    className={`flex-1 py-2.5 rounded-xl font-black transition-all ${
+                    className={`flex-1 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black transition-all text-center ${
                       tacticTab === 'attack'
                         ? 'bg-gradient-to-r from-rose-600 to-amber-600 text-white shadow-md'
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    ⚔️ دستورات تهاجمی
+                    ⚔️ تهاجمی
                   </button>
                   <button
                     onClick={() => setTacticTab('defense')}
-                    className={`flex-1 py-2.5 rounded-xl font-black transition-all ${
+                    className={`flex-1 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black transition-all text-center ${
                       tacticTab === 'defense'
                         ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md'
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    🛡️ دستورات دفاعی
+                    🛡️ دفاعی
                   </button>
                   <button
                     onClick={() => setTacticTab('advanced')}
-                    className={`flex-1 py-2.5 rounded-xl font-black transition-all ${
+                    className={`flex-1 py-2 sm:py-2.5 rounded-lg sm:rounded-xl font-black transition-all text-center ${
                       tacticTab === 'advanced'
                         ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
                         : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    ⚙️ تاکتیک‌های پیشرفته
+                    ⚙️ پیشرفته
                   </button>
                 </div>
 
                 {/* Tactical Tab 1: Attack */}
                 {tacticTab === 'attack' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                    <div className="fc-card p-4 rounded-2xl border border-slate-700/60 space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 text-xs">
+                    <div className="fc-card p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-700/60 space-y-1.5 sm:space-y-2">
                       <label className="font-black text-rose-300 block">۱. سبک حمله (Attacking Style):</label>
                       <CustomSelect
                         value={tactics.attacking_style}
@@ -1160,7 +1175,7 @@ export default function LiveStreamTab({
                         ]}
                       />
                     </div>
-                    <div className="fc-card p-4 rounded-2xl border border-slate-700/60 space-y-2">
+                    <div className="fc-card p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-700/60 space-y-1.5 sm:space-y-2">
                       <label className="font-black text-cyan-300 block">۲. بازیسازی (Build Up):</label>
                       <CustomSelect
                         value={tactics.build_up}
@@ -1172,7 +1187,7 @@ export default function LiveStreamTab({
                         ]}
                       />
                     </div>
-                    <div className="fc-card p-4 rounded-2xl border border-slate-700/60 space-y-2">
+                    <div className="fc-card p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-700/60 space-y-1.5 sm:space-y-2">
                       <label className="font-black text-[#00ff87] block">۳. منطقه حمله (Attacking Area):</label>
                       <CustomSelect
                         value={tactics.attacking_area}
@@ -1184,7 +1199,7 @@ export default function LiveStreamTab({
                         ]}
                       />
                     </div>
-                    <div className="fc-card p-4 rounded-2xl border border-slate-700/60 space-y-2">
+                    <div className="fc-card p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-700/60 space-y-1.5 sm:space-y-2">
                       <label className="font-black text-cyan-300 block">۴. جای‌گیری (Positioning):</label>
                       <CustomSelect
                         value={tactics.positioning}
@@ -1201,8 +1216,8 @@ export default function LiveStreamTab({
 
                 {/* Tactical Tab 2: Defense */}
                 {tacticTab === 'defense' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                    <div className="fc-card p-4 rounded-2xl border border-slate-700/60 space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 text-xs">
+                    <div className="fc-card p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-700/60 space-y-1.5 sm:space-y-2">
                       <label className="font-black text-cyan-300 block">۱. سبک دفاعی (Defensive Style):</label>
                       <CustomSelect
                         value={tactics.defensive_style}
@@ -1214,7 +1229,7 @@ export default function LiveStreamTab({
                         ]}
                       />
                     </div>
-                    <div className="fc-card p-4 rounded-2xl border border-slate-700/60 space-y-2">
+                    <div className="fc-card p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-700/60 space-y-1.5 sm:space-y-2">
                       <label className="font-black text-purple-300 block">۲. منطقه مهار (Containment Area):</label>
                       <CustomSelect
                         value={tactics.containment_area}
@@ -1226,7 +1241,7 @@ export default function LiveStreamTab({
                         ]}
                       />
                     </div>
-                    <div className="fc-card p-4 rounded-2xl border border-slate-700/60 space-y-2">
+                    <div className="fc-card p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-700/60 space-y-1.5 sm:space-y-2">
                       <label className="font-black text-[#00ff87] block">۳. فشار (Pressing):</label>
                       <CustomSelect
                         value={tactics.pressing}
@@ -1243,8 +1258,8 @@ export default function LiveStreamTab({
 
                 {/* Tactical Tab 3: Advanced */}
                 {tacticTab === 'advanced' && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                    <div className="fc-card p-4 rounded-2xl border border-slate-700/60 space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 text-xs">
+                    <div className="fc-card p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-700/60 space-y-1.5 sm:space-y-2">
                       <label className="font-black text-rose-300 block">۱. تاکتیک پیشرفته حمله:</label>
                       <CustomSelect
                         value={tactics.adv_offense_1}
@@ -1258,7 +1273,7 @@ export default function LiveStreamTab({
                         ]}
                       />
                     </div>
-                    <div className="fc-card p-4 rounded-2xl border border-slate-700/60 space-y-2">
+                    <div className="fc-card p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-700/60 space-y-1.5 sm:space-y-2">
                       <label className="font-black text-cyan-300 block">۲. تاکتیک پیشرفته دفاع:</label>
                       <CustomSelect
                         value={tactics.adv_defense_1}
