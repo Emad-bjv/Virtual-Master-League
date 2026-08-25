@@ -73,7 +73,7 @@ def reset_db():
     deleted_teams, _ = dummy_teams.delete()
     print(f"Deleted {deleted_teams} dummy teams and reset all player records.")
 
-    # Copy logos
+    # Copy logos and player photos
     import shutil
     logos_source_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'Team Logos')
     logos_dest_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend', 'public', 'assets', 'logos')
@@ -86,6 +86,16 @@ def reset_db():
                 src_path = os.path.join(logos_source_dir, filename)
                 dest_path = os.path.join(logos_dest_dir, filename)
                 shutil.copy2(src_path, dest_path)
+
+    # Copy player photos for AS Roma and Napoli if present
+    players_dest_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend', 'public', 'players')
+    os.makedirs(players_dest_dir, exist_ok=True)
+    for folder_name in ['AS Roma', 'Napoli']:
+        folder_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), folder_name)
+        if os.path.exists(folder_path):
+            for filename in os.listdir(folder_path):
+                if filename.endswith(".webp") or filename.endswith(".png"):
+                    shutil.copy2(os.path.join(folder_path, filename), os.path.join(players_dest_dir, filename))
     
     # Formations dict based on PES 2021 standard setup
     DEFAULT_FORMATIONS = {
