@@ -272,7 +272,12 @@ class SignFreeAgentAPIView(views.APIView):
         if not player:
             return Response({'error': 'این بازیکن یافت نشد یا دیگر بازیکن آزاد نیست.'}, status=status.HTTP_404_NOT_FOUND)
             
-        signing_fee = Decimal(str(player.market_value if player.market_value > 0 else player.wage * Decimal('50.0')))
+        if user_team.players.count() >= user_team.max_squad_size:
+            return Response({
+                'error': f'ظرفیت لیست بازیکنان تیم شما تکمیل است ({user_team.players.count()} از حداکثر {user_team.max_squad_size} بازیکن). ابتدا باید بازیکن مازاد را آزاد یا معاوضه کنید.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        signing_fee = Decimal(str(player.market_value if (player.market_value and player.market_value > 0) else player.wage * Decimal('50.0')))
         if user_team.budget < signing_fee:
             return Response({'error': f'بودجه باشگاه ({float(user_team.budget):,.0f} $) برای جذب این بازیکن آزاد ({float(signing_fee):,.0f} $) کافی نیست.'}, status=status.HTTP_400_BAD_REQUEST)
             
@@ -283,8 +288,12 @@ class SignFreeAgentAPIView(views.APIView):
         from .negotiation_services import ensure_team_starting_eleven
 
         with transaction.atomic():
-            process_atomic_wallet_update(user_team.id, -signing_fee, 'BUDGET', 'FREE_AGENT_SIGNING', f"جذب بازیکن آزاد {player.name}")
+            wallet_res = process_atomic_wallet_update(user_team.id, -signing_fee, 'BUDGET', 'FREE_AGENT_SIGNING', f"جذب بازیکن آزاد {player.name}")
+            if not wallet_res.get('success', True) and 'error' in wallet_res:
+                return Response({'error': wallet_res.get('error')}, status=status.HTTP_400_BAD_REQUEST)
+
             player.team = user_team
+            player.is_starting = False
             player.save()
             ensure_team_starting_eleven(user_team)
             user_team.update_star_rating(save=True)
@@ -305,6 +314,11 @@ class SignFreeAgentAPIView(views.APIView):
                 team=user_team,
                 category='TRANSFER',
                 title='🎉 جذب بازیکن آزاد',
-                message=f"بازیکن آزاد «{player.name}» با موفقیت به ترکیب باشگاه شما پیوست."
+                message=f"بازیکن آزاد «{player.name}» با موفقیت به ترکیب باشگاه شما پیوست و مبلغ ${float(signing_fee):,.0f} از بودجه باشگاه کسر شد."
             )
-            return Response({'success': True, 'message': f'بازیکن «{player.name}» با موفقیت جذب شد.'})
+            return Response({
+                'success': True, 
+                'message': f'بازیکن «{player.name}» با موفقیت جذب شد و به ترکیب تیم پیوست.',
+                'fee': float(signing_fee)
+            })
+

@@ -392,9 +392,10 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
           }
           confirmText="بله، جذب بازیکن"
           cancelText="خیر، انصراف"
+          variant="success"
+          isLoading={isSigning}
           onConfirm={handleSignFreeAgentConfirm}
           onCancel={() => setPlayerToSign(null)}
-          loading={isSigning}
         />
       )}
 
