@@ -505,6 +505,13 @@ class TeamViewSet(viewsets.ModelViewSet):
         except User.DoesNotExist:
             return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrDebug])
+    def toggle_active(self, request, pk=None):
+        team = self.get_object()
+        team.is_active = not team.is_active
+        team.save(update_fields=['is_active'])
+        return Response({'status': 'Team active state toggled', 'team_id': team.id, 'is_active': team.is_active})
+
 class PlayerViewSet(viewsets.ModelViewSet):
     queryset = Player.objects.all().select_related('team', 'loan_owner_team')
     serializer_class = PlayerSerializer

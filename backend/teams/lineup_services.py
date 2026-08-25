@@ -250,6 +250,8 @@ DEFAULT_TEAM_FORMATIONS = {
     'Paris Saint-Germain': '4-3-3 (4-3-3)',
     'Real Madrid': '4-3-3 (4-3-3)',
     'Tottenham Hotspur': '4-5-1 (4-2-3-1)',
+    'AS Roma': '4-5-1 (4-2-3-1)',
+    'SSC Napoli': '4-3-3 (4-3-3)',
 }
 
 PES_DEFAULT_STARTERS = {
@@ -1511,6 +1513,164 @@ PES_DEFAULT_STARTERS = {
         },
         {
             "name": "D. Solanke",
+            "pos": "CF",
+            "loc": "ST",
+            "x": 50.0,
+            "y": 15.0
+        }
+    ],
+    "AS Roma": [
+        {
+            "name": "M. Svilar",
+            "pos": "GK",
+            "loc": "GK",
+            "x": 50.0,
+            "y": 90.0
+        },
+        {
+            "name": "Angeliño",
+            "pos": "LB",
+            "loc": "LB",
+            "x": 15.0,
+            "y": 72.0
+        },
+        {
+            "name": "E. Ndicka",
+            "pos": "CB",
+            "loc": "LCB",
+            "x": 35.0,
+            "y": 75.0
+        },
+        {
+            "name": "G. Mancini",
+            "pos": "CB",
+            "loc": "RCB",
+            "x": 65.0,
+            "y": 75.0
+        },
+        {
+            "name": "Wesley",
+            "pos": "RB",
+            "loc": "RB",
+            "x": 85.0,
+            "y": 72.0
+        },
+        {
+            "name": "K. Koné",
+            "pos": "DMF",
+            "loc": "LDMF",
+            "x": 35.0,
+            "y": 56.0
+        },
+        {
+            "name": "B. Cristante",
+            "pos": "DMF",
+            "loc": "RDMF",
+            "x": 65.0,
+            "y": 56.0
+        },
+        {
+            "name": "S. El Shaarawy",
+            "pos": "LWF",
+            "loc": "LW",
+            "x": 20.0,
+            "y": 36.0
+        },
+        {
+            "name": "P. Dybala",
+            "pos": "AMF",
+            "loc": "CAM",
+            "x": 50.0,
+            "y": 36.0
+        },
+        {
+            "name": "M. Soulé",
+            "pos": "RWF",
+            "loc": "RW",
+            "x": 80.0,
+            "y": 36.0
+        },
+        {
+            "name": "A. Dovbyk",
+            "pos": "CF",
+            "loc": "ST",
+            "x": 50.0,
+            "y": 15.0
+        }
+    ],
+    "SSC Napoli": [
+        {
+            "name": "A. Meret",
+            "pos": "GK",
+            "loc": "GK",
+            "x": 50.0,
+            "y": 90.0
+        },
+        {
+            "name": "Miguel Gutiérrez",
+            "pos": "LB",
+            "loc": "LB",
+            "x": 15.0,
+            "y": 72.0
+        },
+        {
+            "name": "A. Buongiorno",
+            "pos": "CB",
+            "loc": "LCB",
+            "x": 35.0,
+            "y": 75.0
+        },
+        {
+            "name": "A. Rrahmani",
+            "pos": "CB",
+            "loc": "RCB",
+            "x": 65.0,
+            "y": 75.0
+        },
+        {
+            "name": "G. Di Lorenzo",
+            "pos": "RB",
+            "loc": "RB",
+            "x": 85.0,
+            "y": 72.0
+        },
+        {
+            "name": "S. Lobotka",
+            "pos": "DMF",
+            "loc": "DMF",
+            "x": 50.0,
+            "y": 60.0
+        },
+        {
+            "name": "A. Zambo Anguissa",
+            "pos": "CMF",
+            "loc": "LCM",
+            "x": 30.0,
+            "y": 52.0
+        },
+        {
+            "name": "S. McTominay",
+            "pos": "CMF",
+            "loc": "RCM",
+            "x": 70.0,
+            "y": 52.0
+        },
+        {
+            "name": "David Neres",
+            "pos": "LWF",
+            "loc": "LW",
+            "x": 18.0,
+            "y": 20.0
+        },
+        {
+            "name": "M. Politano",
+            "pos": "RWF",
+            "loc": "RW",
+            "x": 82.0,
+            "y": 20.0
+        },
+        {
+            "name": "R. Lukaku",
             "pos": "CF",
             "loc": "ST",
             "x": 50.0,
