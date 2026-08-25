@@ -252,11 +252,11 @@ class TransferLogListView(generics.ListAPIView):
 
 class FreeAgentsAPIView(generics.ListAPIView):
     """
-    Returns the list of unassigned / free agent players.
+    Returns the list of unassigned / free agent players (only those released from teams).
     """
     from .serializers import SimplePlayerSerializer
     serializer_class = SimplePlayerSerializer
-    queryset = Player.objects.filter(team__isnull=True).order_by('-overall')
+    queryset = Player.objects.filter(team__isnull=True, is_free_agent=True).order_by('-overall')
 
 
 class SignFreeAgentAPIView(views.APIView):
@@ -268,7 +268,7 @@ class SignFreeAgentAPIView(views.APIView):
         if not user_team:
             return Response({'error': 'باشگاه شما مشخص نیست. لطفاً وارد شوید.'}, status=status.HTTP_403_FORBIDDEN)
             
-        player = Player.objects.filter(id=pk, team__isnull=True).first()
+        player = Player.objects.filter(id=pk, team__isnull=True, is_free_agent=True).first()
         if not player:
             return Response({'error': 'این بازیکن یافت نشد یا دیگر بازیکن آزاد نیست.'}, status=status.HTTP_404_NOT_FOUND)
             
@@ -294,6 +294,7 @@ class SignFreeAgentAPIView(views.APIView):
 
             player.team = user_team
             player.is_starting = False
+            player.is_free_agent = False
             player.save()
             ensure_team_starting_eleven(user_team)
             user_team.update_star_rating(save=True)
