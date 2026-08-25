@@ -57,7 +57,7 @@ def reset_db():
 
     # Copy logos
     import shutil
-    logos_source_dir = r"E:\Codes\Virtual Master League\Team Logos"
+    logos_source_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'Team Logos')
     logos_dest_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'frontend', 'public', 'assets', 'logos')
     
     if os.path.exists(logos_source_dir):
