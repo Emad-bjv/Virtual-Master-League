@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { adminApi, matchApi, teamApi } from '../../services/api';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
+import axios from 'axios';
 
 const TIME_SLOT_PRESET_TEMPLATES = [
   {
@@ -223,24 +224,12 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
     try {
       let loadedTeams = [];
       try {
-        const teamsRes = await teamApi.getTeams();
+        const headers = { Authorization: `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('vml_token')}` };
+        const teamsRes = await axios.get('/api/teams/', { headers });
         const rawTeams = Array.isArray(teamsRes.data) ? teamsRes.data : (teamsRes.data?.results || []);
         loadedTeams = Array.isArray(rawTeams) ? rawTeams : [];
       } catch (err) {
-        console.warn('Failed to load teams from teamApi, trying direct fetch:', err);
-      }
-
-      if (loadedTeams.length === 0) {
-        try {
-          const directRes = await fetch('/api/teams/');
-          if (directRes.ok) {
-            const json = await directRes.json();
-            const raw = Array.isArray(json) ? json : (json?.results || []);
-            loadedTeams = Array.isArray(raw) ? raw : [];
-          }
-        } catch (e2) {
-          console.error('Direct teams fetch failed:', e2);
-        }
+        console.error('Failed to load teams:', err);
       }
 
       const [gwRes, matchesRes, cupsRes] = await Promise.all([
