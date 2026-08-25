@@ -221,15 +221,34 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [teamsRes, gwRes, matchesRes, cupsRes] = await Promise.all([
-        teamApi.getTeams().catch(() => ({ data: [] })),
+      let loadedTeams = [];
+      try {
+        const teamsRes = await teamApi.getTeams();
+        const rawTeams = Array.isArray(teamsRes.data) ? teamsRes.data : (teamsRes.data?.results || []);
+        loadedTeams = Array.isArray(rawTeams) ? rawTeams : [];
+      } catch (err) {
+        console.warn('Failed to load teams from teamApi, trying direct fetch:', err);
+      }
+
+      if (loadedTeams.length === 0) {
+        try {
+          const directRes = await fetch('/api/teams/');
+          if (directRes.ok) {
+            const json = await directRes.json();
+            const raw = Array.isArray(json) ? json : (json?.results || []);
+            loadedTeams = Array.isArray(raw) ? raw : [];
+          }
+        } catch (e2) {
+          console.error('Direct teams fetch failed:', e2);
+        }
+      }
+
+      const [gwRes, matchesRes, cupsRes] = await Promise.all([
         matchApi.getGameweeksStatus().catch(() => ({ data: { gameweeks: [], active_gameweek: 'هفته ۱' } })),
         adminApi.getMatches().catch(() => ({ data: [] })),
         adminApi.getCups().catch(() => ({ data: [] })),
       ]);
 
-      const rawTeams = Array.isArray(teamsRes.data) ? teamsRes.data : (teamsRes.data?.results || []);
-      const loadedTeams = Array.isArray(rawTeams) ? rawTeams : [];
       const activeIds = loadedTeams.filter(t => t.is_active !== false).map(t => t.id);
       setTeams(loadedTeams);
       setSelectedLeagueTeamIds(prev => prev.length === 0 ? activeIds : prev);
