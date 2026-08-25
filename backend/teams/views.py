@@ -460,12 +460,20 @@ class TeamViewSet(viewsets.ModelViewSet):
 
         manager = None
         username = request.data.get('username') or request.data.get('coach_username')
+        password = request.data.get('password') or request.data.get('coach_password')
         if username:
             username = str(username).strip()
-            manager, _ = User.objects.get_or_create(
+            manager, created = User.objects.get_or_create(
                 username=username,
                 defaults={'role': 'coach', 'virtual_dollars': 1000000.00}
             )
+            if password:
+                manager.set_password(str(password).strip())
+                manager.save()
+            elif created:
+                manager.set_password('123456')
+                manager.save()
+
             if hasattr(manager, 'team') and manager.team is not None:
                 return Response(
                     {'error': 'این نام کاربری قبلاً برای تیم دیگری ثبت شده است.'},

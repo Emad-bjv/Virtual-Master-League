@@ -363,6 +363,7 @@ def release_player(player_id, user_team_id):
             
             player.team = None
             player.is_starting = False
+            player.is_free_agent = True
             player.save()
             
             # Ensure team retains 11 starting players if available

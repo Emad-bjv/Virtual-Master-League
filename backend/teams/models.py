@@ -169,6 +169,7 @@ class Player(models.Model):
         help_text="مانده کسری رشد که در هر دوره ارزیابی روی اورال اعمال می‌شود."
     )
     is_locked = models.BooleanField(default=False, verbose_name="قفل استقامت زیر ۳۰٪")
+    is_free_agent = models.BooleanField(default=False, verbose_name="آزاد شده از تیم / بازیکن آزاد")
     shirt_number = models.PositiveIntegerField(null=True, blank=True, default=None, verbose_name="شماره پیراهن")
     x_coord = models.FloatField(default=0.0, verbose_name="مختصات X در ترکیب")
     y_coord = models.FloatField(default=0.0, verbose_name="مختصات Y در ترکیب")

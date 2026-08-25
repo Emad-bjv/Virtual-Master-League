@@ -256,7 +256,7 @@ class FreeAgentsAPIView(generics.ListAPIView):
     """
     from .serializers import SimplePlayerSerializer
     serializer_class = SimplePlayerSerializer
-    queryset = Player.objects.filter(team__isnull=True).order_by('-overall')
+    queryset = Player.objects.filter(team__isnull=True, is_free_agent=True).order_by('-overall')
 
 
 class SignFreeAgentAPIView(views.APIView):
@@ -285,6 +285,7 @@ class SignFreeAgentAPIView(views.APIView):
         with transaction.atomic():
             process_atomic_wallet_update(user_team.id, -signing_fee, 'BUDGET', 'FREE_AGENT_SIGNING', f"جذب بازیکن آزاد {player.name}")
             player.team = user_team
+            player.is_free_agent = False
             player.save()
             ensure_team_starting_eleven(user_team)
             user_team.update_star_rating(save=True)
