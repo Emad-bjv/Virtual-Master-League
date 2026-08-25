@@ -26,7 +26,7 @@ FC26_TEAMS = [
 def reset_db():
     print("Starting clean reset to Real FC 26 data...")
 
-    # 1. Clear transfer listings, bids, offers, history, logs, notifications, matches, and tasks
+    # 1. Clear transfer listings, bids, offers, history, logs, notifications, matches, audit, and tasks
     TransferListing.objects.all().delete()
     TransferBid.objects.all().delete()
     TransferOffer.objects.all().delete()
@@ -35,12 +35,29 @@ def reset_db():
     Notification.objects.all().delete()
     Match.objects.all().delete()
     try:
-        from season_pass.models import WeeklyTask, TeamTaskProgress
-        WeeklyTask.objects.all().delete()
-        TeamTaskProgress.objects.all().delete()
+        from matches.models import LeagueStanding
+        LeagueStanding.objects.all().delete()
     except Exception:
         pass
-    print("Cleared transfer listings, bids, offers, history, logs, notifications, matches, and season tasks.")
+    try:
+        from economy.models import PaymentTransaction, AdminAdjustmentLog
+        PaymentTransaction.objects.all().delete()
+        AdminAdjustmentLog.objects.all().delete()
+    except Exception:
+        pass
+    try:
+        from audit.models import AuditLog
+        AuditLog.objects.all().delete()
+    except Exception:
+        pass
+    try:
+        from season_pass.models import WeeklyTask, TeamTaskProgress, TeamSeasonPass
+        WeeklyTask.objects.all().delete()
+        TeamTaskProgress.objects.all().delete()
+        TeamSeasonPass.objects.all().delete()
+    except Exception:
+        pass
+    print("Cleared transfer listings, bids, offers, history, logs, notifications, matches, payments, audit, and season tasks.")
 
     # 2. Delete non-FC26 teams and players
     dummy_teams = Team.objects.exclude(name__in=FC26_TEAMS)
@@ -117,10 +134,12 @@ def reset_db():
                     name=team_name,
                     defaults={
                         'logo': logo_path,
-                        'budget': Decimal(fields.get('budget', '500000000.00')),
+                        'budget': Decimal(fields.get('budget', '100000000.00')),
+                        'gems': 500,
                         'wage_cap': Decimal(fields.get('wage_cap', '5000000.00')),
                         'star_rating': Decimal(fields.get('star_rating', '4.5')),
-                        'default_formation': default_form
+                        'default_formation': default_form,
+                        'is_active': True
                     }
                 )
                 team_id_map[pk] = team_obj
@@ -153,10 +172,12 @@ def reset_db():
                         'overall': fields['overall'],
                         'potential_ovr': fields['potential_ovr'],
                         'base_stamina': fields['base_stamina'],
-                        'virtual_stamina': Decimal(fields['virtual_stamina']),
+                        'virtual_stamina': Decimal('100.00'),
                         'wage': Decimal(fields['wage']),
                         'market_value': Decimal(fields.get('market_value', '1000000.00')),
                         'rarity': fields['rarity'],
+                        'is_injured': False,
+                        'suspension_matches': 0,
                     }
                 )
 
@@ -167,9 +188,12 @@ def reset_db():
         from teams.lineup_services import align_all_teams
         align_all_teams()
 
-        # Update Team Star Ratings based on aligned Starting XI
+        # Update Team Star Ratings based on aligned Starting XI and reset budgets/gems
         for t in Team.objects.all():
             t.update_star_rating(save=True)
+            t.gems = 500
+            t.is_active = True
+            t.save(update_fields=['gems', 'is_active'])
 
         # Reset TeamGamePlans to default unsubmitted state for all clubs
         for t in Team.objects.all():
@@ -178,32 +202,109 @@ def reset_db():
                 defaults={'formation': t.default_formation, 'is_submitted': False}
             )
 
-    # 4. Clean Store Packages
-    StorePackage.objects.get_or_create(
-        name='پک 500 سکه مجازی',
-        defaults={'usd_amount': Decimal('5.00'), 'price_irr': 250000, 'is_active': True}
+    # 4. Clean & Seed Complete Store Packages (Gems and Virtual Budget)
+    print("Re-seeding Store Packages...")
+    StorePackage.objects.all().delete()
+    
+    # Gem Packages
+    StorePackage.objects.create(
+        name='بسته ۲۰۰ الماس (جم)',
+        currency_type='GEMS',
+        reward_amount=Decimal('200.00'),
+        price_irr=49000,
+        bonus_amount=Decimal('0.00'),
+        description='بسته پایه الماس برای ریکاوری استقامت و تسریع در ارتقای امکانات باشگاه',
+        icon_code='gem_small',
+        sort_order=1,
+        is_active=True
     )
-    StorePackage.objects.get_or_create(
-        name='پک 2000 سکه طلایی',
-        defaults={'usd_amount': Decimal('18.00'), 'price_irr': 900000, 'is_active': True}
+    StorePackage.objects.create(
+        name='بسته ۵۰۰ الماس (جم)',
+        currency_type='GEMS',
+        reward_amount=Decimal('500.00'),
+        price_irr=99000,
+        bonus_amount=Decimal('50.00'),
+        description='بسته محبوب الماس به همراه ۵۰ الماس هدیه ویژه بازگشایی پک‌های گاچا',
+        icon_code='gem_medium',
+        sort_order=2,
+        is_active=True
+    )
+    StorePackage.objects.create(
+        name='بسته ۱۲۰۰ الماس (جم)',
+        currency_type='GEMS',
+        reward_amount=Decimal('1200.00'),
+        price_irr=199000,
+        bonus_amount=Decimal('150.00'),
+        description='بسته اقتصادی با ۱۵۰ الماس هدیه ویژه برای تقویت چندگانه بازیکنان',
+        icon_code='gem_large',
+        sort_order=3,
+        is_active=True
+    )
+    StorePackage.objects.create(
+        name='بسته ۳۰۰۰ الماس ویژه',
+        currency_type='GEMS',
+        reward_amount=Decimal('3000.00'),
+        price_irr=399000,
+        bonus_amount=Decimal('500.00'),
+        description='بسته فوق‌العاده الماس با ۵۰۰ الماس هدیه برای تسلط کامل بر بازار و گاچا',
+        icon_code='gem_vault',
+        sort_order=4,
+        is_active=True
     )
 
-    # 5. Clean Gacha Packs
-    Pack.objects.get_or_create(
-        name='پک ستارگان FC 26',
-        defaults={
-            'cost_usd': Decimal('50.00'),
-            'cost_gems': 500,
-            'is_active': True
-        }
+    # Virtual Budget Packages
+    StorePackage.objects.create(
+        name='تزریق بودجه ۲۰ میلیون دلاری',
+        currency_type='BUDGET',
+        reward_amount=Decimal('20000000.00'),
+        price_irr=79000,
+        bonus_amount=Decimal('0.00'),
+        description='افزایش آنی ۲۰,۰۰۰,۰۰۰ دلار به خزانه باشگاه برای پرداخت دستمزد و خریدهای اولیه',
+        icon_code='cash_small',
+        sort_order=5,
+        is_active=True
     )
+    StorePackage.objects.create(
+        name='تزریق بودجه ۵۰ میلیون دلاری',
+        currency_type='BUDGET',
+        reward_amount=Decimal('50000000.00'),
+        price_irr=149000,
+        bonus_amount=Decimal('5000000.00'),
+        description='افزایش ۵۰ میلیون دلار بودجه + ۵ میلیون دلار بونوس ویژه ترنسفر مارکت',
+        icon_code='cash_medium',
+        sort_order=6,
+        is_active=True
+    )
+    StorePackage.objects.create(
+        name='تزریق بودجه ۱۰۰ میلیون دلاری (ویژه)',
+        currency_type='BUDGET',
+        reward_amount=Decimal('100000000.00'),
+        price_irr=269000,
+        bonus_amount=Decimal('15000000.00'),
+        description='بسته اسپانسری بزرگ با ۱۵ میلیون دلار هدیه برای خرید سوپراستارهای فوتبال',
+        icon_code='cash_large',
+        sort_order=7,
+        is_active=True
+    )
+    print(f"Seeded {StorePackage.objects.count()} Store Packages.")
+
+    # 5. Clean & Seed Gacha Packs and Player Pools
+    print("Re-seeding Gacha Packs and Player Pools...")
+    Pack.objects.all().delete()
+    try:
+        from scripts.seed_packs import seed_packs
+        seed_packs()
+    except Exception as e:
+        print(f"Warning seeding packs: {e}")
 
     print("\n--- FINAL DATABASE STATE ---")
     print(f"Total Teams: {Team.objects.count()} (Expected: 16)")
     print(f"Total Players: {Player.objects.count()}")
+    print(f"Total Store Packages: {StorePackage.objects.count()}")
+    print(f"Total Gacha Packs: {Pack.objects.count()}")
     for t in Team.objects.all():
         p_count = Player.objects.filter(team=t).count()
-        print(f" - {t.name}: {p_count} players")
+        print(f" - {t.name}: {p_count} players | Budget: ${t.budget:,.0f} | Gems: {t.gems}")
 
 if __name__ == '__main__':
     reset_db()
