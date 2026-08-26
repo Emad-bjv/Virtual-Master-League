@@ -30,18 +30,52 @@ class StorePackageListView(generics.ListAPIView):
 class CardToCardInfoView(views.APIView):
     """
     Returns the admin's bank card info for card-to-card payment.
+    Allows admins to update card details.
     """
-    permission_classes = [AllowAny]
+    def get_permissions(self):
+        if self.request.method in ['POST', 'PATCH', 'PUT']:
+            return [IsAuthenticated()]
+        return [AllowAny()]
 
     def get(self, request):
         settings = CardToCardSettings.objects.filter(is_active=True).first()
         if not settings:
+            settings = CardToCardSettings.objects.first()
+        if not settings:
             return Response(
-                {'error': 'تنظیمات کارت بانکی هنوز انجام نشده.'},
-                status=status.HTTP_404_NOT_FOUND
+                {'error': 'تنظیمات کارت بانکی هنوز انجام نشده.', 'card_number': '', 'card_holder_name': '', 'bank_name': ''},
+                status=status.HTTP_200_OK
             )
         serializer = CardToCardSettingsSerializer(settings)
         return Response(serializer.data)
+
+    def post(self, request):
+        is_admin = request.user.is_staff or request.user.is_superuser or getattr(request.user, 'role', '') in ['admin', 'superadmin']
+        if not is_admin:
+            return Response({'error': 'دسترسی فقط مخصوص مدیر سیستم است.'}, status=status.HTTP_403_FORBIDDEN)
+
+        card_number = request.data.get('card_number', '').strip()
+        card_holder_name = request.data.get('card_holder_name', '').strip()
+        bank_name = request.data.get('bank_name', '').strip()
+        is_active = request.data.get('is_active', True)
+
+        if not card_number or not card_holder_name:
+            return Response({'error': 'شماره کارت و نام صاحب حساب الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        settings = CardToCardSettings.objects.first()
+        if not settings:
+            settings = CardToCardSettings()
+
+        settings.card_number = card_number
+        settings.card_holder_name = card_holder_name
+        settings.bank_name = bank_name
+        settings.is_active = bool(is_active)
+        settings.save()
+
+        return Response({
+            'status': 'اطلاعات کارت بانکی با موفقیت در سیستم بروزرسانی شد.',
+            'data': CardToCardSettingsSerializer(settings).data
+        })
 
 
 class CreatePaymentRequestView(views.APIView):

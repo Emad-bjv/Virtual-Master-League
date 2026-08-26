@@ -10,10 +10,47 @@ const FinancialControl = () => {
   const [savingSettings, setSavingSettings] = useState(false);
   const { showToast } = useToast();
 
+  const [cardSettings, setCardSettings] = useState({
+    card_number: '',
+    card_holder_name: '',
+    bank_name: '',
+    is_active: true
+  });
+  const [savingCard, setSavingCard] = useState(false);
+
   useEffect(() => {
     fetchTransactions();
     fetchSettings();
+    fetchCardSettings();
   }, []);
+
+  const fetchCardSettings = async () => {
+    try {
+      const res = await api.get('/economy/card-info/');
+      if (res.data && res.data.card_number) {
+        setCardSettings({
+          card_number: res.data.card_number || '',
+          card_holder_name: res.data.card_holder_name || '',
+          bank_name: res.data.bank_name || '',
+          is_active: res.data.is_active !== false
+        });
+      }
+    } catch (err) {
+      console.log('No card settings found yet');
+    }
+  };
+
+  const handleSaveCard = async (e) => {
+    e.preventDefault();
+    setSavingCard(true);
+    try {
+      await api.post('/economy/card-info/', cardSettings);
+      showToast('اطلاعات شماره کارت بانکی با موفقیت بروزرسانی شد', 'success');
+    } catch (err) {
+      showToast(err.response?.data?.error || 'خطا در ذخیره‌سازی اطلاعات کارت', 'error');
+    }
+    setSavingCard(false);
+  };
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -60,17 +97,86 @@ const FinancialControl = () => {
   return (
     <div style={{fontFamily: 'Vazirmatn, Tahoma, sans-serif'}}>
       <header className="admin-header">
-        <h1>کنترل مالی و اشتراک‌ها</h1>
-        <button className="admin-btn secondary" onClick={fetchTransactions}>بروزرسانی تراکنش‌ها</button>
+        <h1>کنترل مالی و تنظیمات پرداخت</h1>
+        <button className="admin-btn secondary" onClick={() => { fetchTransactions(); fetchCardSettings(); }}>بروزرسانی اطلاعات</button>
       </header>
+
+      {/* Bank Card Settings Management Card */}
+      <div className="glass-panel" style={{marginTop: '1.5rem', marginBottom: '1.5rem', padding: '1.5rem', border: '1px solid rgba(16, 185, 129, 0.4)'}}>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem'}}>
+          <h3 style={{margin: 0, color: '#34d399', display: 'flex', alignItems: 'center', gap: '8px'}}>
+            <span>💳</span>
+            <span>تنظیمات شماره کارت بانکی (واریز کارت به کارت مربیان)</span>
+          </h3>
+          <Tooltip title="شماره کارت مقصد" description="این شماره کارت در بخش خرید بسته‌های جم و بودجه در فروشگاه به مربیان نمایش داده می‌شود تا مبلغ را واریز و تصویر فیش را آپلود کنند." />
+        </div>
+
+        <form onSubmit={handleSaveCard} style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', alignItems: 'end'}}>
+          <div>
+            <label style={{display: 'block', fontSize: '0.8rem', color: 'var(--admin-text-muted)', marginBottom: '4px'}}>
+              شماره کارت بانکی (۱۶ رقمی):
+            </label>
+            <input
+              type="text"
+              className="admin-input"
+              dir="ltr"
+              style={{letterSpacing: '2px', fontWeight: 'bold', fontSize: '1rem'}}
+              placeholder="6037-9971-XXXX-XXXX"
+              value={cardSettings.card_number}
+              onChange={(e) => setCardSettings({ ...cardSettings, card_number: e.target.value })}
+              required
+            />
+          </div>
+
+          <div>
+            <label style={{display: 'block', fontSize: '0.8rem', color: 'var(--admin-text-muted)', marginBottom: '4px'}}>
+              نام صاحب حساب:
+            </label>
+            <input
+              type="text"
+              className="admin-input"
+              placeholder="مثال: علی محمدی"
+              value={cardSettings.card_holder_name}
+              onChange={(e) => setCardSettings({ ...cardSettings, card_holder_name: e.target.value })}
+              required
+            />
+          </div>
+
+          <div>
+            <label style={{display: 'block', fontSize: '0.8rem', color: 'var(--admin-text-muted)', marginBottom: '4px'}}>
+              نام بانک (اختیاری):
+            </label>
+            <input
+              type="text"
+              className="admin-input"
+              placeholder="مثال: بانک ملی / سامان"
+              value={cardSettings.bank_name}
+              onChange={(e) => setCardSettings({ ...cardSettings, bank_name: e.target.value })}
+            />
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              className="admin-btn success"
+              disabled={savingCard}
+              style={{width: '100%', padding: '0.65rem 1rem', fontSize: '0.9rem', fontWeight: 'bold'}}
+            >
+              {savingCard ? 'در حال ذخیره...' : '✓ ذخیره شماره کارت جدید'}
+            </button>
+          </div>
+        </form>
+      </div>
       
-      <div className="admin-grid" style={{marginTop: '2rem', marginBottom: '2rem'}}>
+      <div className="admin-grid" style={{marginTop: '1.5rem', marginBottom: '2rem'}}>
         <div className="glass-panel stat-card">
-          <h3>وضعیت درگاه پرداخت</h3>
-          <div className="value" style={{color: 'var(--admin-success)'}}>زرین‌پال فعال</div>
+          <h3>وضعیت واریز کارت به کارت</h3>
+          <div className="value" style={{color: cardSettings.card_number ? 'var(--admin-success)' : 'var(--admin-danger)'}}>
+            {cardSettings.card_number ? 'فعال و متصل' : 'تعریف نشده'}
+          </div>
         </div>
         <div className="glass-panel stat-card">
-          <h3>کل گردش مالی سیستم</h3>
+          <h3>کل گردش مالی ثبت شده</h3>
           <div className="value">{totalVolume.toLocaleString()} تومان</div>
         </div>
         <div className="glass-panel stat-card">
