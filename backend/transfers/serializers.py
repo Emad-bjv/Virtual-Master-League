@@ -589,6 +589,20 @@ def _get_romano_headline_and_content(obj):
     return "📰 گزارش رسمی نقل‌وانتقالات مستر لیگ", f"{obj.description}\n\n#مستر_لیگ"
 
 
+def resolve_team_logo_url(team):
+    if not team:
+        return None
+    logo = getattr(team, 'logo', None)
+    if not logo:
+        return None
+    if hasattr(logo, 'url'):
+        try:
+            return logo.url
+        except Exception:
+            return str(logo)
+    return str(logo)
+
+
 class TransferLogSerializer(serializers.ModelSerializer):
     event_type_display = serializers.CharField(source='get_event_type_display', read_only=True)
     news_headline = serializers.SerializerMethodField()
@@ -603,99 +617,147 @@ class TransferLogSerializer(serializers.ModelSerializer):
         ]
 
     def get_news_headline(self, obj):
-        headline, _ = _get_romano_headline_and_content(obj)
-        return headline
+        try:
+            headline, _ = _get_romano_headline_and_content(obj)
+            return headline
+        except Exception:
+            return "📰 گزارش رسمی نقل‌وانتقالات مستر لیگ"
 
     def get_news_content(self, obj):
-        _, content = _get_romano_headline_and_content(obj)
-        return content
+        try:
+            _, content = _get_romano_headline_and_content(obj)
+            return content
+        except Exception:
+            return str(obj.description or '')
 
     def get_offer_details(self, obj):
-        o = obj.related_offer
-        if o:
-            tp = o.target_player
-            seller_name = o.receiver_team.name if tp and tp.team_id == o.sender_team_id else (o.sender_team.name if o.sender_team else None)
-            buyer_name = o.sender_team.name if tp and tp.team_id == o.sender_team_id else (o.receiver_team.name if o.receiver_team else None)
-            seller_team = o.receiver_team if tp and tp.team_id == o.sender_team_id else o.sender_team
-            buyer_team = o.sender_team if tp and tp.team_id == o.sender_team_id else o.receiver_team
+        try:
+            o = obj.related_offer
+            if o:
+                tp = o.target_player
+                seller_name = o.receiver_team.name if tp and tp.team_id == o.sender_team_id else (o.sender_team.name if o.sender_team else None)
+                buyer_name = o.sender_team.name if tp and tp.team_id == o.sender_team_id else (o.receiver_team.name if o.receiver_team else None)
+                seller_team = o.receiver_team if tp and tp.team_id == o.sender_team_id else o.sender_team
+                buyer_team = o.sender_team if tp and tp.team_id == o.sender_team_id else o.receiver_team
 
-            romano_tag = "🚨 HERE WE GO!"
-            if obj.event_type == 'TRANSFER_FINALIZED':
                 romano_tag = "🚨 HERE WE GO!"
-            elif obj.event_type == 'COUNTER_OFFER':
-                romano_tag = "🔥 COUNTER OFFER"
-            elif obj.event_type == 'OFFER_MADE':
-                romano_tag = "📢 OFFICIAL BID"
-            elif obj.event_type == 'OFFER_REJECTED':
-                romano_tag = "❌ BID REJECTED"
-            elif obj.event_type == 'OFFER_CANCELLED':
-                romano_tag = "🚫 BID CANCELLED"
+                if obj.event_type == 'TRANSFER_FINALIZED':
+                    romano_tag = "🚨 HERE WE GO!"
+                elif obj.event_type == 'COUNTER_OFFER':
+                    romano_tag = "🔥 COUNTER OFFER"
+                elif obj.event_type == 'OFFER_MADE':
+                    romano_tag = "📢 OFFICIAL BID"
+                elif obj.event_type == 'OFFER_REJECTED':
+                    romano_tag = "❌ BID REJECTED"
+                elif obj.event_type == 'OFFER_CANCELLED':
+                    romano_tag = "🚫 BID CANCELLED"
 
-            return {
-                'offer_id': o.id,
-                'romano_tag': romano_tag,
-                'sender_team_name': o.sender_team.name if o.sender_team else None,
-                'sender_team_logo': o.sender_team.logo.url if (o.sender_team and o.sender_team.logo) else None,
-                'receiver_team_name': o.receiver_team.name if o.receiver_team else None,
-                'receiver_team_logo': o.receiver_team.logo.url if (o.receiver_team and o.receiver_team.logo) else None,
-                'seller_team_name': seller_name,
-                'seller_team_logo': seller_team.logo.url if (seller_team and seller_team.logo) else None,
-                'buyer_team_name': buyer_name,
-                'buyer_team_logo': buyer_team.logo.url if (buyer_team and buyer_team.logo) else None,
-                'target_player_id': tp.id if tp else None,
-                'target_player_name': tp.name if tp else None,
-                'target_player_overall': tp.overall if tp else None,
-                'target_player_position': tp.position if tp else None,
-                'target_player_age': getattr(tp, 'age', None) if tp else None,
-                'target_player_photo': resolve_player_photo_url(tp) if tp else None,
-                'cash_amount': float(o.cash_amount or 0),
-                'offer_type': o.offer_type,
-                'offer_type_display': o.get_offer_type_display(),
-                'loan_duration_matches': o.loan_duration_matches,
-                'swap_players_details': [
-                    {
-                        'id': p.id,
-                        'name': p.name,
-                        'overall': p.overall,
-                        'position': p.position,
-                        'photo_url': resolve_player_photo_url(p),
-                    }
-                    for p in o.swap_players.all()
-                ],
-                'status': o.status,
-                'status_display': o.get_status_display(),
-            }
+                return {
+                    'offer_id': o.id,
+                    'romano_tag': romano_tag,
+                    'sender_team_name': o.sender_team.name if o.sender_team else None,
+                    'sender_team_logo': resolve_team_logo_url(o.sender_team),
+                    'receiver_team_name': o.receiver_team.name if o.receiver_team else None,
+                    'receiver_team_logo': resolve_team_logo_url(o.receiver_team),
+                    'seller_team_name': seller_name,
+                    'seller_team_logo': resolve_team_logo_url(seller_team),
+                    'buyer_team_name': buyer_name,
+                    'buyer_team_logo': resolve_team_logo_url(buyer_team),
+                    'target_player_id': tp.id if tp else None,
+                    'target_player_name': tp.name if tp else None,
+                    'target_player_overall': tp.overall if tp else None,
+                    'target_player_position': tp.position if tp else None,
+                    'target_player_age': getattr(tp, 'age', None) if tp else None,
+                    'target_player_photo': resolve_player_photo_url(tp) if tp else None,
+                    'cash_amount': float(o.cash_amount or 0),
+                    'offer_type': o.offer_type,
+                    'offer_type_display': o.get_offer_type_display(),
+                    'loan_duration_matches': o.loan_duration_matches,
+                    'swap_players_details': [
+                        {
+                            'id': p.id,
+                            'name': p.name,
+                            'overall': p.overall,
+                            'position': p.position,
+                            'photo_url': resolve_player_photo_url(p),
+                        }
+                        for p in o.swap_players.all()
+                    ],
+                    'status': o.status,
+                    'status_display': o.get_status_display(),
+                }
 
-        # Fallback if no related_offer (e.g. Player Released, Free Agent, Auction, or direct history log)
-        # Attempt to find player mentioned in description
-        p_match = None
-        desc = obj.description or ''
-        if '«' in desc and '»' in desc:
-            extracted_name = desc.split('«')[1].split('»')[0].strip()
-            p_match = Player.objects.filter(name=extracted_name).first()
-        
-        romano_tag = "📰 LEAGUE REPORT"
-        if obj.event_type == 'PLAYER_RELEASED':
-            romano_tag = "📄 FREE AGENT"
-        elif obj.event_type == 'FREE_AGENT_SIGNED':
-            romano_tag = "🌟 SIGNING"
-        elif obj.event_type == 'LOAN_EXPIRED':
-            romano_tag = "🔄 LOAN EXPIRED"
-        elif obj.event_type == 'TRANSFER_FINALIZED':
-            romano_tag = "🚨 DONE DEAL"
+            # Fallback if no related_offer (e.g. Player Released, Free Agent, Auction, or direct history log)
+            p_match = None
+            desc = obj.description or ''
+            if '«' in desc and '»' in desc:
+                extracted_name = desc.split('«')[1].split('»')[0].strip()
+                p_match = Player.objects.filter(name=extracted_name).first()
+            
+            romano_tag = "📰 LEAGUE REPORT"
+            if obj.event_type == 'PLAYER_RELEASED':
+                romano_tag = "📄 FREE AGENT"
+            elif obj.event_type == 'FREE_AGENT_SIGNED':
+                romano_tag = "🌟 SIGNING"
+            elif obj.event_type == 'LOAN_EXPIRED':
+                romano_tag = "🔄 LOAN EXPIRED"
+            elif obj.event_type == 'TRANSFER_FINALIZED':
+                romano_tag = "🚨 DONE DEAL"
 
-        if p_match:
+            if p_match:
+                return {
+                    'offer_id': None,
+                    'romano_tag': romano_tag,
+                    'target_player_id': p_match.id,
+                    'target_player_name': p_match.name,
+                    'target_player_overall': p_match.overall,
+                    'target_player_position': p_match.position,
+                    'target_player_age': getattr(p_match, 'age', None),
+                    'target_player_photo': resolve_player_photo_url(p_match),
+                    'seller_team_name': p_match.team.name if p_match.team else None,
+                    'seller_team_logo': resolve_team_logo_url(p_match.team),
+                    'buyer_team_name': None,
+                    'buyer_team_logo': None,
+                    'cash_amount': 0.0,
+                    'offer_type': 'DIRECT_TRANSFER',
+                    'offer_type_display': 'گزارش رسمی',
+                    'loan_duration_matches': 0,
+                    'swap_players_details': [],
+                    'status': 'FINALIZED',
+                    'status_display': 'نهایی شده',
+                }
+
             return {
                 'offer_id': None,
                 'romano_tag': romano_tag,
-                'target_player_id': p_match.id,
-                'target_player_name': p_match.name,
-                'target_player_overall': p_match.overall,
-                'target_player_position': p_match.position,
-                'target_player_age': getattr(p_match, 'age', None),
-                'target_player_photo': resolve_player_photo_url(p_match),
-                'seller_team_name': p_match.team.name if p_match.team else None,
-                'seller_team_logo': p_match.team.logo.url if (p_match.team and p_match.team.logo) else None,
+                'target_player_id': None,
+                'target_player_name': None,
+                'target_player_overall': None,
+                'target_player_position': None,
+                'target_player_photo': None,
+                'seller_team_name': None,
+                'seller_team_logo': None,
+                'buyer_team_name': None,
+                'buyer_team_logo': None,
+                'cash_amount': 0.0,
+                'offer_type': 'DIRECT_TRANSFER',
+                'offer_type_display': 'گزارش رسمی',
+                'loan_duration_matches': 0,
+                'swap_players_details': [],
+                'status': 'FINALIZED',
+                'status_display': 'نهایی شده',
+            }
+        except Exception:
+            return {
+                'offer_id': None,
+                'romano_tag': "📰 LEAGUE REPORT",
+                'target_player_id': None,
+                'target_player_name': None,
+                'target_player_overall': None,
+                'target_player_position': None,
+                'target_player_photo': None,
+                'seller_team_name': None,
+                'seller_team_logo': None,
                 'buyer_team_name': None,
                 'buyer_team_logo': None,
                 'cash_amount': 0.0,
@@ -707,26 +769,6 @@ class TransferLogSerializer(serializers.ModelSerializer):
                 'status_display': 'نهایی شده',
             }
 
-        return {
-            'offer_id': None,
-            'romano_tag': romano_tag,
-            'target_player_id': None,
-            'target_player_name': None,
-            'target_player_overall': None,
-            'target_player_position': None,
-            'target_player_photo': None,
-            'seller_team_name': None,
-            'seller_team_logo': None,
-            'buyer_team_name': None,
-            'buyer_team_logo': None,
-            'cash_amount': 0.0,
-            'offer_type': 'DIRECT_TRANSFER',
-            'offer_type_display': 'گزارش رسمی',
-            'loan_duration_matches': 0,
-            'swap_players_details': [],
-            'status': 'FINALIZED',
-            'status_display': 'نهایی شده',
-        }
 
 
 class SimplePlayerSerializer(serializers.ModelSerializer):
