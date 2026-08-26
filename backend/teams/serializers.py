@@ -24,15 +24,15 @@ def resolve_player_photo_url(obj):
 
     if name in ['L. Martínez', 'L. Martinez']:
         if pos in ['CF', 'SS'] or ovr >= 86 or 'inter' in team_name.lower():
-            return "/players/Lautaro%20Mart%C3%ADnez.png"
-        return "/players/Lisandro%20Mart%C3%ADnez.png"
+            return "/players/Lautaro%20Mart%C3%ADnez.png?v=2"
+        return "/players/Lisandro%20Mart%C3%ADnez.png?v=2"
 
     if name == 'J. Bellingham':
         if ovr >= 88 or 'madrid' in team_name.lower():
-            return "/players/Jude%20Bellingham.png"
-        return "/players/Jobe%20Bellingham.png"
+            return "/players/Jude%20Bellingham.png?v=2"
+        return "/players/Jobe%20Bellingham.png?v=2"
 
-    return f"/players/{urllib.parse.quote(name)}.png"
+    return f"/players/{urllib.parse.quote(name)}.png?v=2"
 
 
 class PlayerSerializer(serializers.ModelSerializer):

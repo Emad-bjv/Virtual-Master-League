@@ -19,21 +19,21 @@ export function getPlayerPhotoUrl(player, extraContext = null) {
       const ovr = Number(extraContext?.overall || 0);
       const team = String(extraContext?.team?.name || extraContext?.team_name || '');
       if (pos === 'CF' || pos === 'SS' || ovr >= 86 || team.toLowerCase().includes('inter')) {
-        return '/players/Lautaro%20Mart%C3%ADnez.png';
+        return '/players/Lautaro%20Mart%C3%ADnez.png?v=2';
       }
-      return '/players/Lisandro%20Mart%C3%ADnez.png';
+      return '/players/Lisandro%20Mart%C3%ADnez.png?v=2';
     }
 
     if (rawName === 'J. Bellingham') {
       const ovr = Number(extraContext?.overall || 0);
       const team = String(extraContext?.team?.name || extraContext?.team_name || '');
       if (ovr >= 88 || team.toLowerCase().includes('madrid')) {
-        return '/players/Jude%20Bellingham.png';
+        return '/players/Jude%20Bellingham.png?v=2';
       }
-      return '/players/Jobe%20Bellingham.png';
+      return '/players/Jobe%20Bellingham.png?v=2';
     }
 
-    return `/players/${encodeURIComponent(rawName)}.png`;
+    return `/players/${encodeURIComponent(rawName)}.png?v=2`;
   }
 
   // Object-based resolution
@@ -51,19 +51,19 @@ export function getPlayerPhotoUrl(player, extraContext = null) {
   // 1. Disambiguate Lautaro Martinez (Inter / CF / 89) vs Lisandro Martinez (Man Utd / CB / 84)
   if (name === 'L. Martínez' || name === 'L. Martinez') {
     if (position === 'CF' || position === 'SS' || overall >= 86 || teamName.toLowerCase().includes('inter')) {
-      return '/players/Lautaro%20Mart%C3%ADnez.png';
+      return '/players/Lautaro%20Mart%C3%ADnez.png?v=2';
     }
-    return '/players/Lisandro%20Mart%C3%ADnez.png';
+    return '/players/Lisandro%20Mart%C3%ADnez.png?v=2';
   }
 
   // 2. Disambiguate Jude Bellingham (Real Madrid / CMF / 90) vs Jobe Bellingham (Dortmund / CMF / 78)
   if (name === 'J. Bellingham') {
     if (overall >= 88 || teamName.toLowerCase().includes('madrid')) {
-      return '/players/Jude%20Bellingham.png';
+      return '/players/Jude%20Bellingham.png?v=2';
     }
-    return '/players/Jobe%20Bellingham.png';
+    return '/players/Jobe%20Bellingham.png?v=2';
   }
 
-  return `/players/${encodeURIComponent(name)}.png`;
+  return `/players/${encodeURIComponent(name)}.png?v=2`;
 }
 
