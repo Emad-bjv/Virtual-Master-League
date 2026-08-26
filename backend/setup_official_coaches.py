@@ -152,17 +152,18 @@ def apply_official_credentials():
         else:
             print(f"[WARN] Team not found for {uname} ({item['team_name']})")
 
-    # Ensure admin user also exists
-    admin_user, _ = User.objects.get_or_create(
-        username='coach_admin',
-        defaults={'role': 'admin', 'is_staff': True, 'is_superuser': True}
-    )
-    admin_user.set_password('admin')
-    admin_user.is_staff = True
-    admin_user.is_superuser = True
-    admin_user.role = 'admin'
-    admin_user.save()
-    print("[OK] Admin user coach_admin verified with password 'admin'.")
+    # Ensure admin users exist
+    for adm_name in ['admin', 'coach_admin']:
+        admin_user, _ = User.objects.get_or_create(
+            username=adm_name,
+            defaults={'role': 'admin', 'is_staff': True, 'is_superuser': True}
+        )
+        admin_user.set_password('admin')
+        admin_user.is_staff = True
+        admin_user.is_superuser = True
+        admin_user.role = 'admin'
+        admin_user.save()
+        print(f"[OK] Admin user '{adm_name}' verified with password 'admin'.")
 
 if __name__ == '__main__':
     apply_official_credentials()
