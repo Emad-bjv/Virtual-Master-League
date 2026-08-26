@@ -247,7 +247,13 @@ class PlayerReleaseAPIView(views.APIView):
 
 class TransferLogListView(generics.ListAPIView):
     serializer_class = TransferLogSerializer
-    queryset = TransferLog.objects.all().order_by('-timestamp')
+    queryset = TransferLog.objects.select_related(
+        'related_offer__sender_team',
+        'related_offer__receiver_team',
+        'related_offer__target_player'
+    ).prefetch_related(
+        'related_offer__swap_players'
+    ).order_by('-timestamp')
 
 
 class FreeAgentsAPIView(generics.ListAPIView):
