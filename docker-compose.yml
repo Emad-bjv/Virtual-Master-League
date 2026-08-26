@@ -40,8 +40,10 @@ services:
         condition: service_healthy
     volumes:
       - media_data:/app/media
+      - static_data:/app/staticfiles
     command: >
       sh -c "python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
              daphne -b 0.0.0.0 -p 8000 config.asgi:application"
 
   celery:
@@ -83,6 +85,7 @@ services:
       - "80:80"
     volumes:
       - media_data:/usr/share/nginx/html/media:ro
+      - static_data:/usr/share/nginx/html/static:ro
     depends_on:
       - backend
 
@@ -90,3 +93,4 @@ volumes:
   postgres_data:
   redis_data:
   media_data:
+  static_data:
