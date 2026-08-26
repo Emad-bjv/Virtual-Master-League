@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import TransferListing, TransferBid, TransferHistory, TransferOffer, TransferLog
 from teams.models import Team, Player
+from teams.serializers import resolve_player_photo_url
 
 
 class TransferListingSerializer(serializers.ModelSerializer):
@@ -92,18 +93,16 @@ class TransferOfferSerializer(serializers.ModelSerializer):
         return obj.receiver_team.name if obj.receiver_team else ''
 
     def get_target_player_photo(self, obj):
-        import urllib.parse
         if obj.target_player:
-            return f"/players/{urllib.parse.quote(obj.target_player.name)}.png"
+            return resolve_player_photo_url(obj.target_player)
         return None
 
     def get_swap_players_details(self, obj):
-        import urllib.parse
         return [
             {
                 'id': p.id,
                 'name': p.name,
-                'photo_url': f"/players/{urllib.parse.quote(p.name)}.png",
+                'photo_url': resolve_player_photo_url(p),
                 'overall': p.overall,
                 'potential_ovr': p.potential_ovr,
                 'position': p.position,
@@ -116,14 +115,13 @@ class TransferOfferSerializer(serializers.ModelSerializer):
         ]
 
     def get_sender_players(self, obj):
-        import urllib.parse
         if not obj.sender_team:
             return []
         return [
             {
                 'id': p.id, 
                 'name': p.name, 
-                'photo_url': f"/players/{urllib.parse.quote(p.name)}.png",
+                'photo_url': resolve_player_photo_url(p),
                 'overall': p.overall, 
                 'potential_ovr': p.potential_ovr,
                 'position': p.position, 
@@ -134,14 +132,13 @@ class TransferOfferSerializer(serializers.ModelSerializer):
         ]
 
     def get_receiver_players(self, obj):
-        import urllib.parse
         if not obj.receiver_team:
             return []
         return [
             {
                 'id': p.id, 
                 'name': p.name, 
-                'photo_url': f"/players/{urllib.parse.quote(p.name)}.png",
+                'photo_url': resolve_player_photo_url(p),
                 'overall': p.overall, 
                 'potential_ovr': p.potential_ovr,
                 'position': p.position, 
@@ -168,31 +165,37 @@ class TransferLogSerializer(serializers.ModelSerializer):
         o = obj.related_offer
         if obj.event_type == 'TRANSFER_FINALIZED':
             if o and o.target_player:
-                dest_team = o.sender_team.name if o.target_player.team_id == o.sender_team_id else o.receiver_team.name
-                return f"🚨 رسمی: انتقال بزرگ نهایی شد؛ {o.target_player.name} به {dest_team} پیوست!"
-            return f"🚨 توافق و انتقال رسمی در لیگ ثبت شد!"
+                tp = o.target_player
+                seller_name = o.receiver_team.name if tp.team_id == o.sender_team_id else o.sender_team.name
+                buyer_name = o.sender_team.name if tp.team_id == o.sender_team_id else o.receiver_team.name
+                if o.offer_type == 'SWAP':
+                    return f"🚨 معاوضه بزرگ و رسمی: توافق هیجان‌انگیز میان {seller_name} و {buyer_name} نهایی شد!"
+                elif o.offer_type == 'LOAN':
+                    return f"🔄 انتقال قرضی رسمی: {tp.name} به مدت {o.loan_duration_matches} مسابقه به {buyer_name} پیوست!"
+                return f"🚨 رسمی: بمب نقل‌وانتقالات منفجر شد؛ {tp.name} به {buyer_name} پیوست!"
+            return "🚨 توافق و انتقال رسمی در لیگ ثبت شد!"
         elif obj.event_type == 'COUNTER_OFFER':
             if o and o.target_player:
                 return f"🔄 پیشنهاد متقابل: مذاکرات داغ میان {o.sender_team.name} و {o.receiver_team.name} برای {o.target_player.name}"
-            return "🔄 تغییر پیشنهاد و پیشنهاد متقابل در مذاکرات"
+            return "🔄 تغییر شرایط و ارسال پیشنهاد متقابل در مذاکرات"
         elif obj.event_type == 'OFFER_MADE':
             if o and o.target_player:
                 return f"📢 پیشنهاد رسمی: ابراز علاقه باشگاه {o.sender_team.name} به جذب {o.target_player.name}"
             return "📢 ارسال پیشنهاد جدید نقل‌وانتقالات"
         elif obj.event_type == 'OFFER_REJECTED':
             if o and o.target_player:
-                return f"❌ رد پیشنهاد: پیشنهاد جذب {o.target_player.name} پذیرفته نشد"
+                return f"❌ رد پیشنهاد: پیشنهاد جذب {o.target_player.name} توسط باشگاه مقصد رد شد"
             return "❌ رد پیشنهاد نقل‌وانتقالاتی"
         elif obj.event_type == 'OFFER_CANCELLED':
             if o and o.target_player:
                 return f"🚫 لغو پیشنهاد: باشگاه {o.sender_team.name} پیشنهاد خود را پس گرفت"
             return "🚫 لغو پیشنهاد نقل‌وانتقالات"
         elif obj.event_type == 'PLAYER_RELEASED':
-            return "📄 فسخ قرارداد و بازیکن آزاد جدید در مستر لیگ"
+            return "📄 فسخ قرارداد رسمی و معرفی بازیکن آزاد جدید در مستر لیگ"
         elif obj.event_type == 'LOAN_EXPIRED':
             return "🔄 پایان قرارداد قرضی و بازگشت بازیکن به باشگاه اصلی"
         elif obj.event_type == 'FREE_AGENT_SIGNED':
-            return "🌟 جذب رسمی بازیکن آزاد در مستر لیگ"
+            return "🌟 صید بزرگ از بازار آزاد: جذب بازیکن جدید در مستر لیگ"
         return "📰 گزارش رسمی رویداد مستر لیگ"
 
     def get_news_content(self, obj):
@@ -202,35 +205,114 @@ class TransferLogSerializer(serializers.ModelSerializer):
             p_name = tp.name if tp else 'بازیکن'
             pos = tp.position if tp else '-'
             ovr = tp.overall if tp else '-'
-            cash = f"${float(o.cash_amount or 0):,.0f}"
-            deal_type = o.get_offer_type_display()
-            return f"⚽ توافق رسمی و نهایی در بازار نقل‌وانتقالات مستر لیگ حاصل شد!\n\n📋 جزئیات انتقال:\n• بازیکن: {p_name} (پست: {pos} | اورال: {ovr})\n• باشگاه فروشنده: {o.receiver_team.name if tp and tp.team_id == o.sender_team_id else o.sender_team.name}\n• باشگاه خریدار: {o.sender_team.name if tp and tp.team_id == o.sender_team_id else o.receiver_team.name}\n• مبلغ قرارداد: {cash}\n• ساختار معامله: {deal_type}\n\n#نقل_و_انتقالات #مستر_لیگ #رسمی #فوتبال"
+            cash_num = float(o.cash_amount or 0)
+            cash_str = f"${cash_num:,.0f}"
+
+            seller_name = o.receiver_team.name if tp and tp.team_id == o.sender_team_id else o.sender_team.name
+            buyer_name = o.sender_team.name if tp and tp.team_id == o.sender_team_id else o.receiver_team.name
+
+            if o.offer_type == 'SWAP':
+                swap_list = list(o.swap_players.all())
+                swap_details_lines = []
+                for sp in swap_list:
+                    swap_details_lines.append(f"  • {sp.name} (پست: {sp.position} | اورال: {sp.overall})")
+                swap_text = "\n".join(swap_details_lines) if swap_details_lines else "  • بازیکنان توافق‌شده"
+                cash_part = f"\n• مبلغ نقدی پرداختی (واریزی {buyer_name} به {seller_name}): {cash_str}" if cash_num > 0 else ""
+
+                return (
+                    f"🤝 بمب نقل‌وانتقالات در مستر لیگ منفجر شد!\n"
+                    f"معاوضه رسمی و تاییدشده میان باشگاه‌های {seller_name} و {buyer_name} با موفقیت نهایی گردید.\n\n"
+                    f"📋 جزئیات بازیکنان معاوضه:\n"
+                    f"⬅️ بازیکن خروجی از {seller_name} به مقصد {buyer_name}:\n"
+                    f"  • {p_name} (پست: {pos} | اورال: {ovr})\n\n"
+                    f"➡️ بازیکن(های) خروجی از {buyer_name} به مقصد {seller_name}:\n"
+                    f"{swap_text}"
+                    f"{cash_part}\n\n"
+                    f"💼 وضعیت معامله: نهایی و ثبت رسمی در سازمان لیگ\n\n"
+                    f"#نقل_و_انتقالات #معاوضه #مستر_لیگ #رسمی #فوتبال"
+                )
+            elif o.offer_type == 'LOAN':
+                return (
+                    f"🔄 توافق رسمی برای انتقال قرضی بازیکن به سرانجام رسید!\n\n"
+                    f"📋 جزئیات قرارداد قرضی:\n"
+                    f"• بازیکن: {p_name} (پست: {pos} | اورال: {ovr})\n"
+                    f"• باشگاه مبدأ (مالک): {seller_name}\n"
+                    f"• باشگاه مقصد (قرض‌گیرنده): {buyer_name}\n"
+                    f"• مدت قرارداد قرضی: {o.loan_duration_matches} مسابقه رسمی\n"
+                    f"• مبلغ اجاره: {cash_str}\n\n"
+                    f"#نقل_و_انتقالات #قرضی #مستر_لیگ #رسمی"
+                )
+            else:
+                # DIRECT_TRANSFER
+                return (
+                    f"⚽ توافق رسمی و نهایی در بازار نقل‌وانتقالات مستر لیگ حاصل شد!\n\n"
+                    f"📋 جزئیات انتقال:\n"
+                    f"• بازیکن: {p_name} (پست: {pos} | اورال: {ovr})\n"
+                    f"• باشگاه فروشنده: {seller_name}\n"
+                    f"• باشگاه خریدار: {buyer_name}\n"
+                    f"• مبلغ قرارداد: {cash_str}\n"
+                    f"• ساختار معامله: خرید و فروش قطعی\n\n"
+                    f"#نقل_و_انتقالات #مستر_لیگ #رسمی #فوتبال"
+                )
         elif obj.event_type == 'COUNTER_OFFER' and o:
             tp = o.target_player
             p_name = tp.name if tp else 'بازیکن'
             cash = f"${float(o.cash_amount or 0):,.0f}"
-            return f"🔥 مذاکرات فشرده و هیجان‌انگیز بر سر انتقال {p_name} وارد فاز جدیدی شد.\nباشگاه {o.sender_team.name} با اصلاح شرایط و ارائه مبلغ {cash}، پیشنهاد متقابل خود را رسماً به باشگاه {o.receiver_team.name} تحویل داد.\n\n#نقل_و_انتقالات #مذاکرات #مستر_لیگ"
+            swap_list = list(o.swap_players.all())
+            swap_str = f" + معاوضه: {', '.join([p.name for p in swap_list])}" if swap_list else ""
+            return (
+                f"🔥 مذاکرات فشرده و هیجان‌انگیز بر سر انتقال {p_name} وارد فاز جدیدی شد.\n"
+                f"باشگاه {o.sender_team.name} با اصلاح شرایط و ارائه مبلغ {cash}{swap_str}، پیشنهاد متقابل خود را رسماً به باشگاه {o.receiver_team.name} تحویل داد.\n\n"
+                f"#نقل_و_انتقالات #مذاکرات #مستر_لیگ"
+            )
         elif obj.event_type == 'OFFER_MADE' and o:
             tp = o.target_player
             p_name = tp.name if tp else 'بازیکن'
             cash = f"${float(o.cash_amount or 0):,.0f}"
-            return f"📢 باشگاه {o.sender_team.name} پیشنهادی رسمی به ارزش {cash} جهت جذب {p_name} به باشگاه {o.receiver_team.name} ارسال نمود.\n\n#پیشنهاد_رسمی #نقل_و_انتقالات #مستر_لیگ"
+            swap_list = list(o.swap_players.all())
+            swap_str = f" + معاوضه: {', '.join([p.name for p in swap_list])}" if swap_list else ""
+            return (
+                f"📢 باشگاه {o.sender_team.name} پیشنهادی رسمی به ارزش {cash}{swap_str} جهت جذب {p_name} به باشگاه {o.receiver_team.name} ارسال نمود.\n\n"
+                f"#پیشنهاد_رسمی #نقل_و_انتقالات #مستر_لیگ"
+            )
+        elif obj.event_type == 'FREE_AGENT_SIGNED':
+            return f"🌟 صید بزرگ از بازار آزاد مستر لیگ!\n\n{obj.description}\n\n#بازیکن_آزاد #نقل_و_انتقالات #مستر_لیگ"
+        elif obj.event_type == 'PLAYER_RELEASED':
+            return f"📄 فسخ رسمی قرارداد در مستر لیگ!\n\n{obj.description}\n\n#فسخ_قرارداد #بازیکن_آزاد #مستر_لیگ"
         return f"{obj.description}\n\n#اخبار_لیگ #مستر_لیگ"
 
     def get_offer_details(self, obj):
         o = obj.related_offer
         if not o:
             return None
+        tp = o.target_player
+        seller_name = o.receiver_team.name if tp and tp.team_id == o.sender_team_id else o.sender_team.name
+        buyer_name = o.sender_team.name if tp and tp.team_id == o.sender_team_id else o.receiver_team.name
+
         return {
             'offer_id': o.id,
             'sender_team_name': o.sender_team.name if o.sender_team else None,
             'receiver_team_name': o.receiver_team.name if o.receiver_team else None,
-            'target_player_name': o.target_player.name if o.target_player else None,
-            'target_player_overall': o.target_player.overall if o.target_player else None,
-            'target_player_position': o.target_player.position if o.target_player else None,
+            'seller_team_name': seller_name,
+            'buyer_team_name': buyer_name,
+            'target_player_name': tp.name if tp else None,
+            'target_player_overall': tp.overall if tp else None,
+            'target_player_position': tp.position if tp else None,
+            'target_player_photo': resolve_player_photo_url(tp) if tp else None,
             'cash_amount': float(o.cash_amount or 0),
             'offer_type': o.offer_type,
             'offer_type_display': o.get_offer_type_display(),
+            'loan_duration_matches': o.loan_duration_matches,
+            'swap_players_details': [
+                {
+                    'id': p.id,
+                    'name': p.name,
+                    'overall': p.overall,
+                    'position': p.position,
+                    'photo_url': resolve_player_photo_url(p),
+                }
+                for p in o.swap_players.all()
+            ],
             'status': o.status,
             'status_display': o.get_status_display(),
         }
@@ -246,8 +328,7 @@ class SimplePlayerSerializer(serializers.ModelSerializer):
         ]
 
     def get_photo_url(self, obj):
-        import urllib.parse
-        return f"/players/{urllib.parse.quote(obj.name)}.png"
+        return resolve_player_photo_url(obj)
 
 class LeagueTeamSerializer(serializers.ModelSerializer):
     players = SimplePlayerSerializer(many=True, read_only=True)
@@ -258,3 +339,4 @@ class LeagueTeamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
         fields = ['id', 'name', 'logo', 'budget', 'gems', 'star_rating', 'manager', 'manager_name', 'manager_full_name', 'manager_birth_date', 'players']
+

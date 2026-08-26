@@ -394,7 +394,8 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
           cancelText="خیر، انصراف"
           onConfirm={handleSignFreeAgentConfirm}
           onCancel={() => setPlayerToSign(null)}
-          loading={isSigning}
+          isLoading={isSigning}
+          variant="success"
         />
       )}
 

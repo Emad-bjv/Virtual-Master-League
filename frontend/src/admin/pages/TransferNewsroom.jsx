@@ -249,22 +249,67 @@ export default function TransferNewsroom() {
                   </p>
 
                   {log.offer_details && (
-                    <div className="flex flex-wrap items-center gap-2 pt-1 font-sport text-[11px]">
-                      {log.offer_details.target_player_name && (
-                        <span className="bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700 text-cyan-300">
-                          بازیکن: <strong>{log.offer_details.target_player_name}</strong>
-                          {log.offer_details.target_player_overall && ` (OVR ${log.offer_details.target_player_overall})`}
-                        </span>
-                      )}
-                      {log.offer_details.cash_amount > 0 && (
-                        <span className="bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700 text-[#00ff87] font-mono">
-                          مبلغ: ${Number(log.offer_details.cash_amount).toLocaleString()}
-                        </span>
-                      )}
-                      {log.offer_details.offer_type_display && (
-                        <span className="bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-700 text-slate-300">
-                          نوع: {log.offer_details.offer_type_display}
-                        </span>
+                    <div className="space-y-2 pt-1">
+                      {/* Standard Badges */}
+                      <div className="flex flex-wrap items-center gap-2 font-sport text-[11px]">
+                        {log.offer_details.seller_team_name && log.offer_details.buyer_team_name && (
+                          <span className="bg-slate-800/80 px-2.5 py-1 rounded-xl border border-slate-700 text-slate-200">
+                            باشگاه‌ها: <strong className="text-cyan-300">{log.offer_details.seller_team_name}</strong> ➔ <strong className="text-[#00ff87]">{log.offer_details.buyer_team_name}</strong>
+                          </span>
+                        )}
+                        {log.offer_details.target_player_name && (
+                          <span className="bg-slate-800/80 px-2.5 py-1 rounded-xl border border-slate-700 text-cyan-300">
+                            بازیکن: <strong>{log.offer_details.target_player_name}</strong>
+                            {log.offer_details.target_player_overall && ` (OVR ${log.offer_details.target_player_overall})`}
+                          </span>
+                        )}
+                        {log.offer_details.cash_amount > 0 && (
+                          <span className="bg-slate-800/80 px-2.5 py-1 rounded-xl border border-slate-700 text-[#00ff87] font-mono">
+                            مبلغ نقدینگی: ${Number(log.offer_details.cash_amount).toLocaleString()}
+                          </span>
+                        )}
+                        {log.offer_details.offer_type_display && (
+                          <span className="bg-slate-800/80 px-2.5 py-1 rounded-xl border border-slate-700 text-amber-300">
+                            ساختار: {log.offer_details.offer_type_display}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Swap Details Visual Box */}
+                      {log.offer_details.offer_type === 'SWAP' && log.offer_details.swap_players_details && log.offer_details.swap_players_details.length > 0 && (
+                        <div className="bg-[#05080e]/90 p-3 rounded-2xl border border-purple-500/30 space-y-2 text-xs">
+                          <div className="flex items-center justify-between text-purple-300 font-bold border-b border-slate-800 pb-1.5">
+                            <span className="flex items-center gap-1.5">
+                              <ArrowRightLeft size={13} className="text-purple-400" />
+                              <span>جزئیات معاوضه دوطرفه:</span>
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-sport">
+                              {log.offer_details.seller_team_name} ⮂ {log.offer_details.buyer_team_name}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 font-sport text-[11px]">
+                            {/* Player from Seller */}
+                            <div className="bg-slate-900/80 p-2 rounded-xl border border-slate-800 flex items-center justify-between">
+                              <span className="text-slate-400">خروجی از {log.offer_details.seller_team_name}:</span>
+                              <span className="text-cyan-300 font-bold">
+                                {log.offer_details.target_player_name} (OVR {log.offer_details.target_player_overall})
+                              </span>
+                            </div>
+
+                            {/* Players from Buyer */}
+                            <div className="bg-slate-900/80 p-2 rounded-xl border border-slate-800 space-y-1">
+                              <span className="text-slate-400 block">خروجی از {log.offer_details.buyer_team_name}:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {log.offer_details.swap_players_details.map(sp => (
+                                  <span key={sp.id} className="bg-purple-950/80 border border-purple-500/40 text-purple-200 px-2 py-0.5 rounded-lg text-[10.5px] font-bold">
+                                    {sp.name} (OVR {sp.overall})
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
@@ -295,7 +340,7 @@ export default function TransferNewsroom() {
                       }`}
                     >
                       {isCopied ? <Check size={13} /> : <Copy size={13} />}
-                      <span>{isCopied ? 'کپی شد!' : 'کپی متن خبر رسمی 📋'}</span>
+                      <span>{isCopied ? 'کپی شد!' : 'کپی سریع خبر 📋'}</span>
                     </button>
                   </div>
                 </div>
@@ -340,19 +385,29 @@ export default function TransferNewsroom() {
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   onClick={() => setSelectedNewsModal(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-700 text-slate-300 text-xs font-bold hover:bg-slate-800"
+                  className="px-3.5 py-2 rounded-xl border border-slate-700 text-slate-300 text-xs font-bold hover:bg-slate-800 cursor-pointer"
                 >
                   بستن
+                </button>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedNewsModal.news_headline);
+                    showToast('تیتر خبر کپی شد! 📋', 'success');
+                  }}
+                  className="bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95"
+                >
+                  <Copy size={13} />
+                  <span>کپی تیتر</span>
                 </button>
                 <button
                   onClick={() => {
                     handleCopyNews(selectedNewsModal);
                     setSelectedNewsModal(null);
                   }}
-                  className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-lg active:scale-95"
+                  className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-lg active:scale-95 cursor-pointer font-sport"
                 >
                   <Copy size={14} />
-                  <span>کپی متن جهت انتشار</span>
+                  <span>کپی کامل خبر جهت انتشار</span>
                 </button>
               </div>
             </motion.div>

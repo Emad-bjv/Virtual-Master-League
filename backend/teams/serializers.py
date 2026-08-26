@@ -15,6 +15,26 @@ class TeamGamePlanSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'team', 'is_submitted', 'submitted_at']
 
 
+def resolve_player_photo_url(obj):
+    import urllib.parse
+    name = (getattr(obj, 'name', None) or '').strip()
+    pos = getattr(obj, 'position', '')
+    ovr = getattr(obj, 'overall', 0) or 0
+    team_name = getattr(obj.team, 'name', '') if getattr(obj, 'team', None) else ''
+
+    if name in ['L. Martínez', 'L. Martinez']:
+        if pos in ['CF', 'SS'] or ovr >= 86 or 'inter' in team_name.lower():
+            return "/players/Lautaro%20Mart%C3%ADnez.png"
+        return "/players/Lisandro%20Mart%C3%ADnez.png"
+
+    if name == 'J. Bellingham':
+        if ovr >= 88 or 'madrid' in team_name.lower():
+            return "/players/Jude%20Bellingham.png"
+        return "/players/Jobe%20Bellingham.png"
+
+    return f"/players/{urllib.parse.quote(name)}.png"
+
+
 class PlayerSerializer(serializers.ModelSerializer):
     stamina_status = serializers.CharField(read_only=True)
     is_stamina_locked = serializers.BooleanField(read_only=True)
@@ -32,8 +52,7 @@ class PlayerSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_photo_url(self, obj):
-        import urllib.parse
-        return f"/players/{urllib.parse.quote(obj.name)}.png"
+        return resolve_player_photo_url(obj)
 
     def get_xp_to_next_level(self, obj):
         if obj.level >= 20:
