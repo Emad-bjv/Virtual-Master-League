@@ -3,7 +3,7 @@
  * Utility to resolve player face images with automatic fallback and disambiguation
  */
 
-export const PHOTO_CACHE_TAG = 'v=20260826_5';
+export const PHOTO_CACHE_TAG = 'v=20260827_1';
 
 export function getPlayerPhotoUrl(player, extraContext = null) {
   if (!player) return null;
