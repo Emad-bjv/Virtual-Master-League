@@ -83,6 +83,8 @@ export const transferApi = {
   actionOffer: (offerId, action) => api.post(`/transfers/offers/${offerId}/${action}/`),
   releasePlayer: (playerId) => api.post(`/transfers/players/${playerId}/release/`),
   getLogs: () => api.get('/transfers/logs/'),
+  getAudit: (teamId) => api.get('/transfers/audit/', { params: teamId ? { team_id: teamId } : {} }),
+  rollbackTransfer: (data) => api.post('/transfers/rollback/', data),
 };
 
 export const economyApi = {

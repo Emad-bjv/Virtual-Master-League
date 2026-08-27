@@ -176,6 +176,7 @@ class TransferLog(models.Model):
         ('PLAYER_RELEASED', 'فسخ قرارداد بازیکن'),
         ('LOAN_EXPIRED', 'پایان قرارداد قرضی'),
         ('FREE_AGENT_SIGNED', 'جذب بازیکن آزاد'),
+        ('ADMIN_ROLLBACK', 'ابطال اضطراری توسط ادمین'),
     ]
 
     event_type = models.CharField(max_length=30, choices=EVENT_TYPES, verbose_name="نوع رویداد")

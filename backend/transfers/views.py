@@ -315,3 +315,343 @@ class SignFreeAgentAPIView(views.APIView):
                 message=f"بازیکن آزاد «{player.name}» با موفقیت به ترکیب باشگاه شما پیوست."
             )
             return Response({'success': True, 'message': f'بازیکن «{player.name}» با موفقیت جذب شد.'})
+
+
+class TeamTransferAuditAPIView(views.APIView):
+    """
+    API endpoint for transfer inspection, anti-brokerage and fraud detection.
+    Returns financial balances, collusion risks, price discrepancy flags, and trading partners.
+    """
+    def get(self, request):
+        from .serializers import resolve_team_logo_url
+        from teams.serializers import resolve_player_photo_url
+        from collections import defaultdict
+        from datetime import timedelta
+
+        team_id = request.query_params.get('team_id')
+        teams = Team.objects.all().order_by('name')
+        teams_list = [
+            {
+                'id': t.id,
+                'name': t.name,
+                'logo': resolve_team_logo_url(t),
+                'budget': float(t.budget or 0),
+                'star_rating': t.star_rating,
+                'manager_name': t.manager.username if t.manager else 'نامشخص'
+            }
+            for t in teams
+        ]
+
+        target_team = None
+        if team_id and str(team_id).lower() != 'all':
+            target_team = Team.objects.filter(id=team_id).first()
+
+        # Query all transfer history
+        history_qs = TransferHistory.objects.select_related('player', 'seller_team', 'buyer_team').order_by('-transferred_at')
+        if target_team:
+            history_qs = history_qs.filter(Q(seller_team=target_team) | Q(buyer_team=target_team))
+
+        total_spent = Decimal('0.00')
+        total_earned = Decimal('0.00')
+        buy_count = 0
+        sell_count = 0
+        loan_count = 0
+        swap_count = 0
+        partner_counts = defaultdict(lambda: {'count': 0, 'volume': Decimal('0.00'), 'team': None})
+        risk_flags_detected = []
+
+        # Track transactions per player to detect quick flips (bought & sold in < 72h)
+        all_histories = list(history_qs)
+        player_trade_dates = defaultdict(list)
+        for h in all_histories:
+            if h.player_id:
+                player_trade_dates[h.player_id].append((h.transferred_at, h.seller_team_id, h.buyer_team_id))
+
+        transactions = []
+        for h in all_histories:
+            p = h.player
+            seller = h.seller_team
+            buyer = h.buyer_team
+            price = Decimal(str(h.price_usd or 0))
+            ttype = (h.transfer_type or 'DIRECT_TRANSFER').upper()
+
+            # Determine role relative to selected team (if filtering by team)
+            is_target_buyer = (target_team and buyer and buyer.id == target_team.id)
+            is_target_seller = (target_team and seller and seller.id == target_team.id)
+
+            if target_team:
+                if is_target_buyer:
+                    total_spent += price
+                    buy_count += 1
+                    if seller:
+                        partner_counts[seller.id]['count'] += 1
+                        partner_counts[seller.id]['volume'] += price
+                        partner_counts[seller.id]['team'] = seller
+                elif is_target_seller:
+                    total_earned += price
+                    sell_count += 1
+                    if buyer:
+                        partner_counts[buyer.id]['count'] += 1
+                        partner_counts[buyer.id]['volume'] += price
+                        partner_counts[buyer.id]['team'] = buyer
+            else:
+                total_spent += price
+                if ttype == 'LOAN':
+                    loan_count += 1
+                elif ttype == 'SWAP':
+                    swap_count += 1
+                else:
+                    buy_count += 1
+
+            if ttype == 'LOAN':
+                loan_count += 1
+            elif ttype == 'SWAP':
+                swap_count += 1
+
+            # Fraud & Risk Flags Calculation
+            tx_flags = []
+            market_val = Decimal(str(p.market_value or 0)) if p else Decimal('0.00')
+            
+            # 1. Overpriced Flag (> 2.5x Market Value)
+            if market_val > Decimal('500000') and price > (market_val * Decimal('2.50')):
+                tx_flags.append({
+                    'code': 'OVERPRICED',
+                    'level': 'HIGH',
+                    'title': '🚨 گران‌فروشی غیرعادی',
+                    'description': f"مبلغ معامله ({float(price):,.0f} $) بیش از ۲.۵ برابر ارزش بازار بازیکن ({float(market_val):,.0f} $) است."
+                })
+
+            # 2. Underpriced Flag (< 40% Market Value on expensive players)
+            if market_val > Decimal('2000000') and price < (market_val * Decimal('0.40')) and price > 0 and ttype not in ['LOAN', 'SWAP']:
+                tx_flags.append({
+                    'code': 'UNDERPRICED',
+                    'level': 'MEDIUM',
+                    'title': '🚨 ارزان‌فروشی مشکوک',
+                    'description': f"مبلغ معامله کمتر از ۴۰٪ ارزش واقعی بازار است (تخفیف نامتعارف و احتمال تبانی)."
+                })
+
+            # 3. Zero Fee on High Overall Star
+            if p and p.overall >= 80 and price == 0 and ttype in ['DIRECT_TRANSFER', 'FIXED_PRICE']:
+                tx_flags.append({
+                    'code': 'ZERO_FEE_STAR',
+                    'level': 'HIGH',
+                    'title': '🚨 انتقال رایگان ستاره',
+                    'description': f"بازیکن شاخص با اورال {p.overall} بدون پرداخت نقدینگی منتقل شده است."
+                })
+
+            # 4. Quick Flip Detection (< 72 hours between trades)
+            if p and len(player_trade_dates[p.id]) > 1:
+                dates = sorted([d[0] for d in player_trade_dates[p.id]])
+                for i in range(len(dates) - 1):
+                    if abs((dates[i+1] - dates[i]).total_seconds()) < 72 * 3600:
+                        tx_flags.append({
+                            'code': 'QUICK_FLIP',
+                            'level': 'MEDIUM',
+                            'title': '⚡ چرخش سریع (Quick Flip)',
+                            'description': 'این بازیکن در کمتر از ۷۲ ساعت دو بار معامله شده است.'
+                        })
+                        break
+
+            # 5. Collusion frequency with partner
+            counterpart = seller if is_target_buyer else buyer
+            if target_team and counterpart and partner_counts[counterpart.id]['count'] >= 3:
+                tx_flags.append({
+                    'code': 'COLLUSION_RISK',
+                    'level': 'HIGH',
+                    'title': '🤝 معاملات مکرر بین دو باشگاه',
+                    'description': f"تاکنون {partner_counts[counterpart.id]['count']} معامله بین این دو باشگاه صورت گرفته است."
+                })
+
+            if tx_flags:
+                risk_flags_detected.extend(tx_flags)
+
+            # Check if rollback is feasible (buyer currently owns the player)
+            can_rollback = bool(p and buyer and p.team_id == buyer.id)
+
+            transactions.append({
+                'history_id': h.id,
+                'transferred_at': h.transferred_at,
+                'transfer_type': ttype,
+                'transfer_type_display': h.get_transfer_type_display() if hasattr(h, 'get_transfer_type_display') else ttype,
+                'player_id': p.id if p else None,
+                'player_name': p.name if p else 'بازیکن',
+                'player_overall': p.overall if p else 0,
+                'player_position': p.position if p else '-',
+                'player_photo': resolve_player_photo_url(p) if p else None,
+                'market_value': float(market_val),
+                'price_usd': float(price),
+                'price_ratio': round(float(price / market_val), 2) if market_val > 0 else 1.0,
+                'seller_team_id': seller.id if seller else None,
+                'seller_team_name': seller.name if seller else 'بازیکن آزاد',
+                'seller_team_logo': resolve_team_logo_url(seller),
+                'buyer_team_id': buyer.id if buyer else None,
+                'buyer_team_name': buyer.name if buyer else 'لیست آزاد',
+                'buyer_team_logo': resolve_team_logo_url(buyer),
+                'role': 'BUYER' if is_target_buyer else ('SELLER' if is_target_seller else 'NEUTRAL'),
+                'risk_flags': tx_flags,
+                'can_rollback': can_rollback,
+            })
+
+        # Calculate Overall Risk Score
+        high_flags_count = len([f for f in risk_flags_detected if f.get('level') == 'HIGH'])
+        med_flags_count = len([f for f in risk_flags_detected if f.get('level') == 'MEDIUM'])
+        
+        if high_flags_count >= 2 or (high_flags_count >= 1 and med_flags_count >= 2):
+            overall_risk = 'HIGH'
+            risk_label = '🔴 ریسک بالا (مشکوک به تبانی / دلالی)'
+        elif high_flags_count >= 1 or med_flags_count >= 2:
+            overall_risk = 'MEDIUM'
+            risk_label = '🟡 ریسک متوسط (نیازمند بازرسی)'
+        else:
+            overall_risk = 'LOW'
+            risk_label = '🟢 وضعیت سالم و شفاف'
+
+        # Partner breakdown
+        partners_list = [
+            {
+                'partner_id': pid,
+                'partner_name': data['team'].name if data['team'] else 'نامشخص',
+                'partner_logo': resolve_team_logo_url(data['team']),
+                'total_deals': data['count'],
+                'total_volume': float(data['volume']),
+                'is_suspicious': data['count'] >= 3
+            }
+            for pid, data in partner_counts.items()
+        ]
+        partners_list.sort(key=lambda x: x['total_deals'], reverse=True)
+
+        return Response({
+            'teams': teams_list,
+            'selected_team': {
+                'id': target_team.id,
+                'name': target_team.name,
+                'logo': resolve_team_logo_url(target_team),
+                'budget': float(target_team.budget or 0),
+                'star_rating': target_team.star_rating,
+                'manager_name': target_team.manager.username if target_team.manager else 'نامشخص'
+            } if target_team else None,
+            'summary': {
+                'total_spent': float(total_spent),
+                'total_earned': float(total_earned),
+                'net_balance': float(total_earned - total_spent),
+                'buy_count': buy_count,
+                'sell_count': sell_count,
+                'loan_count': loan_count,
+                'swap_count': swap_count,
+                'total_transactions': len(transactions),
+                'risk_score': overall_risk,
+                'risk_label': risk_label,
+                'high_flags_count': high_flags_count,
+                'med_flags_count': med_flags_count,
+            },
+            'trading_partners': partners_list,
+            'transactions': transactions
+        })
+
+
+class AdminRollbackTransferAPIView(views.APIView):
+    """
+    Emergency transfer rollback by league administrators.
+    Reverses player ownership and refunds cash transaction atomically.
+    """
+    def post(self, request):
+        user = request.user
+        if not (user and (user.is_staff or user.is_superuser)):
+            return Response({'error': 'تنها مدیران ارشد سیستم اجازه ابطال اضطراری معاملات را دارند.'}, status=status.HTTP_403_FORBIDDEN)
+
+        history_id = request.data.get('history_id')
+        reason = request.data.get('reason', 'دستور مدیریت لیگ مبنی بر تخلف یا اصلاح اشتباه')
+
+        if not history_id:
+            return Response({'error': 'شناسه رکورد معامله (history_id) ارسال نشده است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        history = TransferHistory.objects.filter(id=history_id).select_related('player', 'seller_team', 'buyer_team').first()
+        if not history:
+            return Response({'error': 'رکورد تاریخچه معامله یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        player = history.player
+        seller = history.seller_team
+        buyer = history.buyer_team
+        price = Decimal(str(history.price_usd or 0))
+
+        if not player:
+            return Response({'error': 'بازیکن مورد نظر در سیستم یافت نشد.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not seller:
+            return Response({'error': 'تیم مبدأ مشخص نیست (امکان ابطال بازیکن آزاد وجود ندارد).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if buyer still has the player
+        if buyer and player.team_id != buyer.id:
+            return Response({
+                'error': f'بازیکن «{player.name}» دیگر در تیم خریدار ({buyer.name}) حضور ندارد و معامله بعدی انجام داده است. امکان ابطال مستقیم وجود ندارد.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        from django.db import transaction
+        from economy.services import process_atomic_wallet_update
+        from realtime.events import notify_admin
+        from notifications.services import create_notification
+        from .negotiation_services import ensure_team_starting_eleven
+
+        try:
+            with transaction.atomic():
+                # 1. Reverse player ownership
+                player.team = seller
+                player.loan_owner_team = None
+                player.loan_matches_left = 0
+                player.is_starting = False
+                player.x_coord = 0.0
+                player.y_coord = 0.0
+                player.save()
+
+                # 2. Refund money
+                if price > 0:
+                    # Refund to buyer
+                    if buyer:
+                        res_b = process_atomic_wallet_update(buyer.id, price, 'BUDGET', 'MANUAL_ADJUSTMENT', f"استرداد وجه ابطال معامله {player.name} توسط ادمین")
+                        if not res_b.get('success'):
+                            return Response({'error': f"خطا در استرداد وجه به خریدار: {res_b.get('error')}"}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                    # Deduct from seller (95% net or 100%)
+                    tax_rate = Decimal('0.05')
+                    net_seller_amount = price * (Decimal('1.00') - tax_rate)
+                    res_s = process_atomic_wallet_update(seller.id, -net_seller_amount, 'BUDGET', 'MANUAL_ADJUSTMENT', f"کسر وجه ابطال معامله {player.name} توسط ادمین")
+                    if not res_s.get('success'):
+                        # If seller has spent the money, deduct whatever available or adjust
+                        seller.budget = max(Decimal('0.00'), (seller.budget or Decimal('0.00')) - net_seller_amount)
+                        seller.save(update_fields=['budget'])
+
+                # 3. Maintain starting XI integrity
+                if buyer:
+                    ensure_team_starting_eleven(buyer)
+                ensure_team_starting_eleven(seller)
+
+                # 4. Log the rollback event
+                log_desc = f"🚨 ابطال اضطراری انتقال توسط ادمین: معامله بازیکن «{player.name}» با مبلغ {float(price):,.0f} $ میان {seller.name} و {buyer.name if buyer else 'تیم خریدار'} به دلیل «{reason}» لغو و بازیکن به {seller.name} بازگردانده شد."
+                TransferLog.objects.create(
+                    event_type='ADMIN_ROLLBACK',
+                    description=log_desc
+                )
+
+                # 5. Notifications
+                notify_admin(f"🚨 ابطال معامله: انتقال {player.name} به {buyer.name if buyer else ''} فسخ شد.")
+                if buyer:
+                    create_notification(
+                        team=buyer,
+                        category='TRANSFER',
+                        title='⚠️ ابطال انتقال بازیکن توسط مدیریت لیگ',
+                        message=f"معامله خرید بازیکن «{player.name}» به دستور ادمین باطل گردید و مبلغ ${float(price):,.0f} به بودجه باشگاه شما مسترد شد."
+                    )
+                create_notification(
+                    team=seller,
+                    category='TRANSFER',
+                    title='🔄 بازگشت بازیکن به باشگاه (ابطال معامله)',
+                    message=f"معامله واگذاری «{player.name}» توسط مدیریت لیگ فسخ و بازیکن به ترکیب تیم شما بازگشت."
+                )
+
+                return Response({
+                    'success': True,
+                    'message': f"معامله بازیکن «{player.name}» با موفقیت باطل شد و بازیکن به تیم {seller.name} بازگشت."
+                })
+        except Exception as e:
+            return Response({'error': f'خطای سیستمی در ابطال معامله: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

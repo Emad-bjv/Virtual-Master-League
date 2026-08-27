@@ -13,7 +13,9 @@ from .views import (
     PlayerReleaseAPIView,
     TransferLogListView,
     FreeAgentsAPIView,
-    SignFreeAgentAPIView
+    SignFreeAgentAPIView,
+    TeamTransferAuditAPIView,
+    AdminRollbackTransferAPIView,
 )
 
 urlpatterns = [
@@ -33,4 +35,7 @@ urlpatterns = [
     path('transfers/offers/<int:pk>/<str:action>/', TransferOfferActionView.as_view(), name='offer-action'),
     path('transfers/players/<int:pk>/release/', PlayerReleaseAPIView.as_view(), name='player-release'),
     path('transfers/logs/', TransferLogListView.as_view(), name='transfer-logs'),
+    path('transfers/audit/', TeamTransferAuditAPIView.as_view(), name='transfer-audit'),
+    path('transfers/rollback/', AdminRollbackTransferAPIView.as_view(), name='transfer-rollback'),
 ]
+
