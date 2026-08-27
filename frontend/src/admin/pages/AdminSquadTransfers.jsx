@@ -148,6 +148,97 @@ export default function AdminSquadTransfers() {
     return map;
   }, [teams]);
 
+  // Persian-to-English transliteration map for popular football players
+  const PERSIAN_PLAYER_ALIASES = {
+    'اونانا': 'onana',
+    'سورلوث': 'sorloth',
+    'سرلوت': 'sorloth',
+    'ییلدیز': 'yildiz',
+    'یلدیز': 'yildiz',
+    'لیائو': 'leao',
+    'لئائو': 'leao',
+    'کواراتسخلیا': 'kvaratskhelia',
+    'کوارا': 'kvara',
+    'هویلوند': 'hojlund',
+    'هویلند': 'hojlund',
+    'دیمارکو': 'dimarco',
+    'مالن': 'malen',
+    'دمبله': 'dembele',
+    'دومبله': 'dembele',
+    'سالماکرز': 'saelemaekers',
+    'سالمیکرز': 'saelemaekers',
+    'انزو': 'enzo',
+    'فرناندز': 'fernandez',
+    'امباپه': 'mbappe',
+    'امباپ': 'mbappe',
+    'وینیسیوس': 'vinicius',
+    'وینی': 'vini',
+    'رودریگو': 'rodrygo',
+    'بلینگهام': 'bellingham',
+    'پدری': 'pedri',
+    'گاوی': 'gavi',
+    'لواندوفسکی': 'lewandowski',
+    'لوا': 'lewandowski',
+    'رافینیا': 'raphinha',
+    'یامال': 'yamal',
+    'لامین': 'lamine',
+    'کورتوا': 'courtois',
+    'هالند': 'haaland',
+    'صلاح': 'salah',
+    'ساکا': 'saka',
+    'مارتینلی': 'martinelli',
+    'کیم': 'kim',
+    'کیم مین جائه': 'kim',
+    'سانچو': 'sancho',
+    'گریلیش': 'grealish',
+    'پاوارد': 'pavard',
+    'اشلوتربک': 'schlotterbeck',
+    'کومان': 'coman',
+    'زیرکزی': 'zirkzee',
+  };
+
+  const normalizeStr = (str) => {
+    if (!str) return '';
+    return String(str)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[\u00F8\u00D8]/g, 'o') // ø -> o
+      .replace(/[\u00DF]/g, 'ss') // ß -> ss
+      .replace(/[\u0131]/g, 'i') // ı -> i
+      .replace(/[\u011F\u011E]/g, 'g') // ğ -> g
+      .replace(/[\u015F\u015E]/g, 's') // ş -> s
+      .replace(/[\u00E7\u00C7]/g, 'c') // ç -> c
+      .replace(/[\u00FC\u00DC]/g, 'u') // ü -> u
+      .replace(/[\u00F6\u00D6]/g, 'o') // ö -> o
+      .replace(/[\u00E9\u00E8\u00EA\u00EB]/g, 'e')
+      .replace(/[\u00E1\u00E0\u00E2\u00E3\u00E4\u00E5]/g, 'a')
+      .replace(/[\u00ED\u00EC\u00EE\u00EF]/g, 'i')
+      .replace(/[\u00F3\u00F2\u00F4\u00F5]/g, 'o')
+      .replace(/[\u00FA\u00F9\u00FB]/g, 'u')
+      .replace(/[\u00F1]/g, 'n')
+      .replace(/[-_.]/g, ' ')
+      .trim();
+  };
+
+  const matchesSearch = (player, rawQuery) => {
+    if (!rawQuery || !rawQuery.trim()) return true;
+    const q = rawQuery.trim().toLowerCase();
+    const normQ = normalizeStr(q);
+    const mappedQ = PERSIAN_PLAYER_ALIASES[q] || Object.keys(PERSIAN_PLAYER_ALIASES).find(k => q.includes(k)) ? PERSIAN_PLAYER_ALIASES[Object.keys(PERSIAN_PLAYER_ALIASES).find(k => q.includes(k))] : null;
+
+    const pName = normalizeStr(player?.name);
+    const pPos = normalizeStr(player?.position);
+    const pTeam = normalizeStr(player?.team?.name || player?.team_name);
+
+    if (pName.includes(normQ) || pPos.includes(normQ) || pTeam.includes(normQ)) return true;
+    if (mappedQ && (pName.includes(mappedQ) || pTeam.includes(mappedQ))) return true;
+
+    // Check individual words
+    const words = normQ.split(' ').filter(Boolean);
+    return words.some(w => w.length >= 3 && pName.includes(w));
+  };
+
   // Tab 1: Filtered Players for Transfer Selection
   const transferFilteredPlayers = useMemo(() => {
     return (allPlayers || []).filter(p => {
@@ -160,15 +251,7 @@ export default function AdminSquadTransfers() {
       }
 
       // Search Query
-      if (transferSearchQuery.trim()) {
-        const query = transferSearchQuery.trim().toLowerCase();
-        const pName = String(p.name || '').toLowerCase();
-        const pPos = String(p.position || '').toLowerCase();
-        const pTeam = String(p.team?.name || p.team_name || '').toLowerCase();
-        return pName.includes(query) || pPos.includes(query) || pTeam.includes(query);
-      }
-
-      return true;
+      return matchesSearch(p, transferSearchQuery);
     });
   }, [allPlayers, transferSourceTeamId, transferSearchQuery]);
 
@@ -196,12 +279,7 @@ export default function AdminSquadTransfers() {
         const teamId = p.team?.id || p.team || p.team_id;
         if (String(teamId) !== String(photoTeamFilter)) return false;
       }
-      if (photoSearchQuery.trim()) {
-        const query = photoSearchQuery.trim().toLowerCase();
-        const pName = String(p.name || '').toLowerCase();
-        return pName.includes(query);
-      }
-      return true;
+      return matchesSearch(p, photoSearchQuery);
     });
   }, [allPlayers, photoTeamFilter, photoSearchQuery]);
 
