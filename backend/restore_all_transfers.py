@@ -36,7 +36,7 @@ for th in th_records:
             restored_transfers += 1
 
 # 2. Check all accepted TransferOffers
-accepted_offers = list(TransferOffer.objects.filter(status='accepted').select_related('sender_team', 'receiver_team', 'target_player').order_by('updated_at'))
+accepted_offers = list(TransferOffer.objects.filter(status='ACCEPTED').select_related('sender_team', 'receiver_team', 'target_player').order_by('updated_at'))
 print(f"Total Accepted TransferOffers: {len(accepted_offers)}")
 
 for off in accepted_offers:
@@ -58,6 +58,19 @@ for off in accepted_offers:
             swap_p.team = receiver
             swap_p.save(update_fields=['team'])
             restored_transfers += 1
+
+# 2.5 Check all SOLD TransferListings
+sold_listings = list(TransferListing.objects.filter(status='SOLD').select_related('highest_bidder', 'player').order_by('updated_at' if hasattr(TransferListing, 'updated_at') else 'created_at'))
+print(f"Total SOLD TransferListings: {len(sold_listings)}")
+
+for listing in sold_listings:
+    buyer = listing.highest_bidder
+    p = listing.player
+    if buyer and p and p.team != buyer:
+        print(f"Restoring transfer from SOLD Listing: '{p.name}' -> {buyer.name} (was {p.team.name if p.team else 'None'})")
+        p.team = buyer
+        p.save(update_fields=['team'])
+        restored_transfers += 1
 
 # 3. Check TransferLogs for any parsed transfer descriptions
 transfer_logs = list(TransferLog.objects.all().order_by('timestamp'))
@@ -82,9 +95,18 @@ if leao and chelsea and leao.team != chelsea:
     leao.save(update_fields=['team'])
     restored_transfers += 1
 
+# 5. Explicit check for Enzo Fernandez -> Inter
+enzo = Player.objects.filter(name__icontains='Enzo Fern').first()
+inter = Team.objects.filter(name__icontains='Inter').first()
+if enzo and inter and enzo.team != inter:
+    print(f"Explicitly ensuring: '{enzo.name}' -> {inter.name}")
+    enzo.team = inter
+    enzo.save(update_fields=['team'])
+    restored_transfers += 1
+
 print(f"\nTotal transfers successfully restored: {restored_transfers}")
 
-# 5. Recalculate team star ratings
+# 6. Recalculate team star ratings
 print("=== 2. RECALCULATING ALL TEAM STAR RATINGS ===")
 for team in Team.objects.all():
     squad = team.players.all()
