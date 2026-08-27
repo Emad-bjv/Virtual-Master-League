@@ -3,7 +3,7 @@
  * Utility to resolve player face images with automatic fallback and disambiguation
  */
 
-export const PHOTO_CACHE_TAG = 'v=20260827_1';
+export const PHOTO_CACHE_TAG = 'v=20260827_2';
 
 export function getPlayerPhotoUrl(player, extraContext = null) {
   if (!player) return null;
@@ -35,6 +35,15 @@ export function getPlayerPhotoUrl(player, extraContext = null) {
       return `/players/Jobe%20Bellingham.png?${PHOTO_CACHE_TAG}`;
     }
 
+    if (rawName === 'N. Gonzalez' || rawName === 'Nico González') {
+      const pos = extraContext?.position;
+      const team = String(extraContext?.team?.name || extraContext?.team_name || '');
+      if (pos === 'CMF' || pos === 'DMF' || team.toLowerCase().includes('city')) {
+        return `/players/Nico%20Gonz%C3%A1lez.png?${PHOTO_CACHE_TAG}`;
+      }
+      return `/players/N.%20Gonzalez.png?${PHOTO_CACHE_TAG}`;
+    }
+
     return `/players/${encodeURIComponent(rawName)}.png?${PHOTO_CACHE_TAG}`;
   }
 
@@ -50,7 +59,7 @@ export function getPlayerPhotoUrl(player, extraContext = null) {
   const overall = Number(player.overall || player.target_player_overall || extraContext?.overall || 0);
   const teamName = String(player.team?.name || player.team_name || extraContext?.team?.name || extraContext?.team_name || '');
 
-  // 1. Disambiguate Lautaro Martinez (Inter / CF / 89) vs Lisandro Martinez (Man Utd / CB / 84)
+  // 1. Disambiguate Lautaro Martinez vs Lisandro Martinez
   if (name === 'L. Martínez' || name === 'L. Martinez') {
     if (position === 'CF' || position === 'SS' || overall >= 86 || teamName.toLowerCase().includes('inter')) {
       return `/players/Lautaro%20Mart%C3%ADnez.png?${PHOTO_CACHE_TAG}`;
@@ -58,12 +67,20 @@ export function getPlayerPhotoUrl(player, extraContext = null) {
     return `/players/Lisandro%20Mart%C3%ADnez.png?${PHOTO_CACHE_TAG}`;
   }
 
-  // 2. Disambiguate Jude Bellingham (Real Madrid / CMF / 90) vs Jobe Bellingham (Dortmund / CMF / 78)
+  // 2. Disambiguate Jude Bellingham vs Jobe Bellingham
   if (name === 'J. Bellingham') {
     if (overall >= 88 || teamName.toLowerCase().includes('madrid')) {
       return `/players/Jude%20Bellingham.png?${PHOTO_CACHE_TAG}`;
     }
     return `/players/Jobe%20Bellingham.png?${PHOTO_CACHE_TAG}`;
+  }
+
+  // 3. Disambiguate Nico Gonzalez
+  if (name === 'N. Gonzalez' || name === 'Nico González') {
+    if (position === 'CMF' || position === 'DMF' || teamName.toLowerCase().includes('city')) {
+      return `/players/Nico%20Gonz%C3%A1lez.png?${PHOTO_CACHE_TAG}`;
+    }
+    return `/players/N.%20Gonzalez.png?${PHOTO_CACHE_TAG}`;
   }
 
   return `/players/${encodeURIComponent(name)}.png?${PHOTO_CACHE_TAG}`;
