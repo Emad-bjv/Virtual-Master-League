@@ -4,7 +4,10 @@ from rest_framework import viewsets, status, permissions, views
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Team, Player, ClubFacilities, TeamGamePlan
-from .serializers import TeamSerializer, PlayerSerializer, GamePlanUpdateSerializer, ClubFacilitiesSerializer, TeamGamePlanSerializer
+from .serializers import (
+    TeamSerializer, PlayerSerializer, GamePlanUpdateSerializer, 
+    ClubFacilitiesSerializer, TeamGamePlanSerializer, resolve_player_photo_url
+)
 
 
 class IsAdminOrDebug(permissions.BasePermission):
