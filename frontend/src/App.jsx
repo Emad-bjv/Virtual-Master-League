@@ -13,6 +13,7 @@ import LiveBroadcastControl from './admin/pages/LiveBroadcastControl';
 import TransferNewsroom from './admin/pages/TransferNewsroom';
 import DynamicCrud from './admin/pages/DynamicCrud';
 import AdminPacks from './admin/pages/AdminPacks';
+import AdminSquadTransfers from './admin/pages/AdminSquadTransfers';
 import './index.css';
 
 function App() {
@@ -26,6 +27,7 @@ function App() {
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<DashboardOverview />} />
+          <Route path="squad-transfers" element={<AdminSquadTransfers />} />
           <Route path="packs" element={<AdminPacks />} />
           <Route path="transfer-reports" element={<TransferNewsroom />} />
           <Route path="live-control" element={<LiveBroadcastControl />} />

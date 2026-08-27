@@ -17,6 +17,12 @@ class TeamGamePlanSerializer(serializers.ModelSerializer):
 
 def resolve_player_photo_url(obj):
     import urllib.parse
+    if getattr(obj, 'custom_photo', None):
+        try:
+            return obj.custom_photo.url
+        except Exception:
+            return str(obj.custom_photo)
+
     name = (getattr(obj, 'name', None) or '').strip()
     pos = getattr(obj, 'position', '')
     ovr = getattr(obj, 'overall', 0) or 0
@@ -39,8 +45,12 @@ class PlayerSerializer(serializers.ModelSerializer):
     stamina_status = serializers.CharField(read_only=True)
     is_stamina_locked = serializers.BooleanField(read_only=True)
     is_suspended = serializers.BooleanField(read_only=True)
+    team_name = serializers.CharField(source='team.name', read_only=True, allow_null=True)
     loan_owner_team_name = serializers.CharField(source='loan_owner_team.name', read_only=True, allow_null=True)
     photo_url = serializers.SerializerMethodField()
+    custom_photo_url = serializers.SerializerMethodField()
+    is_new_signing = serializers.SerializerMethodField()
+    last_transfer = serializers.SerializerMethodField()
     xp_to_next_level = serializers.SerializerMethodField()
     xp_progress_percent = serializers.SerializerMethodField()
     next_level_gem_cost = serializers.SerializerMethodField()
@@ -53,6 +63,34 @@ class PlayerSerializer(serializers.ModelSerializer):
 
     def get_photo_url(self, obj):
         return resolve_player_photo_url(obj)
+
+    def get_custom_photo_url(self, obj):
+        if getattr(obj, 'custom_photo', None):
+            try:
+                return obj.custom_photo.url
+            except Exception:
+                return str(obj.custom_photo)
+        return None
+
+    def get_is_new_signing(self, obj):
+        if not obj.team:
+            return False
+        from transfers.models import TransferHistory
+        return TransferHistory.objects.filter(player=obj, buyer_team=obj.team).exists()
+
+    def get_last_transfer(self, obj):
+        if not obj.team:
+            return None
+        from transfers.models import TransferHistory
+        hist = TransferHistory.objects.filter(player=obj, buyer_team=obj.team).order_by('-transferred_at', '-id').first()
+        if hist:
+            return {
+                'seller_team_name': hist.seller_team.name if hist.seller_team else 'بازیکن آزاد',
+                'fee': float(hist.price_usd or 0),
+                'transfer_type': hist.transfer_type,
+                'transfer_date': hist.transferred_at.strftime('%Y-%m-%d %H:%M') if hist.transferred_at else None,
+            }
+        return None
 
     def get_xp_to_next_level(self, obj):
         if obj.level >= 20:

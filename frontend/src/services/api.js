@@ -60,12 +60,16 @@ export const teamApi = {
 };
 
 export const playerApi = {
-  getPlayers: () => api.get('/players/'),
+  getPlayers: (params) => api.get('/players/', { params }),
   getPlayer: (id) => api.get(`/players/${id}/`),
   recoverStamina: (id) => api.post(`/players/${id}/recover_stamina/`),
   healInjury: (id) => api.post(`/players/${id}/heal_injury/`),
   gemBoost: (id) => api.post(`/players/${id}/gem_boost/`),
   updateMarketValue: (id, marketValue) => api.post(`/players/${id}/update_market_value/`, { market_value: marketValue }),
+  manualTransfer: (payload) => api.post('/players/manual_transfer/', payload),
+  uploadPhoto: (id, formData) => api.post(`/players/${id}/upload_photo/`, formData),
+  resetPhoto: (id) => api.post(`/players/${id}/reset_photo/`),
+  fullUpdate: (id, data) => api.patch(`/players/${id}/full_update/`, data),
 };
 
 export const transferApi = {

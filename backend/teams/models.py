@@ -174,6 +174,7 @@ class Player(models.Model):
     x_coord = models.FloatField(default=0.0, verbose_name="مختصات X در ترکیب")
     y_coord = models.FloatField(default=0.0, verbose_name="مختصات Y در ترکیب")
     is_starting = models.BooleanField(default=False, verbose_name="فیکس است؟")
+    custom_photo = models.ImageField(upload_to='player_photos/', null=True, blank=True, verbose_name="تصویر اختصاصی بازیکن")
 
     # --- Player Level Progression System ---
     level = models.PositiveIntegerField(

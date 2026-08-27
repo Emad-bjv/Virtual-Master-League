@@ -670,3 +670,290 @@ class PlayerViewSet(viewsets.ModelViewSet):
             'market_value': float(player.market_value),
             'player': PlayerSerializer(player).data
         })
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrDebug])
+    def manual_transfer(self, request):
+        """
+        Transfers a player directly between teams or releases to Free Agent.
+        Calculates and updates star ratings for both clubs, creates TransferHistory, TransferLog, and AdminAuditLog.
+        """
+        player_id = request.data.get('player_id')
+        target_team_id = request.data.get('target_team_id')
+        transfer_fee = request.data.get('transfer_fee', 0)
+        transfer_type = request.data.get('transfer_type', 'PERMANENT')
+        reason = request.data.get('reason', 'انتقال دستی توسط مدیریت سیستم')
+
+        if not player_id:
+            return Response({'error': 'شناسه بازیکن (player_id) الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            player = Player.objects.select_related('team').get(id=player_id)
+        except Player.DoesNotExist:
+            return Response({'error': 'بازیکن مورد نظر یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        old_team = player.team
+        target_team = None
+
+        if target_team_id and str(target_team_id) not in ['0', 'null', 'None', '']:
+            try:
+                target_team = Team.objects.get(id=target_team_id)
+            except Team.DoesNotExist:
+                return Response({'error': 'تیم مقصد یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if old_team == target_team:
+            return Response({'error': 'تیم مبدا و مقصد یکسان هستند.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            fee_val = Decimal(str(transfer_fee or 0))
+        except (InvalidOperation, ValueError, TypeError):
+            fee_val = Decimal('0.00')
+
+        # Apply Transfer
+        player.team = target_team
+        if target_team:
+            player.is_free_agent = False
+            if transfer_type == 'LOAN' and old_team:
+                player.loan_owner_team = old_team
+                player.loan_matches_left = int(request.data.get('loan_matches', 10))
+            else:
+                player.loan_owner_team = None
+                player.loan_matches_left = 0
+        else:
+            player.is_free_agent = True
+            player.is_starting = False
+            player.loan_owner_team = None
+            player.loan_matches_left = 0
+
+        player.save()
+
+        # Recalculate star ratings
+        if old_team:
+            old_team.update_star_rating()
+        if target_team:
+            target_team.update_star_rating()
+
+        # Record TransferHistory
+        from transfers.models import TransferHistory, TransferLog
+        TransferHistory.objects.create(
+            player=player,
+            seller_team=old_team,
+            buyer_team=target_team,
+            price_usd=fee_val,
+            transfer_type=transfer_type
+        )
+
+        seller_name = old_team.name if old_team else 'بازیکن آزاد'
+        buyer_name = target_team.name if target_team else 'بازیکن آزاد'
+
+        # Record TransferLog
+        TransferLog.objects.create(
+            event_type='TRANSFER_FINALIZED',
+            description=f"انتقال رسمی: {player.name} با مبلغ {int(fee_val):,} $ از {seller_name} به تیم {buyer_name} پیوست."
+        )
+
+        # Record AdminAuditLog
+        from audit.utils import log_admin_action
+        log_admin_action(
+            admin_user=request.user,
+            action_type='MANUAL_TRANSFER',
+            target_team=target_team or old_team,
+            target_player=player,
+            before_value={'team_id': old_team.id if old_team else None, 'team_name': seller_name},
+            after_value={'team_id': target_team.id if target_team else None, 'team_name': buyer_name, 'fee': float(fee_val)},
+            reason=reason
+        )
+
+        return Response({
+            'status': f'بازیکن «{player.name}» با موفقیت از {seller_name} به {buyer_name} منتقل گردید.',
+            'player': PlayerSerializer(player).data,
+            'old_team': TeamSerializer(old_team).data if old_team else None,
+            'new_team': TeamSerializer(target_team).data if target_team else None,
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrDebug])
+    def upload_photo(self, request, pk=None):
+        """
+        Uploads and saves a custom player image.
+        """
+        player = self.get_object()
+        uploaded_file = request.FILES.get('photo') or request.FILES.get('file') or request.FILES.get('image')
+
+        if not uploaded_file:
+            return Response({'error': 'هیچ فایلی برای آپلود ارسال نشده است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Validate format
+        allowed_extensions = ['.png', '.jpg', '.jpeg', '.webp']
+        import os
+        ext = os.path.splitext(uploaded_file.name)[1].lower()
+        if ext not in allowed_extensions:
+            return Response({'error': f'فرمت فایل مجاز نیست. فرمت‌های معتبر: {", ".join(allowed_extensions)}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Max 5MB
+        if uploaded_file.size > 5 * 1024 * 1024:
+            return Response({'error': 'حجم فایل نباید بیشتر از ۵ مگابایت باشد.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Clean filename
+        clean_p_name = player.name.replace(' ', '_').replace('/', '_').replace('\\', '_')
+        uploaded_file.name = f"{player.id}_{clean_p_name}{ext}"
+
+        # If previous custom photo exists, remove it
+        if player.custom_photo:
+            try:
+                if os.path.isfile(player.custom_photo.path):
+                    os.remove(player.custom_photo.path)
+            except Exception:
+                pass
+
+        player.custom_photo = uploaded_file
+        player.save(update_fields=['custom_photo'])
+
+        from audit.utils import log_admin_action
+        log_admin_action(
+            admin_user=request.user,
+            action_type='PLAYER_PHOTO_UPLOAD',
+            target_team=player.team,
+            target_player=player,
+            before_value=None,
+            after_value={'custom_photo': player.custom_photo.url if player.custom_photo else None},
+            reason=f'آپلود تصویر جدید برای بازیکن {player.name}'
+        )
+
+        return Response({
+            'status': f'تصویر بازیکن «{player.name}» با موفقیت به‌روزرسانی شد.',
+            'photo_url': resolve_player_photo_url(player),
+            'custom_photo_url': player.custom_photo.url if player.custom_photo else None,
+            'player': PlayerSerializer(player).data
+        })
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrDebug])
+    def reset_photo(self, request, pk=None):
+        """
+        Resets custom photo to default.
+        """
+        player = self.get_object()
+        if player.custom_photo:
+            import os
+            try:
+                if os.path.isfile(player.custom_photo.path):
+                    os.remove(player.custom_photo.path)
+            except Exception:
+                pass
+            player.custom_photo = None
+            player.save(update_fields=['custom_photo'])
+
+        return Response({
+            'status': f'تصویر اختصاصی حذف و تصویر پیش‌فرض بازیکن «{player.name}» بازیابی شد.',
+            'photo_url': resolve_player_photo_url(player),
+            'player': PlayerSerializer(player).data
+        })
+
+    @action(detail=True, methods=['patch', 'put', 'post'], permission_classes=[IsAdminOrDebug])
+    def full_update(self, request, pk=None):
+        """
+        Comprehensive editing of all player attributes by Admin.
+        """
+        player = self.get_object()
+        data = request.data
+
+        before_state = {
+            'name': player.name,
+            'position': player.position,
+            'overall': player.overall,
+            'potential_ovr': player.potential_ovr,
+            'market_value': float(player.market_value),
+            'age': player.age,
+            'wage': float(player.wage),
+            'virtual_stamina': float(player.virtual_stamina),
+            'shirt_number': player.shirt_number,
+            'is_injured': player.is_injured,
+            'suspension_matches': player.suspension_matches,
+            'is_starting': player.is_starting,
+        }
+
+        rating_affected = False
+
+        if 'name' in data and data['name']:
+            player.name = str(data['name']).strip()
+        if 'position' in data and data['position'] in dict(Player.POSITIONS):
+            player.position = data['position']
+            rating_affected = True
+        if 'overall' in data:
+            try:
+                player.overall = max(40, min(110, int(data['overall'])))
+                rating_affected = True
+            except (ValueError, TypeError):
+                pass
+        if 'potential_ovr' in data:
+            try:
+                player.potential_ovr = max(40, min(110, int(data['potential_ovr'])))
+            except (ValueError, TypeError):
+                pass
+        if 'market_value' in data:
+            try:
+                player.market_value = Decimal(str(data['market_value']))
+            except (InvalidOperation, ValueError, TypeError):
+                pass
+        if 'age' in data:
+            try:
+                player.age = max(15, min(50, int(data['age'])))
+            except (ValueError, TypeError):
+                pass
+        if 'wage' in data:
+            try:
+                player.wage = Decimal(str(data['wage']))
+            except (InvalidOperation, ValueError, TypeError):
+                pass
+        if 'virtual_stamina' in data:
+            try:
+                player.virtual_stamina = Decimal(str(max(0, min(100, float(data['virtual_stamina'])))))
+                from teams.stamina_engine import update_lock_status
+                update_lock_status(player)
+            except (InvalidOperation, ValueError, TypeError):
+                pass
+        if 'shirt_number' in data:
+            val = data['shirt_number']
+            if val in [None, '', 'null']:
+                player.shirt_number = None
+            else:
+                try:
+                    player.shirt_number = max(1, min(99, int(val)))
+                except (ValueError, TypeError):
+                    pass
+        if 'is_injured' in data:
+            player.is_injured = bool(data['is_injured'])
+            if not player.is_injured:
+                player.injury_return_date = None
+        if 'suspension_matches' in data:
+            try:
+                player.suspension_matches = max(0, int(data['suspension_matches']))
+            except (ValueError, TypeError):
+                pass
+        if 'is_starting' in data:
+            player.is_starting = bool(data['is_starting'])
+            rating_affected = True
+
+        player.save()
+
+        if rating_affected and player.team:
+            player.team.update_star_rating()
+
+        from audit.utils import log_admin_action
+        log_admin_action(
+            admin_user=request.user,
+            action_type='PLAYER_FULL_UPDATE',
+            target_team=player.team,
+            target_player=player,
+            before_value=before_state,
+            after_value={
+                'name': player.name,
+                'position': player.position,
+                'overall': player.overall,
+                'market_value': float(player.market_value),
+            },
+            reason=data.get('reason', 'ویرایش مشخصات بازیکن توسط ادمین')
+        )
+
+        return Response({
+            'status': f'مشخصات بازیکن «{player.name}» با موفقیت ذخیره شد.',
+            'player': PlayerSerializer(player).data
+        })
