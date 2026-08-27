@@ -109,8 +109,20 @@ print(" ALL-IN-ONE PES ROSTER RESTORATION & TRANSFER SYNCHRONIZER")
 print("=================================================================\n")
 
 # 1. Parse all PES markdown files
+pes_files = sorted(
+    glob.glob('ABDM_files/player_statistics*.md') +
+    glob.glob('backend/ABDM_files/player_statistics*.md') +
+    glob.glob('../ABDM_files/player_statistics*.md') +
+    glob.glob('/opt/vml/ABDM_files/player_statistics*.md')
+)
+# De-duplicate file paths by filename
+unique_files = {}
+for f in pes_files:
+    unique_files[os.path.basename(f)] = f
+pes_files = list(unique_files.values())
+
 pes_players = []
-for fpath in sorted(glob.glob('ABDM_files/player_statistics*.md')):
+for fpath in pes_files:
     with open(fpath, 'r', encoding='utf-8') as f:
         curr_team_header = ""
         for line in f:
@@ -133,6 +145,7 @@ for fpath in sorted(glob.glob('ABDM_files/player_statistics*.md')):
                         'file': os.path.basename(fpath)
                     })
 
+print(f"Total PES files found: {len(pes_files)}")
 print(f"Total PES player entries found: {len(pes_players)}")
 
 created_count = 0
