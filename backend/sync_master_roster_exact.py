@@ -628,13 +628,15 @@ for tname, p_name, p_pos, p_ovr, p_val in MASTER_SQUADS:
 
     if target_player:
         matched_official_ids.add(target_player.id)
+        team = Team.objects.filter(name=tname).first()
+        target_player.team = team
         target_player.name = p_name
         target_player.position = p_pos
         target_player.overall = p_ovr
         target_player.base_overall = p_ovr
         if p_val > 0:
             target_player.market_value = Decimal(str(p_val))
-        target_player.save(update_fields=['name', 'position', 'overall', 'base_overall', 'market_value'])
+        target_player.save(update_fields=['team', 'name', 'position', 'overall', 'base_overall', 'market_value'])
     else:
         # Create player in origin team
         team = Team.objects.filter(name=tname).first()
