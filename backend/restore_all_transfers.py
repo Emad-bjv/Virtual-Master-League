@@ -101,12 +101,17 @@ inter = Team.objects.filter(name__icontains='Inter').first()
 if enzo and inter and enzo.team != inter:
     print(f"Explicitly ensuring: '{enzo.name}' -> {inter.name}")
     enzo.team = inter
-    enzo.save(update_fields=['team'])
+# 6. Explicit check for Federico Dimarco -> Chelsea
+dimarco = Player.objects.filter(name__icontains='Dimarco').first()
+if dimarco and chelsea and dimarco.team != chelsea:
+    print(f"Explicitly ensuring: '{dimarco.name}' -> {chelsea.name}")
+    dimarco.team = chelsea
+    dimarco.save(update_fields=['team'])
     restored_transfers += 1
 
 print(f"\nTotal transfers successfully restored: {restored_transfers}")
 
-# 6. Recalculate team star ratings
+# 7. Recalculate team star ratings
 print("=== 2. RECALCULATING ALL TEAM STAR RATINGS ===")
 for team in Team.objects.all():
     squad = team.players.all()
