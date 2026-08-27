@@ -106,12 +106,40 @@ dimarco = Player.objects.filter(name__icontains='Dimarco').first()
 if dimarco and chelsea and dimarco.team != chelsea:
     print(f"Explicitly ensuring: '{dimarco.name}' -> {chelsea.name}")
     dimarco.team = chelsea
-    dimarco.save(update_fields=['team'])
+# 7. Explicit check for Khvicha Kvaratskhelia -> PSG (manual transfer without log)
+psg = Team.objects.filter(name__icontains='Paris').first()
+kvara = Player.objects.filter(name__icontains='Kvaratskhelia').first()
+if kvara and psg and kvara.team != psg:
+    kvara.team = psg
+    kvara.save(update_fields=['team'])
+    restored_transfers += 1
+
+# 8. Explicit check for Kenan Yildiz -> Manchester United
+man_utd = Team.objects.filter(name__icontains='Manchester United').first()
+yildiz = Player.objects.filter(name__icontains='Yildiz').first() or Player.objects.filter(name__icontains='Yıldız').first()
+if yildiz and man_utd and yildiz.team != man_utd:
+    yildiz.team = man_utd
+    yildiz.save(update_fields=['team'])
+    restored_transfers += 1
+
+# 9. Explicit check for Donyell Malen -> AC Milan
+ac_milan = Team.objects.filter(name__icontains='AC Milan').first()
+malen = Player.objects.filter(name__icontains='Malen').first()
+if malen and ac_milan and malen.team != ac_milan:
+    malen.team = ac_milan
+    malen.save(update_fields=['team'])
+    restored_transfers += 1
+
+# 10. Explicit check for Rasmus Højlund -> PSG
+hojlund = Player.objects.filter(name__icontains='Hojlund').first() or Player.objects.filter(name__icontains='Højlund').first()
+if hojlund and psg and hojlund.team != psg:
+    hojlund.team = psg
+    hojlund.save(update_fields=['team'])
     restored_transfers += 1
 
 print(f"\nTotal transfers successfully restored: {restored_transfers}")
 
-# 7. Recalculate team star ratings
+# 11. Recalculate team star ratings
 print("=== 2. RECALCULATING ALL TEAM STAR RATINGS ===")
 for team in Team.objects.all():
     squad = team.players.all()
