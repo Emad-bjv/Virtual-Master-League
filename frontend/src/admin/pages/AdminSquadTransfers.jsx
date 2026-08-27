@@ -88,29 +88,55 @@ export default function AdminSquadTransfers() {
   }, []);
 
   const fetchInitialData = async () => {
+    setRefreshing(true);
+    setLoading(true);
+
+    let loadedTeams = [];
+    let loadedPlayers = [];
+
+    // 1. Fetch Teams (try /teams/ then /admin/teams/)
     try {
-      setRefreshing(true);
-      const [teamsRes, playersRes] = await Promise.all([
-        teamApi.getTeams(),
-        playerApi.getPlayers()
-      ]);
-
-      const teamsData = teamsRes?.data?.results || teamsRes?.data || [];
-      const playersData = playersRes?.data?.results || playersRes?.data || [];
-
-      setTeams(Array.isArray(teamsData) ? teamsData : []);
-      setAllPlayers(Array.isArray(playersData) ? playersData : []);
-
-      if (Array.isArray(teamsData) && teamsData.length > 0 && !selectedSquadTeamId) {
-        setSelectedSquadTeamId(teamsData[0].id);
-      }
+      const teamsRes = await teamApi.getTeams();
+      const raw = teamsRes?.data?.results || teamsRes?.data || [];
+      loadedTeams = Array.isArray(raw) ? raw : [];
     } catch (err) {
-      console.error('Error fetching initial data for squad/transfers:', err);
-      showToast('خطا در بارگذاری اطلاعات تیم‌ها و بازیکنان', 'error');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      try {
+        const fallbackTeams = await api.get('/admin/teams/');
+        const raw = fallbackTeams?.data?.results || fallbackTeams?.data || [];
+        loadedTeams = Array.isArray(raw) ? raw : [];
+      } catch (err2) {
+        console.warn('Failed to load teams:', err2);
+      }
     }
+
+    // 2. Fetch Players (try /players/ then /admin/players/)
+    try {
+      const playersRes = await playerApi.getPlayers();
+      const raw = playersRes?.data?.results || playersRes?.data || [];
+      loadedPlayers = Array.isArray(raw) ? raw : [];
+    } catch (err) {
+      try {
+        const fallbackPlayers = await api.get('/admin/players/');
+        const raw = fallbackPlayers?.data?.results || fallbackPlayers?.data || [];
+        loadedPlayers = Array.isArray(raw) ? raw : [];
+      } catch (err2) {
+        console.warn('Failed to load players:', err2);
+      }
+    }
+
+    setTeams(loadedTeams);
+    setAllPlayers(loadedPlayers);
+
+    if (loadedTeams.length > 0 && !selectedSquadTeamId) {
+      setSelectedSquadTeamId(loadedTeams[0].id);
+    }
+
+    if (loadedTeams.length === 0 && loadedPlayers.length === 0) {
+      showToast('خطا در دریافت اطلاعات. لطفا دکمه تازه‌سازی را بزنید.', 'error');
+    }
+
+    setLoading(false);
+    setRefreshing(false);
   };
 
   // Helper map for quick team lookups

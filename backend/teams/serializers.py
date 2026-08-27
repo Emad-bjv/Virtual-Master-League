@@ -73,16 +73,33 @@ class PlayerSerializer(serializers.ModelSerializer):
         return None
 
     def get_is_new_signing(self, obj):
-        if not obj.team:
+        target_team_id = getattr(obj, 'team_id', None)
+        if not target_team_id:
             return False
+        # Use prefetched in-memory records if available
+        if hasattr(obj, '_prefetched_objects_cache') and 'transfer_history' in obj._prefetched_objects_cache:
+            return any(h.buyer_team_id == target_team_id for h in obj.transfer_history.all())
         from transfers.models import TransferHistory
-        return TransferHistory.objects.filter(player=obj, buyer_team=obj.team).exists()
+        return TransferHistory.objects.filter(player=obj, buyer_team_id=target_team_id).exists()
 
     def get_last_transfer(self, obj):
-        if not obj.team:
+        target_team_id = getattr(obj, 'team_id', None)
+        if not target_team_id:
+            return None
+        # Use prefetched in-memory records if available
+        if hasattr(obj, '_prefetched_objects_cache') and 'transfer_history' in obj._prefetched_objects_cache:
+            matching = [h for h in obj.transfer_history.all() if h.buyer_team_id == target_team_id]
+            if matching:
+                latest = sorted(matching, key=lambda x: x.transferred_at if x.transferred_at else '', reverse=True)[0]
+                return {
+                    'seller_team_name': latest.seller_team.name if latest.seller_team else 'بازیکن آزاد',
+                    'fee': float(latest.price_usd or 0),
+                    'transfer_type': latest.transfer_type,
+                    'transfer_date': latest.transferred_at.strftime('%Y-%m-%d %H:%M') if latest.transferred_at else None,
+                }
             return None
         from transfers.models import TransferHistory
-        hist = TransferHistory.objects.filter(player=obj, buyer_team=obj.team).order_by('-transferred_at', '-id').first()
+        hist = TransferHistory.objects.filter(player=obj, buyer_team_id=target_team_id).order_by('-transferred_at', '-id').first()
         if hist:
             return {
                 'seller_team_name': hist.seller_team.name if hist.seller_team else 'بازیکن آزاد',

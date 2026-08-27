@@ -526,7 +526,7 @@ class TeamViewSet(viewsets.ModelViewSet):
         return Response({'status': 'Team active state toggled', 'team_id': team.id, 'is_active': team.is_active})
 
 class PlayerViewSet(viewsets.ModelViewSet):
-    queryset = Player.objects.all().select_related('team', 'loan_owner_team')
+    queryset = Player.objects.all().select_related('team', 'loan_owner_team').prefetch_related('transfer_history__seller_team', 'transfer_history__buyer_team')
     serializer_class = PlayerSerializer
     permission_classes = [permissions.IsAuthenticated, IsManagerOrAdminOrReadOnly]
 
