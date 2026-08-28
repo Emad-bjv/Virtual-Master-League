@@ -1744,9 +1744,6 @@ def auto_assign_team_starting_lineup(team: Team, formation_name: str = None) -> 
             if match:
                 candidate = match[0]
                 available.remove(candidate)
-                # Ensure position reflects PES position
-                if candidate.position != p_def['pos']:
-                    candidate.position = p_def['pos']
                 assigned_starters.append((candidate, {'pos': p_def['pos'], 'x': p_def['x'], 'y': p_def['y']}))
 
     # If dynamic assignment is needed (or incomplete starters)
@@ -1904,8 +1901,7 @@ def auto_replace_ineligible_starters(team, target_match=None):
             candidate.is_starting = True
             candidate.x_coord = starter.x_coord
             candidate.y_coord = starter.y_coord
-            candidate.position = starter.position
-            candidate.save(update_fields=['is_starting', 'x_coord', 'y_coord', 'position'])
+            candidate.save(update_fields=['is_starting', 'x_coord', 'y_coord'])
 
             starter.is_starting = False
             starter.save(update_fields=['is_starting'])

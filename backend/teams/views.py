@@ -91,9 +91,8 @@ class TeamViewSet(viewsets.ModelViewSet):
                     player = Player.objects.get(id=item['player_id'], team=team)
                     player.x_coord = item['x_coord']
                     player.y_coord = item['y_coord']
-                    player.position = item['position']
                     player.is_starting = item['is_starting']
-                    player.save()
+                    player.save(update_fields=['x_coord', 'y_coord', 'is_starting'])
                 except Player.DoesNotExist:
                     continue
             return Response({'status': 'Game plan updated successfully'})
@@ -184,11 +183,18 @@ class TeamViewSet(viewsets.ModelViewSet):
                     try:
                         p_id = item.get('player_id') or item.get('id')
                         player = Player.objects.get(id=p_id, team=team)
-                        if 'x_coord' in item: player.x_coord = item['x_coord']
-                        if 'y_coord' in item: player.y_coord = item['y_coord']
-                        if 'position' in item: player.position = item['position']
-                        if 'is_starting' in item: player.is_starting = item['is_starting']
-                        player.save()
+                        update_fields = []
+                        if 'x_coord' in item:
+                            player.x_coord = item['x_coord']
+                            update_fields.append('x_coord')
+                        if 'y_coord' in item:
+                            player.y_coord = item['y_coord']
+                            update_fields.append('y_coord')
+                        if 'is_starting' in item:
+                            player.is_starting = item['is_starting']
+                            update_fields.append('is_starting')
+                        if update_fields:
+                            player.save(update_fields=update_fields)
                     except Player.DoesNotExist:
                         continue
 
