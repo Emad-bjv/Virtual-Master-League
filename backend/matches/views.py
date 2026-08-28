@@ -164,10 +164,14 @@ class LeagueStandingsView(generics.GenericAPIView):
         if not tournament:
             return Response([])
 
-        try:
-            recalculate_tournament_standings(tournament.id)
-        except Exception:
-            pass
+        force_recalculate = request.query_params.get('recalculate') == 'true'
+        has_standings = LeagueStanding.objects.filter(tournament=tournament).exists()
+
+        if force_recalculate or not has_standings:
+            try:
+                recalculate_tournament_standings(tournament.id)
+            except Exception:
+                pass
 
         qs = LeagueStanding.objects.filter(tournament=tournament, team__is_active=True).select_related('team')
 

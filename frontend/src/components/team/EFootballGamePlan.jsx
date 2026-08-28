@@ -1374,7 +1374,7 @@ export default function EFootballGamePlan({
                   ? 'bg-cyan-400 shadow-[0_0_8px_#00f3ff]'
                   : staminaPercent >= 30
                   ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'
-                  : 'bg-rose-500 shadow-[0_0_8px_#f43f5e] animate-pulse';
+                  : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]';
 
               const photoUrl = getPlayerPhotoUrl(player);
 
@@ -1382,21 +1382,20 @@ export default function EFootballGamePlan({
                 <motion.div
                   key={player.id}
                   onClick={() => handlePitchPlayerClick(player)}
-                  initial={{ scale: 0.9, opacity: 0 }}
+                  initial={false}
                   animate={{
                     left: `${player.x_coord}%`,
                     top: `${player.y_coord}%`,
-                    scale: isSelected ? 1.08 : 1,
+                    scale: isSelected ? 1.05 : 1,
                     opacity: isDimmed ? 0.35 : 1,
                   }}
                   transition={{
-                    left: { type: 'spring', stiffness: 100, damping: 15 },
-                    top: { type: 'spring', stiffness: 100, damping: 15 },
-                    scale: { duration: 0.2 },
-                    opacity: { duration: 0.2 },
+                    duration: 0.12,
+                    ease: 'easeOut',
                   }}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 w-[62px] sm:w-[76px] md:w-[94px] flex flex-col items-center cursor-pointer group z-10 hover:z-30 transition-all active:scale-105 ${
-                    isSelected ? 'ring-2 sm:ring-4 ring-cyan-400 rounded-xl sm:rounded-2xl p-0.5 sm:p-1 bg-cyan-950/90 shadow-[0_0_30px_rgba(0,243,255,0.7)] animate-pulse' : ''
+                  style={{ willChange: 'left, top, transform' }}
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 w-[62px] sm:w-[76px] md:w-[94px] flex flex-col items-center cursor-pointer group z-10 hover:z-30 transition-transform duration-100 active:scale-105 ${
+                    isSelected ? 'ring-2 sm:ring-4 ring-cyan-400 rounded-xl sm:rounded-2xl p-0.5 sm:p-1 bg-cyan-950/90 shadow-[0_0_20px_rgba(0,243,255,0.6)]' : ''
                   }`}
                 >
                   {/* Player Avatar Container + Floating Event Badges */}
@@ -1556,17 +1555,19 @@ export default function EFootballGamePlan({
               <motion.div
                 key={`empty-slot-${sIdx}-${slot.pos}`}
                 onClick={() => handleEmptySlotClick(slot)}
-                initial={{ scale: 0.9, opacity: 0 }}
+                initial={false}
                 animate={{
                   left: `${slot.x}%`,
                   top: `${slot.y}%`,
                   scale: 1,
                   opacity: 1,
                 }}
+                transition={{ duration: 0.12, ease: 'easeOut' }}
+                style={{ willChange: 'left, top, transform' }}
                 className="absolute -translate-x-1/2 -translate-y-1/2 w-[62px] sm:w-[76px] md:w-[94px] flex flex-col items-center cursor-pointer group z-10 hover:z-30 transition-all"
               >
                 <div className="relative flex items-center justify-center w-10 h-12 sm:w-12 sm:h-14 md:w-14 md:h-16 rounded-xl sm:rounded-2xl border-2 border-dashed border-cyan-400/80 bg-cyan-950/40 hover:bg-cyan-900/60 shadow-lg flex-col gap-0.5 sm:gap-1 transition-all group-hover:scale-105 group-hover:border-cyan-300">
-                  <Plus size={16} className="text-cyan-300 animate-pulse" />
+                  <Plus size={16} className="text-cyan-300" />
                   <span className="text-[7px] sm:text-[8px] font-black text-cyan-200">افزودن</span>
                 </div>
                 <div className="flex items-center gap-0.5 sm:gap-1 mt-0.5 sm:mt-1 shadow-lg z-10">
@@ -1628,7 +1629,7 @@ export default function EFootballGamePlan({
                         : isOut
                         ? 'opacity-65 bg-rose-950/40 border-rose-800/60 grayscale cursor-not-allowed hover:border-rose-600'
                         : isSelected
-                        ? 'bg-gradient-to-r from-cyan-950 to-purple-950 border-2 border-cyan-400 scale-105 shadow-[0_0_20px_rgba(0,243,255,0.4)] ring-2 ring-cyan-400 animate-pulse'
+                        ? 'bg-gradient-to-r from-cyan-950 to-purple-950 border-2 border-cyan-400 scale-105 shadow-[0_0_15px_rgba(0,243,255,0.4)] ring-2 ring-cyan-400'
                         : 'bg-[#0f172a]/80 border-slate-700/60 hover:border-cyan-400/60 hover:bg-slate-800'
                     }`}
                   >

@@ -90,24 +90,23 @@ export default function TacticalPitch({
             <motion.div
               key={player.id}
               onClick={() => !readOnly && onPlayerClick && onPlayerClick(player)}
-              initial={{ scale: 0.8, opacity: 0 }}
+              initial={false}
               animate={{
                 left: `${posX}%`,
                 top: `${posY}%`,
-                scale: isSelected ? 1.12 : 1,
+                scale: isSelected ? 1.06 : 1,
                 opacity: isDimmed ? 0.35 : 1,
               }}
               transition={{
-                left: { type: 'spring', stiffness: 95, damping: 14 },
-                top: { type: 'spring', stiffness: 95, damping: 14 },
-                scale: { duration: 0.15 },
-                opacity: { duration: 0.15 },
+                duration: 0.12,
+                ease: 'easeOut',
               }}
-              className={`absolute -translate-x-1/2 -translate-y-1/2 w-[86px] md:w-[96px] flex flex-col items-center z-10 hover:z-30 transition-all ${
+              style={{ willChange: 'left, top, transform' }}
+              className={`absolute -translate-x-1/2 -translate-y-1/2 w-[86px] md:w-[96px] flex flex-col items-center z-10 hover:z-30 transition-transform duration-100 ${
                 readOnly ? 'cursor-default' : 'cursor-pointer active:scale-105 group'
               } ${
                 isSelected
-                  ? 'ring-4 ring-cyan-400 rounded-2xl p-1 bg-cyan-950/90 shadow-[0_0_30px_rgba(0,243,255,0.7)] animate-pulse'
+                  ? 'ring-4 ring-cyan-400 rounded-2xl p-1 bg-cyan-950/90 shadow-[0_0_20px_rgba(0,243,255,0.6)]'
                   : ''
               }`}
             >
@@ -154,7 +153,7 @@ export default function TacticalPitch({
                     player.isRed || player.suspension_matches > 0 || player.is_suspended
                       ? 'border-rose-600 ring-2 ring-rose-600/80 bg-rose-950/90 text-rose-300 opacity-60 grayscale'
                       : player.is_injured || player.isInjured
-                      ? 'border-amber-500 ring-2 ring-amber-500/80 bg-amber-950/90 text-amber-300 animate-pulse'
+                      ? 'border-amber-500 ring-2 ring-amber-500/80 bg-amber-950/90 text-amber-300'
                       : player.goals > 0
                       ? 'border-emerald-400 ring-2 ring-emerald-400/60 bg-emerald-950/80'
                       : isSelected

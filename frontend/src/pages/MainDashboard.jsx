@@ -71,7 +71,7 @@ export default function MainDashboard() {
       }
     };
     fetchPublicFlags();
-    const interval = setInterval(fetchPublicFlags, 20000);
+    const interval = setInterval(fetchPublicFlags, 60000);
     return () => clearInterval(interval);
   }, []);
 
