@@ -507,6 +507,7 @@ export default function EFootballGamePlan({
   // Interactive Swap & Admin Event Modal States
   const [selectedPitchPlayerId, setSelectedPitchPlayerId] = useState(null);
   const [selectedBenchPlayerId, setSelectedBenchPlayerId] = useState(null);
+  const [highlightedPosition, setHighlightedPosition] = useState(null);
   const [adminModalPlayer, setAdminModalPlayer] = useState(null);
   const [subModalBenchSelect, setSubModalBenchSelect] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
@@ -835,6 +836,18 @@ export default function EFootballGamePlan({
     setAdminModalPlayer(null);
   };
 
+  // Toggle Position Highlight Mode
+  const handlePositionHighlight = (posCode) => {
+    if (!posCode) return;
+    const nextPos = highlightedPosition === posCode ? null : posCode;
+    setHighlightedPosition(nextPos);
+    setSelectedPitchPlayerId(null);
+    setSelectedBenchPlayerId(null);
+    if (nextPos) {
+      showNotification(`هایلایت بازیکنان تخصصی پست «${nextPos}» ⭐`);
+    }
+  };
+
   // Pitch Player Click Handler
   const handlePitchPlayerClick = (clickedPlayer) => {
     if (isAdminMode) {
@@ -844,6 +857,11 @@ export default function EFootballGamePlan({
     }
 
     if (readOnly) return;
+
+    if (highlightedPosition) {
+      setHighlightedPosition(null);
+    }
+
     // Scenario 1: A bench/reserve player was pre-selected -> Swap pitch player with bench player
     if (selectedBenchPlayerId) {
       swapPitchWithBench(clickedPlayer.id, selectedBenchPlayerId);
@@ -877,6 +895,10 @@ export default function EFootballGamePlan({
     }
 
     if (readOnly) return;
+
+    if (highlightedPosition) {
+      setHighlightedPosition(null);
+    }
 
     // Scenario 1: A pitch player was pre-selected -> Swap pitch player with clicked bench player
     if (selectedPitchPlayerId) {
@@ -1096,12 +1118,13 @@ export default function EFootballGamePlan({
       setSubstitutes(newSubs);
       setReserves(newRes);
       setSelectedBenchPlayerId(null);
+      setHighlightedPosition(null);
       showNotification(`بازیکن «${benchPlayer.name}» در پست ${slot.pos} در ترکیب اصلی قرار گرفت ✅`);
       if (onLineupChange) {
         onLineupChange({ startingXi: updatedXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
       }
     } else {
-      showNotification(`جایگاه «${slot.pos}» خالی است. لطفاً بازیکنی از نیمکت یا رختکن انتخاب کرده و روی این جایگاه کلیک کنید.`);
+      handlePositionHighlight(slot.pos);
     }
   };
 
@@ -1204,6 +1227,38 @@ export default function EFootballGamePlan({
                 disabled={isTacticsDisabled}
               />
             </div>
+          </div>
+        )}
+
+        {/* ACTIVE POSITION HIGHLIGHT BANNER */}
+        {highlightedPosition && (
+          <div className="bg-gradient-to-r from-emerald-950/95 via-[#081f1d] to-[#080c14] border border-emerald-400/60 p-3 rounded-2xl flex items-center justify-between text-xs text-emerald-200 shadow-[0_0_20px_rgba(52,211,153,0.25)] backdrop-blur-xl animate-fadeIn">
+            <div className="flex items-center gap-2.5">
+              <span className="text-base animate-bounce">⭐</span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-white text-xs sm:text-sm">
+                    هایلایت بازیکنان پست:
+                  </span>
+                  <span className={`text-[10px] sm:text-xs font-black px-2 py-0.5 rounded shadow ${POSITION_COLORS[highlightedPosition] || 'bg-emerald-600 text-slate-950'}`}>
+                    {highlightedPosition}
+                  </span>
+                </div>
+                <p className="text-[10.5px] text-emerald-300/80 mt-0.5 hidden sm:block">
+                  بهترین بازیکنان تخصصی این پست با ستاره طلایی و کادر سبز در زمین، نیمکت و رختکن مشخص شده‌اند.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setHighlightedPosition(null);
+              }}
+              className="flex items-center gap-1.5 bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-500/50 transition-all active:scale-95 cursor-pointer shadow-md shrink-0"
+            >
+              <X size={14} />
+              <span>لغو هایلایت</span>
+            </button>
           </div>
         )}
 
@@ -1329,7 +1384,12 @@ export default function EFootballGamePlan({
         )}
 
         {/* TOP: GREEN FOOTBALL PITCH CONTAINER */}
-        <div className="fc-pitch-turf rounded-2xl sm:rounded-3xl p-2 sm:p-3 md:p-5 border-2 border-cyan-500/40 shadow-[0_20px_50px_rgba(0,0,0,0.85)] relative flex flex-col justify-between min-h-[480px] sm:min-h-[560px] md:min-h-[680px] overflow-hidden select-none">
+        <div 
+          onClick={() => {
+            if (highlightedPosition) setHighlightedPosition(null);
+          }}
+          className="fc-pitch-turf rounded-2xl sm:rounded-3xl p-2 sm:p-3 md:p-5 border-2 border-cyan-500/40 shadow-[0_20px_50px_rgba(0,0,0,0.85)] relative flex flex-col justify-between min-h-[480px] sm:min-h-[560px] md:min-h-[680px] overflow-hidden select-none"
+        >
           {/* Turf Mowing Stripes & Center Spotlight */}
           <div className="absolute inset-0 fc-pitch-mow-stripes opacity-70 pointer-events-none"></div>
           <div 
@@ -1362,7 +1422,10 @@ export default function EFootballGamePlan({
           <div className="relative w-full h-[450px] sm:h-[530px] md:h-[630px]">
             {startingXi.map((player) => {
               const isSelected = selectedPitchPlayerId === player.id;
-              const isDimmed = selectedPitchPlayerId && !isSelected;
+              const natPos = player.naturalPosition || player.position;
+              const isPositionMatch = Boolean(highlightedPosition && (natPos === highlightedPosition || player.position === highlightedPosition));
+              const isDimmed = (selectedPitchPlayerId && !isSelected) || (highlightedPosition && !isPositionMatch);
+              const isOutOfPosition = Boolean(player.naturalPosition && player.position && player.naturalPosition !== player.position);
               const posCode = player.position || player.naturalPosition || 'CMF';
 
               // Readiness / Stamina Calculation (linked with facilities & fatigue formula)
@@ -1381,12 +1444,15 @@ export default function EFootballGamePlan({
               return (
                 <motion.div
                   key={player.id}
-                  onClick={() => handlePitchPlayerClick(player)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePitchPlayerClick(player);
+                  }}
                   initial={false}
                   animate={{
                     left: `${player.x_coord}%`,
                     top: `${player.y_coord}%`,
-                    scale: isSelected ? 1.05 : 1,
+                    scale: isPositionMatch ? 1.08 : isSelected ? 1.05 : 1,
                     opacity: isDimmed ? 0.35 : 1,
                   }}
                   transition={{
@@ -1400,6 +1466,23 @@ export default function EFootballGamePlan({
                 >
                   {/* Player Avatar Container + Floating Event Badges */}
                   <div className="relative flex items-center justify-center">
+                    {/* Golden Star for Position Highlight Match */}
+                    {isPositionMatch && (
+                      <span className="absolute -top-1.5 -left-1.5 z-40 text-amber-300 text-[13px] sm:text-[15px] drop-shadow-[0_0_6px_#f59e0b] animate-bounce pointer-events-none">
+                        ⭐
+                      </span>
+                    )}
+
+                    {/* Out of Position Warning Badge */}
+                    {isOutOfPosition && (
+                      <span
+                        className="absolute -top-1 -right-1 z-40 bg-amber-950/90 text-amber-300 text-[9px] sm:text-[10px] px-1 py-0.2 rounded-full border border-amber-500/70 shadow-md flex items-center justify-center leading-none pointer-events-none"
+                        title={`پست اصلی: ${player.naturalPosition} (پست فعلی در زمین: ${player.position})`}
+                      >
+                        ⚠️
+                      </span>
+                    )}
+
                     {/* Top-Right Blue Rating Pill Badge (Only in Live/Admin match mode) */}
                     {(isLiveMode || isAdminMode) && (player.rating != null || (isAdminMode && player.goals > 0)) && (
                       <span className="absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2.5 z-30 bg-sky-500 text-slate-950 font-black text-[7.5px] sm:text-[9px] md:text-[10px] px-1 sm:px-1.5 py-0.2 rounded-full shadow-md border border-sky-300 flex items-center gap-0.5 font-sport leading-none pointer-events-none">
@@ -1421,6 +1504,8 @@ export default function EFootballGamePlan({
                         ? 'border-rose-600 ring-2 ring-rose-600/80 bg-rose-950/90 text-rose-300 opacity-70 grayscale'
                         : (player.isInjured || player.is_injured)
                         ? 'border-amber-500 ring-2 ring-amber-500/80 bg-amber-950/90 text-amber-300 animate-pulse'
+                        : isPositionMatch
+                        ? 'border-emerald-400 bg-emerald-950/80 ring-2 ring-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.8)]'
                         : ((isLiveMode || isAdminMode) && (player.in_match_goals || player.goals) > 0)
                         ? 'border-emerald-400 ring-2 ring-emerald-400/60 bg-emerald-950/80'
                         : isSelected
@@ -1515,9 +1600,14 @@ export default function EFootballGamePlan({
                   {/* Badge Pill: Position + Championship Gold OVR Rating */}
                   <div className="flex items-center gap-0.5 sm:gap-1 mt-0.5 sm:mt-1 shadow-lg z-10">
                     <span
-                      className={`text-[7px] sm:text-[8px] md:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-md shadow ${
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePositionHighlight(posCode);
+                      }}
+                      className={`text-[7px] sm:text-[8px] md:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-md shadow cursor-pointer transition-transform hover:scale-110 active:scale-95 ${
                         POSITION_COLORS[posCode] || 'bg-purple-600 text-white font-bold'
                       }`}
+                      title={`کلیک جهت هایلایت همه بازیکنان ${posCode}`}
                     >
                       {posCode}
                     </span>
@@ -1551,35 +1641,63 @@ export default function EFootballGamePlan({
             })}
 
             {/* Render Empty Formation Slots if fewer than 11 players on pitch */}
-            {unoccupiedSlots.map((slot, sIdx) => (
-              <motion.div
-                key={`empty-slot-${sIdx}-${slot.pos}`}
-                onClick={() => handleEmptySlotClick(slot)}
-                initial={false}
-                animate={{
-                  left: `${slot.x}%`,
-                  top: `${slot.y}%`,
-                  scale: 1,
-                  opacity: 1,
-                }}
-                transition={{ duration: 0.12, ease: 'easeOut' }}
-                style={{ willChange: 'left, top, transform' }}
-                className="absolute -translate-x-1/2 -translate-y-1/2 w-[62px] sm:w-[76px] md:w-[94px] flex flex-col items-center cursor-pointer group z-10 hover:z-30 transition-all"
-              >
-                <div className="relative flex items-center justify-center w-10 h-12 sm:w-12 sm:h-14 md:w-14 md:h-16 rounded-xl sm:rounded-2xl border-2 border-dashed border-cyan-400/80 bg-cyan-950/40 hover:bg-cyan-900/60 shadow-lg flex-col gap-0.5 sm:gap-1 transition-all group-hover:scale-105 group-hover:border-cyan-300">
-                  <Plus size={16} className="text-cyan-300" />
-                  <span className="text-[7px] sm:text-[8px] font-black text-cyan-200">افزودن</span>
-                </div>
-                <div className="flex items-center gap-0.5 sm:gap-1 mt-0.5 sm:mt-1 shadow-lg z-10">
-                  <span className={`text-[7px] sm:text-[8px] md:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-md shadow ${POSITION_COLORS[slot.pos] || 'bg-purple-600 text-white font-bold'}`}>
-                    {slot.pos}
+            {unoccupiedSlots.map((slot, sIdx) => {
+              const isSlotHighlighted = highlightedPosition === slot.pos;
+              return (
+                <motion.div
+                  key={`empty-slot-${sIdx}-${slot.pos}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEmptySlotClick(slot);
+                  }}
+                  initial={false}
+                  animate={{
+                    left: `${slot.x}%`,
+                    top: `${slot.y}%`,
+                    scale: isSlotHighlighted ? 1.08 : 1,
+                    opacity: 1,
+                  }}
+                  transition={{ duration: 0.12, ease: 'easeOut' }}
+                  style={{ willChange: 'left, top, transform' }}
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 w-[62px] sm:w-[76px] md:w-[94px] flex flex-col items-center cursor-pointer group z-10 hover:z-30 transition-all ${
+                    isSlotHighlighted ? 'ring-2 ring-emerald-400 rounded-xl sm:rounded-2xl p-0.5 bg-emerald-950/70 shadow-[0_0_20px_rgba(52,211,153,0.7)]' : ''
+                  }`}
+                >
+                  <div className={`relative flex items-center justify-center w-10 h-12 sm:w-12 sm:h-14 md:w-14 md:h-16 rounded-xl sm:rounded-2xl border-2 border-dashed shadow-lg flex-col gap-0.5 sm:gap-1 transition-all group-hover:scale-105 ${
+                    isSlotHighlighted
+                      ? 'border-emerald-400 bg-emerald-950/80 text-emerald-300 ring-2 ring-emerald-400'
+                      : 'border-cyan-400/80 bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 animate-pulse'
+                  }`}>
+                    <User size={20} className={isSlotHighlighted ? 'text-emerald-300 opacity-85' : 'text-cyan-300/70 opacity-75'} />
+                    <span className="text-[7.5px] sm:text-[8.5px] font-black tracking-tight">خالی</span>
+                  </div>
+                  <div className="flex items-center gap-0.5 sm:gap-1 mt-0.5 sm:mt-1 shadow-lg z-10">
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePositionHighlight(slot.pos);
+                      }}
+                      className={`text-[7px] sm:text-[8px] md:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-md shadow cursor-pointer transition-transform hover:scale-110 active:scale-95 ${
+                        POSITION_COLORS[slot.pos] || 'bg-purple-600 text-white font-bold'
+                      }`}
+                      title={`کلیک جهت هایلایت همه بازیکنان ${slot.pos}`}
+                    >
+                      {slot.pos}
+                    </span>
+                    <span className={`text-[7.5px] sm:text-[8.5px] px-1 py-0.2 rounded-md font-black border ${
+                      isSlotHighlighted
+                        ? 'bg-emerald-950/90 text-emerald-300 border-emerald-400/50'
+                        : 'bg-cyan-950/90 text-cyan-300 border-cyan-500/40'
+                    }`}>
+                      +انتخاب
+                    </span>
+                  </div>
+                  <span className="text-[7px] sm:text-[8px] font-black text-cyan-200/80 tracking-tight text-center whitespace-nowrap leading-none mt-0.5 bg-[#05080e]/80 px-1 py-0.5 rounded-md border border-cyan-500/20">
+                    جای خالی
                   </span>
-                  <span className="text-[8px] sm:text-[9px] text-cyan-300 bg-cyan-950/90 border border-cyan-500/40 px-0.5 sm:px-1 rounded-md font-black">
-                    خالی
-                  </span>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </div>
 
           {/* Formation Label */}
@@ -1607,6 +1725,8 @@ export default function EFootballGamePlan({
               {substitutes.map((sub) => {
                 const isSelected = selectedBenchPlayerId === sub.id;
                 const natPos = sub.naturalPosition || sub.position;
+                const isPosMatch = Boolean(highlightedPosition && (natPos === highlightedPosition || sub.position === highlightedPosition));
+                const isDimmed = highlightedPosition && !isPosMatch;
                 const isOut = sub.isSubbedOut;
                 const isSuspended = Boolean((sub.suspension_matches > 0) || sub.is_suspended || sub.isSuspended);
                 const subStamina = Math.max(5, Math.min(100, Math.round(Number(sub.stamina ?? sub.virtual_stamina ?? 90))));
@@ -1624,15 +1744,24 @@ export default function EFootballGamePlan({
                     key={sub.id}
                     onClick={() => handleBenchPlayerClick(sub, true)}
                     className={`p-2 rounded-2xl border cursor-pointer flex flex-col items-center text-center transition-all relative overflow-hidden ${
+                      isDimmed ? 'opacity-35' : ''
+                    } ${
                       isSuspended
                         ? 'bg-red-950/40 border-red-700/80 hover:border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.2)]'
                         : isOut
                         ? 'opacity-65 bg-rose-950/40 border-rose-800/60 grayscale cursor-not-allowed hover:border-rose-600'
+                        : isPosMatch
+                        ? 'bg-emerald-950/70 border-2 border-emerald-400 scale-105 shadow-[0_0_15px_rgba(52,211,153,0.5)] ring-2 ring-emerald-400'
                         : isSelected
                         ? 'bg-gradient-to-r from-cyan-950 to-purple-950 border-2 border-cyan-400 scale-105 shadow-[0_0_15px_rgba(0,243,255,0.4)] ring-2 ring-cyan-400'
                         : 'bg-[#0f172a]/80 border-slate-700/60 hover:border-cyan-400/60 hover:bg-slate-800'
                     }`}
                   >
+                    {isPosMatch && (
+                      <span className="absolute top-1 left-1 text-amber-300 text-[12px] drop-shadow-[0_0_6px_#f59e0b] z-20 animate-bounce pointer-events-none">
+                        ⭐
+                      </span>
+                    )}
                     {isSuspended && (
                       <span className="absolute top-1 right-1 text-[7px] font-black bg-red-600 text-white px-1 py-0.2 rounded-full flex items-center gap-0.5 shadow z-10 font-sport">
                         🟥 محروم
@@ -1674,7 +1803,14 @@ export default function EFootballGamePlan({
                     </div>
 
                     <div className="flex items-center gap-1 mt-1">
-                      <span className={`text-[7.5px] font-black px-1 rounded ${POSITION_COLORS[natPos] || 'bg-slate-700 text-white'}`}>
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePositionHighlight(natPos);
+                        }}
+                        className={`text-[7.5px] font-black px-1 rounded cursor-pointer hover:scale-110 active:scale-95 transition-transform ${POSITION_COLORS[natPos] || 'bg-slate-700 text-white'}`}
+                        title={`کلیک جهت هایلایت همه بازیکنان ${natPos}`}
+                      >
                         {natPos}
                       </span>
                       <span className="font-sport text-[10.5px] font-black text-amber-300">{sub.overall}</span>
@@ -1703,6 +1839,8 @@ export default function EFootballGamePlan({
                   {reserves.map((res) => {
                     const isSelected = selectedBenchPlayerId === res.id;
                     const natPos = res.naturalPosition || res.position;
+                    const isPosMatch = Boolean(highlightedPosition && (natPos === highlightedPosition || res.position === highlightedPosition));
+                    const isDimmed = highlightedPosition && !isPosMatch;
                     const isSuspended = Boolean((res.suspension_matches > 0) || res.is_suspended || res.isSuspended);
                     const resStamina = Math.max(5, Math.min(100, Math.round(Number(res.stamina ?? res.virtual_stamina ?? 90))));
 
@@ -1711,14 +1849,23 @@ export default function EFootballGamePlan({
                         key={res.id}
                         onClick={() => handleBenchPlayerClick(res, false)}
                         className={`p-2.5 rounded-2xl border cursor-pointer flex justify-between items-center transition-all ${
+                          isDimmed ? 'opacity-35' : ''
+                        } ${
                           isSuspended
                             ? 'bg-red-950/30 border-red-700/80 hover:border-red-500 text-red-200 shadow'
+                            : isPosMatch
+                            ? 'bg-emerald-950/70 border-2 border-emerald-400 shadow-lg ring-2 ring-emerald-400 scale-[1.02]'
                             : isSelected
                             ? 'bg-cyan-950/80 border-2 border-cyan-400 shadow-lg ring-2 ring-cyan-400 animate-pulse'
                             : 'bg-slate-950/70 border-slate-800 hover:border-slate-600 text-slate-300'
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate">
+                          {isPosMatch && (
+                            <span className="text-amber-300 text-[12px] drop-shadow-[0_0_6px_#f59e0b] animate-bounce pointer-events-none">
+                              ⭐
+                            </span>
+                          )}
                           {isSuspended && (
                             <span className="text-[7.5px] font-black bg-red-600 text-white px-1 py-0.2 rounded-full font-sport">
                               🟥
@@ -1741,7 +1888,14 @@ export default function EFootballGamePlan({
                           {res.shirt_number != null && (
                             <span className="text-[8.5px] font-sport text-cyan-400 font-black">#{res.shirt_number}</span>
                           )}
-                          <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${POSITION_COLORS[natPos] || 'bg-slate-700 text-white'}`}>
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePositionHighlight(natPos);
+                            }}
+                            className={`text-[8px] font-black px-1.5 py-0.5 rounded cursor-pointer hover:scale-110 active:scale-95 transition-transform ${POSITION_COLORS[natPos] || 'bg-slate-700 text-white'}`}
+                            title={`کلیک جهت هایلایت همه بازیکنان ${natPos}`}
+                          >
                             {natPos}
                           </span>
                           <span className="font-bold text-[10px] sm:text-[11px] truncate max-w-[90px]">{res.name}</span>

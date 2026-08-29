@@ -309,7 +309,7 @@ export default function TeamTab({
           player_id: parseInt(p.id, 10),
           x_coord: p.x_coord,
           y_coord: p.y_coord,
-          position: p.position,
+          position: p.tacticalPosition || p.position,
           is_starting: p.is_starting ?? true,
         })),
         match_id: targetMatchId,
@@ -398,6 +398,7 @@ export default function TeamTab({
         ...p,
         id: p.id.toString(),
         naturalPosition: p.naturalPosition || p.position,
+        position: p.naturalPosition || p.position,
         shirt_number: p.shirt_number || (idx + 1),
         is_starting: Boolean(p.is_starting),
         stamina: Number(p.virtual_stamina) || 90,
@@ -440,7 +441,7 @@ export default function TeamTab({
         player_id: parseInt(p.id, 10),
         x_coord: p.x_coord,
         y_coord: p.y_coord,
-        position: p.position,
+        position: p.tacticalPosition || p.position,
         is_starting: p.is_starting ?? true,
       }));
       await teamApi.updateGameplan(teamId, payload);
@@ -456,11 +457,12 @@ export default function TeamTab({
   const filteredPlayers = (players || []).filter((p) => {
     if (!p) return false;
     const matchesSearch = String(p.name || '').toLowerCase().includes(String(searchTerm || '').toLowerCase());
+    const pos = p.naturalPosition || p.position;
     if (positionFilter === 'ALL') return matchesSearch;
-    if (positionFilter === 'GK') return matchesSearch && p.position === 'GK';
-    if (positionFilter === 'DEF') return matchesSearch && ['CB', 'LB', 'RB'].includes(p.position);
-    if (positionFilter === 'MID') return matchesSearch && ['CMF', 'AMF', 'LMF', 'RMF', 'DMF'].includes(p.position);
-    if (positionFilter === 'FWD') return matchesSearch && ['CF', 'LWF', 'RWF', 'SS'].includes(p.position);
+    if (positionFilter === 'GK') return matchesSearch && pos === 'GK';
+    if (positionFilter === 'DEF') return matchesSearch && ['CB', 'LB', 'RB'].includes(pos);
+    if (positionFilter === 'MID') return matchesSearch && ['CMF', 'AMF', 'LMF', 'RMF', 'DMF'].includes(pos);
+    if (positionFilter === 'FWD') return matchesSearch && ['CF', 'LWF', 'RWF', 'SS'].includes(pos);
     return matchesSearch;
   });
 
@@ -607,9 +609,24 @@ export default function TeamTab({
                     onLineupChange={({ startingXi: newXi, substitutes: newSubs, reserves: newRes, formation: newForm }) => {
                       if (newForm) setSelectedFormation(newForm);
                       const updatedPlayers = [
-                        ...newXi.map((p) => ({ ...p, is_starting: true })),
-                        ...newSubs.map((p) => ({ ...p, is_starting: false })),
-                        ...newRes.map((p) => ({ ...p, is_starting: false })),
+                        ...newXi.map((p) => ({
+                          ...p,
+                          position: p.naturalPosition || p.position,
+                          tacticalPosition: p.position,
+                          is_starting: true,
+                        })),
+                        ...newSubs.map((p) => ({
+                          ...p,
+                          position: p.naturalPosition || p.position,
+                          tacticalPosition: null,
+                          is_starting: false,
+                        })),
+                        ...newRes.map((p) => ({
+                          ...p,
+                          position: p.naturalPosition || p.position,
+                          tacticalPosition: null,
+                          is_starting: false,
+                        })),
                       ];
                       setPlayers(updatedPlayers);
                     }}

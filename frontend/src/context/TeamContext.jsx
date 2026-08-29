@@ -496,10 +496,10 @@ export function TeamProvider({ children }) {
 
       return prev.map((p) => {
         if (p.id === id1) {
-          return { ...p, x_coord: p2X, y_coord: p2Y, position: p2Pos };
+          return { ...p, x_coord: p2X, y_coord: p2Y, position: p2Pos, naturalPosition: p1.naturalPosition || p1.position };
         }
         if (p.id === id2) {
-          return { ...p, x_coord: p1X, y_coord: p1Y, position: p1Pos };
+          return { ...p, x_coord: p1X, y_coord: p1Y, position: p1Pos, naturalPosition: p2.naturalPosition || p2.position };
         }
         return p;
       });
@@ -516,6 +516,7 @@ export function TeamProvider({ children }) {
       const pitchSlotPos = pitchPlayer.position;
       const pitchSlotX = pitchPlayer.x_coord;
       const pitchSlotY = pitchPlayer.y_coord;
+      const benchNaturalPos = benchPlayer.naturalPosition || benchPlayer.position;
       const pitchNaturalPos = pitchPlayer.naturalPosition || pitchPlayer.position;
 
       return prev.map((p) => {
@@ -524,6 +525,7 @@ export function TeamProvider({ children }) {
             ...p,
             is_starting: true,
             position: pitchSlotPos,
+            naturalPosition: benchNaturalPos,
             x_coord: pitchSlotX,
             y_coord: pitchSlotY,
           };
@@ -533,6 +535,7 @@ export function TeamProvider({ children }) {
             ...p,
             is_starting: false,
             position: pitchNaturalPos,
+            naturalPosition: pitchNaturalPos,
             x_coord: null,
             y_coord: null,
           };

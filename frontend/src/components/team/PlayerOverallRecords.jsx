@@ -89,21 +89,22 @@ export default function PlayerOverallRecords({
 
     if (searchTerm.trim()) {
       const q = searchTerm.trim().toLowerCase();
-      list = list.filter(p => 
-        String(p.name || '').toLowerCase().includes(q) ||
-        String(p.position || '').toLowerCase().includes(q)
-      );
+      list = list.filter(p => {
+        const natPos = p.naturalPosition || p.position || '';
+        return String(p.name || '').toLowerCase().includes(q) ||
+               String(natPos).toLowerCase().includes(q);
+      });
     }
 
     if (positionFilter !== 'ALL') {
       if (positionFilter === 'GK') {
-        list = list.filter(p => p.position === 'GK');
+        list = list.filter(p => (p.naturalPosition || p.position) === 'GK');
       } else if (positionFilter === 'DEF') {
-        list = list.filter(p => ['CB', 'LB', 'RB'].includes(p.position));
+        list = list.filter(p => ['CB', 'LB', 'RB'].includes(p.naturalPosition || p.position));
       } else if (positionFilter === 'MID') {
-        list = list.filter(p => ['DMF', 'CMF', 'AMF', 'LMF', 'RMF'].includes(p.position));
+        list = list.filter(p => ['DMF', 'CMF', 'AMF', 'LMF', 'RMF'].includes(p.naturalPosition || p.position));
       } else if (positionFilter === 'FWD') {
-        list = list.filter(p => ['CF', 'SS', 'LWF', 'RWF'].includes(p.position));
+        list = list.filter(p => ['CF', 'SS', 'LWF', 'RWF'].includes(p.naturalPosition || p.position));
       }
     }
 
@@ -139,8 +140,8 @@ export default function PlayerOverallRecords({
         valB = statsB.red_cards || 0;
       } else {
         // Position order
-        const prioA = posPriority[a.position] || 99;
-        const prioB = posPriority[b.position] || 99;
+        const prioA = posPriority[a.naturalPosition || a.position] || 99;
+        const prioB = posPriority[b.naturalPosition || b.position] || 99;
         if (prioA !== prioB) return prioA - prioB;
         return (b.overall || 0) - (a.overall || 0);
       }
@@ -364,11 +365,18 @@ export default function PlayerOverallRecords({
                           </div>
 
                           {/* Position Badge */}
-                          <span 
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-black border tracking-wider shadow-sm shrink-0 min-w-[34px] text-center ${getPesPositionColor(p.position)}`}
-                          >
-                            {p.position}
-                          </span>
+                          {(() => {
+                            const natPos = p.naturalPosition || p.position;
+                            const hasTacticalDiff = p.tacticalPosition && p.tacticalPosition !== natPos;
+                            return (
+                              <span 
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-black border tracking-wider shadow-sm shrink-0 min-w-[34px] text-center ${getPesPositionColor(natPos)}`}
+                                title={`پست اصلی: ${natPos}${hasTacticalDiff ? ` (پست در چمن: ${p.tacticalPosition})` : ''}`}
+                              >
+                                {natPos}
+                              </span>
+                            );
+                          })()}
 
                           {/* Player Name */}
                           <span className="font-extrabold text-[12.5px] sm:text-[13px] tracking-tight truncate max-w-[150px] sm:max-w-[210px]">
@@ -469,9 +477,18 @@ export default function PlayerOverallRecords({
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-base sm:text-lg font-black text-white">{selectedPlayer.name}</h3>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-black border font-sport ${getPesPositionColor(selectedPlayer.position)}`}>
-                        {selectedPlayer.position}
-                      </span>
+                      {(() => {
+                        const natPos = selectedPlayer.naturalPosition || selectedPlayer.position;
+                        const hasTacticalDiff = selectedPlayer.tacticalPosition && selectedPlayer.tacticalPosition !== natPos;
+                        return (
+                          <span 
+                            className={`px-2 py-0.5 rounded text-[10px] font-black border font-sport ${getPesPositionColor(natPos)}`}
+                            title={`پست اصلی: ${natPos}${hasTacticalDiff ? ` (پست در چمن: ${selectedPlayer.tacticalPosition})` : ''}`}
+                          >
+                            {natPos}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div className="text-xs text-slate-400 font-sport mt-0.5 flex items-center gap-2">
                       <span>سن: <strong className="text-slate-200">{selectedPlayer.age}</strong> سال</span>
