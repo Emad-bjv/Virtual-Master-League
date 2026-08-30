@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import SubNav from '../common/SubNav';
 import EFootballGamePlan, { getGemBoostCost } from './EFootballGamePlan';
 import SimpleTacticsModal, { autoSelectOptimalLineup } from './SimpleTacticsModal';
+import PlayerBoostDrawer from './PlayerBoostDrawer';
 import LeagueStandingsTable from './LeagueStandingsTable';
 import MatchDetailModal from './MatchDetailModal';
 import PlayerOverallRecords from './PlayerOverallRecords';
@@ -72,6 +73,7 @@ export default function TeamTab({
   const [presetName, setPresetName] = useState('');
   const [hasCustomPlayerEdits, setHasCustomPlayerEdits] = useState(false);
   const [isSimpleTacticsOpen, setIsSimpleTacticsOpen] = useState(false);
+  const [isBoostDrawerOpen, setIsBoostDrawerOpen] = useState(false);
 
   // Match Schedule & Match-Scoped Selection State
   const [scheduleMatches, setScheduleMatches] = useState([]);
@@ -688,21 +690,32 @@ export default function TeamTab({
                     <button
                       type="button"
                       onClick={handleAutoLineupOnly}
-                      className="flex-1 sm:flex-initial px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(168,85,247,0.3)] transition-all cursor-pointer shrink-0 active:scale-95"
+                      className="flex-1 sm:flex-initial px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all cursor-pointer shrink-0 active:scale-95"
                       title="انتخاب و چیدمان خودکار بهترین ۱۱ بازیکن بر اساس پست و OVR برای چیدمان فعلی"
                     >
                       <Users size={15} />
-                      <span>👤 چیدمان هوشمند بهترین بازیکنان</span>
+                      <span>👤 چیدمان هوشمند</span>
                     </button>
 
-                    {/* Button 2: Simple Tactics Preset Picker */}
+                    {/* Button 2: Player Boost Drawer Hub */}
+                    <button
+                      type="button"
+                      onClick={() => setIsBoostDrawerOpen(true)}
+                      className="flex-1 sm:flex-initial px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all cursor-pointer shrink-0 active:scale-95 border border-purple-400/40"
+                      title="مرکز ارتقای سطح، قدرت OVR و ریکاوری استقامت بازیکنان با الماس"
+                    >
+                      <Gem size={15} className="text-cyan-300 fill-cyan-300 animate-pulse" />
+                      <span>💎 تقویت بازیکنان (Gem Boost)</span>
+                    </button>
+
+                    {/* Button 3: Simple Tactics Preset Picker */}
                     <button
                       type="button"
                       onClick={() => setIsSimpleTacticsOpen(true)}
                       className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#00ff87] to-cyan-400 hover:from-[#00ff87]/90 hover:to-cyan-400/90 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_0_20px_rgba(0,255,135,0.3)] transition-all cursor-pointer shrink-0 active:scale-95"
                     >
                       <Sparkles size={15} />
-                      <span>{presetName ? 'تغییر یا تنظیم سبک ساده' : '⚡ انتخاب تاکتیک و ترکیب ساده'}</span>
+                      <span>{presetName ? 'تنظیم سبک ساده' : '⚡ سبک‌های آماده'}</span>
                     </button>
                   </div>
                 </div>
@@ -1415,6 +1428,18 @@ export default function TeamTab({
         currentPresetName={presetName}
         players={players}
         onApplySimpleTactics={handleApplySimpleTactics}
+      />
+
+      {/* Modern Player Boost Slide-Over Drawer */}
+      <PlayerBoostDrawer
+        isOpen={isBoostDrawerOpen}
+        onClose={() => setIsBoostDrawerOpen(false)}
+        players={players}
+        currentGems={currentGems}
+        onGemBoost={handleGemBoost}
+        onRecoverStamina={handleRecoverStamina}
+        onHealInjury={handleHealInjury}
+        actionLoading={actionLoading}
       />
     </div>
   );
