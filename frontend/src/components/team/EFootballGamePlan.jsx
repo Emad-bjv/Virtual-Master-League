@@ -1311,211 +1311,6 @@ export default function EFootballGamePlan({
           </div>
         )}
 
-        {/* ACTIVE POSITION HIGHLIGHT BANNER */}
-        {(activeHighlightPos || selectedPitchPlayerId || selectedBenchPlayerId) && (
-          <div className="bg-gradient-to-r from-emerald-950/95 via-[#081f1d] to-[#080c14] border border-emerald-400/60 p-3 rounded-2xl flex items-center justify-between text-xs text-emerald-200 shadow-[0_0_20px_rgba(52,211,153,0.25)] backdrop-blur-xl animate-fadeIn">
-            <div className="flex items-center gap-2.5">
-              <span className="text-base animate-bounce">🟢</span>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-black text-white text-xs sm:text-sm">
-                    {selectedPitchPlayerId
-                      ? `پست‌های قابل بازی ${activeSelectedPlayer?.name || 'بازیکن'} در این ترکیب (سبز 🟢) و گزینه‌های جانشین (ستاره ⭐):`
-                      : selectedBenchPlayerId
-                      ? `موقعیت‌های مناسب در زمین برای ورود ${activeSelectedPlayer?.name || 'بازیکن'} (سبز 🟢):`
-                      : 'هایلایت پست:'}
-                  </span>
-                  {activeHighlightPos && (
-                    <span className={`text-[10px] sm:text-xs font-black px-2 py-0.5 rounded shadow ${POSITION_COLORS[activeHighlightPos] || 'bg-emerald-600 text-slate-950'}`}>
-                      {activeHighlightPos} ({POSITION_INFO[activeHighlightPos]?.title || activeHighlightPos})
-                    </span>
-                  )}
-                </div>
-                <p className="text-[10.5px] text-emerald-300/80 mt-0.5 hidden sm:block">
-                  {selectedPitchPlayerId
-                    ? 'پست‌های این چیدمان که بازیکن توانایی بازی در آنها را دارد سبز 🟢 شده و سایر بازیکنان آماده برای این پست با ستاره ⭐ مشخص شده‌اند.'
-                    : selectedBenchPlayerId
-                    ? 'پست‌های مناسب این بازیکن در چمن با کادر سبز 🟢 مشخص شده‌اند.'
-                    : 'تمام بازیکنان تخصصی و سازگار با این پست با ستاره طلایی ⭐ و کادر سبز مشخص شده‌اند.'}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setHighlightedPosition(null);
-                setSelectedPitchPlayerId(null);
-                setSelectedBenchPlayerId(null);
-              }}
-              className="flex items-center gap-1.5 bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-500/50 transition-all active:scale-95 cursor-pointer shadow-md shrink-0"
-            >
-              <X size={14} />
-              <span>لغو هایلایت</span>
-            </button>
-          </div>
-        )}
-
-        {/* SELECTED PLAYER POSITION & QUICK GEM ACTIONS BAR */}
-        {activeSelectedPlayer && (
-          <motion.div
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="fc-card-elevated p-3 sm:p-4 rounded-3xl border border-cyan-500/40 text-white space-y-2.5 shadow-2xl bg-gradient-to-b from-[#0f172a] via-[#0b1120] to-[#05080e]"
-          >
-            {/* Top Row: Photo + Details + Quick Action Buttons */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                {/* Portrait Photo */}
-                <div className="w-12 h-14 rounded-2xl overflow-hidden border border-slate-700 bg-gradient-to-b from-[#1e293b] to-[#0f172a] shrink-0 flex items-center justify-center relative shadow-inner">
-                  {getPlayerPhotoUrl(activeSelectedPlayer) ? (
-                    <img
-                      src={getPlayerPhotoUrl(activeSelectedPlayer)}
-                      alt={activeSelectedPlayer.name}
-                      className="w-full h-full object-cover object-top"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <User size={22} className="text-slate-400 opacity-75" />
-                  )}
-                </div>
-
-                {/* Info */}
-                <div className="space-y-0.5 font-sport">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-[9.5px] font-black px-2 py-0.5 rounded shadow ${POSITION_COLORS[displayPosCode] || 'bg-purple-600'}`}>
-                      {displayPosCode}
-                    </span>
-                    <span className="font-black text-xs sm:text-sm text-white font-sans">
-                      {activeSelectedPlayer.name}
-                    </span>
-                    <span className="text-[10px] text-amber-300 font-bold bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-500/40">
-                      OVR {activeSelectedPlayer.overall}
-                    </span>
-                    <span className="text-[9.5px] text-cyan-300 font-bold bg-cyan-950/80 px-1.5 py-0.2 rounded border border-cyan-500/40">
-                      لول {activeSelectedPlayer.level || 1}/۲۰
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3 text-[11px] text-slate-300">
-                    <span>
-                      استقامت:{' '}
-                      <strong
-                        className={
-                          Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) < 50
-                            ? 'text-rose-400 font-bold'
-                            : 'text-[#00ff87] font-bold'
-                        }
-                      >
-                        {Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90))}%
-                      </strong>
-                    </span>
-                    {activeSelectedPlayer.potential_ovr && (
-                      <span>
-                        پتانسیل: <strong className="text-purple-300 font-bold">{activeSelectedPlayer.potential_ovr}</strong>
-                      </span>
-                    )}
-                    {activeSelectedPlayer.is_injured && (
-                      <span className="text-rose-400 font-bold bg-rose-950/80 px-1.5 py-0.2 rounded border border-rose-500/40">
-                        مصدوم
-                      </span>
-                    )}
-                    {(activeSelectedPlayer.suspension_matches > 0 || activeSelectedPlayer.is_suspended) && (
-                      <span className="text-red-300 font-bold bg-red-950/90 px-2 py-0.5 rounded-full border border-red-500/60 shadow flex items-center gap-1">
-                        <span>🟥</span> محروم ({activeSelectedPlayer.suspension_matches || 1} بازی)
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Gem Quick Action Buttons (Compact, non-intrusive) */}
-              {!readOnly && (
-                <div className="flex items-center gap-2 shrink-0">
-                  {/* Recover Stamina Button */}
-                  <button
-                    onClick={() => setActionPlayerToRecover(activeSelectedPlayer)}
-                    disabled={Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) >= 100}
-                    className={`px-3 py-2 rounded-2xl font-sport text-xs font-black flex items-center gap-1.5 shadow-md transition-all cursor-pointer ${
-                      Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) >= 100
-                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
-                        : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 border border-emerald-400/50 active:scale-95'
-                    }`}
-                    title="شارژ فوری ۵۰٪ استقامت بازیکن با ۱۵ جم"
-                  >
-                    <Zap size={14} className={Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) >= 100 ? 'text-slate-500' : 'text-slate-950 fill-slate-950'} />
-                    <span>ریکاوری استقامت (۱۵ 💎)</span>
-                  </button>
-
-                  {/* Gem Boost / Level Up Button */}
-                  <button
-                    onClick={() => setActionPlayerToBoost(activeSelectedPlayer)}
-                    disabled={(activeSelectedPlayer.level || 1) >= 20}
-                    className={`px-3 py-2 rounded-2xl font-sport text-xs font-black flex items-center gap-1.5 shadow-md transition-all cursor-pointer ${
-                      (activeSelectedPlayer.level || 1) >= 20
-                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
-                        : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border border-purple-400/50 active:scale-95 shadow-[0_0_15px_rgba(168,85,247,0.3)]'
-                    }`}
-                    title={`ارتقای لول و قدرت با ${activeSelectedPlayer.next_level_gem_cost || getGemBoostCost(activeSelectedPlayer.level || 1)} الماس`}
-                  >
-                    <Sparkles size={14} className="text-amber-300 animate-pulse" />
-                    <span>ارتقای بازیکن ({activeSelectedPlayer.next_level_gem_cost || getGemBoostCost(activeSelectedPlayer.level || 1)} 💎)</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Tactical Position Description */}
-            {POSITION_INFO[displayPosCode] && (
-              <p className="text-[10.5px] text-slate-400 leading-relaxed border-t border-slate-800/80 pt-1.5">
-                <strong className="text-cyan-300">{POSITION_INFO[displayPosCode].title}: </strong>
-                {POSITION_INFO[displayPosCode].desc}
-              </p>
-            )}
-
-            {/* Compatible Playable Positions List */}
-            {(() => {
-              const activeNatPos = activeSelectedPlayer.naturalPosition || activeSelectedPlayer.base_position || activeSelectedPlayer.main_position || activeSelectedPlayer.position;
-              const rawCompat = activeSelectedPlayer.compatible_positions;
-              const compatList = rawCompat
-                ? (Array.isArray(rawCompat) ? rawCompat : String(rawCompat).split(',').map((p) => p.trim()).filter(Boolean))
-                : (POSITION_COMPATIBILITY[activeNatPos] || [activeNatPos]);
-
-              return (
-                <div className="flex items-center gap-1.5 flex-wrap border-t border-slate-800/80 pt-1.5">
-                  <span className="text-slate-400 font-bold text-[10.5px]">پست‌های قابل بازی:</span>
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePositionHighlight(activeNatPos);
-                    }}
-                    className={`text-[8.5px] font-black px-2 py-0.5 rounded shadow cursor-pointer hover:scale-110 active:scale-95 transition-transform ${POSITION_COLORS[activeNatPos] || 'bg-purple-600 text-white'}`}
-                    title="پست تخصصی اصلی ⭐"
-                  >
-                    {activeNatPos} (اصلی) ⭐
-                  </span>
-                  {compatList
-                    .filter((p) => p !== activeNatPos)
-                    .map((pos) => (
-                      <span
-                        key={pos}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePositionHighlight(pos);
-                        }}
-                        className={`text-[8.5px] font-black px-1.5 py-0.5 rounded shadow cursor-pointer hover:scale-110 active:scale-95 transition-transform ${POSITION_COLORS[pos] || 'bg-slate-700 text-white'}`}
-                        title={`کلیک جهت هایلایت پست ${pos}`}
-                      >
-                        {pos}
-                      </span>
-                    ))}
-                </div>
-              );
-            })()}
-          </motion.div>
-        )}
-
         {/* TOP: GREEN FOOTBALL PITCH CONTAINER */}
         <div 
           onClick={() => {
@@ -1910,6 +1705,211 @@ export default function EFootballGamePlan({
             </span>
           </div>
         </div>
+
+        {/* ACTIVE POSITION HIGHLIGHT BANNER (مکان زیر چمن جهت جلوگیری از جابجایی عمودی صفحه) */}
+        {(activeHighlightPos || selectedPitchPlayerId || selectedBenchPlayerId) && (
+          <div className="bg-gradient-to-r from-emerald-950/95 via-[#081f1d] to-[#080c14] border border-emerald-400/60 p-3 rounded-2xl flex items-center justify-between text-xs text-emerald-200 shadow-[0_0_20px_rgba(52,211,153,0.25)] backdrop-blur-xl animate-fadeIn">
+            <div className="flex items-center gap-2.5">
+              <span className="text-base animate-bounce">🟢</span>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-black text-white text-xs sm:text-sm">
+                    {selectedPitchPlayerId
+                      ? `پست‌های قابل بازی ${activeSelectedPlayer?.name || 'بازیکن'} در این ترکیب (سبز 🟢) و گزینه‌های جانشین (ستاره ⭐):`
+                      : selectedBenchPlayerId
+                      ? `موقعیت‌های مناسب در زمین برای ورود ${activeSelectedPlayer?.name || 'بازیکن'} (سبز 🟢):`
+                      : 'هایلایت پست:'}
+                  </span>
+                  {activeHighlightPos && (
+                    <span className={`text-[10px] sm:text-xs font-black px-2 py-0.5 rounded shadow ${POSITION_COLORS[activeHighlightPos] || 'bg-emerald-600 text-slate-950'}`}>
+                      {activeHighlightPos} ({POSITION_INFO[activeHighlightPos]?.title || activeHighlightPos})
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10.5px] text-emerald-300/80 mt-0.5 hidden sm:block">
+                  {selectedPitchPlayerId
+                    ? 'پست‌های این چیدمان که بازیکن توانایی بازی در آنها را دارد سبز 🟢 شده و سایر بازیکنان آماده برای این پست با ستاره ⭐ مشخص شده‌اند.'
+                    : selectedBenchPlayerId
+                    ? 'پست‌های مناسب این بازیکن در چمن با کادر سبز 🟢 مشخص شده‌اند.'
+                    : 'تمام بازیکنان تخصصی و سازگار با این پست با ستاره طلایی ⭐ و کادر سبز مشخص شده‌اند.'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setHighlightedPosition(null);
+                setSelectedPitchPlayerId(null);
+                setSelectedBenchPlayerId(null);
+              }}
+              className="flex items-center gap-1.5 bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold border border-emerald-500/50 transition-all active:scale-95 cursor-pointer shadow-md shrink-0"
+            >
+              <X size={14} />
+              <span>لغو هایلایت</span>
+            </button>
+          </div>
+        )}
+
+        {/* SELECTED PLAYER POSITION & QUICK GEM ACTIONS BAR (زیر چمن) */}
+        {activeSelectedPlayer && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="fc-card-elevated p-3 sm:p-4 rounded-3xl border border-cyan-500/40 text-white space-y-2.5 shadow-2xl bg-gradient-to-b from-[#0f172a] via-[#0b1120] to-[#05080e]"
+          >
+            {/* Top Row: Photo + Details + Quick Action Buttons */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                {/* Portrait Photo */}
+                <div className="w-12 h-14 rounded-2xl overflow-hidden border border-slate-700 bg-gradient-to-b from-[#1e293b] to-[#0f172a] shrink-0 flex items-center justify-center relative shadow-inner">
+                  {getPlayerPhotoUrl(activeSelectedPlayer) ? (
+                    <img
+                      src={getPlayerPhotoUrl(activeSelectedPlayer)}
+                      alt={activeSelectedPlayer.name}
+                      className="w-full h-full object-cover object-top"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <User size={22} className="text-slate-400 opacity-75" />
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="space-y-0.5 font-sport">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[9.5px] font-black px-2 py-0.5 rounded shadow ${POSITION_COLORS[displayPosCode] || 'bg-purple-600'}`}>
+                      {displayPosCode}
+                    </span>
+                    <span className="font-black text-xs sm:text-sm text-white font-sans">
+                      {activeSelectedPlayer.name}
+                    </span>
+                    <span className="text-[10px] text-amber-300 font-bold bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-500/40">
+                      OVR {activeSelectedPlayer.overall}
+                    </span>
+                    <span className="text-[9.5px] text-cyan-300 font-bold bg-cyan-950/80 px-1.5 py-0.2 rounded border border-cyan-500/40">
+                      لول {activeSelectedPlayer.level || 1}/۲۰
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-[11px] text-slate-300">
+                    <span>
+                      استقامت:{' '}
+                      <strong
+                        className={
+                          Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) < 50
+                            ? 'text-rose-400 font-bold'
+                            : 'text-[#00ff87] font-bold'
+                        }
+                      >
+                        {Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90))}%
+                      </strong>
+                    </span>
+                    {activeSelectedPlayer.potential_ovr && (
+                      <span>
+                        پتانسیل: <strong className="text-purple-300 font-bold">{activeSelectedPlayer.potential_ovr}</strong>
+                      </span>
+                    )}
+                    {activeSelectedPlayer.is_injured && (
+                      <span className="text-rose-400 font-bold bg-rose-950/80 px-1.5 py-0.2 rounded border border-rose-500/40">
+                        مصدوم
+                      </span>
+                    )}
+                    {(activeSelectedPlayer.suspension_matches > 0 || activeSelectedPlayer.is_suspended) && (
+                      <span className="text-red-300 font-bold bg-red-950/90 px-2 py-0.5 rounded-full border border-red-500/60 shadow flex items-center gap-1">
+                        <span>🟥</span> محروم ({activeSelectedPlayer.suspension_matches || 1} بازی)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Gem Quick Action Buttons (Compact, non-intrusive) */}
+              {!readOnly && (
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Recover Stamina Button */}
+                  <button
+                    onClick={() => setActionPlayerToRecover(activeSelectedPlayer)}
+                    disabled={Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) >= 100}
+                    className={`px-3 py-2 rounded-2xl font-sport text-xs font-black flex items-center gap-1.5 shadow-md transition-all cursor-pointer ${
+                      Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) >= 100
+                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                        : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 border border-emerald-400/50 active:scale-95'
+                    }`}
+                    title="شارژ فوری ۵۰٪ استقامت بازیکن با ۱۵ جم"
+                  >
+                    <Zap size={14} className={Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) >= 100 ? 'text-slate-500' : 'text-slate-950 fill-slate-950'} />
+                    <span>ریکاوری استقامت (۱۵ 💎)</span>
+                  </button>
+
+                  {/* Gem Boost / Level Up Button */}
+                  <button
+                    onClick={() => setActionPlayerToBoost(activeSelectedPlayer)}
+                    disabled={(activeSelectedPlayer.level || 1) >= 20}
+                    className={`px-3 py-2 rounded-2xl font-sport text-xs font-black flex items-center gap-1.5 shadow-md transition-all cursor-pointer ${
+                      (activeSelectedPlayer.level || 1) >= 20
+                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                        : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border border-purple-400/50 active:scale-95 shadow-[0_0_15px_rgba(168,85,247,0.3)]'
+                    }`}
+                    title={`ارتقای لول و قدرت با ${activeSelectedPlayer.next_level_gem_cost || getGemBoostCost(activeSelectedPlayer.level || 1)} الماس`}
+                  >
+                    <Sparkles size={14} className="text-amber-300 animate-pulse" />
+                    <span>ارتقای بازیکن ({activeSelectedPlayer.next_level_gem_cost || getGemBoostCost(activeSelectedPlayer.level || 1)} 💎)</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Tactical Position Description */}
+            {POSITION_INFO[displayPosCode] && (
+              <p className="text-[10.5px] text-slate-400 leading-relaxed border-t border-slate-800/80 pt-1.5">
+                <strong className="text-cyan-300">{POSITION_INFO[displayPosCode].title}: </strong>
+                {POSITION_INFO[displayPosCode].desc}
+              </p>
+            )}
+
+            {/* Compatible Playable Positions List */}
+            {(() => {
+              const activeNatPos = activeSelectedPlayer.naturalPosition || activeSelectedPlayer.base_position || activeSelectedPlayer.main_position || activeSelectedPlayer.position;
+              const rawCompat = activeSelectedPlayer.compatible_positions;
+              const compatList = rawCompat
+                ? (Array.isArray(rawCompat) ? rawCompat : String(rawCompat).split(',').map((p) => p.trim()).filter(Boolean))
+                : (POSITION_COMPATIBILITY[activeNatPos] || [activeNatPos]);
+
+              return (
+                <div className="flex items-center gap-1.5 flex-wrap border-t border-slate-800/80 pt-1.5">
+                  <span className="text-slate-400 font-bold text-[10.5px]">پست‌های قابل بازی:</span>
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePositionHighlight(activeNatPos);
+                    }}
+                    className={`text-[8.5px] font-black px-2 py-0.5 rounded shadow cursor-pointer hover:scale-110 active:scale-95 transition-transform ${POSITION_COLORS[activeNatPos] || 'bg-purple-600 text-white'}`}
+                    title="پست تخصصی اصلی ⭐"
+                  >
+                    {activeNatPos} (اصلی) ⭐
+                  </span>
+                  {compatList
+                    .filter((p) => p !== activeNatPos)
+                    .map((pos) => (
+                      <span
+                        key={pos}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePositionHighlight(pos);
+                        }}
+                        className={`text-[8.5px] font-black px-1.5 py-0.5 rounded shadow cursor-pointer hover:scale-110 active:scale-95 transition-transform ${POSITION_COLORS[pos] || 'bg-slate-700 text-white'}`}
+                        title={`کلیک جهت هایلایت پست ${pos}`}
+                      >
+                        {pos}
+                      </span>
+                    ))}
+                </div>
+              );
+            })()}
+          </motion.div>
+        )}
 
         {/* BOTTOM: BENCH & RESERVES CONTAINER (زیر چمن) */}
         <div className="bg-[#080c14]/90 rounded-3xl p-4 md:p-5 border border-slate-700/60 text-white shadow-2xl space-y-4 backdrop-blur-xl">
