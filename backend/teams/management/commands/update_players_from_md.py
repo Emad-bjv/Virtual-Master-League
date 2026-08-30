@@ -1,4 +1,5 @@
 import sys
+import os
 import re
 import unicodedata
 from django.core.management.base import BaseCommand
@@ -176,8 +177,10 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             'filepath',
+            nargs='?',
             type=str,
-            help='Path to the All_players_corrected.md file',
+            default=None,
+            help='Path to the All_players_corrected.md file (optional, searches automatically if omitted)',
         )
         parser.add_argument(
             '--dry-run',
@@ -186,8 +189,27 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        filepath = options['filepath']
+        filepath = options.get('filepath')
         dry_run = options['dry_run']
+
+        if not filepath:
+            # Auto-detect file location
+            candidate_paths = [
+                os.path.join(os.path.dirname(__file__), 'All_players_corrected.md'),
+                '/tmp/All_players_corrected.md',
+                '/app/teams/management/commands/All_players_corrected.md',
+                'All_players_corrected.md',
+            ]
+            for cp in candidate_paths:
+                if os.path.exists(cp):
+                    filepath = cp
+                    break
+
+        if not filepath or not os.path.exists(filepath):
+            self.stdout.write(self.style.ERROR(
+                f'[ERROR] File not found: {filepath or "All_players_corrected.md"}. Please provide the file path.'
+            ))
+            return
 
         self.stdout.write(self.style.NOTICE(f'Parsing file: {filepath}'))
         if dry_run:
