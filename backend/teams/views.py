@@ -172,6 +172,8 @@ class TeamViewSet(viewsets.ModelViewSet):
             match_gameplan.adv_offense_2 = default_gameplan.adv_offense_2
             match_gameplan.adv_defense_1 = default_gameplan.adv_defense_1
             match_gameplan.adv_defense_2 = default_gameplan.adv_defense_2
+            match_gameplan.preset_name = default_gameplan.preset_name
+            match_gameplan.has_custom_player_edits = default_gameplan.has_custom_player_edits
 
         active_gameplan = match_gameplan if match_gameplan else default_gameplan
 
@@ -184,10 +186,17 @@ class TeamViewSet(viewsets.ModelViewSet):
             tactics['preset_name'] = preset_name
             tactics['has_custom_player_edits'] = has_custom_player_edits
 
-            # Update default template
+            # Update default template permanently as the team's standing gameplan
+            default_gameplan.is_submitted = True
+            default_gameplan.preset_name = preset_name
+            default_gameplan.has_custom_player_edits = has_custom_player_edits
+            if 'formation' in tactics and tactics['formation']:
+                default_gameplan.formation = tactics['formation']
             def_serializer = TeamGamePlanSerializer(default_gameplan, data=tactics, partial=True)
             if def_serializer.is_valid():
-                def_serializer.save()
+                def_serializer.save(is_submitted=True)
+            else:
+                default_gameplan.save()
 
             # Always save default_formation directly on Team model so it is permanently default
             if 'formation' in tactics and tactics['formation']:
@@ -202,8 +211,6 @@ class TeamViewSet(viewsets.ModelViewSet):
                 mgp_serializer.save(is_submitted=True, submitted_at=timezone.now(), players_data=players_data)
                 active_gameplan = match_gameplan
             else:
-                default_gameplan.is_submitted = True
-                default_gameplan.save()
                 active_gameplan = default_gameplan
 
             if players_data:
@@ -212,13 +219,13 @@ class TeamViewSet(viewsets.ModelViewSet):
                         p_id = item.get('player_id') or item.get('id')
                         player = Player.objects.get(id=p_id, team=team)
                         update_fields = []
-                        if 'x_coord' in item:
+                        if 'x_coord' in item and item['x_coord'] is not None:
                             player.x_coord = item['x_coord']
                             update_fields.append('x_coord')
-                        if 'y_coord' in item:
+                        if 'y_coord' in item and item['y_coord'] is not None:
                             player.y_coord = item['y_coord']
                             update_fields.append('y_coord')
-                        if 'is_starting' in item:
+                        if 'is_starting' in item and item['is_starting'] is not None:
                             player.is_starting = item['is_starting']
                             update_fields.append('is_starting')
                         if update_fields:
@@ -256,6 +263,7 @@ class TeamViewSet(viewsets.ModelViewSet):
                         'formation': active_gameplan.formation,
                         'preset_name': active_gameplan.preset_name,
                         'has_custom_player_edits': active_gameplan.has_custom_player_edits,
+                        'players': players_data,
                         'tactics': MatchGamePlanSerializer(active_gameplan).data if isinstance(active_gameplan, MatchGamePlan) else TeamGamePlanSerializer(active_gameplan).data,
                         'message': f'سرمربی تیم {team.name} ترکیب {active_gameplan.formation}{preset_tag}{custom_tag} را ارسال کرد ⚡'
                     })
@@ -269,6 +277,7 @@ class TeamViewSet(viewsets.ModelViewSet):
                     'formation': active_gameplan.formation,
                     'preset_name': active_gameplan.preset_name,
                     'has_custom_player_edits': active_gameplan.has_custom_player_edits,
+                    'players': players_data,
                     'match_id': target_match.id if target_match else None,
                 })
             except Exception as e:

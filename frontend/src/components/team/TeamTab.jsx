@@ -149,15 +149,52 @@ export default function TeamTab({
     };
   }, [teamId]);
 
+  // Load standing gameplan and tactics when tab loads
+  useEffect(() => {
+    if (!teamId) return;
+    teamApi.getGameplan(teamId).then((res) => {
+      if (res.data?.gameplan) {
+        const gp = res.data.gameplan;
+        const resolvedForm = gp.formation || teamData?.default_formation || team?.default_formation || selectedFormation || '4-3-3 (4-2-1-3)';
+        setSelectedFormation(resolvedForm);
+        setPresetName(gp.preset_name || '');
+        setHasCustomPlayerEdits(Boolean(gp.has_custom_player_edits));
+        setTactics((prev) => ({
+          ...prev,
+          attacking_style: gp.attacking_style || prev.attacking_style,
+          build_up: gp.build_up || prev.build_up,
+          attacking_area: gp.attacking_area || prev.attacking_area,
+          positioning: gp.positioning || prev.positioning,
+          support_range: gp.support_range ?? prev.support_range,
+          defensive_style: gp.defensive_style || prev.defensive_style,
+          containment_area: gp.containment_area || prev.containment_area,
+          pressing: gp.pressing || prev.pressing,
+          defensive_line: gp.defensive_line ?? prev.defensive_line,
+          compactness: gp.compactness ?? prev.compactness,
+          adv_offense_1: gp.adv_offense_1 || prev.adv_offense_1,
+          adv_offense_2: gp.adv_offense_2 || prev.adv_offense_2,
+          adv_defense_1: gp.adv_defense_1 || prev.adv_defense_1,
+          adv_defense_2: gp.adv_defense_2 || prev.adv_defense_2,
+        }));
+      }
+    }).catch(() => {});
+  }, [teamId]);
+
   useEffect(() => {
     setActiveSub(normalizeSubTab(initialSub));
-    setSelectedMatch(null);
   }, [initialSub]);
 
   // Find the next imminent upcoming match
   const nextUpcomingMatch = useMemo(() => {
     return scheduleMatches.find(m => m.status === 'SCHEDULED' || m.status === 'LIVE') || null;
   }, [scheduleMatches]);
+
+  // Auto-select the next upcoming match if none is manually selected yet
+  useEffect(() => {
+    if (!selectedMatch && nextUpcomingMatch && teamId) {
+      handleSelectMatchForLineup(nextUpcomingMatch);
+    }
+  }, [nextUpcomingMatch?.id, teamId]);
 
   // Check if lineup is submitted for a specific match
   const isMatchLineupSubmitted = (m) => {
@@ -414,6 +451,11 @@ export default function TeamTab({
       // Keep latest submitted formation and tactics as the standing default across the whole app
       if (setContextFormation) setContextFormation(selectedFormation);
       if (setContextTactics) setContextTactics({ ...tactics, formation: selectedFormation });
+
+      try {
+        window.dispatchEvent(new Event('vml_team_updated'));
+        window.dispatchEvent(new Event('vml_league_schedule_updated'));
+      } catch (_e) {}
 
       setSaveMessage(`ترکیب و تاکتیک‌های تیم برای ${targetRoundName} با موفقیت به اتاق داوری ارسال گردید ⚡`);
     } catch (_err) {

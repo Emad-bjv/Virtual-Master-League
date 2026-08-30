@@ -356,17 +356,33 @@ export default function AdminDashboard({
       const gp = data?.gameplan || {};
       const teamObj = data?.team || {};
       const rawPlayers = teamObj.players || [];
-      const formattedPlayers = rawPlayers.map((p, idx) => ({
-        ...p,
-        id: String(p.id),
-        name: p.name,
-        naturalPosition: p.naturalPosition || p.position,
-        shirt_number: p.shirt_number || idx + 1,
-        is_starting: Boolean(p.is_starting),
-        stamina: Number(p.virtual_stamina) || 90,
-        virtual_stamina: Number(p.virtual_stamina) || 90,
-        rating: p.rating || 7.0,
-      }));
+      const gpPlayersData = gp.players_data || [];
+      const gpPlayersMap = new Map();
+      if (Array.isArray(gpPlayersData) && gpPlayersData.length > 0) {
+        gpPlayersData.forEach((item) => {
+          const pid = item.player_id || item.id;
+          if (pid) gpPlayersMap.set(String(pid), item);
+        });
+      }
+
+      const formattedPlayers = rawPlayers.map((p, idx) => {
+        const custom = gpPlayersMap.get(String(p.id));
+        return {
+          ...p,
+          id: String(p.id),
+          name: p.name,
+          naturalPosition: p.naturalPosition || p.position,
+          position: custom?.position || p.tacticalPosition || p.position || p.naturalPosition,
+          tacticalPosition: custom?.position || p.tacticalPosition || null,
+          shirt_number: p.shirt_number || idx + 1,
+          is_starting: custom && custom.is_starting !== undefined ? Boolean(custom.is_starting) : Boolean(p.is_starting),
+          x_coord: custom && custom.x_coord != null ? custom.x_coord : p.x_coord,
+          y_coord: custom && custom.y_coord != null ? custom.y_coord : p.y_coord,
+          stamina: Number(p.virtual_stamina) || 90,
+          virtual_stamina: Number(p.virtual_stamina) || 90,
+          rating: p.rating || 7.0,
+        };
+      });
 
       let starters = formattedPlayers.filter((p) => p.is_starting);
       let nonStarting = formattedPlayers.filter((p) => !p.is_starting);
@@ -381,7 +397,7 @@ export default function AdminDashboard({
       return {
         gameplan: gp,
         tactics: gp,
-        formation: gp.formation || '4-3-3',
+        formation: gp.formation || teamObj.default_formation || '4-3-3',
         starters: starters,
         subs: nonStarting.slice(0, 11),
         reserves: nonStarting.slice(11),
@@ -455,12 +471,13 @@ export default function AdminDashboard({
           const data = JSON.parse(event.data);
           if (data.type === 'coach_tactics_submitted') {
             const isHomeTeam = data.team_id === (selectedLiveMatch.home_team || selectedLiveMatch.homeId);
+            const teamName = data.team_name || (isHomeTeam ? selectedLiveMatch.home_team_name : selectedLiveMatch.away_team_name);
             const newRequest = {
               id: Date.now() + Math.random(),
               type: 'TACTICS',
               teamSide: isHomeTeam ? 'home' : 'away',
               team_id: data.team_id,
-              team_name: data.team_name || (isHomeTeam ? selectedLiveMatch.home_team_name : selectedLiveMatch.away_team_name),
+              team_name: teamName,
               formation: data.formation || 'ترکیب جدید',
               tactics: data.tactics || {},
               players: data.players || [],
@@ -469,9 +486,32 @@ export default function AdminDashboard({
               status: 'PENDING',
             };
 
+            setSelectedLiveMatch((prev) => prev ? ({
+              ...prev,
+              home_lineup_ready: isHomeTeam ? true : prev.home_lineup_ready,
+              away_lineup_ready: !isHomeTeam ? true : prev.away_lineup_ready,
+            }) : prev);
+
             setPendingChangesQueue((prev) => [newRequest, ...prev]);
-            showNotification(`🔔 درخواست جدید تغییر تاکتیک از سوی سرمربی «${newRequest.team_name}» در تب تغییرات حین بازی ثبت شد.`, 'info');
+            showNotification(`🔔 ترکیب و تاکتیک‌های جدید از سوی سرمربی «${teamName}» به صورت زنده دریافت شد.`, 'info');
             await reloadTeamGameplans();
+            await fetchLiveMatchState(selectedLiveMatch.id);
+          } else if (data.type === 'new_in_game_change') {
+            const isHomeTeam = data.team_id === (selectedLiveMatch.home_team || selectedLiveMatch.homeId);
+            if (data.changes && Array.isArray(data.changes)) {
+              const formattedChanges = data.changes.map((c) => ({
+                ...c,
+                teamSide: isHomeTeam ? 'home' : 'away',
+                timestamp: c.created_at ? new Date(c.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+              }));
+              setPendingChangesQueue((prev) => [
+                ...formattedChanges.filter((c) => !prev.some((p) => p.id === c.id)),
+                ...prev,
+              ]);
+            }
+            showNotification(`🔔 تغییرات حین بازی جدید از سوی سرمربی «${data.team_name}» دریافت شد.`, 'info');
+            await reloadTeamGameplans();
+            await fetchLiveMatchState(selectedLiveMatch.id);
           } else if (data.type === 'sub_request') {
             const isHomeTeam = data.team_id === (selectedLiveMatch.home_team || selectedLiveMatch.homeId);
             const newSub = {
@@ -491,15 +531,19 @@ export default function AdminDashboard({
 
             setPendingChangesQueue((prev) => [newSub, ...prev]);
             showNotification(`🔄 درخواست تعویض زنده از سوی «${newSub.team_name}» ثبت شد.`, 'info');
+            await reloadTeamGameplans();
+            await fetchLiveMatchState(selectedLiveMatch.id);
           } else if (
             data.type === 'match_status' ||
             data.type === 'half_time' ||
             data.type === 'second_half_started' ||
             data.type === 'match_finished' ||
             data.type === 'new_event' ||
-            data.type === 'event_deleted'
+            data.type === 'event_deleted' ||
+            data.type === 'in_game_change_applied'
           ) {
             fetchLiveMatchState(selectedLiveMatch.id);
+            reloadTeamGameplans();
           }
         } catch (_e) {}
       };

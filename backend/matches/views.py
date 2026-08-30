@@ -1524,11 +1524,26 @@ class LiveInGameChangeBatchSubmitView(APIView):
 
         broadcast_match_event(match_id, {
             'type': 'new_in_game_change',
+            'match_id': match.id,
             'team_id': team.id,
             'team_name': team.name,
             'changes': serialized,
             'match': match_detail
         })
+
+        try:
+            from realtime.events import notify_admin
+            notify_admin({
+                'type': 'new_in_game_change',
+                'title': f'درخواست تغییرات حین بازی: {team.name}',
+                'body': f'{len(created_objs)} مورد تغییرات جدید توسط سرمربی {team.name} ارسال شد.',
+                'match_id': match.id,
+                'team_id': team.id,
+                'team_name': team.name,
+                'changes': serialized,
+            })
+        except Exception:
+            pass
 
         return Response({
             'status': 'success',
