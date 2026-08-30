@@ -150,6 +150,19 @@ export const FORMATION_PRESETS = {
     { pos: 'RWF', x: 82, y: 20 },
     { pos: 'CF', x: 50, y: 15 },
   ],
+  '3-3-4 (3-3-4)': [
+    { pos: 'GK', x: 50, y: 90 },
+    { pos: 'CB', x: 25, y: 75 },
+    { pos: 'CB', x: 50, y: 78 },
+    { pos: 'CB', x: 75, y: 75 },
+    { pos: 'DMF', x: 50, y: 58 },
+    { pos: 'CMF', x: 28, y: 48 },
+    { pos: 'CMF', x: 72, y: 48 },
+    { pos: 'LWF', x: 18, y: 18 },
+    { pos: 'CF', x: 38, y: 14 },
+    { pos: 'CF', x: 62, y: 14 },
+    { pos: 'RWF', x: 82, y: 18 },
+  ],
   '5-4-1 (5-2-2-1)': [
     { pos: 'GK', x: 50, y: 90 },
     { pos: 'LB', x: 12, y: 68 },
@@ -195,6 +208,7 @@ export const resolveFormationKey = (form) => {
   if (!form) return '4-3-3 (4-2-1-3)';
   if (FORMATION_PRESETS[form]) return form;
   // Fallbacks for legacy/short names
+  if (form === '3-3-4' || form.startsWith('3-3-4')) return '3-3-4 (3-3-4)';
   if (form === '4-3-3' || form.startsWith('4-3-3')) {
     if (form.includes('4-1-2-3')) return '4-3-3 (4-1-2-3)';
     return '4-3-3 (4-2-1-3)';

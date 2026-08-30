@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import SubNav from '../common/SubNav';
 import EFootballGamePlan, { getGemBoostCost } from './EFootballGamePlan';
-import SimpleTacticsModal from './SimpleTacticsModal';
+import SimpleTacticsModal, { autoSelectOptimalLineup } from './SimpleTacticsModal';
 import LeagueStandingsTable from './LeagueStandingsTable';
 import MatchDetailModal from './MatchDetailModal';
 import PlayerOverallRecords from './PlayerOverallRecords';
@@ -323,11 +323,17 @@ export default function TeamTab({
       .catch(() => setLeagueTable([]));
   }, [activeSub, teamId]);
 
-  const handleApplySimpleTactics = ({ presetName: newPresetName, mode, newPlayers, newFormation, newTactics }) => {
+  const handleAutoLineupOnly = () => {
+    const updated = autoSelectOptimalLineup(players, selectedFormation);
+    setPlayers(updated);
+    setHasCustomPlayerEdits(false);
+    setSaveMessage(`۱۱ بازیکن برتر تیم بر اساس پست و بالاترین OVR در چیدمان ${selectedFormation} قرار گرفتند ⚡`);
+    setTimeout(() => setSaveMessage(''), 4000);
+  };
+
+  const handleApplySimpleTactics = ({ presetName: newPresetName, newPlayers, newFormation, newTactics }) => {
     setPresetName(newPresetName);
-    if (mode === 'lineup_and_tactics' || mode === 'only_lineup') {
-      setHasCustomPlayerEdits(false);
-    }
+    setHasCustomPlayerEdits(false);
     if (newPlayers && newPlayers.length > 0) {
       setPlayers(newPlayers);
     }
@@ -340,7 +346,7 @@ export default function TeamTab({
         ...newTactics,
       }));
     }
-    setSaveMessage(`سبک تاکتیکی «${newPresetName}» با موفقیت اعمال شد ⚡ (با دکمه تایید، ذخیره نمایید)`);
+    setSaveMessage(`سبک تاکتیکی «${newPresetName}» با چیدمان هوشمند بازیکنان اعمال شد ⚡ (با دکمه تایید، ذخیره نمایید)`);
     setTimeout(() => setSaveMessage(''), 4000);
   };
 
@@ -649,8 +655,8 @@ export default function TeamTab({
                 )}
 
                 {/* Quick Simple Tactics Launcher Bar */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-2xl bg-gradient-to-r from-[#0c1524] via-[#09101b] to-[#050910] border border-cyan-500/40 shadow-lg">
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="flex flex-col lg:flex-row items-center justify-between gap-3 p-3.5 rounded-2xl bg-gradient-to-r from-[#0c1524] via-[#09101b] to-[#050910] border border-cyan-500/40 shadow-lg">
+                  <div className="flex items-center gap-3 w-full lg:w-auto">
                     <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-500 to-[#00ff87] flex items-center justify-center text-slate-950 shrink-0 shadow-[0_0_15px_rgba(0,255,135,0.4)]">
                       <Zap size={20} className="fill-slate-950" />
                     </div>
@@ -677,14 +683,28 @@ export default function TeamTab({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setIsSimpleTacticsOpen(true)}
-                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#00ff87] to-cyan-400 hover:from-[#00ff87]/90 hover:to-cyan-400/90 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_0_20px_rgba(0,255,135,0.3)] transition-all cursor-pointer shrink-0 active:scale-95"
-                  >
-                    <Sparkles size={15} />
-                    <span>{presetName ? 'تغییر یا تنظیم سبک ساده' : '⚡ انتخاب تاکتیک و ترکیب ساده'}</span>
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end">
+                    {/* Button 1: Auto-Pick Best 11 for active formation */}
+                    <button
+                      type="button"
+                      onClick={handleAutoLineupOnly}
+                      className="flex-1 sm:flex-initial px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(168,85,247,0.3)] transition-all cursor-pointer shrink-0 active:scale-95"
+                      title="انتخاب و چیدمان خودکار بهترین ۱۱ بازیکن بر اساس پست و OVR برای چیدمان فعلی"
+                    >
+                      <Users size={15} />
+                      <span>👤 چیدمان هوشمند بهترین بازیکنان</span>
+                    </button>
+
+                    {/* Button 2: Simple Tactics Preset Picker */}
+                    <button
+                      type="button"
+                      onClick={() => setIsSimpleTacticsOpen(true)}
+                      className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#00ff87] to-cyan-400 hover:from-[#00ff87]/90 hover:to-cyan-400/90 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_0_20px_rgba(0,255,135,0.3)] transition-all cursor-pointer shrink-0 active:scale-95"
+                    >
+                      <Sparkles size={15} />
+                      <span>{presetName ? 'تغییر یا تنظیم سبک ساده' : '⚡ انتخاب تاکتیک و ترکیب ساده'}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 

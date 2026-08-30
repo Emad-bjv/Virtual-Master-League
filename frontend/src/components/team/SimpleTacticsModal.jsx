@@ -1,8 +1,24 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Shield, Swords, Users, Sparkles, Check, X, ChevronLeft, Award } from 'lucide-react';
-import { FORMATION_PRESETS, matchPlayersToFormationSlots } from '../../context/TeamContext';
+import { Zap, Shield, Swords, Sparkles, Check, X, Award, ChevronLeft } from 'lucide-react';
+import { FORMATION_PRESETS } from '../../context/TeamContext';
+
+export const POSITION_HIERARCHY = {
+  GK: ['GK'],
+  CB: ['CB', 'LB', 'RB', 'DMF'],
+  LB: ['LB', 'LMF', 'CB', 'RB'],
+  RB: ['RB', 'RMF', 'CB', 'LB'],
+  DMF: ['DMF', 'CMF', 'CB'],
+  CMF: ['CMF', 'AMF', 'DMF', 'LMF', 'RMF'],
+  AMF: ['AMF', 'CMF', 'SS', 'LMF', 'RMF', 'LWF', 'RWF'],
+  LMF: ['LMF', 'LWF', 'CMF', 'LB', 'AMF'],
+  RMF: ['RMF', 'RWF', 'CMF', 'RB', 'AMF'],
+  LWF: ['LWF', 'LMF', 'SS', 'CF', 'RWF', 'AMF'],
+  RWF: ['RWF', 'RMF', 'SS', 'CF', 'LWF', 'AMF'],
+  SS: ['SS', 'CF', 'AMF', 'LWF', 'RWF'],
+  CF: ['CF', 'SS', 'LWF', 'RWF'],
+};
 
 export const SIMPLE_TACTICAL_PRESETS = [
   {
@@ -116,11 +132,11 @@ export const SIMPLE_TACTICAL_PRESETS = [
   {
     id: 'all_out_attack',
     name: 'همه حمله',
-    formation: '3-4-3 (3-2-2-3)',
+    formation: '3-3-4 (3-3-4)',
     icon: '🔥',
     category: 'فوق‌تهاجمی',
     tagColor: 'from-rose-600 to-red-700',
-    description: 'هجوم پردامنه با بال‌ها و مهاجمین متعدد، پرس پرفشار و نفوذ از جناحین',
+    description: 'هجوم پردامنه با ۴ مهاجم (وینگرها و دو مهاجم نوک)، ۳ مدافع میانی و پرس پرفشار',
     attackSummary: 'ضدحمله • پاس کوتاه • کناره • حفظ ترکیب',
     defenseSummary: 'فشار خط مقدم • کناره • محافظه‌کار',
     tactics: {
@@ -250,29 +266,145 @@ export const SIMPLE_TACTICAL_PRESETS = [
   },
 ];
 
+/**
+ * Enhanced Auto-Selection Algorithm:
+ * Strictly matches every formation slot with the most compatible player having the highest OVR.
+ */
 export function autoSelectOptimalLineup(playersList, formationName) {
   const preset = FORMATION_PRESETS[formationName] || FORMATION_PRESETS['4-3-3 (4-2-1-3)'];
   if (!preset || !playersList || playersList.length === 0) return playersList;
 
-  // 1. Separate suspended players
-  const isSuspended = (p) => Boolean((p.suspension_matches > 0) || p.is_suspended || p.isSuspended);
+  // 1. Filter out suspended players
+  const isSuspended = (p) => Boolean((p?.suspension_matches > 0) || p?.is_suspended || p?.isSuspended);
   const eligible = playersList.filter(p => !isSuspended(p));
-  const suspended = playersList.filter(p => isSuspended(p)).map(p => ({ ...p, is_starting: false }));
+  const suspended = playersList.filter(p => isSuspended(p)).map(p => ({
+    ...p,
+    is_starting: false,
+    tacticalPosition: null,
+  }));
 
-  // Sort eligible by overall descending (healthy prioritized)
-  const sortedEligible = [...eligible].sort((a, b) => {
-    const aPenalty = (a.is_injured ? 15 : 0) + ((Number(a.stamina ?? 100) < 40) ? 10 : 0);
-    const bPenalty = (b.is_injured ? 15 : 0) + ((Number(b.stamina ?? 100) < 40) ? 10 : 0);
-    const aScore = (Number(a.overall) || 75) - aPenalty;
-    const bScore = (Number(b.overall) || 75) - bPenalty;
-    return bScore - aScore;
-  });
+  // Pool of available players to assign
+  let available = [...eligible];
+  const starters = new Array(preset.length).fill(null);
 
-  const targetStarters = sortedEligible.slice(0, 11);
-  const mappedStarters = matchPlayersToFormationSlots(targetStarters, preset);
-  const remainingSubs = sortedEligible.slice(11).map(p => ({ ...p, is_starting: false, tacticalPosition: null }));
+  // Sorting order of slots for best tactical coverage:
+  // GK -> CF/SS -> CB -> DMF -> LB/RB -> LWF/RWF -> AMF -> LMF/RMF -> CMF
+  const slotPriority = {
+    GK: 10,
+    CF: 9,
+    CB: 8,
+    DMF: 7,
+    LB: 6,
+    RB: 6,
+    LWF: 5,
+    RWF: 5,
+    AMF: 4,
+    SS: 4,
+    LMF: 3,
+    RMF: 3,
+    CMF: 2,
+  };
 
-  return [...mappedStarters, ...remainingSubs, ...suspended];
+  const sortedSlotIndices = preset
+    .map((slot, index) => ({ slot, index }))
+    .sort((a, b) => (slotPriority[b.slot.pos] || 0) - (slotPriority[a.slot.pos] || 0));
+
+  for (const { slot, index } of sortedSlotIndices) {
+    const targetPos = slot.pos;
+    if (available.length === 0) break;
+
+    let bestPlayerIdx = -1;
+    let bestScore = -Infinity;
+
+    for (let i = 0; i < available.length; i++) {
+      const p = available[i];
+      const naturalPos = p.naturalPosition || p.position;
+      const compList = Array.isArray(p.compatible_positions) ? p.compatible_positions : [];
+      const hierarchy = POSITION_HIERARCHY[targetPos] || [targetPos];
+
+      let matchScore = 0;
+
+      if (targetPos === 'GK') {
+        if (naturalPos === 'GK') {
+          matchScore = 2000;
+        } else {
+          matchScore = 10;
+        }
+      } else {
+        if (naturalPos === 'GK') {
+          matchScore = 0; // Do not place GK in outfield
+        } else if (naturalPos === targetPos) {
+          matchScore = 1000;
+        } else if (hierarchy.includes(naturalPos) || compList.includes(targetPos)) {
+          const hIdx = hierarchy.indexOf(naturalPos);
+          matchScore = 600 - (hIdx >= 0 ? hIdx * 40 : 0);
+        } else {
+          // General positional group
+          const defs = ['CB', 'LB', 'RB'];
+          const mids = ['DMF', 'CMF', 'AMF', 'LMF', 'RMF'];
+          const fwds = ['CF', 'SS', 'LWF', 'RWF'];
+          if (defs.includes(targetPos) && defs.includes(naturalPos)) matchScore = 300;
+          else if (mids.includes(targetPos) && mids.includes(naturalPos)) matchScore = 300;
+          else if (fwds.includes(targetPos) && fwds.includes(naturalPos)) matchScore = 300;
+          else matchScore = 50;
+        }
+      }
+
+      const ovr = Number(p.overall) || Number(p.base_overall) || 70;
+      const injuryPenalty = p.is_injured ? 150 : 0;
+      const stamina = Number(p.virtual_stamina || p.stamina || 90);
+      const staminaPenalty = stamina < 35 ? 60 : 0;
+
+      const totalScore = matchScore + ovr - injuryPenalty - staminaPenalty;
+
+      if (totalScore > bestScore) {
+        bestScore = totalScore;
+        bestPlayerIdx = i;
+      }
+    }
+
+    if (bestPlayerIdx !== -1) {
+      const chosen = available[bestPlayerIdx];
+      starters[index] = {
+        ...chosen,
+        naturalPosition: chosen.naturalPosition || chosen.position,
+        position: targetPos,
+        tacticalPosition: targetPos,
+        x_coord: slot.x,
+        y_coord: slot.y,
+        is_starting: true,
+      };
+      available.splice(bestPlayerIdx, 1);
+    }
+  }
+
+  // Remaining players become bench/reserves
+  const remainingSubs = available.map(p => ({
+    ...p,
+    naturalPosition: p.naturalPosition || p.position,
+    tacticalPosition: null,
+    is_starting: false,
+  }));
+
+  // Fallback check: fill any empty slot from remainingSubs if squad < 11
+  for (let i = 0; i < starters.length; i++) {
+    if (!starters[i] && remainingSubs.length > 0) {
+      const slot = preset[i];
+      const p = remainingSubs.shift();
+      starters[i] = {
+        ...p,
+        naturalPosition: p.naturalPosition || p.position,
+        position: slot.pos,
+        tacticalPosition: slot.pos,
+        x_coord: slot.x,
+        y_coord: slot.y,
+        is_starting: true,
+      };
+    }
+  }
+
+  const finalStarters = starters.filter(Boolean);
+  return [...finalStarters, ...remainingSubs, ...suspended];
 }
 
 export default function SimpleTacticsModal({
@@ -281,9 +413,8 @@ export default function SimpleTacticsModal({
   currentFormation,
   currentPresetName,
   players = [],
-  onApplySimpleTactics, // ({ preset, mode, newPlayers, newFormation, newTactics })
+  onApplySimpleTactics, // ({ presetName, newPlayers, newFormation, newTactics })
 }) {
-  const [selectedMode, setSelectedMode] = useState('lineup_and_tactics'); // 'lineup_and_tactics' | 'only_tactics' | 'only_lineup'
   const [selectedPresetId, setSelectedPresetId] = useState('quick_counter');
   const [appliedSuccess, setAppliedSuccess] = useState(false);
 
@@ -291,53 +422,24 @@ export default function SimpleTacticsModal({
 
   const handleApply = (preset) => {
     const targetPreset = preset || SIMPLE_TACTICAL_PRESETS.find(p => p.id === selectedPresetId);
-    if (!targetPreset && selectedMode !== 'only_lineup') return;
+    if (!targetPreset) return;
 
-    let targetFormation = currentFormation;
-    let targetTactics = null;
-    let targetPlayers = players;
+    const targetFormation = targetPreset.formation;
+    const targetTactics = targetPreset.tactics;
+    const targetPlayers = autoSelectOptimalLineup(players, targetFormation);
 
-    if (selectedMode === 'only_lineup') {
-      // Pick best players for current formation
-      targetPlayers = autoSelectOptimalLineup(players, currentFormation);
-      targetPresetName = currentPresetName || 'چیدمان خودکار هوشمند';
-      onApplySimpleTactics({
-        presetName: targetPresetName,
-        mode: 'only_lineup',
-        newPlayers: targetPlayers,
-        newFormation: currentFormation,
-        newTactics: null,
-      });
-    } else if (selectedMode === 'only_tactics') {
-      // Change formation & tactics, preserve current starting assignments as much as possible
-      targetFormation = targetPreset.formation;
-      targetTactics = targetPreset.tactics;
-      onApplySimpleTactics({
-        presetName: targetPreset.name,
-        mode: 'only_tactics',
-        newPlayers: null, // keep players
-        newFormation: targetFormation,
-        newTactics: targetTactics,
-      });
-    } else {
-      // lineup_and_tactics
-      targetFormation = targetPreset.formation;
-      targetTactics = targetPreset.tactics;
-      targetPlayers = autoSelectOptimalLineup(players, targetFormation);
-      onApplySimpleTactics({
-        presetName: targetPreset.name,
-        mode: 'lineup_and_tactics',
-        newPlayers: targetPlayers,
-        newFormation: targetFormation,
-        newTactics: targetTactics,
-      });
-    }
+    onApplySimpleTactics({
+      presetName: targetPreset.name,
+      newPlayers: targetPlayers,
+      newFormation: targetFormation,
+      newTactics: targetTactics,
+    });
 
     setAppliedSuccess(true);
     setTimeout(() => {
       setAppliedSuccess(false);
       onClose();
-    }, 900);
+    }, 700);
   };
 
   return createPortal(
@@ -363,13 +465,13 @@ export default function SimpleTacticsModal({
                 </div>
                 <div>
                   <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                    <span>انتخاب سریع تاکتیک و ترکیب ساده</span>
+                    <span>انتخاب سبک تاکتیکی آماده (ترکیب و تاکتیک ساده)</span>
                     <span className="text-[10px] sm:text-xs font-black bg-cyan-950/80 text-cyan-300 px-2 py-0.5 rounded-full border border-cyan-500/40">
                       PES 2021 Presets
                     </span>
                   </h2>
                   <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
-                    سبک بازی مدنظر خود را انتخاب کنید تا چیدمان و دستورات تاکتیکی به شکل بهینه و استاندارد اعمال شوند.
+                    با انتخاب هر سبک، سیستم و دستورات حمله و دفاع متناسب اعمال شده و ۱۱ بازیکن برتر تیم به‌صورت هوشمند چیده می‌شوند.
                   </p>
                 </div>
               </div>
@@ -382,70 +484,8 @@ export default function SimpleTacticsModal({
               </button>
             </div>
 
-            {/* Mode Selector (3 options from simple_tac.md Section 0) */}
-            <div className="my-4 bg-[#05080e]/90 p-1.5 rounded-2xl border border-white/10 grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-xs">
-              <button
-                type="button"
-                onClick={() => setSelectedMode('lineup_and_tactics')}
-                className={`py-2.5 px-3 rounded-xl font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  selectedMode === 'lineup_and_tactics'
-                    ? 'bg-gradient-to-r from-[#00ff87] to-cyan-400 text-slate-950 shadow-[0_0_15px_rgba(0,255,135,0.4)]'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <Sparkles size={16} />
-                <span>ترکیب و تاکتیک هوشمند</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedMode('only_tactics')}
-                className={`py-2.5 px-3 rounded-xl font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  selectedMode === 'only_tactics'
-                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-[0_0_15px_rgba(0,243,255,0.4)]'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <Swords size={16} />
-                <span>فقط تاکتیک و چیدمان</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedMode('only_lineup')}
-                className={`py-2.5 px-3 rounded-xl font-black flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                  selectedMode === 'only_lineup'
-                    ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-[0_0_15px_rgba(236,72,153,0.4)]'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                <Users size={16} />
-                <span>فقط چیدمان بهترین بازیکنان</span>
-              </button>
-            </div>
-
-            {/* Mode Explainer Banner */}
-            <div className="bg-cyan-950/40 border border-cyan-500/20 px-3.5 py-2 rounded-xl text-[11px] text-cyan-200 mb-4 flex items-center justify-between">
-              <span>
-                {selectedMode === 'lineup_and_tactics'
-                  ? '⚡ در این حالت، سبک تاکتیکی و سیستم انتخاب‌شده اعمال شده و بهترین بازیکنان تیم به صورت خودکار در پست‌های اصلی قرار می‌گیرند.'
-                  : selectedMode === 'only_tactics'
-                  ? '🎯 در این حالت، سیستم و ۱۴ دستور تاکتیکی اعمال می‌شوند اما چینش فعلی بازیکنان شما دست‌نخورده باقی می‌ماند.'
-                  : '👤 در این حالت، سیستم بهترین ۱۱ بازیکن را برای سیستم فعلی شما انتخاب می‌کند بدون اینکه تنظیمات حمله و دفاع تغییر کند.'}
-              </span>
-              {selectedMode === 'only_lineup' && (
-                <button
-                  type="button"
-                  onClick={() => handleApply()}
-                  className="bg-[#00ff87] text-slate-950 px-3 py-1 rounded-lg font-black text-xs shrink-0 cursor-pointer shadow hover:scale-105 active:scale-95 transition-all"
-                >
-                  چیدمان فوری ۱۱ نفر برتر
-                </button>
-              )}
-            </div>
-
             {/* 9 Simple Tactical Presets Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-[50vh] overflow-y-auto pr-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 my-4 max-h-[55vh] overflow-y-auto pr-1">
               {SIMPLE_TACTICAL_PRESETS.map((preset, idx) => {
                 const isSelected = selectedPresetId === preset.id;
                 const isCurrentActive = currentPresetName === preset.name;
