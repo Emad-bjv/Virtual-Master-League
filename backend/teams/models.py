@@ -138,6 +138,7 @@ class Player(models.Model):
 
     team = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='players', verbose_name="تیم فعلی")
     loan_owner_team = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='loaned_out_players', verbose_name="تیم اصلی (مالک)")
+    base_team = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='base_players', verbose_name="تیم پایه اولیه")
     loan_matches_left = models.PositiveIntegerField(default=0, verbose_name="بازی‌های باقیمانده از قرارداد قرضی")
     name = models.CharField(max_length=100, verbose_name="نام بازیکن")
     age = models.PositiveIntegerField(verbose_name="سن")

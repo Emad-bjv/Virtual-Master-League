@@ -966,3 +966,179 @@ class PlayerViewSet(viewsets.ModelViewSet):
             'status': f'مشخصات بازیکن «{player.name}» با موفقیت ذخیره شد.',
             'player': PlayerSerializer(player).data
         })
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminOrDebug])
+    def duplicates(self, request):
+        """
+        Scans all players and returns duplicate/same-name groups with comparison details.
+        """
+        import unicodedata
+        import re
+
+        def norm_name(s):
+            if not s:
+                return ''
+            s = unicodedata.normalize('NFKD', str(s))
+            s = ''.join(c for c in s if not unicodedata.combining(c))
+            s = s.replace('.', ' ').replace('-', ' ').replace("'", '').replace('’', '')
+            s = re.sub(r'\s+', ' ', s)
+            return s.strip().lower()
+
+        players = Player.objects.all().select_related('team', 'base_team').prefetch_related('transfer_history__seller_team', 'transfer_history__buyer_team')
+        
+        exact_groups = {}
+        similar_groups = {}
+
+        for p in players:
+            n = norm_name(p.name)
+            if not n:
+                continue
+            parts = n.split()
+            exact_groups.setdefault(n, []).append(p)
+            
+            if len(parts) >= 2:
+                sim_key = f"{parts[0][0]}_{parts[-1]}"
+            else:
+                sim_key = n
+            similar_groups.setdefault(sim_key, []).append(p)
+
+        processed_player_ids = set()
+        duplicate_clusters = []
+
+        # Pass 1: Exact matches (>1 players)
+        for key, p_list in exact_groups.items():
+            if len(p_list) > 1:
+                cluster_ids = {p.id for p in p_list}
+                processed_player_ids.update(cluster_ids)
+                duplicate_clusters.append({
+                    'cluster_id': f'exact_{key}',
+                    'match_type': 'EXACT',
+                    'match_label': 'نام کاملاً یکسان',
+                    'canonical_name': p_list[0].name,
+                    'count': len(p_list),
+                    'players': [PlayerSerializer(p).data for p in p_list]
+                })
+
+        # Pass 2: Similar/Abbreviated matches (not already clustered in exact)
+        for key, p_list in similar_groups.items():
+            if len(p_list) > 1:
+                all_ids = {p.id for p in p_list}
+                if len(all_ids - processed_player_ids) > 0 and len(p_list) > 1:
+                    duplicate_clusters.append({
+                        'cluster_id': f'sim_{key}',
+                        'match_type': 'SIMILAR',
+                        'match_label': 'نام‌های مشابه یا مخفف',
+                        'canonical_name': p_list[0].name,
+                        'count': len(p_list),
+                        'players': [PlayerSerializer(p).data for p in p_list]
+                    })
+                    processed_player_ids.update(all_ids)
+
+        return Response({
+            'total_duplicate_groups': len(duplicate_clusters),
+            'total_duplicate_players': sum(c['count'] for c in duplicate_clusters),
+            'groups': duplicate_clusters
+        })
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrDebug])
+    def merge_duplicates(self, request):
+        """
+        Merge a duplicate player record into a primary player record.
+        Reassigns transfer history, logs, and safely deletes the duplicate.
+        """
+        primary_id = request.data.get('primary_player_id')
+        duplicate_id = request.data.get('duplicate_player_id')
+
+        if not primary_id or not duplicate_id or primary_id == duplicate_id:
+            return Response({'error': 'شناسه بازیکن اصلی و تکراری نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            primary_player = Player.objects.get(id=primary_id)
+            duplicate_player = Player.objects.get(id=duplicate_id)
+        except Player.DoesNotExist:
+            return Response({'error': 'بازیکن یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        from transfers.models import TransferHistory, TransferListing, TransferOffer
+        TransferHistory.objects.filter(player=duplicate_player).update(player=primary_player)
+        TransferListing.objects.filter(player=duplicate_player).update(player=primary_player)
+        TransferOffer.objects.filter(target_player=duplicate_player).update(target_player=primary_player)
+
+        from teams.models import PlayerGrowthLog, PlayerLevelUpLog
+        PlayerGrowthLog.objects.filter(player=duplicate_player).update(player=primary_player)
+        PlayerLevelUpLog.objects.filter(player=duplicate_player).update(player=primary_player)
+
+        if not primary_player.compatible_positions and duplicate_player.compatible_positions:
+            primary_player.compatible_positions = duplicate_player.compatible_positions
+            primary_player.save(update_fields=['compatible_positions'])
+
+        from audit.utils import log_admin_action
+        dup_name = duplicate_player.name
+        dup_team = duplicate_player.team.name if duplicate_player.team else 'Free Agent'
+        duplicate_player.delete()
+
+        log_admin_action(
+            admin_user=request.user,
+            action_type='PLAYER_MERGE',
+            target_player=primary_player,
+            before_value={'deleted_duplicate': dup_name, 'deleted_id': duplicate_id, 'deleted_team': dup_team},
+            after_value={'kept_primary_id': primary_player.id, 'primary_name': primary_player.name},
+            reason=request.data.get('reason', 'ادغام بازیکن تکراری توسط مدیریت')
+        )
+
+        return Response({
+            'status': f'بازیکن تکراری «{dup_name}» با موفقیت در «{primary_player.name}» ادغام و حذف شد.',
+            'primary_player': PlayerSerializer(primary_player).data
+        })
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrDebug])
+    def delete_duplicate(self, request):
+        """
+        Safely delete a duplicate player record.
+        """
+        player_id = request.data.get('player_id')
+        if not player_id:
+            return Response({'error': 'شناسه بازیکن الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            player = Player.objects.get(id=player_id)
+        except Player.DoesNotExist:
+            return Response({'error': 'بازیکن یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        p_name = player.name
+        p_team = player.team.name if player.team else 'Free Agent'
+        player.delete()
+
+        from audit.utils import log_admin_action
+        log_admin_action(
+            admin_user=request.user,
+            action_type='PLAYER_DELETE',
+            before_value={'deleted_name': p_name, 'deleted_id': player_id, 'team': p_team},
+            reason=request.data.get('reason', 'حذف رکورد بازیکن تکراری')
+        )
+
+        return Response({'status': f'بازیکن «{p_name}» (ID: {player_id}) با موفقیت حذف شد.'})
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrDebug])
+    def initialize_base_teams(self, request):
+        """
+        Initialize base_team for all players who do not have it set yet.
+        Uses earliest TransferHistory.seller_team or current player.team.
+        """
+        from transfers.models import TransferHistory
+        players_to_update = Player.objects.filter(base_team__isnull=True).select_related('team')
+        updated_count = 0
+
+        for p in players_to_update:
+            earliest_transfer = TransferHistory.objects.filter(player=p).order_by('transferred_at', 'id').first()
+            if earliest_transfer and earliest_transfer.seller_team:
+                p.base_team = earliest_transfer.seller_team
+            elif p.team:
+                p.base_team = p.team
+            if p.base_team:
+                p.save(update_fields=['base_team'])
+                updated_count += 1
+
+        return Response({
+            'status': f'تیم پایه برای {updated_count} بازیکن با موفقیت ثبت و مقداردهی شد.',
+            'updated_count': updated_count
+        })

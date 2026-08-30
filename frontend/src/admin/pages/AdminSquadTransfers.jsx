@@ -6,7 +6,7 @@ import {
   Filter, CheckCircle2, AlertCircle, RefreshCw, Upload, Trash2, 
   DollarSign, Sparkles, UserCheck, UserX, Info, ExternalLink,
   ChevronRight, ArrowUpRight, Check, X, ShieldAlert, Award, Heart,
-  Flame, Lock, Zap
+  Flame, Lock, Zap, GitMerge, Layers, Copy, CheckSquare, Square, RefreshCcw, HelpCircle
 } from 'lucide-react';
 import api, { teamApi, playerApi, transferApi } from '../../services/api';
 import { useToast } from '../components/Toast';
@@ -41,7 +41,7 @@ export default function AdminSquadTransfers() {
   const { showToast } = useToast();
 
   // Active Main Tab
-  const [activeTab, setActiveTab] = useState('TRANSFERS'); // 'TRANSFERS' | 'SQUADS' | 'PHOTOS'
+  const [activeTab, setActiveTab] = useState('TRANSFERS'); // 'TRANSFERS' | 'SQUADS' | 'PHOTOS' | 'DUPLICATES'
 
   // Master Data
   const [teams, setTeams] = useState([]);
@@ -76,6 +76,21 @@ export default function AdminSquadTransfers() {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isResettingPhoto, setIsResettingPhoto] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Tab 4: Duplicate & Same-Name Players State
+  const [duplicateGroups, setDuplicateGroups] = useState([]);
+  const [duplicateLoading, setDuplicateLoading] = useState(false);
+  const [duplicateSearchQuery, setDuplicateSearchQuery] = useState('');
+  const [duplicateFilterType, setDuplicateFilterType] = useState('ALL'); // 'ALL' | 'EXACT' | 'SIMILAR'
+  const [mergingCluster, setMergingCluster] = useState(null);
+  const [selectedPrimaryPlayerId, setSelectedPrimaryPlayerId] = useState(null);
+  const [isExecutingMerge, setIsExecutingMerge] = useState(false);
+  const [deletingPlayer, setDeletingPlayer] = useState(null);
+  const [isExecutingDelete, setIsExecutingDelete] = useState(false);
+  const [isInitializingBaseTeams, setIsInitializingBaseTeams] = useState(false);
+
+  // Transfer Journey Timeline Modal State
+  const [selectedPlayerForJourney, setSelectedPlayerForJourney] = useState(null);
 
   // Full Player Edit Modal State
   const [editingPlayer, setEditingPlayer] = useState(null);
@@ -283,6 +298,113 @@ export default function AdminSquadTransfers() {
     });
   }, [allPlayers, photoTeamFilter, photoSearchQuery]);
 
+  // Tab 4: Fetch Duplicates from Backend
+  const fetchDuplicates = async () => {
+    setDuplicateLoading(true);
+    try {
+      const res = await playerApi.getDuplicates();
+      const groups = res?.data?.groups || [];
+      setDuplicateGroups(Array.isArray(groups) ? groups : []);
+    } catch (err) {
+      console.error('Error fetching duplicates:', err);
+      showToast('خطا در بارگذاری لیست بازیکنان تکراری', 'error');
+    } finally {
+      setDuplicateLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'DUPLICATES') {
+      fetchDuplicates();
+    }
+  }, [activeTab]);
+
+  // Tab 4: Filtered Duplicate Groups
+  const filteredDuplicateGroups = useMemo(() => {
+    return (duplicateGroups || []).filter(group => {
+      if (duplicateFilterType === 'EXACT' && group.match_type !== 'EXACT') return false;
+      if (duplicateFilterType === 'SIMILAR' && group.match_type !== 'SIMILAR') return false;
+      if (duplicateSearchQuery.trim()) {
+        const q = duplicateSearchQuery.trim().toLowerCase();
+        const matchesCanonical = String(group.canonical_name || '').toLowerCase().includes(q);
+        const matchesAnyPlayer = (group.players || []).some(p => 
+          String(p.name || '').toLowerCase().includes(q) || 
+          String(p.team_name || '').toLowerCase().includes(q) ||
+          String(p.base_team_name || '').toLowerCase().includes(q)
+        );
+        return matchesCanonical || matchesAnyPlayer;
+      }
+      return true;
+    });
+  }, [duplicateGroups, duplicateFilterType, duplicateSearchQuery]);
+
+  // Tab 4: Merge Players Handler
+  const handleExecuteMerge = async () => {
+    if (!mergingCluster || !selectedPrimaryPlayerId) {
+      showToast('لطفاً بازیکن اصلی را انتخاب کنید.', 'error');
+      return;
+    }
+    const duplicateP = (mergingCluster.players || []).find(p => p.id !== selectedPrimaryPlayerId);
+    if (!duplicateP) {
+      showToast('خطا در شناسایی بازیکن تکراری.', 'error');
+      return;
+    }
+
+    setIsExecutingMerge(true);
+    try {
+      const res = await playerApi.mergeDuplicates({
+        primary_player_id: selectedPrimaryPlayerId,
+        duplicate_player_id: duplicateP.id,
+        reason: 'ادغام هوشمند از پنل مدیریت'
+      });
+      showToast(res.data.status || 'ادغام با موفقیت انجام شد ✨', 'success');
+      
+      await fetchInitialData();
+      await fetchDuplicates();
+      setMergingCluster(null);
+      setSelectedPrimaryPlayerId(null);
+    } catch (err) {
+      console.error('Merge error:', err);
+      showToast(err.response?.data?.error || 'خطا در ادغام بازیکنان', 'error');
+    } finally {
+      setIsExecutingMerge(false);
+    }
+  };
+
+  // Tab 4: Delete Duplicate Player Handler
+  const handleExecuteDelete = async () => {
+    if (!deletingPlayer) return;
+    setIsExecutingDelete(true);
+    try {
+      const res = await playerApi.deleteDuplicate(deletingPlayer.id);
+      showToast(res.data.status || 'بازیکن با موفقیت حذف شد.', 'success');
+      
+      await fetchInitialData();
+      await fetchDuplicates();
+      setDeletingPlayer(null);
+    } catch (err) {
+      console.error('Delete error:', err);
+      showToast(err.response?.data?.error || 'خطا در حذف بازیکن', 'error');
+    } finally {
+      setIsExecutingDelete(false);
+    }
+  };
+
+  // Tab 4: Initialize Base Teams for all players
+  const handleInitializeBaseTeams = async () => {
+    setIsInitializingBaseTeams(true);
+    try {
+      const res = await playerApi.initializeBaseTeams();
+      showToast(res.data.status || 'تیم پایه بازیکنان مقداردهی شد ✨', 'success');
+      await fetchInitialData();
+    } catch (err) {
+      console.error('Initialize base teams error:', err);
+      showToast(err.response?.data?.error || 'خطا در مقداردهی تیم‌های پایه', 'error');
+    } finally {
+      setIsInitializingBaseTeams(false);
+    }
+  };
+
   // Handle Manual Transfer Execution
   const handleExecuteTransfer = async () => {
     if (!selectedPlayerForPlayerValidation()) return;
@@ -489,7 +611,7 @@ export default function AdminSquadTransfers() {
         </div>
 
         {/* Global Action Stats */}
-        <div className="flex items-center gap-3 z-10 w-full md:w-auto justify-end">
+        <div className="flex items-center gap-3 z-10 w-full md:w-auto justify-end flex-wrap">
           <div className="bg-slate-900/80 border border-slate-800 rounded-xl px-3.5 py-2 text-center">
             <div className="text-[10px] text-slate-400 font-bold">کل باشگاه‌ها</div>
             <div className="text-base font-black text-cyan-400">{teams.length} تیم</div>
@@ -498,6 +620,15 @@ export default function AdminSquadTransfers() {
             <div className="text-[10px] text-slate-400 font-bold">کل بازیکنان</div>
             <div className="text-base font-black text-purple-400">{allPlayers.length} نفر</div>
           </div>
+          <button
+            onClick={handleInitializeBaseTeams}
+            disabled={isInitializingBaseTeams}
+            className="px-3.5 py-2.5 bg-gradient-to-r from-amber-500/20 to-orange-500/20 hover:from-amber-500/30 hover:to-orange-500/30 text-amber-300 border border-amber-500/40 rounded-xl transition text-xs font-bold flex items-center gap-1.5 shadow-sm"
+            title="تنظیم خودکار تیم پایه بازیکنان بر اساس مبدا اولیه و ترنسفرها"
+          >
+            <RefreshCcw size={14} className={isInitializingBaseTeams ? 'animate-spin' : ''} />
+            <span>{isInitializingBaseTeams ? 'در حال ثبت...' : 'مقداردهی تیم پایه'}</span>
+          </button>
           <button
             onClick={fetchInitialData}
             disabled={refreshing}
@@ -510,10 +641,10 @@ export default function AdminSquadTransfers() {
       </div>
 
       {/* Main Tabs Navigation */}
-      <div className="flex items-center gap-3 border-b border-slate-800 pb-2">
+      <div className="flex items-center gap-3 border-b border-slate-800 pb-2 overflow-x-auto custom-scrollbar">
         <button
           onClick={() => setActiveTab('TRANSFERS')}
-          className={`flex items-center gap-2.5 px-5 py-3 rounded-xl font-bold text-sm transition-all ${
+          className={`flex items-center gap-2.5 px-5 py-3 rounded-xl font-bold text-sm transition-all flex-shrink-0 ${
             activeTab === 'TRANSFERS'
               ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 border-transparent'
               : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-slate-800'
@@ -525,7 +656,7 @@ export default function AdminSquadTransfers() {
 
         <button
           onClick={() => setActiveTab('SQUADS')}
-          className={`flex items-center gap-2.5 px-5 py-3 rounded-xl font-bold text-sm transition-all ${
+          className={`flex items-center gap-2.5 px-5 py-3 rounded-xl font-bold text-sm transition-all flex-shrink-0 ${
             activeTab === 'SQUADS'
               ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 border-transparent'
               : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-slate-800'
@@ -537,7 +668,7 @@ export default function AdminSquadTransfers() {
 
         <button
           onClick={() => setActiveTab('PHOTOS')}
-          className={`flex items-center gap-2.5 px-5 py-3 rounded-xl font-bold text-sm transition-all ${
+          className={`flex items-center gap-2.5 px-5 py-3 rounded-xl font-bold text-sm transition-all flex-shrink-0 ${
             activeTab === 'PHOTOS'
               ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 border-transparent'
               : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-slate-800'
@@ -545,6 +676,23 @@ export default function AdminSquadTransfers() {
         >
           <Camera size={17} />
           <span>۳. استودیو و آپلود تصویر بازیکنان</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('DUPLICATES')}
+          className={`flex items-center gap-2.5 px-5 py-3 rounded-xl font-bold text-sm transition-all flex-shrink-0 relative ${
+            activeTab === 'DUPLICATES'
+              ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/25 border-transparent'
+              : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-slate-800'
+          }`}
+        >
+          <GitMerge size={17} />
+          <span>۴. مدیریت بازیکنان هم‌نام و تکراری</span>
+          {duplicateGroups.length > 0 && (
+            <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full mr-1">
+              {duplicateGroups.length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -974,6 +1122,7 @@ export default function AdminSquadTransfers() {
                       setSelectedPlayerForTransfer(player);
                       setActiveTab('TRANSFERS');
                     }}
+                    onShowJourney={() => setSelectedPlayerForJourney(player)}
                   />
                 ))}
             </div>
@@ -1007,6 +1156,7 @@ export default function AdminSquadTransfers() {
                       setSelectedPlayerForTransfer(player);
                       setActiveTab('TRANSFERS');
                     }}
+                    onShowJourney={() => setSelectedPlayerForJourney(player)}
                   />
                 ))}
             </div>
@@ -1202,6 +1352,288 @@ export default function AdminSquadTransfers() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 4: DUPLICATE & SAME-NAME PLAYERS MANAGEMENT SUITE */}
+      {/* ========================================================================= */}
+      {activeTab === 'DUPLICATES' && (
+        <div className="space-y-6">
+          
+          {/* Top Banner & Analytics */}
+          <div className="glass-panel p-6 bg-gradient-to-r from-purple-950/40 via-slate-900/90 to-slate-950 border border-purple-500/20">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500 p-0.5 shadow-lg flex items-center justify-center">
+                  <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center">
+                    <GitMerge className="text-purple-400" size={24} />
+                  </div>
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-white m-0 tracking-wide flex items-center gap-2">
+                    <span>سامانه شناسایی و مدیریت هوشمند بازیکنان هم‌نام و تکراری</span>
+                    <span className="text-xs font-bold bg-purple-500/20 text-purple-300 px-2.5 py-0.5 rounded-full border border-purple-500/30">
+                      {filteredDuplicateGroups.length} گروه نیازمند بررسی
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-1 mb-0">
+                    شناسایی خودکار بازیکنان با اسامی یکسان، مخفف یا مشابه در باشگاه‌های مختلف؛ با امکان ادغام هوشمند، حذف و ویرایش فوری.
+                  </p>
+                </div>
+              </div>
+
+              {/* Refresh / Scan button */}
+              <button
+                onClick={fetchDuplicates}
+                disabled={duplicateLoading}
+                className="px-4 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 rounded-xl transition text-xs font-bold flex items-center gap-2"
+              >
+                <RefreshCw size={15} className={duplicateLoading ? 'animate-spin text-purple-400' : ''} />
+                <span>{duplicateLoading ? 'در حال اسکن دیتابیس...' : 'اسکن مجدد دیتابیس'}</span>
+              </button>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mt-5 pt-4 border-t border-slate-800/80">
+              {/* Search Box */}
+              <div className="md:col-span-6 relative">
+                <Search size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="جستجو در نام بازیکن یا تیم تکراری..."
+                  value={duplicateSearchQuery}
+                  onChange={(e) => setDuplicateSearchQuery(e.target.value)}
+                  className="w-full bg-slate-900/90 text-white placeholder-slate-500 border border-slate-700/80 rounded-xl pr-10 pl-4 py-2.5 text-xs focus:outline-none focus:border-purple-500 transition"
+                />
+              </div>
+
+              {/* Match Type Filters */}
+              <div className="md:col-span-6 flex items-center gap-2 justify-end">
+                <button
+                  onClick={() => setDuplicateFilterType('ALL')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition ${
+                    duplicateFilterType === 'ALL'
+                      ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-500/20'
+                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+                  }`}
+                >
+                  همه ({duplicateGroups.length})
+                </button>
+                <button
+                  onClick={() => setDuplicateFilterType('EXACT')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition ${
+                    duplicateFilterType === 'EXACT'
+                      ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-500/20'
+                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+                  }`}
+                >
+                  نام‌های کاملاً یکسان ({duplicateGroups.filter(g => g.match_type === 'EXACT').length})
+                </button>
+                <button
+                  onClick={() => setDuplicateFilterType('SIMILAR')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border transition ${
+                    duplicateFilterType === 'SIMILAR'
+                      ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-500/20'
+                      : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800'
+                  }`}
+                >
+                  اسامی مشابه و مخفف ({duplicateGroups.filter(g => g.match_type === 'SIMILAR').length})
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Groups List */}
+          {duplicateLoading ? (
+            <div className="glass-panel p-12 text-center text-slate-400">
+              <RefreshCw size={32} className="animate-spin text-purple-400 mx-auto mb-3" />
+              <div className="text-sm font-bold">در حال بررسی و اسکن رکوردهای بازیکنان در دیتابیس...</div>
+            </div>
+          ) : filteredDuplicateGroups.length === 0 ? (
+            <div className="glass-panel p-12 text-center text-slate-400">
+              <CheckCircle2 size={40} className="text-emerald-400 mx-auto mb-3 opacity-70" />
+              <div className="text-base font-black text-white">هیچ بازیکن تکراری یا مشابهی یافت نشد!</div>
+              <div className="text-xs text-slate-400 mt-1">تمام اسامی بازیکنان دیتابیس منحصربه‌فرد و مرتب هستند.</div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredDuplicateGroups.map((group, gIdx) => {
+                const isExact = group.match_type === 'EXACT';
+
+                return (
+                  <div 
+                    key={group.cluster_id || gIdx}
+                    className="glass-panel p-5 bg-slate-900/90 border-slate-800 hover:border-purple-500/30 transition-all rounded-3xl"
+                  >
+                    {/* Group Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800/80">
+                      <div className="flex items-center gap-3">
+                        <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border ${
+                          isExact
+                            ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                            : 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                        }`}>
+                          {group.match_label || (isExact ? 'نام کاملاً یکسان' : 'نام مشابه / مخفف')}
+                        </span>
+
+                        <h3 className="text-base font-black text-white m-0 tracking-wide">
+                          «{group.canonical_name}»
+                        </h3>
+
+                        <span className="text-xs text-slate-400 bg-slate-950 px-2 py-0.5 rounded-full border border-slate-800 font-mono">
+                          {group.count} رکورد در دیتابیس
+                        </span>
+                      </div>
+
+                      {/* Group Action: Smart Merge */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMergingCluster(group);
+                            setSelectedPrimaryPlayerId(group.players[0]?.id || null);
+                          }}
+                          className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-black transition flex items-center gap-1.5 shadow-md shadow-purple-500/15"
+                        >
+                          <GitMerge size={14} />
+                          <span>⚡ ادغام هوشمند این گروه</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Players Comparison Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                      {(group.players || []).map((p) => {
+                        const photo = getPlayerPhotoUrl(p);
+                        const posColor = POSITION_COLORS[p.position] || 'bg-slate-800 text-slate-300 border-slate-700';
+
+                        return (
+                          <div 
+                            key={p.id}
+                            className="p-4 rounded-2xl bg-slate-950 border border-slate-800 hover:border-slate-700 transition relative overflow-hidden flex flex-col justify-between"
+                          >
+                            {/* Card Top */}
+                            <div>
+                              <div className="flex items-start justify-between gap-2 mb-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="relative w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                    {photo ? (
+                                      <img src={photo} alt={p.name} className="w-full h-full object-cover object-top" />
+                                    ) : (
+                                      <Users size={22} className="text-slate-600" />
+                                    )}
+                                    {p.shirt_number && (
+                                      <span className="absolute bottom-0 right-0 bg-black/85 text-[9px] text-white px-1 font-mono font-bold rounded-tl">
+                                        #{p.shirt_number}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    <div className="font-black text-white text-sm truncate">{p.name}</div>
+                                    <div className="text-[10px] text-slate-400 font-mono mt-0.5">شناسه رکورد (ID): #{p.id}</div>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${posColor}`}>
+                                        {p.position}
+                                      </span>
+                                      <span className="text-xs font-black text-amber-400 font-sport">
+                                        OVR {p.overall}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400">
+                                        سن: {p.age}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Attributes & Location Details */}
+                              <div className="space-y-1.5 text-[11px] bg-slate-900/60 p-2.5 rounded-xl border border-slate-850 mb-3">
+                                <div className="flex items-center justify-between text-slate-300">
+                                  <span className="text-slate-400">باشگاه فعلی:</span>
+                                  <strong className="text-cyan-400 font-bold">{p.team?.name || p.team_name || 'بازیکن آزاد'}</strong>
+                                </div>
+
+                                <div className="flex items-center justify-between text-slate-300">
+                                  <span className="text-slate-400">تیم پایه اولیه:</span>
+                                  <strong className="text-amber-300 font-bold">{p.base_team_name || 'ثبت‌نشده'}</strong>
+                                </div>
+
+                                <div className="flex items-center justify-between text-slate-300">
+                                  <span className="text-slate-400">وضعیت حضور:</span>
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                                    p.is_starting
+                                      ? 'bg-emerald-500/20 text-emerald-400'
+                                      : p.team
+                                      ? 'bg-slate-800 text-slate-300'
+                                      : 'bg-amber-500/20 text-amber-400'
+                                  }`}>
+                                    {p.is_starting ? 'فیکس در زمین' : p.team ? 'نیمکت‌نشین' : 'بازیکن آزاد'}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between text-slate-300">
+                                  <span className="text-slate-400">پست‌های قابل بازی:</span>
+                                  <span className="text-slate-300 font-mono text-[10px]">{p.compatible_positions || p.position}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Action Buttons for this Duplicate Record */}
+                            <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-800">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditModal(p)}
+                                className="py-1.5 px-1 bg-slate-900 hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-400 rounded-lg text-[10px] font-bold border border-slate-800 transition flex items-center justify-center gap-1"
+                                title="ویرایش مشخصات یا تصحیح نام"
+                              >
+                                <Edit3 size={12} />
+                                <span>ویرایش</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPlayerForTransfer(p);
+                                  setActiveTab('TRANSFERS');
+                                }}
+                                className="py-1.5 px-1 bg-slate-900 hover:bg-blue-500/20 text-slate-300 hover:text-blue-400 rounded-lg text-[10px] font-bold border border-slate-800 transition flex items-center justify-center gap-1"
+                                title="انتقال به تیم مناسب"
+                              >
+                                <ArrowRightLeft size={12} />
+                                <span>انتقال</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPlayerForJourney(p)}
+                                className="py-1.5 px-1 bg-slate-900 hover:bg-amber-500/20 text-slate-300 hover:text-amber-400 rounded-lg text-[10px] font-bold border border-slate-800 transition flex items-center justify-center gap-1"
+                                title="مشاهده سوابق و تاریخچه انتقال"
+                              >
+                                <Sparkles size={12} />
+                                <span>سوابق</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setDeletingPlayer(p)}
+                                className="py-1.5 px-1 bg-slate-900 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-lg text-[10px] font-bold border border-slate-800 transition flex items-center justify-center gap-1"
+                                title="حذف دائمی این رکورد تکراری"
+                              >
+                                <Trash2 size={12} />
+                                <span>حذف</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -1505,28 +1937,367 @@ export default function AdminSquadTransfers() {
         document.body
       )}
 
+      {/* ========================================================================= */}
+      {/* TRANSFER JOURNEY & BASE TEAM TIMELINE MODAL */}
+      {/* ========================================================================= */}
+      {selectedPlayerForJourney && (
+        <TransferJourneyModal
+          player={selectedPlayerForJourney}
+          onClose={() => setSelectedPlayerForJourney(null)}
+        />
+      )}
+
+      {/* ========================================================================= */}
+      {/* SMART MERGE MODAL (USING REACT PORTAL) */}
+      {/* ========================================================================= */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {mergingCluster && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+              <div className="fixed inset-0" onClick={() => setMergingCluster(null)} />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="relative z-10 bg-slate-950 border border-purple-500/40 rounded-3xl w-full max-w-xl my-auto p-6 shadow-2xl text-right dir-rtl space-y-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
+                      <GitMerge size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-white m-0">ادغام هوشمند بازیکنان تکراری</h3>
+                      <p className="text-xs text-slate-400 mt-0.5 mb-0">گروه «{mergingCluster.canonical_name}»</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setMergingCluster(null)}
+                    className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                <div className="p-3 bg-purple-950/40 border border-purple-500/30 rounded-2xl text-xs text-purple-200">
+                  💡 <strong>راهنما:</strong> رکوردی که مایلید به عنوان <strong>نسخه اصلی (Primary)</strong> در سیستم حفظ شود را انتخاب نمایید. تمام سوابق انتقال، لاگ‌ها و بازی‌ها به بازیکن انتخابی منتقل شده و رکورد تکراری بدون خطا حذف خواهد شد.
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-300">
+                    انتخاب بازیکن اصلی (رکورد نگه‌داشته شده):
+                  </label>
+
+                  {(mergingCluster.players || []).map(p => {
+                    const isSelected = selectedPrimaryPlayerId === p.id;
+                    const photo = getPlayerPhotoUrl(p);
+
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => setSelectedPrimaryPlayerId(p.id)}
+                        className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? 'bg-gradient-to-r from-purple-950/80 to-slate-900 border-purple-500 shadow-md shadow-purple-500/10'
+                            : 'bg-slate-900/60 hover:bg-slate-850 border-slate-800'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                            {photo ? (
+                              <img src={photo} alt={p.name} className="w-full h-full object-cover object-top" />
+                            ) : (
+                              <Users size={20} className="text-slate-600" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-white text-sm">{p.name}</span>
+                              <span className="text-[10px] text-slate-400 font-mono">#ID: {p.id}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">
+                              باشگاه: <strong className="text-cyan-400">{p.team?.name || p.team_name || 'آزاد'}</strong> • OVR: {p.overall} • سن: {p.age}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {isSelected ? (
+                            <span className="text-xs text-purple-300 bg-purple-500/20 border border-purple-500/40 px-2.5 py-1 rounded-full font-bold flex items-center gap-1">
+                              <Check size={13} />
+                              <span>اصلی</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-500 bg-slate-800 px-2.5 py-1 rounded-full">
+                              انتخاب به عنوان اصلی
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center gap-3 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={handleExecuteMerge}
+                    disabled={!selectedPrimaryPlayerId || isExecutingMerge}
+                    className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-sm transition shadow-lg shadow-purple-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <GitMerge size={16} />
+                    <span>{isExecutingMerge ? 'در حال ادغام...' : 'تایید و ادغام نهایی'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMergingCluster(null)}
+                    className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition"
+                  >
+                    انصراف
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* ========================================================================= */}
+      {/* DELETE DUPLICATE PLAYER CONFIRM MODAL (USING REACT PORTAL) */}
+      {/* ========================================================================= */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {deletingPlayer && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+              <div className="fixed inset-0" onClick={() => setDeletingPlayer(null)} />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="relative z-10 bg-slate-950 border border-rose-500/40 rounded-3xl w-full max-w-md my-auto p-6 shadow-2xl text-right dir-rtl space-y-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 flex-shrink-0">
+                    <Trash2 size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-white m-0">حذف رکورد بازیکن تکراری</h3>
+                    <p className="text-xs text-rose-300/80 mt-1 mb-0">آیا از حذف این رکورد بازیکن اطمینان دارید؟</p>
+                  </div>
+                </div>
+
+                <div className="p-3.5 bg-slate-900 rounded-2xl border border-slate-800 text-xs text-slate-300 space-y-1.5">
+                  <div>نام بازیکن: <strong className="text-white">{deletingPlayer.name}</strong></div>
+                  <div>شناسه رکورد (ID): <strong className="text-slate-200">#{deletingPlayer.id}</strong></div>
+                  <div>باشگاه: <strong className="text-cyan-400">{deletingPlayer.team?.name || deletingPlayer.team_name || 'آزاد'}</strong></div>
+                  <div>پست / اورال: <strong className="text-amber-400">{deletingPlayer.position} • OVR {deletingPlayer.overall}</strong></div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={handleExecuteDelete}
+                    disabled={isExecutingDelete}
+                    className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-black text-sm transition shadow-lg shadow-rose-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    <Trash2 size={16} />
+                    <span>{isExecutingDelete ? 'در حال حذف...' : 'بله، حذف رکورد'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeletingPlayer(null)}
+                    className="py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition"
+                  >
+                    انصراف
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
     </div>
+  );
+}
+
+/**
+ * Transfer Journey & Base Team Timeline Modal
+ */
+function TransferJourneyModal({ player, onClose }) {
+  if (!player) return null;
+  const photo = getPlayerPhotoUrl(player);
+  const timeline = player.transfer_history_timeline || [];
+  const baseTeam = player.base_team_name || (timeline.length > 0 ? timeline[0].seller_team_name : null) || player.team_name || 'نامشخص';
+  const currentTeam = player.team_name || (player.team?.name) || 'بازیکن آزاد';
+  const isTransferred = Boolean(player.base_team_name && player.base_team_name !== currentTeam) || timeline.length > 0 || player.is_new_signing;
+
+  return typeof document !== 'undefined' && createPortal(
+    <div 
+      className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="relative z-10 bg-slate-950 border border-cyan-500/40 rounded-3xl w-full max-w-xl my-auto p-6 shadow-2xl space-y-5 text-right dir-rtl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-700 overflow-hidden flex-shrink-0 flex items-center justify-center">
+              {photo ? (
+                <img src={photo} alt={player.name} className="w-full h-full object-cover object-top" />
+              ) : (
+                <Users size={24} className="text-slate-600" />
+              )}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-black text-white m-0">{player.name}</h3>
+                <span className="text-xs bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 px-2 py-0.5 rounded-full font-bold">
+                  {player.position}
+                </span>
+                <span className="text-xs bg-amber-500/20 text-amber-400 border border-amber-500/40 px-2 py-0.5 rounded-full font-black font-sport">
+                  OVR {player.overall}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-1 mb-0 flex items-center gap-2">
+                <span>تیم فعلی: <strong className="text-white">{currentTeam}</strong></span>
+                <span>•</span>
+                <span>تیم پایه: <strong className="text-amber-300">{baseTeam}</strong></span>
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center border border-slate-800 transition"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Journey Summary Cards */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-base">
+              🏠
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-400 font-bold">باشگاه مبدا (تیم پایه)</div>
+              <div className="text-sm font-black text-amber-300">{baseTeam}</div>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-black text-base">
+              ⚽
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-400 font-bold">باشگاه فعلی در لیگ</div>
+              <div className="text-sm font-black text-cyan-300">{currentTeam}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Visual Transfer Timeline */}
+        <div className="space-y-3">
+          <h4 className="text-xs font-black text-slate-300 flex items-center gap-2 m-0">
+            <ArrowRightLeft size={14} className="text-cyan-400" />
+            <span>مسیر و زنجیره نقل و انتقالات ثبت‌شده:</span>
+          </h4>
+
+          {timeline.length > 0 ? (
+            <div className="relative pr-6 space-y-3 before:absolute before:right-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-gradient-to-b before:from-amber-400 before:via-cyan-400 before:to-emerald-400">
+              {timeline.map((step, sIdx) => (
+                <div key={step.id || sIdx} className="relative flex items-start justify-between p-3 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-cyan-500/30 transition">
+                  <div className="absolute -right-[19px] top-4 w-3.5 h-3.5 rounded-full bg-cyan-400 border-2 border-slate-950 ring-2 ring-cyan-500/40"></div>
+                  <div>
+                    <div className="flex items-center gap-2 font-bold text-xs">
+                      <span className="text-slate-300">{step.seller_team_name}</span>
+                      <span className="text-cyan-400 font-black">➔</span>
+                      <span className="text-white font-black">{step.buyer_team_name}</span>
+                      <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">
+                        {step.transfer_type === 'LOAN' ? 'قرضی' : step.transfer_type === 'AUCTION' ? 'مزایده' : 'قطعی'}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      تاریخ انتقال: <span className="text-slate-300 font-mono">{step.transfer_date || step.transferred_at || 'ثبت دستی'}</span>
+                    </div>
+                  </div>
+                  <div className="text-left font-sport font-black text-emerald-400 text-sm">
+                    {formatCurrency(step.fee)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-4 rounded-2xl bg-slate-900/40 border border-dashed border-slate-800 text-center text-xs text-slate-400">
+              {isTransferred ? (
+                <span>این بازیکن دارای تیم پایه متفاوت (<strong>{baseTeam}</strong>) است و به باشگاه <strong>{currentTeam}</strong> منتقل شده است.</span>
+              ) : (
+                <span>این بازیکن از ابتدای فصل در تیم <strong>{currentTeam}</strong> حضور داشته و هنوز انتقالی برای او ثبت نشده است.</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end pt-3 border-t border-slate-800">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition"
+          >
+            بستن پنجره
+          </button>
+        </div>
+      </motion.div>
+    </div>,
+    document.body
   );
 }
 
 /**
  * Player Card Component used in Squad Viewer Tab
  */
-function PlayerCardItem({ player, onEdit, onPhoto, onTransfer }) {
+function PlayerCardItem({ player, onEdit, onPhoto, onTransfer, onShowJourney }) {
   const photo = getPlayerPhotoUrl(player);
   const posColor = POSITION_COLORS[player.position] || 'bg-slate-800 text-slate-300 border-slate-700';
   const isNew = Boolean(player.is_new_signing);
+  const baseTeam = player.base_team_name;
+  const currentTeam = player.team?.name || player.team_name;
+  const hasBaseDiff = Boolean(baseTeam && currentTeam && baseTeam !== currentTeam);
 
   return (
     <div className="glass-panel p-4 bg-slate-900/80 hover:bg-slate-850 border-slate-800/80 hover:border-cyan-500/40 transition-all rounded-2xl relative overflow-hidden group shadow-lg">
       
-      {/* New Signing Banner / Badge */}
-      {isNew && (
-        <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm">
-          <Sparkles size={11} className="text-amber-400 animate-spin" />
-          <span>خرید جدید</span>
-        </div>
-      )}
+      {/* Badges */}
+      <div className="absolute top-2.5 left-2.5 z-10 flex flex-col items-start gap-1">
+        {isNew && (
+          <div className="flex items-center gap-1 bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm">
+            <Sparkles size={11} className="text-amber-400 animate-spin" />
+            <span>خرید جدید</span>
+          </div>
+        )}
+        {hasBaseDiff && (
+          <button
+            type="button"
+            onClick={onShowJourney}
+            className="flex items-center gap-1 bg-slate-950/90 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[9px] font-bold px-2 py-0.5 rounded-full transition shadow-sm"
+            title="کلیک برای مشاهده مسیر نقل و انتقالات"
+          >
+            <span>پایه: {baseTeam}</span>
+            <ChevronRight size={10} className="text-amber-400 rotate-180" />
+          </button>
+        )}
+      </div>
 
       {/* Card Header & Photo */}
       <div className="flex items-start gap-3">
@@ -1574,10 +2345,17 @@ function PlayerCardItem({ player, onEdit, onPhoto, onTransfer }) {
       </div>
 
       {/* Transfer info if new signing */}
-      {isNew && player.last_transfer && (
+      {isNew && (
         <div className="mt-2.5 pt-2 border-t border-slate-800/80 text-[10px] text-slate-400 flex items-center justify-between">
-          <span>از: <strong className="text-cyan-400">{player.last_transfer.seller_team_name}</strong></span>
-          <span>مبلغ: <strong className="text-emerald-400">{formatCurrency(player.last_transfer.fee)}</strong></span>
+          <span>تیم پایه: <strong className="text-amber-400">{baseTeam || player.last_transfer?.seller_team_name || '-'}</strong></span>
+          <button
+            type="button"
+            onClick={onShowJourney}
+            className="text-cyan-400 hover:underline font-bold flex items-center gap-0.5"
+          >
+            <span>مسیر انتقال</span>
+            <ChevronRight size={10} className="rotate-180" />
+          </button>
         </div>
       )}
 

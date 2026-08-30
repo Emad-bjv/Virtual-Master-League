@@ -70,6 +70,10 @@ export const playerApi = {
   uploadPhoto: (id, formData) => api.post(`/players/${id}/upload_photo/`, formData),
   resetPhoto: (id) => api.post(`/players/${id}/reset_photo/`),
   fullUpdate: (id, data) => api.patch(`/players/${id}/full_update/`, data),
+  getDuplicates: () => api.get('/players/duplicates/'),
+  mergeDuplicates: (data) => api.post('/players/merge_duplicates/', data),
+  deleteDuplicate: (playerId) => api.post('/players/delete_duplicate/', { player_id: playerId }),
+  initializeBaseTeams: () => api.post('/players/initialize_base_teams/'),
 };
 
 export const transferApi = {

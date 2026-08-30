@@ -47,10 +47,12 @@ class PlayerSerializer(serializers.ModelSerializer):
     is_suspended = serializers.BooleanField(read_only=True)
     team_name = serializers.CharField(source='team.name', read_only=True, allow_null=True)
     loan_owner_team_name = serializers.CharField(source='loan_owner_team.name', read_only=True, allow_null=True)
+    base_team_name = serializers.CharField(source='base_team.name', read_only=True, allow_null=True)
     photo_url = serializers.SerializerMethodField()
     custom_photo_url = serializers.SerializerMethodField()
     is_new_signing = serializers.SerializerMethodField()
     last_transfer = serializers.SerializerMethodField()
+    transfer_history_timeline = serializers.SerializerMethodField()
     xp_to_next_level = serializers.SerializerMethodField()
     xp_progress_percent = serializers.SerializerMethodField()
     next_level_gem_cost = serializers.SerializerMethodField()
@@ -76,6 +78,9 @@ class PlayerSerializer(serializers.ModelSerializer):
         target_team_id = getattr(obj, 'team_id', None)
         if not target_team_id:
             return False
+        # Check if base_team is set and differs from current team
+        if getattr(obj, 'base_team_id', None) and obj.base_team_id != target_team_id:
+            return True
         # Use prefetched in-memory records if available
         if hasattr(obj, '_prefetched_objects_cache') and 'transfer_history' in obj._prefetched_objects_cache:
             return any(h.buyer_team_id == target_team_id for h in obj.transfer_history.all())
@@ -108,6 +113,27 @@ class PlayerSerializer(serializers.ModelSerializer):
                 'transfer_date': hist.transferred_at.strftime('%Y-%m-%d %H:%M') if hist.transferred_at else None,
             }
         return None
+
+    def get_transfer_history_timeline(self, obj):
+        if hasattr(obj, '_prefetched_objects_cache') and 'transfer_history' in obj._prefetched_objects_cache:
+            records = sorted(obj.transfer_history.all(), key=lambda x: x.transferred_at if x.transferred_at else '')
+        else:
+            from transfers.models import TransferHistory
+            records = TransferHistory.objects.filter(player=obj).select_related('seller_team', 'buyer_team').order_by('transferred_at', 'id')
+        
+        timeline = []
+        for r in records:
+            timeline.append({
+                'id': r.id,
+                'seller_team_id': r.seller_team_id,
+                'seller_team_name': r.seller_team.name if r.seller_team else 'بازیکن آزاد',
+                'buyer_team_id': r.buyer_team_id,
+                'buyer_team_name': r.buyer_team.name if r.buyer_team else 'بازیکن آزاد',
+                'fee': float(r.price_usd or 0),
+                'transfer_type': r.transfer_type,
+                'transfer_date': r.transferred_at.strftime('%Y-%m-%d %H:%M') if r.transferred_at else None,
+            })
+        return timeline
 
     def get_xp_to_next_level(self, obj):
         if obj.level >= 20:

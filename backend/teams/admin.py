@@ -30,18 +30,18 @@ class TeamAdmin(admin.ModelAdmin):
 @admin.register(Player)
 class PlayerAdmin(admin.ModelAdmin):
     list_display = (
-        'name', 'team', 'position', 'compatible_positions', 'overall', 'level', 'xp',
+        'name', 'team', 'base_team', 'position', 'compatible_positions', 'overall', 'level', 'xp',
         'virtual_stamina', 'consecutive_games',
         'stamina_status_display', 'is_starting'
     )
-    list_filter = ('team', 'position', 'is_starting', 'is_injured', 'level')
+    list_filter = ('team', 'base_team', 'position', 'is_starting', 'is_injured', 'level')
     search_fields = ('name',)
     readonly_fields = ('stamina_status_display', 'is_stamina_locked_display')
     inlines = [PlayerGrowthLogInline, PlayerLevelUpLogInline]
 
     fieldsets = (
         ('اطلاعات پایه', {
-            'fields': ('name', 'team', 'age', 'position', 'compatible_positions', 'overall')
+            'fields': ('name', 'team', 'base_team', 'age', 'position', 'compatible_positions', 'overall')
         }),
         ('سیستم لول', {
             'fields': ('level', 'xp', 'total_xp')
