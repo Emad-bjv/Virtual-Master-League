@@ -343,12 +343,23 @@ export default function EFootballGamePlan({
 }) {
   // Helper to match DB short formations (e.g. '4-3-3') to full presets (e.g. '4-3-3 (4-2-1-3)')
   const getResolvedFormation = (form) => {
-
+    if (!form) return '4-3-3 (4-2-1-3)';
     if (FORMATION_PRESETS[form]) return form;
-    if (form) {
-      const match = Object.keys(FORMATION_PRESETS).find(f => f.startsWith(form));
-      if (match) return match;
-    }
+    const cleaned = String(form).trim();
+    if (FORMATION_PRESETS[cleaned]) return cleaned;
+
+    const match = Object.keys(FORMATION_PRESETS).find(
+      (f) => f.startsWith(cleaned) || f.includes(cleaned) || cleaned.includes(f)
+    );
+    if (match) return match;
+
+    const digitMatch = Object.keys(FORMATION_PRESETS).find((f) => {
+      const fClean = f.replace(/[^0-9]/g, '');
+      const cClean = cleaned.replace(/[^0-9]/g, '');
+      return fClean === cClean || (fClean.length >= 3 && (fClean.includes(cClean) || cClean.includes(fClean)));
+    });
+    if (digitMatch) return digitMatch;
+
     return '4-3-3 (4-2-1-3)';
   };
 
@@ -553,20 +564,31 @@ export default function EFootballGamePlan({
   const [subModalBenchSelect, setSubModalBenchSelect] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
 
+  const selectedPitchPlayer = useMemo(() => {
+    return selectedPitchPlayerId
+      ? (startingXi || []).find((p) => p && p.id === selectedPitchPlayerId) || null
+      : null;
+  }, [selectedPitchPlayerId, startingXi]);
+
+  const selectedBenchPlayer = useMemo(() => {
+    return selectedBenchPlayerId
+      ? ((substitutes || []).find((b) => b && b.id === selectedBenchPlayerId) ||
+         (reserves || []).find((r) => r && r.id === selectedBenchPlayerId) ||
+         null)
+      : null;
+  }, [selectedBenchPlayerId, substitutes, reserves]);
+
   // Active Target Position for Highlighting Compatible Players across pitch & bench
   const activeHighlightPos = useMemo(() => {
     if (highlightedPosition) return highlightedPosition;
-    if (selectedPitchPlayerId) {
-      const p = startingXi.find((item) => item.id === selectedPitchPlayerId);
-      return p ? p.position : null;
+    if (selectedPitchPlayer) {
+      return selectedPitchPlayer.position;
     }
-    if (selectedBenchPlayerId) {
-      const p = substitutes.find((item) => item.id === selectedBenchPlayerId) ||
-                reserves.find((item) => item.id === selectedBenchPlayerId);
-      return p ? (p.naturalPosition || p.position) : null;
+    if (selectedBenchPlayer) {
+      return selectedBenchPlayer.naturalPosition || selectedBenchPlayer.position;
     }
     return null;
-  }, [highlightedPosition, selectedPitchPlayerId, selectedBenchPlayerId, startingXi, substitutes, reserves]);
+  }, [highlightedPosition, selectedPitchPlayer, selectedBenchPlayer]);
 
   // Gem Player Actions (Stamina Recovery & Boost)
   const { team, updateTeamGems, updatePlayerState } = useTeam();
@@ -1346,18 +1368,11 @@ export default function EFootballGamePlan({
 
           {/* PLAYERS ON PITCH */}
           <div className="relative w-full h-[450px] sm:h-[530px] md:h-[630px]">
-            {startingXi.map((player) => {
+            {(startingXi || []).map((player) => {
+              if (!player) return null;
               const isSelected = selectedPitchPlayerId === player.id;
               const natPos = player.naturalPosition || player.base_position || player.main_position || player.position;
               const slotPos = player.position || natPos || 'CMF';
-
-              const selectedBenchPlayer = selectedBenchPlayerId
-                ? (substitutes.find((b) => b.id === selectedBenchPlayerId) || reserves.find((r) => r.id === selectedBenchPlayerId))
-                : null;
-
-              const selectedPitchPlayer = selectedPitchPlayerId
-                ? startingXi.find((p) => p.id === selectedPitchPlayerId)
-                : null;
               const selectedPitchSlot = selectedPitchPlayer ? selectedPitchPlayer.position : null;
 
               // 1. Green Highlight: Can the selected player (from pitch or bench) play in this specific formation slot?
@@ -1922,12 +1937,10 @@ export default function EFootballGamePlan({
             </div>
 
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-11 gap-2">
-              {substitutes.map((sub) => {
+              {(substitutes || []).map((sub) => {
+                if (!sub) return null;
                 const isSelected = selectedBenchPlayerId === sub.id;
                 const natPos = sub.naturalPosition || sub.base_position || sub.main_position || sub.position;
-                const selectedPitchPlayer = selectedPitchPlayerId
-                  ? startingXi.find((p) => p.id === selectedPitchPlayerId)
-                  : null;
                 const targetPos = highlightedPosition || (selectedPitchPlayer ? selectedPitchPlayer.position : null);
 
                 const isPosMatch = !selectedBenchPlayerId && Boolean(targetPos && isPlayerCompatibleWithPosition(sub, targetPos));
@@ -2042,12 +2055,10 @@ export default function EFootballGamePlan({
               {/* SECTION 2: RESERVES / OUT OF SQUAD */}
               <div className="space-y-2">
                 <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                  {reserves.map((res) => {
+                  {(reserves || []).map((res) => {
+                    if (!res) return null;
                     const isSelected = selectedBenchPlayerId === res.id;
                     const natPos = res.naturalPosition || res.base_position || res.main_position || res.position;
-                    const selectedPitchPlayer = selectedPitchPlayerId
-                      ? startingXi.find((p) => p.id === selectedPitchPlayerId)
-                      : null;
                     const targetPos = highlightedPosition || (selectedPitchPlayer ? selectedPitchPlayer.position : null);
 
                     const isPosMatch = !selectedBenchPlayerId && Boolean(targetPos && isPlayerCompatibleWithPosition(res, targetPos));
