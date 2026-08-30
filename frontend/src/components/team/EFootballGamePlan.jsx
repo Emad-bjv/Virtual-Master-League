@@ -486,10 +486,31 @@ export default function EFootballGamePlan({
 
     let alignedStarters;
     if (!needsAutoLayout && formPreset) {
-      alignedStarters = currentStarters.map(p => ({
-        ...p,
-        naturalPosition: p.naturalPosition || p.position,
-      }));
+      alignedStarters = currentStarters.map((p) => {
+        const natPos = p.naturalPosition || p.position;
+        let slotPos = p.tacticalPosition;
+        if (!slotPos && formPreset) {
+          let closestSlot = formPreset[0];
+          let minDistance = Infinity;
+          for (const s of formPreset) {
+            const dx = (p.x_coord || 0) - s.x;
+            const dy = (p.y_coord || 0) - s.y;
+            const dist = dx * dx + dy * dy;
+            if (dist < minDistance) {
+              minDistance = dist;
+              closestSlot = s;
+            }
+          }
+          if (minDistance < 250) {
+            slotPos = closestSlot.pos;
+          }
+        }
+        return {
+          ...p,
+          naturalPosition: natPos,
+          position: slotPos || p.position || natPos,
+        };
+      });
     } else if (formPreset) {
       alignedStarters = matchPlayersToFormation(currentStarters, formPreset);
     } else {
@@ -914,10 +935,10 @@ export default function EFootballGamePlan({
       return;
     }
 
-    // Scenario 2: No player currently selected -> Select this pitch player
+    // Scenario 2: No player currently selected -> Select this pitch player on FIRST CLICK
     if (!selectedPitchPlayerId) {
       setSelectedPitchPlayerId(clickedPlayer.id);
-      setHighlightedPosition(null);
+      setHighlightedPosition(clickedPlayer.position);
       const posTitle = POSITION_INFO[clickedPlayer.position]?.title || clickedPlayer.position;
       showNotification(`پست «${clickedPlayer.position} - ${posTitle}» انتخاب شد. بازیکنان واجد شرایط با ⭐ مشخص شدند.`);
       return;
@@ -926,6 +947,7 @@ export default function EFootballGamePlan({
     // Scenario 3: Clicked the same player -> Unselect
     if (selectedPitchPlayerId === clickedPlayer.id) {
       setSelectedPitchPlayerId(null);
+      setHighlightedPosition(null);
       return;
     }
 
@@ -956,6 +978,7 @@ export default function EFootballGamePlan({
     if (selectedBenchPlayerId) {
       if (selectedBenchPlayerId === clickedBenchPlayer.id) {
         setSelectedBenchPlayerId(null); // Clicked same -> unselect
+        setHighlightedPosition(null);
       } else {
         swapBenchOrReserves(selectedBenchPlayerId, clickedBenchPlayer.id);
         setSelectedBenchPlayerId(null);
@@ -964,10 +987,10 @@ export default function EFootballGamePlan({
       return;
     }
 
-    // Scenario 3: Select bench/reserve player
+    // Scenario 3: Select bench/reserve player on FIRST CLICK
     setSelectedBenchPlayerId(clickedBenchPlayer.id);
-    setHighlightedPosition(null);
     const naturalPos = clickedBenchPlayer.naturalPosition || clickedBenchPlayer.position;
+    setHighlightedPosition(naturalPos);
     const posTitle = POSITION_INFO[naturalPos]?.title || naturalPos;
     showNotification(`بازیکن «${clickedBenchPlayer.name} (${naturalPos} - ${posTitle})» انتخاب شد. خانه‌های مناسب در چمن با ⭐ مشخص شدند.`);
   };
@@ -1474,9 +1497,9 @@ export default function EFootballGamePlan({
               const isSelected = selectedPitchPlayerId === player.id;
               const natPos = player.naturalPosition || player.position;
               const isPositionMatch = Boolean(activeHighlightPos && isPlayerCompatibleWithPosition(player, activeHighlightPos));
-              const isExactMatch = Boolean(activeHighlightPos && isPlayerExactPosition(player, activeHighlightPos));
+              const isExactMatch = Boolean(activeHighlightPos && (player.naturalPosition === activeHighlightPos || player.position === activeHighlightPos));
               const isDimmed = (activeHighlightPos && !isSelected && !isPositionMatch);
-              const isOutOfPosition = Boolean(player.naturalPosition && player.position && !isPlayerExactPosition(player, player.position));
+              const isOutOfPosition = Boolean(player.naturalPosition && player.position && player.naturalPosition !== player.position);
               const posCode = player.position || player.naturalPosition || 'CMF';
 
               // Readiness / Stamina Calculation (linked with facilities & fatigue formula)
@@ -1527,8 +1550,8 @@ export default function EFootballGamePlan({
                     {/* Out of Position Warning Badge */}
                     {isOutOfPosition && (
                       <span
-                        className="absolute -top-1 -right-1 z-40 bg-amber-950/90 text-amber-300 text-[9px] sm:text-[10px] px-1 py-0.2 rounded-full border border-amber-500/70 shadow-md flex items-center justify-center leading-none pointer-events-none"
-                        title={`پست اصلی: ${player.naturalPosition} (پست فعلی در زمین: ${player.position})`}
+                        className="absolute -top-1.5 -right-1.5 z-50 bg-amber-500 text-black text-[10px] sm:text-[11px] font-black w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-white shadow-[0_0_10px_rgba(245,158,11,0.9)] flex items-center justify-center leading-none pointer-events-none animate-pulse"
+                        title={`⚠️ پست غیرتخصصی! پست اصلی: ${player.naturalPosition} (پست در چمن: ${player.position})`}
                       >
                         ⚠️
                       </span>
