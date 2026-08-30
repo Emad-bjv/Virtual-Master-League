@@ -1321,14 +1321,14 @@ export default function EFootballGamePlan({
         {(activeHighlightPos || selectedPitchPlayerId || selectedBenchPlayerId) && (
           <div className="bg-gradient-to-r from-emerald-950/95 via-[#081f1d] to-[#080c14] border border-emerald-400/60 p-3 rounded-2xl flex items-center justify-between text-xs text-emerald-200 shadow-[0_0_20px_rgba(52,211,153,0.25)] backdrop-blur-xl animate-fadeIn">
             <div className="flex items-center gap-2.5">
-              <span className="text-base animate-bounce">⭐</span>
+              <span className="text-base animate-bounce">🟢</span>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-black text-white text-xs sm:text-sm">
-                    {selectedBenchPlayerId
-                      ? `موقعیت‌های مناسب در زمین برای ${activeSelectedPlayer?.name || 'بازیکن'}:`
-                      : selectedPitchPlayerId
-                      ? `گزینه‌های جانشین نیمکت برای ${activeSelectedPlayer?.name || 'پست'}:`
+                    {selectedPitchPlayerId
+                      ? `پست‌های قابل بازی ${activeSelectedPlayer?.name || 'بازیکن'} در این ترکیب (سبز 🟢) و گزینه‌های جانشین (ستاره ⭐):`
+                      : selectedBenchPlayerId
+                      ? `موقعیت‌های مناسب در زمین برای ورود ${activeSelectedPlayer?.name || 'بازیکن'} (سبز 🟢):`
                       : 'هایلایت پست:'}
                   </span>
                   {activeHighlightPos && (
@@ -1338,10 +1338,10 @@ export default function EFootballGamePlan({
                   )}
                 </div>
                 <p className="text-[10.5px] text-emerald-300/80 mt-0.5 hidden sm:block">
-                  {selectedBenchPlayerId
-                    ? 'پست‌های مناسب این بازیکن در چمن با ستاره ⭐ و کادر سبز مشخص شده‌اند.'
-                    : selectedPitchPlayerId
-                    ? 'بازیکنان آماده نیمکت برای ورود به این پست با ستاره ⭐ مشخص شده‌اند.'
+                  {selectedPitchPlayerId
+                    ? 'پست‌های این چیدمان که بازیکن توانایی بازی در آنها را دارد سبز 🟢 شده و سایر بازیکنان آماده برای این پست با ستاره ⭐ مشخص شده‌اند.'
+                    : selectedBenchPlayerId
+                    ? 'پست‌های مناسب این بازیکن در چمن با کادر سبز 🟢 مشخص شده‌اند.'
                     : 'تمام بازیکنان تخصصی و سازگار با این پست با ستاره طلایی ⭐ و کادر سبز مشخص شده‌اند.'}
                 </p>
               </div>
@@ -1571,22 +1571,53 @@ export default function EFootballGamePlan({
               const selectedPitchPlayer = selectedPitchPlayerId
                 ? startingXi.find((p) => p.id === selectedPitchPlayerId)
                 : null;
+              const selectedPitchSlot = selectedPitchPlayer ? selectedPitchPlayer.position : null;
 
-              const isPositionMatch = Boolean(
-                (highlightedPosition && isPlayerCompatibleWithPosition(player, highlightedPosition)) ||
-                (selectedBenchPlayer && isPlayerCompatibleWithPosition(selectedBenchPlayer, slotPos)) ||
-                (selectedPitchPlayer && !isSelected && isPlayerCompatibleWithPosition(selectedPitchPlayer, slotPos))
+              // 1. Green Highlight: Can the selected player (from pitch or bench) play in this specific formation slot?
+              const isSlotPlayableBySelectedPitch = Boolean(
+                selectedPitchPlayer && !isSelected && isPlayerCompatibleWithPosition(selectedPitchPlayer, slotPos)
+              );
+              const isSlotPlayableBySelectedBench = Boolean(
+                selectedBenchPlayer && isPlayerCompatibleWithPosition(selectedBenchPlayer, slotPos)
+              );
+              const isGreenSlot = Boolean(
+                isSlotPlayableBySelectedPitch ||
+                isSlotPlayableBySelectedBench ||
+                (highlightedPosition && slotPos === highlightedPosition)
+              );
+
+              // 2. Star Highlight: Can this other player on the pitch play in the selected player's current slot or highlighted position?
+              const isPlayerPlayableInSelectedSlot = Boolean(
+                selectedPitchPlayer && !isSelected && isPlayerCompatibleWithPosition(player, selectedPitchSlot)
+              );
+              const isExactPlayerMatchForSelectedSlot = Boolean(
+                selectedPitchPlayer && !isSelected && isPlayerExactPosition(player, selectedPitchSlot)
+              );
+              const isHighlightedMatch = Boolean(
+                highlightedPosition && isPlayerCompatibleWithPosition(player, highlightedPosition)
+              );
+              const isExactHighlightedMatch = Boolean(
+                highlightedPosition && isPlayerExactPosition(player, highlightedPosition)
+              );
+
+              const hasStarRating = Boolean(
+                isPlayerPlayableInSelectedSlot ||
+                (selectedBenchPlayer && isSlotPlayableBySelectedBench) ||
+                isHighlightedMatch
               );
               const isExactMatch = Boolean(
-                (highlightedPosition && isPlayerExactPosition(player, highlightedPosition)) ||
+                isExactPlayerMatchForSelectedSlot ||
                 (selectedBenchPlayer && isPlayerExactPosition(selectedBenchPlayer, slotPos)) ||
-                (selectedPitchPlayer && !isSelected && isPlayerExactPosition(selectedPitchPlayer, slotPos))
+                isExactHighlightedMatch
               );
+
+              // 3. Dimming: Dim players that are neither selected, nor green-compatible, nor star-rated
               const isDimmed = Boolean(
-                (highlightedPosition && !isPositionMatch) ||
-                (selectedBenchPlayerId && !isPositionMatch) ||
-                (selectedPitchPlayerId && !isSelected && !isPositionMatch)
+                (selectedPitchPlayerId && !isSelected && !isGreenSlot && !hasStarRating) ||
+                (selectedBenchPlayerId && !isGreenSlot) ||
+                (highlightedPosition && !isHighlightedMatch && !isGreenSlot)
               );
+
               const isOutOfPosition = Boolean(!isPlayerCompatibleWithPosition(player, slotPos));
               const posCode = slotPos;
 
@@ -1614,7 +1645,7 @@ export default function EFootballGamePlan({
                   animate={{
                     left: `${player.x_coord}%`,
                     top: `${player.y_coord}%`,
-                    scale: isPositionMatch ? 1.08 : isSelected ? 1.05 : 1,
+                    scale: isGreenSlot ? 1.1 : isSelected ? 1.06 : hasStarRating ? 1.04 : 1,
                     opacity: isDimmed ? 0.35 : 1,
                   }}
                   transition={{
@@ -1629,8 +1660,17 @@ export default function EFootballGamePlan({
                   {/* Player Avatar Container + Floating Event Badges */}
                   <div className="relative flex items-center justify-center">
                     {/* Golden Star for Position Highlight Match */}
-                    {isPositionMatch && (
-                      <span className="absolute -top-1.5 -left-1.5 z-40 text-amber-300 text-[13px] sm:text-[15px] drop-shadow-[0_0_6px_#f59e0b] animate-bounce pointer-events-none" title={isExactMatch ? 'پست تخصصی اصلی ⭐' : 'پست سازگار و قابل بازی ⭐'}>
+                    {hasStarRating && (
+                      <span
+                        className="absolute -top-1.5 -left-1.5 z-40 text-amber-300 text-[13px] sm:text-[15px] drop-shadow-[0_0_6px_#f59e0b] animate-bounce pointer-events-none"
+                        title={
+                          selectedPitchPlayer
+                            ? `توانایی بازی در پست «${selectedPitchSlot}» (پست ${selectedPitchPlayer.name}) ⭐`
+                            : isExactMatch
+                            ? 'پست تخصصی اصلی ⭐'
+                            : 'پست سازگار و قابل بازی ⭐'
+                        }
+                      >
                         ⭐
                       </span>
                     )}
@@ -1666,12 +1706,12 @@ export default function EFootballGamePlan({
                         ? 'border-rose-600 ring-2 ring-rose-600/80 bg-rose-950/90 text-rose-300 opacity-70 grayscale'
                         : (player.isInjured || player.is_injured)
                         ? 'border-amber-500 ring-2 ring-amber-500/80 bg-amber-950/90 text-amber-300 animate-pulse'
-                        : isPositionMatch
-                        ? 'border-emerald-400 bg-emerald-950/80 ring-2 ring-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.8)]'
-                        : ((isLiveMode || isAdminMode) && (player.in_match_goals || player.goals) > 0)
-                        ? 'border-emerald-400 ring-2 ring-emerald-400/60 bg-emerald-950/80'
+                        : isGreenSlot
+                        ? 'border-[#00ff87] bg-emerald-950/90 ring-2 sm:ring-4 ring-[#00ff87] shadow-[0_0_25px_rgba(0,255,135,0.9)]'
                         : isSelected
                         ? 'border-cyan-400 bg-cyan-900/70 ring-2 ring-cyan-400 shadow-[0_0_20px_rgba(0,243,255,0.6)]'
+                        : ((isLiveMode || isAdminMode) && (player.in_match_goals || player.goals) > 0)
+                        ? 'border-emerald-400 ring-2 ring-emerald-400/60 bg-emerald-950/80'
                         : 'border-slate-400/60 bg-gradient-to-b from-[#0d162a] to-[#05080e] group-hover:border-cyan-400 group-hover:shadow-[0_0_15px_rgba(0,243,255,0.4)]'
                     }`}>
                       {photoUrl ? (
@@ -1767,9 +1807,11 @@ export default function EFootballGamePlan({
                         handlePositionHighlight(posCode);
                       }}
                       className={`text-[7px] sm:text-[8px] md:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-md shadow cursor-pointer transition-transform hover:scale-110 active:scale-95 ${
-                        POSITION_COLORS[posCode] || 'bg-purple-600 text-white font-bold'
+                        isGreenSlot
+                          ? 'bg-[#00ff87] text-slate-950 font-black shadow-[0_0_10px_#00ff87] ring-1 ring-white'
+                          : (POSITION_COLORS[posCode] || 'bg-purple-600 text-white font-bold')
                       }`}
-                      title={`کلیک جهت هایلایت همه بازیکنان ${posCode}`}
+                      title={isGreenSlot ? `پست قابل بازی در این ترکیب (${posCode}) 🟢` : `کلیک جهت هایلایت همه بازیکنان ${posCode}`}
                     >
                       {posCode}
                     </span>
