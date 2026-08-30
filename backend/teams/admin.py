@@ -30,7 +30,7 @@ class TeamAdmin(admin.ModelAdmin):
 @admin.register(Player)
 class PlayerAdmin(admin.ModelAdmin):
     list_display = (
-        'name', 'team', 'position', 'overall', 'level', 'xp',
+        'name', 'team', 'position', 'compatible_positions', 'overall', 'level', 'xp',
         'virtual_stamina', 'consecutive_games',
         'stamina_status_display', 'is_starting'
     )
@@ -41,7 +41,7 @@ class PlayerAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ('اطلاعات پایه', {
-            'fields': ('name', 'team', 'age', 'position', 'overall')
+            'fields': ('name', 'team', 'age', 'position', 'compatible_positions', 'overall')
         }),
         ('سیستم لول', {
             'fields': ('level', 'xp', 'total_xp')

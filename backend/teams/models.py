@@ -142,6 +142,11 @@ class Player(models.Model):
     name = models.CharField(max_length=100, verbose_name="نام بازیکن")
     age = models.PositiveIntegerField(verbose_name="سن")
     position = models.CharField(max_length=3, choices=POSITIONS, verbose_name="پست اصلی")
+    compatible_positions = models.CharField(
+        max_length=100, blank=True, default='',
+        verbose_name="پست‌های قابل بازی",
+        help_text="لیست پست‌های قابل بازی بازیکن با کاما جدا شده. مثال: RWF,LWF,RMF"
+    )
     overall = models.PositiveIntegerField(verbose_name="اورال (OVR)")
     base_overall = models.PositiveIntegerField(null=True, blank=True, default=None, verbose_name="اورال اولیه/پایه")
     potential_ovr = models.PositiveIntegerField(default=99, verbose_name="سقف پتانسیل (Potential OVR)")

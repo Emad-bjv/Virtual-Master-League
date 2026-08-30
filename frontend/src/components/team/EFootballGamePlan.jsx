@@ -65,6 +65,14 @@ export const isPlayerCompatibleWithPosition = (player, targetPos) => {
   const pNat = player.naturalPosition || player.position;
   const pPos = player.position;
   if (pNat === targetPos || pPos === targetPos) return true;
+
+  if (player.compatible_positions) {
+    const list = Array.isArray(player.compatible_positions)
+      ? player.compatible_positions
+      : String(player.compatible_positions).split(',').map((p) => p.trim());
+    if (list.includes(targetPos)) return true;
+  }
+
   const allowed = POSITION_COMPATIBILITY[targetPos] || [targetPos];
   return allowed.includes(pNat) || allowed.includes(pPos);
 };
@@ -1519,7 +1527,7 @@ export default function EFootballGamePlan({
                 (selectedBenchPlayerId && !isPositionMatch) ||
                 (selectedPitchPlayerId && !isSelected)
               );
-              const isOutOfPosition = Boolean(player.naturalPosition && player.position && player.naturalPosition !== player.position);
+              const isOutOfPosition = Boolean(player.position && !isPlayerCompatibleWithPosition(player, player.position));
               const posCode = player.position || player.naturalPosition || 'CMF';
 
               // Readiness / Stamina Calculation (linked with facilities & fatigue formula)
