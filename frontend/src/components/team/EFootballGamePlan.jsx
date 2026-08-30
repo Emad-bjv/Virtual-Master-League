@@ -63,30 +63,28 @@ export const POSITION_COMPATIBILITY = {
 
 export const isPlayerCompatibleWithPosition = (player, targetPos) => {
   if (!player || !targetPos) return false;
-  const natural = player.naturalPosition || player.base_position || player.main_position || player.position;
-  if (!natural) return false;
-  if (natural === targetPos) return true;
+  const natural = (player.naturalPosition || player.base_position || player.main_position || player.position || '').toUpperCase().trim();
+  const target = String(targetPos).toUpperCase().trim();
+  if (natural && natural === target) return true;
 
   if (player.compatible_positions) {
     const list = Array.isArray(player.compatible_positions)
-      ? player.compatible_positions
-      : String(player.compatible_positions).split(',').map((p) => p.trim()).filter(Boolean);
-    if (list.includes(targetPos)) return true;
+      ? player.compatible_positions.map((p) => String(p).toUpperCase().trim())
+      : String(player.compatible_positions)
+          .split(',')
+          .map((p) => p.toUpperCase().trim())
+          .filter(Boolean);
+    if (list.includes(target)) return true;
   }
-
-  const allowed = POSITION_COMPATIBILITY[natural] || [natural];
-  if (allowed.includes(targetPos)) return true;
-
-  const targetAllowed = POSITION_COMPATIBILITY[targetPos] || [targetPos];
-  if (targetAllowed.includes(natural)) return true;
 
   return false;
 };
 
 export const isPlayerExactPosition = (player, targetPos) => {
   if (!player || !targetPos) return false;
-  const natural = player.naturalPosition || player.base_position || player.main_position || player.position;
-  return natural === targetPos;
+  const natural = (player.naturalPosition || player.base_position || player.main_position || player.position || '').toUpperCase().trim();
+  const target = String(targetPos).toUpperCase().trim();
+  return natural === target;
 };
 
 // Tiered Escalating Gem Upgrade Costs (پلکانی سناریو ۱: مجموع ~۵,۰۰۰ الماس)
@@ -1636,7 +1634,7 @@ export default function EFootballGamePlan({
             {/* Render Empty Formation Slots if fewer than 11 players on pitch */}
             {unoccupiedSlots.map((slot, sIdx) => {
               const isSlotHighlighted = Boolean(
-                (highlightedPosition && (highlightedPosition === slot.pos || (POSITION_COMPATIBILITY[highlightedPosition] || []).includes(slot.pos))) ||
+                (highlightedPosition && highlightedPosition === slot.pos) ||
                 (selectedBenchPlayer && isPlayerCompatibleWithPosition(selectedBenchPlayer, slot.pos)) ||
                 (selectedPitchPlayer && isPlayerCompatibleWithPosition(selectedPitchPlayer, slot.pos))
               );
@@ -1871,11 +1869,11 @@ export default function EFootballGamePlan({
 
             {/* Compatible Playable Positions List */}
             {(() => {
-              const activeNatPos = activeSelectedPlayer.naturalPosition || activeSelectedPlayer.base_position || activeSelectedPlayer.main_position || activeSelectedPlayer.position;
+              const activeNatPos = (activeSelectedPlayer.naturalPosition || activeSelectedPlayer.base_position || activeSelectedPlayer.main_position || activeSelectedPlayer.position || '').toUpperCase().trim();
               const rawCompat = activeSelectedPlayer.compatible_positions;
               const compatList = rawCompat
-                ? (Array.isArray(rawCompat) ? rawCompat : String(rawCompat).split(',').map((p) => p.trim()).filter(Boolean))
-                : (POSITION_COMPATIBILITY[activeNatPos] || [activeNatPos]);
+                ? (Array.isArray(rawCompat) ? rawCompat : String(rawCompat).split(',').map((p) => p.trim().toUpperCase()).filter(Boolean))
+                : [];
 
               return (
                 <div className="flex items-center gap-1.5 flex-wrap border-t border-slate-800/80 pt-1.5">
