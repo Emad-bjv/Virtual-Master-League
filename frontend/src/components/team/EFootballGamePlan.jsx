@@ -8,6 +8,7 @@ import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import { playerApi } from '../../services/api';
 import { useTeam } from '../../context/TeamContext';
 import ConfirmModal from '../common/ConfirmModal';
+import { autoSelectOptimalLineup } from './SimpleTacticsModal';
 
 // Color map for position badges matching eFootball standard (13 official positions)
 const POSITION_COLORS = {
@@ -662,17 +663,33 @@ export default function EFootballGamePlan({
     if (!preset) return;
 
     setCurrentFormation(newFormation);
-    const updatedXi = matchPlayersToFormation(startingXi, preset);
+    let updatedXi = matchPlayersToFormation(startingXi, preset);
+    let updatedSubs = substitutes;
+    let updatedRes = reserves;
+
+    if (notify) {
+      // Intelligently pick best players across full squad for this new formation
+      const fullSquad = [...startingXi, ...substitutes, ...reserves];
+      const optimized = autoSelectOptimalLineup(fullSquad, newFormation);
+      const isSuspended = (p) => Boolean((p?.suspension_matches > 0) || p?.is_suspended || p?.isSuspended);
+      updatedXi = optimized.filter((p) => p && p.is_starting && !isSuspended(p)).slice(0, 11);
+      const nonStarting = optimized.filter((p) => p && (!p.is_starting || isSuspended(p)));
+      updatedSubs = nonStarting.slice(0, 11);
+      updatedRes = nonStarting.slice(11);
+      setSubstitutes(updatedSubs);
+      setReserves(updatedRes);
+    }
+
     setStartingXi(updatedXi);
 
     if (notify) {
-      showNotification(`چیدمان تیمی به ${newFormation} تغییر یافت.`);
+      showNotification(`چیدمان تیمی به ${newFormation} تغییر یافت و ۱۱ بازیکن برتر چیده شدند ⚡`);
     }
     if (onFormationChange) {
       onFormationChange(newFormation);
     }
     if (onLineupChange) {
-      onLineupChange({ startingXi: updatedXi, substitutes, reserves, formation: newFormation });
+      onLineupChange({ startingXi: updatedXi, substitutes: updatedSubs, reserves: updatedRes, formation: newFormation });
     }
   };
 

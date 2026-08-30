@@ -725,7 +725,7 @@ export default function TeamTab({
 
                 return (
                   <EFootballGamePlan 
-                    key={`gameplan-${teamId}-${selectedMatch?.id || 'default'}-${(players || []).length}-${starters.length}`}
+                    key={`gameplan-${teamId}-${selectedMatch?.id || 'default'}-${selectedFormation}-${presetName || 'custom'}-${starters.map(p => `${p.id}_${p.tacticalPosition || p.position}`).join('-')}`}
                     teamName={teamData?.name || "بدون تیم"} 
                     formation={selectedFormation} 
                     onFormationChange={setSelectedFormation}
