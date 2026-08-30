@@ -58,7 +58,7 @@ export default function TeamTab({
     return 'matches';
   };
 
-  const { team, players: contextPlayers, fetchTeam, updateTeamGems, updatePlayerState } = useTeam();
+  const { team, players: contextPlayers, fetchTeam, updateTeamGems, updatePlayerState, setFormation: setContextFormation, setTactics: setContextTactics } = useTeam();
   const [activeSub, setActiveSub] = useState(() => normalizeSubTab(initialSub));
   
   // Use the manager's real team when available
@@ -166,7 +166,8 @@ export default function TeamTab({
     teamApi.getGameplan(teamId, m.id).then((res) => {
       if (res.data?.gameplan) {
         const gp = res.data.gameplan;
-        if (gp.formation) setSelectedFormation(gp.formation);
+        const resolvedForm = gp.formation || teamData?.default_formation || team?.default_formation || selectedFormation || '4-3-3 (4-2-1-3)';
+        setSelectedFormation(resolvedForm);
         setTactics((prev) => ({
           ...prev,
           attacking_style: gp.attacking_style || prev.attacking_style,
@@ -185,6 +186,31 @@ export default function TeamTab({
           adv_defense_2: gp.adv_defense_2 || prev.adv_defense_2,
         }));
         setIsSubmittedForSelectedMatch(Boolean(gp.is_submitted));
+
+        // If this match already has custom saved lineup data, apply it to the workbench
+        if (gp.is_submitted && Array.isArray(gp.players_data) && gp.players_data.length > 0) {
+          const playersDataMap = new Map();
+          gp.players_data.forEach((item) => {
+            const pid = item.player_id || item.id;
+            if (pid) playersDataMap.set(String(pid), item);
+          });
+
+          setPlayers((prev) =>
+            prev.map((p) => {
+              const custom = playersDataMap.get(String(p.id));
+              if (custom) {
+                return {
+                  ...p,
+                  is_starting: Boolean(custom.is_starting),
+                  x_coord: custom.x_coord != null ? custom.x_coord : p.x_coord,
+                  y_coord: custom.y_coord != null ? custom.y_coord : p.y_coord,
+                  tacticalPosition: custom.position || null,
+                };
+              }
+              return p;
+            })
+          );
+        }
       }
     }).catch(() => {});
   };
@@ -342,6 +368,10 @@ export default function TeamTab({
           startingXi: players.filter((p) => p.is_starting).map((p) => p.id),
         });
       } catch {}
+
+      // Keep latest submitted formation and tactics as the standing default across the whole app
+      if (setContextFormation) setContextFormation(selectedFormation);
+      if (setContextTactics) setContextTactics({ ...tactics, formation: selectedFormation });
 
       setSaveMessage(`ترکیب و تاکتیک‌های تیم برای ${targetRoundName} با موفقیت به اتاق داوری ارسال گردید ⚡`);
     } catch (_err) {

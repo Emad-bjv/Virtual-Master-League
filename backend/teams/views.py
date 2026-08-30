@@ -155,6 +155,24 @@ class TeamViewSet(viewsets.ModelViewSet):
                 }
             )
 
+        # If match_gameplan is not submitted yet, always inherit the latest default gameplan & formation
+        if match_gameplan and not match_gameplan.is_submitted:
+            match_gameplan.formation = default_gameplan.formation or team.default_formation or '4-3-3 (4-2-1-3)'
+            match_gameplan.attacking_style = default_gameplan.attacking_style
+            match_gameplan.build_up = default_gameplan.build_up
+            match_gameplan.attacking_area = default_gameplan.attacking_area
+            match_gameplan.positioning = default_gameplan.positioning
+            match_gameplan.support_range = default_gameplan.support_range
+            match_gameplan.defensive_style = default_gameplan.defensive_style
+            match_gameplan.containment_area = default_gameplan.containment_area
+            match_gameplan.pressing = default_gameplan.pressing
+            match_gameplan.defensive_line = default_gameplan.defensive_line
+            match_gameplan.compactness = default_gameplan.compactness
+            match_gameplan.adv_offense_1 = default_gameplan.adv_offense_1
+            match_gameplan.adv_offense_2 = default_gameplan.adv_offense_2
+            match_gameplan.adv_defense_1 = default_gameplan.adv_defense_1
+            match_gameplan.adv_defense_2 = default_gameplan.adv_defense_2
+
         active_gameplan = match_gameplan if match_gameplan else default_gameplan
 
         if request.method == 'POST':
@@ -165,6 +183,11 @@ class TeamViewSet(viewsets.ModelViewSet):
             def_serializer = TeamGamePlanSerializer(default_gameplan, data=tactics, partial=True)
             if def_serializer.is_valid():
                 def_serializer.save()
+
+            # Always save default_formation directly on Team model so it is permanently default
+            if 'formation' in tactics and tactics['formation']:
+                team.default_formation = tactics['formation']
+                team.save(update_fields=['default_formation'])
 
             # Update match gameplan
             if match_gameplan:

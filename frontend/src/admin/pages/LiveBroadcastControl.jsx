@@ -148,11 +148,31 @@ export default function LiveBroadcastControl() {
         // The response is: { gameplan: {...}, team: { players: [...] } }
         if (m.home_team) {
           api.get(`/teams/${m.home_team}/submit_gameplan/`, { params: { match_id: m.id } }).then(gpRes => {
-            setHomeGameplan(gpRes.data.gameplan || null);
-            // Players come from team.players which includes is_starting, position,
-            // x_coord, y_coord, name, overall, shirt_number, etc.
+            const gp = gpRes.data.gameplan || null;
+            setHomeGameplan(gp);
             const teamPlayers = gpRes.data.team?.players || [];
-            setHomePlayers(teamPlayers);
+            let finalPlayers = teamPlayers;
+            if (gp && Array.isArray(gp.players_data) && gp.players_data.length > 0) {
+              const pMap = new Map();
+              gp.players_data.forEach(item => {
+                const pid = item.player_id || item.id;
+                if (pid) pMap.set(String(pid), item);
+              });
+              finalPlayers = teamPlayers.map(p => {
+                const custom = pMap.get(String(p.id));
+                if (custom) {
+                  return {
+                    ...p,
+                    is_starting: Boolean(custom.is_starting),
+                    x_coord: custom.x_coord != null ? custom.x_coord : p.x_coord,
+                    y_coord: custom.y_coord != null ? custom.y_coord : p.y_coord,
+                    tacticalPosition: custom.position || p.position,
+                  };
+                }
+                return p;
+              });
+            }
+            setHomePlayers(finalPlayers);
           }).catch(() => {
             // Fallback: fetch basic team players without lineup status
             api.get(`/teams/${m.home_team}/`).then(tRes => {
@@ -163,9 +183,31 @@ export default function LiveBroadcastControl() {
 
         if (m.away_team) {
           api.get(`/teams/${m.away_team}/submit_gameplan/`, { params: { match_id: m.id } }).then(gpRes => {
-            setAwayGameplan(gpRes.data.gameplan || null);
+            const gp = gpRes.data.gameplan || null;
+            setAwayGameplan(gp);
             const teamPlayers = gpRes.data.team?.players || [];
-            setAwayPlayers(teamPlayers);
+            let finalPlayers = teamPlayers;
+            if (gp && Array.isArray(gp.players_data) && gp.players_data.length > 0) {
+              const pMap = new Map();
+              gp.players_data.forEach(item => {
+                const pid = item.player_id || item.id;
+                if (pid) pMap.set(String(pid), item);
+              });
+              finalPlayers = teamPlayers.map(p => {
+                const custom = pMap.get(String(p.id));
+                if (custom) {
+                  return {
+                    ...p,
+                    is_starting: Boolean(custom.is_starting),
+                    x_coord: custom.x_coord != null ? custom.x_coord : p.x_coord,
+                    y_coord: custom.y_coord != null ? custom.y_coord : p.y_coord,
+                    tacticalPosition: custom.position || p.position,
+                  };
+                }
+                return p;
+              });
+            }
+            setAwayPlayers(finalPlayers);
           }).catch(() => {
             api.get(`/teams/${m.away_team}/`).then(tRes => {
               setAwayPlayers(tRes.data.players || []);
