@@ -8,7 +8,7 @@ import PlayerOverallRecords from './PlayerOverallRecords';
 import MatchSummaryView from './MatchSummaryView';
 import { 
   Search, CheckCircle, AlertTriangle, XCircle, Save, Sliders, 
-  Calendar, Info, X, User, Zap, HeartPulse, Gem, Sparkles, 
+  Calendar, Info, X, User, Users, Zap, HeartPulse, Gem, Sparkles, 
   ArrowRight, ArrowLeft, Clock, Home, Plane, RefreshCw, ChevronRight, Shield, Flame
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
