@@ -62,25 +62,30 @@ export const POSITION_COMPATIBILITY = {
 
 export const isPlayerCompatibleWithPosition = (player, targetPos) => {
   if (!player || !targetPos) return false;
-  const pNat = player.naturalPosition || player.position;
-  const pPos = player.position;
-  if (pNat === targetPos || pPos === targetPos) return true;
+  const natural = player.naturalPosition || player.base_position || player.main_position || player.position;
+  if (!natural) return false;
+  if (natural === targetPos) return true;
 
   if (player.compatible_positions) {
     const list = Array.isArray(player.compatible_positions)
       ? player.compatible_positions
-      : String(player.compatible_positions).split(',').map((p) => p.trim());
+      : String(player.compatible_positions).split(',').map((p) => p.trim()).filter(Boolean);
     if (list.includes(targetPos)) return true;
   }
 
-  const allowed = POSITION_COMPATIBILITY[targetPos] || [targetPos];
-  return allowed.includes(pNat) || allowed.includes(pPos);
+  const allowed = POSITION_COMPATIBILITY[natural] || [natural];
+  if (allowed.includes(targetPos)) return true;
+
+  const targetAllowed = POSITION_COMPATIBILITY[targetPos] || [targetPos];
+  if (targetAllowed.includes(natural)) return true;
+
+  return false;
 };
 
 export const isPlayerExactPosition = (player, targetPos) => {
   if (!player || !targetPos) return false;
-  const pNat = player.naturalPosition || player.position;
-  return pNat === targetPos || player.position === targetPos;
+  const natural = player.naturalPosition || player.base_position || player.main_position || player.position;
+  return natural === targetPos;
 };
 
 // Tiered Escalating Gem Upgrade Costs (پلکانی سناریو ۱: مجموع ~۵,۰۰۰ الماس)
@@ -948,8 +953,9 @@ export default function EFootballGamePlan({
       setSelectedPitchPlayerId(clickedPlayer.id);
       setSelectedBenchPlayerId(null);
       setHighlightedPosition(null);
+      const natPos = clickedPlayer.naturalPosition || clickedPlayer.base_position || clickedPlayer.main_position || clickedPlayer.position;
       const posTitle = POSITION_INFO[clickedPlayer.position]?.title || clickedPlayer.position;
-      showNotification(`پست «${clickedPlayer.position} - ${posTitle}» انتخاب شد. گزینه‌های تعویض روی نیمکت با ⭐ مشخص شدند.`);
+      showNotification(`بازیکن «${clickedPlayer.name} (${natPos})» انتخاب شد. پست‌های سازگار در چمن و گزینه‌های تعویض با ⭐ مشخص شدند.`);
       return;
     }
 
@@ -1312,22 +1318,24 @@ export default function EFootballGamePlan({
         )}
 
         {/* ACTIVE POSITION HIGHLIGHT BANNER */}
-        {activeHighlightPos && (
+        {(activeHighlightPos || selectedPitchPlayerId || selectedBenchPlayerId) && (
           <div className="bg-gradient-to-r from-emerald-950/95 via-[#081f1d] to-[#080c14] border border-emerald-400/60 p-3 rounded-2xl flex items-center justify-between text-xs text-emerald-200 shadow-[0_0_20px_rgba(52,211,153,0.25)] backdrop-blur-xl animate-fadeIn">
             <div className="flex items-center gap-2.5">
               <span className="text-base animate-bounce">⭐</span>
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-black text-white text-xs sm:text-sm">
                     {selectedBenchPlayerId
-                      ? 'موقعیت‌های مناسب در زمین برای:'
+                      ? `موقعیت‌های مناسب در زمین برای ${activeSelectedPlayer?.name || 'بازیکن'}:`
                       : selectedPitchPlayerId
-                      ? 'گزینه‌های جانشین نیمکت برای پست:'
+                      ? `گزینه‌های جانشین نیمکت برای ${activeSelectedPlayer?.name || 'پست'}:`
                       : 'هایلایت پست:'}
                   </span>
-                  <span className={`text-[10px] sm:text-xs font-black px-2 py-0.5 rounded shadow ${POSITION_COLORS[activeHighlightPos] || 'bg-emerald-600 text-slate-950'}`}>
-                    {activeHighlightPos} ({POSITION_INFO[activeHighlightPos]?.title || activeHighlightPos})
-                  </span>
+                  {activeHighlightPos && (
+                    <span className={`text-[10px] sm:text-xs font-black px-2 py-0.5 rounded shadow ${POSITION_COLORS[activeHighlightPos] || 'bg-emerald-600 text-slate-950'}`}>
+                      {activeHighlightPos} ({POSITION_INFO[activeHighlightPos]?.title || activeHighlightPos})
+                    </span>
+                  )}
                 </div>
                 <p className="text-[10.5px] text-emerald-300/80 mt-0.5 hidden sm:block">
                   {selectedBenchPlayerId
@@ -1471,6 +1479,46 @@ export default function EFootballGamePlan({
                 {POSITION_INFO[displayPosCode].desc}
               </p>
             )}
+
+            {/* Compatible Playable Positions List */}
+            {(() => {
+              const activeNatPos = activeSelectedPlayer.naturalPosition || activeSelectedPlayer.base_position || activeSelectedPlayer.main_position || activeSelectedPlayer.position;
+              const rawCompat = activeSelectedPlayer.compatible_positions;
+              const compatList = rawCompat
+                ? (Array.isArray(rawCompat) ? rawCompat : String(rawCompat).split(',').map((p) => p.trim()).filter(Boolean))
+                : (POSITION_COMPATIBILITY[activeNatPos] || [activeNatPos]);
+
+              return (
+                <div className="flex items-center gap-1.5 flex-wrap border-t border-slate-800/80 pt-1.5">
+                  <span className="text-slate-400 font-bold text-[10.5px]">پست‌های قابل بازی:</span>
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePositionHighlight(activeNatPos);
+                    }}
+                    className={`text-[8.5px] font-black px-2 py-0.5 rounded shadow cursor-pointer hover:scale-110 active:scale-95 transition-transform ${POSITION_COLORS[activeNatPos] || 'bg-purple-600 text-white'}`}
+                    title="پست تخصصی اصلی ⭐"
+                  >
+                    {activeNatPos} (اصلی) ⭐
+                  </span>
+                  {compatList
+                    .filter((p) => p !== activeNatPos)
+                    .map((pos) => (
+                      <span
+                        key={pos}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handlePositionHighlight(pos);
+                        }}
+                        className={`text-[8.5px] font-black px-1.5 py-0.5 rounded shadow cursor-pointer hover:scale-110 active:scale-95 transition-transform ${POSITION_COLORS[pos] || 'bg-slate-700 text-white'}`}
+                        title={`کلیک جهت هایلایت پست ${pos}`}
+                      >
+                        {pos}
+                      </span>
+                    ))}
+                </div>
+              );
+            })()}
           </motion.div>
         )}
 
@@ -1513,22 +1561,34 @@ export default function EFootballGamePlan({
           <div className="relative w-full h-[450px] sm:h-[530px] md:h-[630px]">
             {startingXi.map((player) => {
               const isSelected = selectedPitchPlayerId === player.id;
-              const natPos = player.naturalPosition || player.position;
+              const natPos = player.naturalPosition || player.base_position || player.main_position || player.position;
+              const slotPos = player.position || natPos || 'CMF';
+
+              const selectedBenchPlayer = selectedBenchPlayerId
+                ? (substitutes.find((b) => b.id === selectedBenchPlayerId) || reserves.find((r) => r.id === selectedBenchPlayerId))
+                : null;
+
+              const selectedPitchPlayer = selectedPitchPlayerId
+                ? startingXi.find((p) => p.id === selectedPitchPlayerId)
+                : null;
+
               const isPositionMatch = Boolean(
                 (highlightedPosition && isPlayerCompatibleWithPosition(player, highlightedPosition)) ||
-                (selectedBenchPlayerId && isPlayerCompatibleWithPosition(player, activeHighlightPos))
+                (selectedBenchPlayer && isPlayerCompatibleWithPosition(selectedBenchPlayer, slotPos)) ||
+                (selectedPitchPlayer && !isSelected && isPlayerCompatibleWithPosition(selectedPitchPlayer, slotPos))
               );
               const isExactMatch = Boolean(
-                activeHighlightPos && 
-                (player.naturalPosition === activeHighlightPos || player.position === activeHighlightPos)
+                (highlightedPosition && isPlayerExactPosition(player, highlightedPosition)) ||
+                (selectedBenchPlayer && isPlayerExactPosition(selectedBenchPlayer, slotPos)) ||
+                (selectedPitchPlayer && !isSelected && isPlayerExactPosition(selectedPitchPlayer, slotPos))
               );
               const isDimmed = Boolean(
                 (highlightedPosition && !isPositionMatch) ||
                 (selectedBenchPlayerId && !isPositionMatch) ||
-                (selectedPitchPlayerId && !isSelected)
+                (selectedPitchPlayerId && !isSelected && !isPositionMatch)
               );
-              const isOutOfPosition = Boolean(player.position && !isPlayerCompatibleWithPosition(player, player.position));
-              const posCode = player.position || player.naturalPosition || 'CMF';
+              const isOutOfPosition = Boolean(!isPlayerCompatibleWithPosition(player, slotPos));
+              const posCode = slotPos;
 
               // Readiness / Stamina Calculation (linked with facilities & fatigue formula)
               const staminaPercent = Math.max(5, Math.min(100, Math.round(Number(player.stamina ?? player.virtual_stamina ?? 90))));
@@ -1579,7 +1639,7 @@ export default function EFootballGamePlan({
                     {isOutOfPosition && (
                       <span
                         className="absolute -top-1.5 -right-1.5 z-50 bg-amber-500 text-black text-[10px] sm:text-[11px] font-black w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-white shadow-[0_0_10px_rgba(245,158,11,0.9)] flex items-center justify-center leading-none pointer-events-none animate-pulse"
-                        title={`⚠️ پست غیرتخصصی! پست اصلی: ${player.naturalPosition} (پست در چمن: ${player.position})`}
+                        title={`⚠️ پست غیرتخصصی! پست اصلی: ${natPos} (پست در چمن: ${slotPos})`}
                       >
                         ⚠️
                       </span>
@@ -1744,7 +1804,11 @@ export default function EFootballGamePlan({
 
             {/* Render Empty Formation Slots if fewer than 11 players on pitch */}
             {unoccupiedSlots.map((slot, sIdx) => {
-              const isSlotHighlighted = Boolean(activeHighlightPos && (activeHighlightPos === slot.pos || (POSITION_COMPATIBILITY[activeHighlightPos] || []).includes(slot.pos)));
+              const isSlotHighlighted = Boolean(
+                (highlightedPosition && (highlightedPosition === slot.pos || (POSITION_COMPATIBILITY[highlightedPosition] || []).includes(slot.pos))) ||
+                (selectedBenchPlayer && isPlayerCompatibleWithPosition(selectedBenchPlayer, slot.pos)) ||
+                (selectedPitchPlayer && isPlayerCompatibleWithPosition(selectedPitchPlayer, slot.pos))
+              );
               return (
                 <motion.div
                   key={`empty-slot-${sIdx}-${slot.pos}`}
@@ -1826,10 +1890,15 @@ export default function EFootballGamePlan({
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-11 gap-2">
               {substitutes.map((sub) => {
                 const isSelected = selectedBenchPlayerId === sub.id;
-                const natPos = sub.naturalPosition || sub.position;
-                const isPosMatch = !selectedBenchPlayerId && Boolean(activeHighlightPos && isPlayerCompatibleWithPosition(sub, activeHighlightPos));
-                const isExactMatch = Boolean(activeHighlightPos && (natPos === activeHighlightPos || sub.position === activeHighlightPos));
-                const isDimmed = !selectedBenchPlayerId && Boolean(activeHighlightPos && !isSelected && !isPosMatch);
+                const natPos = sub.naturalPosition || sub.base_position || sub.main_position || sub.position;
+                const selectedPitchPlayer = selectedPitchPlayerId
+                  ? startingXi.find((p) => p.id === selectedPitchPlayerId)
+                  : null;
+                const targetPos = highlightedPosition || (selectedPitchPlayer ? selectedPitchPlayer.position : null);
+
+                const isPosMatch = !selectedBenchPlayerId && Boolean(targetPos && isPlayerCompatibleWithPosition(sub, targetPos));
+                const isExactMatch = Boolean(targetPos && isPlayerExactPosition(sub, targetPos));
+                const isDimmed = !selectedBenchPlayerId && Boolean(targetPos && !isSelected && !isPosMatch);
                 const isOut = sub.isSubbedOut;
                 const isSuspended = Boolean((sub.suspension_matches > 0) || sub.is_suspended || sub.isSuspended);
                 const subStamina = Math.max(5, Math.min(100, Math.round(Number(sub.stamina ?? sub.virtual_stamina ?? 90))));
@@ -1941,10 +2010,15 @@ export default function EFootballGamePlan({
                 <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2">
                   {reserves.map((res) => {
                     const isSelected = selectedBenchPlayerId === res.id;
-                    const natPos = res.naturalPosition || res.position;
-                    const isPosMatch = !selectedBenchPlayerId && Boolean(activeHighlightPos && isPlayerCompatibleWithPosition(res, activeHighlightPos));
-                    const isExactMatch = Boolean(activeHighlightPos && (natPos === activeHighlightPos || res.position === activeHighlightPos));
-                    const isDimmed = !selectedBenchPlayerId && Boolean(activeHighlightPos && !isSelected && !isPosMatch);
+                    const natPos = res.naturalPosition || res.base_position || res.main_position || res.position;
+                    const selectedPitchPlayer = selectedPitchPlayerId
+                      ? startingXi.find((p) => p.id === selectedPitchPlayerId)
+                      : null;
+                    const targetPos = highlightedPosition || (selectedPitchPlayer ? selectedPitchPlayer.position : null);
+
+                    const isPosMatch = !selectedBenchPlayerId && Boolean(targetPos && isPlayerCompatibleWithPosition(res, targetPos));
+                    const isExactMatch = Boolean(targetPos && isPlayerExactPosition(res, targetPos));
+                    const isDimmed = !selectedBenchPlayerId && Boolean(targetPos && !isSelected && !isPosMatch);
                     const isSuspended = Boolean((res.suspension_matches > 0) || res.is_suspended || res.isSuspended);
                     const resStamina = Math.max(5, Math.min(100, Math.round(Number(res.stamina ?? res.virtual_stamina ?? 90))));
 
