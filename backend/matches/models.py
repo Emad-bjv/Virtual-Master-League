@@ -405,6 +405,9 @@ class MatchGamePlan(models.Model):
     adv_defense_1 = models.CharField(max_length=50, default='هیچکدام')
     adv_defense_2 = models.CharField(max_length=50, default='هیچکدام')
 
+    preset_name = models.CharField(max_length=100, blank=True, default='', verbose_name="سبک تاکتیک ساده")
+    has_custom_player_edits = models.BooleanField(default=False, verbose_name="دارای جابجایی دستی بازیکنان")
+
     is_submitted = models.BooleanField(default=False, db_index=True, verbose_name="تایید و ارسال شده برای این مسابقه")
     submitted_at = models.DateTimeField(null=True, blank=True, verbose_name="زمان ثبت و ارسال")
     players_data = models.JSONField(default=list, blank=True, verbose_name="چیدمان بازیکنان در این مسابقه")

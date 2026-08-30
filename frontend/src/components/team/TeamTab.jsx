@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import SubNav from '../common/SubNav';
 import EFootballGamePlan, { getGemBoostCost } from './EFootballGamePlan';
+import SimpleTacticsModal from './SimpleTacticsModal';
 import LeagueStandingsTable from './LeagueStandingsTable';
 import MatchDetailModal from './MatchDetailModal';
 import PlayerOverallRecords from './PlayerOverallRecords';
@@ -63,9 +64,14 @@ export default function TeamTab({
   
   // Use the manager's real team when available
   const teamId = teamData?.id || team?.id;
-  const initialFormation = teamData?.default_formation || team?.default_formation || '4-3-3';
+  const initialFormation = teamData?.default_formation || team?.default_formation || '4-3-3 (4-2-1-3)';
   const [selectedFormation, setSelectedFormation] = useState(initialFormation);
   const [tacticTab, setTacticTab] = useState('attack'); // 'attack' | 'defense' | 'advanced'
+
+  // Simple Tactics states
+  const [presetName, setPresetName] = useState('');
+  const [hasCustomPlayerEdits, setHasCustomPlayerEdits] = useState(false);
+  const [isSimpleTacticsOpen, setIsSimpleTacticsOpen] = useState(false);
 
   // Match Schedule & Match-Scoped Selection State
   const [scheduleMatches, setScheduleMatches] = useState([]);
@@ -168,6 +174,8 @@ export default function TeamTab({
         const gp = res.data.gameplan;
         const resolvedForm = gp.formation || teamData?.default_formation || team?.default_formation || selectedFormation || '4-3-3 (4-2-1-3)';
         setSelectedFormation(resolvedForm);
+        setPresetName(gp.preset_name || '');
+        setHasCustomPlayerEdits(Boolean(gp.has_custom_player_edits));
         setTactics((prev) => ({
           ...prev,
           attacking_style: gp.attacking_style || prev.attacking_style,
@@ -315,6 +323,27 @@ export default function TeamTab({
       .catch(() => setLeagueTable([]));
   }, [activeSub, teamId]);
 
+  const handleApplySimpleTactics = ({ presetName: newPresetName, mode, newPlayers, newFormation, newTactics }) => {
+    setPresetName(newPresetName);
+    if (mode === 'lineup_and_tactics' || mode === 'only_lineup') {
+      setHasCustomPlayerEdits(false);
+    }
+    if (newPlayers && newPlayers.length > 0) {
+      setPlayers(newPlayers);
+    }
+    if (newFormation) {
+      setSelectedFormation(newFormation);
+    }
+    if (newTactics) {
+      setTactics((prev) => ({
+        ...prev,
+        ...newTactics,
+      }));
+    }
+    setSaveMessage(`سبک تاکتیکی «${newPresetName}» با موفقیت اعمال شد ⚡ (با دکمه تایید، ذخیره نمایید)`);
+    setTimeout(() => setSaveMessage(''), 4000);
+  };
+
   const handleFullSubmit = async () => {
     if (!teamId) {
       setSaveMessage('تیمی برای شما یافت نشد.');
@@ -327,8 +356,13 @@ export default function TeamTab({
       const targetRoundName = selectedMatch?.round_name || nextUpcomingMatch?.round_name || 'مسابقه بعدی';
 
       const payload = {
+        formation: selectedFormation,
+        preset_name: presetName,
+        has_custom_player_edits: hasCustomPlayerEdits,
         tactics: {
           formation: selectedFormation,
+          preset_name: presetName,
+          has_custom_player_edits: hasCustomPlayerEdits,
           ...tactics,
         },
         players: players.map((p) => ({
@@ -613,6 +647,45 @@ export default function TeamTab({
                     </span>
                   </div>
                 )}
+
+                {/* Quick Simple Tactics Launcher Bar */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-2xl bg-gradient-to-r from-[#0c1524] via-[#09101b] to-[#050910] border border-cyan-500/40 shadow-lg">
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-500 to-[#00ff87] flex items-center justify-center text-slate-950 shrink-0 shadow-[0_0_15px_rgba(0,255,135,0.4)]">
+                      <Zap size={20} className="fill-slate-950" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs sm:text-sm font-black text-white">ترکیب و تاکتیک ساده (Easy Presets)</span>
+                        {presetName ? (
+                          <span className="text-[10px] bg-cyan-950 text-cyan-300 px-2.5 py-0.5 rounded-full border border-cyan-500/40 font-black">
+                            سبک فعال: {presetName}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] bg-purple-950 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30">
+                            انتخاب سریع
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {presetName
+                          ? hasCustomPlayerEdits
+                            ? 'سبک ساده اعمال شده است (همراه با تغییرات دستی شما در نفرات)'
+                            : 'سبک ساده با چیدمان خودکار هوشمند اعمال شده است'
+                          : 'انتخاب آسان سبک بازی، سیستم استاندارد و چیدمان خودکار بهترین ۱۱ بازیکن'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsSimpleTacticsOpen(true)}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#00ff87] to-cyan-400 hover:from-[#00ff87]/90 hover:to-cyan-400/90 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 shadow-[0_0_20px_rgba(0,255,135,0.3)] transition-all cursor-pointer shrink-0 active:scale-95"
+                  >
+                    <Sparkles size={15} />
+                    <span>{presetName ? 'تغییر یا تنظیم سبک ساده' : '⚡ انتخاب تاکتیک و ترکیب ساده'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Pitch Component */}
@@ -638,6 +711,7 @@ export default function TeamTab({
                     onFormationChange={setSelectedFormation}
                     onLineupChange={({ startingXi: newXi, substitutes: newSubs, reserves: newRes, formation: newForm }) => {
                       if (newForm) setSelectedFormation(newForm);
+                      if (presetName) setHasCustomPlayerEdits(true);
                       const updatedPlayers = [
                         ...newXi.map((p) => ({
                           ...p,
@@ -1312,6 +1386,16 @@ export default function TeamTab({
       {activeSub === 'table' && (
         <LeagueStandingsTable userTeamId={teamId} />
       )}
+
+      {/* Simple Tactics Modal */}
+      <SimpleTacticsModal
+        isOpen={isSimpleTacticsOpen}
+        onClose={() => setIsSimpleTacticsOpen(false)}
+        currentFormation={selectedFormation}
+        currentPresetName={presetName}
+        players={players}
+        onApplySimpleTactics={handleApplySimpleTactics}
+      />
     </div>
   );
 }

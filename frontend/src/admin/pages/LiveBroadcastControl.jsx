@@ -1100,22 +1100,32 @@ export default function LiveBroadcastControl() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
                   <button
                     onClick={() => setTacticalTeamTab('home')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      tacticalTeamTab === 'home' ? 'bg-cyan-600 text-white' : 'text-slate-400 hover:text-white'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      tacticalTeamTab === 'home' ? 'bg-cyan-600 text-white shadow' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    {selectedMatch.home_team_name}
+                    <span>{selectedMatch.home_team_name}</span>
+                    {homeGameplan?.preset_name && (
+                      <span className="text-[9px] bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded font-black">
+                        ⚡ {homeGameplan.preset_name}
+                      </span>
+                    )}
                   </button>
                   <button
                     onClick={() => setTacticalTeamTab('away')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                      tacticalTeamTab === 'away' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-white'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      tacticalTeamTab === 'away' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-white'
                     }`}
                   >
-                    {selectedMatch.away_team_name}
+                    <span>{selectedMatch.away_team_name}</span>
+                    {awayGameplan?.preset_name && (
+                      <span className="text-[9px] bg-amber-400 text-slate-950 px-1.5 py-0.2 rounded font-black">
+                        ⚡ {awayGameplan.preset_name}
+                      </span>
+                    )}
                   </button>
                 </div>
               </div>
@@ -1172,9 +1182,31 @@ export default function LiveBroadcastControl() {
 
                   {/* Starting Players on Pitch */}
                   <div className="relative z-10 w-full h-full flex flex-col justify-between">
-                    <div className="text-[10px] text-emerald-300 font-bold bg-black/40 px-2 py-0.5 rounded-md self-start">
-                      سیستم: {tacticalTeamTab === 'home' ? (homeGameplan?.formation || '4-3-3') : (awayGameplan?.formation || '4-3-3')}
-                    </div>
+                    {/* Header Badges: Formation + Simple Preset Indicator */}
+                    {(() => {
+                      const activeGp = tacticalTeamTab === 'home' ? homeGameplan : awayGameplan;
+                      const hasPreset = Boolean(activeGp?.preset_name);
+                      return (
+                        <div className="flex flex-wrap items-center gap-2 self-start">
+                          <div className="text-[10.5px] text-emerald-300 font-bold bg-black/60 px-2.5 py-1 rounded-lg border border-emerald-500/40 font-sport shadow">
+                            سیستم: {activeGp?.formation || '4-3-3 (4-2-1-3)'}
+                          </div>
+                          {hasPreset ? (
+                            <div className="text-[10px] bg-gradient-to-r from-amber-950/90 to-orange-950/90 text-amber-300 px-2.5 py-1 rounded-lg border border-amber-500/60 font-black flex items-center gap-1.5 shadow">
+                              <span>⚡ سبک ساده:</span>
+                              <strong className="text-white">{activeGp.preset_name}</strong>
+                              <span className="text-[9px] bg-amber-500/20 text-amber-200 px-1.5 py-0.2 rounded border border-amber-500/30">
+                                {activeGp.has_custom_player_edits ? 'با جابجایی دستی بازیکنان' : 'چیدمان خودکار هوشمند'}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="text-[10px] bg-slate-900/80 text-slate-300 px-2 py-1 rounded-lg border border-slate-700 font-bold">
+                              🎯 تاکتیک دستی پیشرفته
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                   {/* Nodes Cluster - Starting XI from Coach's submitted lineup */}
                   {(() => {

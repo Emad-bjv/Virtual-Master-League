@@ -296,6 +296,9 @@ class TeamGamePlan(models.Model):
     adv_defense_1 = models.CharField(max_length=50, default='هیچکدام')
     adv_defense_2 = models.CharField(max_length=50, default='هیچکدام')
 
+    preset_name = models.CharField(max_length=100, blank=True, default='', verbose_name="سبک تاکتیک ساده")
+    has_custom_player_edits = models.BooleanField(default=False, verbose_name="دارای جابجایی دستی بازیکنان")
+
     is_submitted = models.BooleanField(default=False, verbose_name="تایید و ارسال شده به ادمین")
     submitted_at = models.DateTimeField(auto_now=True, verbose_name="زمان ثبت و ارسال")
 

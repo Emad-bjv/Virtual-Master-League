@@ -178,6 +178,11 @@ class TeamViewSet(viewsets.ModelViewSet):
         if request.method == 'POST':
             tactics = request.data.get('tactics', {})
             players_data = request.data.get('players', [])
+            preset_name = request.data.get('preset_name') or tactics.get('preset_name', '')
+            has_custom_player_edits = request.data.get('has_custom_player_edits', False) or tactics.get('has_custom_player_edits', False)
+            
+            tactics['preset_name'] = preset_name
+            tactics['has_custom_player_edits'] = has_custom_player_edits
 
             # Update default template
             def_serializer = TeamGamePlanSerializer(default_gameplan, data=tactics, partial=True)
@@ -238,6 +243,9 @@ class TeamViewSet(viewsets.ModelViewSet):
                     status__in=['LIVE', 'SCHEDULED']
                 )
 
+                preset_tag = f" (تاکتیک ساده: {active_gameplan.preset_name})" if active_gameplan.preset_name else ""
+                custom_tag = " [با چیدمان دستی بازیکنان]" if active_gameplan.has_custom_player_edits else ""
+
                 for m in target_broadcast_matches:
                     broadcast_match_event(m.id, {
                         'type': 'coach_tactics_submitted',
@@ -246,17 +254,21 @@ class TeamViewSet(viewsets.ModelViewSet):
                         'team_name': team.name,
                         'is_home': m.home_team_id == team.id,
                         'formation': active_gameplan.formation,
+                        'preset_name': active_gameplan.preset_name,
+                        'has_custom_player_edits': active_gameplan.has_custom_player_edits,
                         'tactics': MatchGamePlanSerializer(active_gameplan).data if isinstance(active_gameplan, MatchGamePlan) else TeamGamePlanSerializer(active_gameplan).data,
-                        'message': f'سرمربی تیم {team.name} ترکیب و تاکتیک جدید را برای مسابقه ارسال کرد ⚡'
+                        'message': f'سرمربی تیم {team.name} ترکیب {active_gameplan.formation}{preset_tag}{custom_tag} را ارسال کرد ⚡'
                     })
 
                 notify_admin({
                     'type': 'coach_tactics_submitted',
                     'title': f'درخواست تغییرات تاکتیکی: {team.name}',
-                    'body': f'سرمربی تیم {team.name} ترکیب جدید ({active_gameplan.formation}) را برای {target_match.round_name if target_match else "مسابقه"} ارسال کرد.',
+                    'body': f'سرمربی تیم {team.name} ترکیب {active_gameplan.formation}{preset_tag}{custom_tag} را برای {target_match.round_name if target_match else "مسابقه"} ارسال کرد.',
                     'team_id': team.id,
                     'team_name': team.name,
                     'formation': active_gameplan.formation,
+                    'preset_name': active_gameplan.preset_name,
+                    'has_custom_player_edits': active_gameplan.has_custom_player_edits,
                     'match_id': target_match.id if target_match else None,
                 })
             except Exception as e:
