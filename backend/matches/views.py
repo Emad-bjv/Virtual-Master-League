@@ -178,6 +178,7 @@ class LeagueStandingsView(generics.GenericAPIView):
         standings = []
         for row in qs:
             standings.append({
+                'id': row.id,
                 'team_id': row.team.id,
                 'name': row.team.name,
                 'logo': row.team.logo,
@@ -188,7 +189,11 @@ class LeagueStandingsView(generics.GenericAPIView):
                 'gf': row.goals_for,
                 'ga': row.goals_against,
                 'gd': row.goal_difference,
-                'points': row.points,
+                'raw_points': row.points,
+                'points': row.net_points,
+                'points_deduction': row.points_deduction,
+                'points_deduction_reason': row.points_deduction_reason,
+                'is_manually_overridden': row.is_manually_overridden,
             })
 
         standings.sort(key=lambda x: (-x['points'], -x['gd'], -x['gf'], x['name']))
@@ -397,6 +402,9 @@ def recalculate_tournament_standings(tournament_id):
             stats[a_id]['points'] += 1
 
     for t_id, data in stats.items():
+        existing = LeagueStanding.objects.filter(tournament=tournament, team_id=t_id).first()
+        deduction = existing.points_deduction if existing else 0
+        deduction_reason = existing.points_deduction_reason if existing else ''
         LeagueStanding.objects.update_or_create(
             tournament=tournament,
             team_id=t_id,
@@ -408,6 +416,9 @@ def recalculate_tournament_standings(tournament_id):
                 'goals_for': data['goals_for'],
                 'goals_against': data['goals_against'],
                 'points': data['points'],
+                'points_deduction': deduction,
+                'points_deduction_reason': deduction_reason,
+                'is_manually_overridden': False,
             }
         )
 
@@ -2131,6 +2142,173 @@ class AdminMatchForfeitView(APIView):
             'status': 'success',
             'message': f'باخت فنی ۳-۰ با موفقیت برای تیم {forfeit_target} ثبت شد.',
             'match': MatchDetailSerializer(match).data
+        }, status=status.HTTP_200_OK)
+
+
+class AdminStandingsManualEditView(APIView):
+    """
+    Allows admin to directly and manually override a team's league standing row
+    (played, won, drawn, lost, gf, ga, points, points_deduction, points_deduction_reason).
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request):
+        standing_id = request.data.get('standing_id')
+        team_id = request.data.get('team_id')
+        tournament_id = request.data.get('tournament_id')
+
+        standing = None
+        if standing_id:
+            standing = LeagueStanding.objects.filter(id=standing_id).first()
+        elif team_id and tournament_id:
+            standing = LeagueStanding.objects.filter(team_id=team_id, tournament_id=tournament_id).first()
+        elif team_id:
+            # Pick the active league tournament
+            tourney = Tournament.objects.filter(tournament_type='LEAGUE', is_active=True).first()
+            if tourney:
+                standing = LeagueStanding.objects.filter(team_id=team_id, tournament=tourney).first()
+
+        if not standing:
+            if not team_id:
+                return Response({'error': 'شناسه تیم مشخص نشده است.'}, status=status.HTTP_400_BAD_REQUEST)
+            tourney = Tournament.objects.filter(id=tournament_id).first() if tournament_id else Tournament.objects.filter(tournament_type='LEAGUE', is_active=True).first()
+            if not tourney:
+                tourney = Tournament.objects.first()
+            team = get_object_or_404(Team, id=team_id)
+            standing = LeagueStanding.objects.create(tournament=tourney, team=team)
+
+        # Update fields if provided
+        if 'played' in request.data:
+            standing.played = int(request.data['played'])
+        if 'won' in request.data:
+            standing.won = int(request.data['won'])
+        if 'drawn' in request.data:
+            standing.drawn = int(request.data['drawn'])
+        if 'lost' in request.data:
+            standing.lost = int(request.data['lost'])
+        if 'gf' in request.data or 'goals_for' in request.data:
+            standing.goals_for = int(request.data.get('gf') if 'gf' in request.data else request.data['goals_for'])
+        if 'ga' in request.data or 'goals_against' in request.data:
+            standing.goals_against = int(request.data.get('ga') if 'ga' in request.data else request.data['goals_against'])
+        if 'raw_points' in request.data or 'points' in request.data:
+            standing.points = int(request.data.get('raw_points') if 'raw_points' in request.data else request.data['points'])
+        if 'points_deduction' in request.data:
+            standing.points_deduction = max(0, int(request.data['points_deduction']))
+        if 'points_deduction_reason' in request.data:
+            standing.points_deduction_reason = str(request.data['points_deduction_reason']).strip()
+
+        standing.is_manually_overridden = True
+        standing.save()
+
+        # Broadcast update to connected clients
+        try:
+            from realtime.events import broadcast_global_event
+            broadcast_global_event('league_schedule_updated', {
+                'action': 'STANDINGS_MANUAL_EDIT',
+                'team_id': standing.team_id,
+            })
+        except Exception:
+            pass
+
+        return Response({
+            'status': 'success',
+            'message': f'جدول رده‌بندی برای تیم «{standing.team.name}» با موفقیت ویرایش و ذخیره شد.',
+            'standing': LeagueStandingSerializer(standing).data
+        }, status=status.HTTP_200_OK)
+
+
+class AdminStandingsApplyPenaltyView(APIView):
+    """
+    Applies or updates a points deduction penalty on a specific team in the league.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request):
+        standing_id = request.data.get('standing_id')
+        team_id = request.data.get('team_id')
+        tournament_id = request.data.get('tournament_id')
+        points_deduction = int(request.data.get('points_deduction', 0))
+        points_deduction_reason = str(request.data.get('points_deduction_reason', '')).strip()
+
+        standing = None
+        if standing_id:
+            standing = LeagueStanding.objects.filter(id=standing_id).first()
+        elif team_id:
+            tourney = Tournament.objects.filter(id=tournament_id).first() if tournament_id else Tournament.objects.filter(tournament_type='LEAGUE', is_active=True).first()
+            if not tourney:
+                tourney = Tournament.objects.first()
+            team = get_object_or_404(Team, id=team_id)
+            standing, _ = LeagueStanding.objects.get_or_create(tournament=tourney, team=team)
+
+        if not standing:
+            return Response({'error': 'رکورد جدول لیگ یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        standing.points_deduction = max(0, points_deduction)
+        standing.points_deduction_reason = points_deduction_reason
+        standing.save(update_fields=['points_deduction', 'points_deduction_reason'])
+
+        try:
+            from realtime.events import broadcast_global_event
+            broadcast_global_event('league_schedule_updated', {
+                'action': 'STANDINGS_PENALTY_UPDATED',
+                'team_id': standing.team_id,
+                'points_deduction': standing.points_deduction,
+                'points_deduction_reason': standing.points_deduction_reason
+            })
+        except Exception:
+            pass
+
+        action_msg = f'جریمه کسر {standing.points_deduction} امتیاز برای تیم «{standing.team.name}» با موفقیت اعمال شد.' if standing.points_deduction > 0 else f'جریمه کسر امتیاز تیم «{standing.team.name}» با موفقیت پاک شد.'
+
+        return Response({
+            'status': 'success',
+            'message': action_msg,
+            'standing': LeagueStandingSerializer(standing).data
+        }, status=status.HTTP_200_OK)
+
+
+class AdminStandingsRecalculateView(APIView):
+    """
+    Recalculates league standings from actual match results while preserving active point deductions.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request):
+        tournament_id = request.data.get('tournament_id')
+        tournament = None
+        if tournament_id:
+            tournament = Tournament.objects.filter(id=tournament_id).first()
+        if not tournament:
+            tournament = Tournament.objects.filter(tournament_type='LEAGUE', is_active=True).first()
+        if not tournament:
+            tournament = Tournament.objects.filter(tournament_type='LEAGUE').first()
+        if not tournament:
+            tournament = Tournament.objects.first()
+
+        if not tournament:
+            return Response({'error': 'هیچ لیگ فعالی یافت نشد.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        recalculate_tournament_standings(tournament.id)
+
+        try:
+            from realtime.events import broadcast_global_event
+            broadcast_global_event('league_schedule_updated', {
+                'action': 'STANDINGS_RECALCULATED',
+                'tournament_id': tournament.id
+            })
+        except Exception:
+            pass
+
+        qs = LeagueStanding.objects.filter(tournament=tournament, team__is_active=True).select_related('team')
+        standings = LeagueStandingSerializer(qs, many=True).data
+        standings.sort(key=lambda x: (-x['points'], -x['gd'], -x['gf'], x['name']))
+        for idx, row in enumerate(standings, start=1):
+            row['rank'] = idx
+
+        return Response({
+            'status': 'success',
+            'message': f'جدول رده‌بندی لیگ «{tournament.name}» با موفقیت از روی نتایج واقعی تمام بازی‌ها بازسازی و محاسبه مجدد شد.',
+            'standings': standings
         }, status=status.HTTP_200_OK)
 
 

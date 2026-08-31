@@ -266,8 +266,21 @@ export default function LeagueStandingsTable({ userTeamId, initialStandings = nu
                       </td>
 
                       {/* PTS */}
-                      <td className="py-3 px-3 text-center font-black text-amber-300 text-sm">
-                        {row.points || 0}
+                      <td className="py-3 px-3 text-center">
+                        <div className="flex flex-col items-center justify-center">
+                          <span className="font-black text-amber-300 text-sm">
+                            {row.points ?? 0}
+                          </span>
+                          {Boolean(row.points_deduction > 0) && (
+                            <span
+                              className="text-[9px] font-black text-rose-300 bg-rose-950/80 px-1 py-0.5 rounded border border-rose-500/40 flex items-center gap-0.5 mt-0.5 shadow-sm"
+                              title={`کسر ${row.points_deduction} امتیاز جریمه انضباطی${row.points_deduction_reason ? `: ${row.points_deduction_reason}` : ''}`}
+                            >
+                              <span className="font-mono">-{row.points_deduction}</span>
+                              <span className="text-[8px] font-sans">جریمه</span>
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -276,6 +289,32 @@ export default function LeagueStandingsTable({ userTeamId, initialStandings = nu
             </tbody>
           </table>
         </div>
+
+        {/* Active Penalties Notice (if any team has deductions) */}
+        {sortedStandings.some((r) => r.points_deduction > 0) && (
+          <div className="p-3 bg-rose-950/20 border-t border-rose-500/20 text-xs font-sans text-rose-300/90 flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5 font-bold text-rose-300">
+              <ShieldAlert size={14} className="text-rose-400 shrink-0" />
+              <span>احکام انضباطی و کسر امتیازهای اعمال‌شده در جدول:</span>
+            </div>
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              {sortedStandings
+                .filter((r) => r.points_deduction > 0)
+                .map((r) => (
+                  <span
+                    key={r.team_id}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950/80 border border-rose-500/30 text-slate-200"
+                  >
+                    <strong className="text-rose-400 font-black">-{r.points_deduction} امتیاز</strong>
+                    <span>تیم {r.name}</span>
+                    {r.points_deduction_reason && (
+                      <span className="text-slate-400 text-[10px]">({r.points_deduction_reason})</span>
+                    )}
+                  </span>
+                ))}
+            </div>
+          </div>
+        )}
 
         {/* Legend / Qualification Zones Guide */}
         <div className="p-3.5 bg-[#05080e]/90 border-t border-slate-700/60 flex flex-wrap items-center justify-between gap-3 text-[10.5px] text-slate-400 font-medium">

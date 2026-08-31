@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trophy, Calendar, Clock, RefreshCw, Lock, Unlock, Bell, AlertTriangle,
   Play, CheckCircle2, Shield, Settings, ChevronDown, ChevronRight, ChevronUp,
   Plus, Trash2, ArrowLeftRight, Check, Sparkles, Sliders, Eye, Award,
-  Users, Zap, ShieldAlert, X, RotateCcw, SlidersHorizontal, Layers, Flame
+  Users, Zap, ShieldAlert, X, RotateCcw, SlidersHorizontal, Layers, Flame,
+  Edit3, Scale, Gavel, FileEdit, Hash, HelpCircle, CheckSquare, Save
 } from 'lucide-react';
 import { adminApi, matchApi, teamApi } from '../../services/api';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
@@ -210,11 +212,120 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
   const [editDate, setEditDate] = useState('');
   const [editStatus, setEditStatus] = useState('SCHEDULED');
 
+  // Standings Management State
+  const [standingsList, setStandingsList] = useState([]);
+  const [editingStandingId, setEditingStandingId] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
+  const [penaltyModal, setPenaltyModal] = useState({
+    isOpen: false,
+    standing: null,
+    points_deduction: 0,
+    points_deduction_reason: '',
+  });
+  const [recalculatingStandings, setRecalculatingStandings] = useState(false);
+
   const notify = (msg, type = 'success') => {
     if (onNotification) {
       onNotification(msg, type);
     } else {
       alert(msg);
+    }
+  };
+
+  const fetchStandingsList = async () => {
+    try {
+      const res = await matchApi.getLeagueStandings();
+      setStandingsList(res.data || []);
+    } catch (e) {
+      console.warn('Failed to load standings', e);
+    }
+  };
+
+  const handleRecalculateStandings = async () => {
+    setRecalculatingStandings(true);
+    try {
+      const res = await adminApi.recalculateStandings();
+      notify(res.data?.message || 'جدول رده‌بندی لیگ با موفقیت محاسبه مجدد شد.', 'success');
+      if (res.data?.standings) {
+        setStandingsList(res.data.standings);
+      } else {
+        await fetchStandingsList();
+      }
+      try {
+        window.dispatchEvent(new Event('vml_league_schedule_updated'));
+      } catch (_e) {}
+    } catch (err) {
+      notify(err.response?.data?.error || 'خطا در محاسبه مجدد جدول لیگ', 'error');
+    } finally {
+      setRecalculatingStandings(false);
+    }
+  };
+
+  const handleStartEditStanding = (row) => {
+    setEditingStandingId(row.id || row.team_id);
+    setEditFormData({
+      played: row.played ?? 0,
+      won: row.won ?? 0,
+      drawn: row.drawn ?? 0,
+      lost: row.lost ?? 0,
+      gf: row.gf ?? 0,
+      ga: row.ga ?? 0,
+      raw_points: row.raw_points ?? row.points ?? 0,
+      points_deduction: row.points_deduction ?? 0,
+      points_deduction_reason: row.points_deduction_reason || '',
+    });
+  };
+
+  const handleSaveEditStanding = async (row) => {
+    setActionLoading(true);
+    try {
+      const res = await adminApi.manualEditStanding({
+        standing_id: row.id,
+        team_id: row.team_id,
+        ...editFormData,
+      });
+      notify(res.data?.message || `آمار تیم «${row.name}» با موفقیت ذخیره شد.`, 'success');
+      setEditingStandingId(null);
+      await fetchStandingsList();
+      try {
+        window.dispatchEvent(new Event('vml_league_schedule_updated'));
+      } catch (_e) {}
+    } catch (err) {
+      notify(err.response?.data?.error || 'خطا در ذخیره دستی جدول', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleOpenPenaltyModal = (row) => {
+    setPenaltyModal({
+      isOpen: true,
+      standing: row,
+      points_deduction: row.points_deduction || 0,
+      points_deduction_reason: row.points_deduction_reason || '',
+    });
+  };
+
+  const handleSavePenalty = async () => {
+    if (!penaltyModal.standing) return;
+    setActionLoading(true);
+    try {
+      const res = await adminApi.applyStandingPenalty({
+        standing_id: penaltyModal.standing.id,
+        team_id: penaltyModal.standing.team_id,
+        points_deduction: parseInt(penaltyModal.points_deduction, 10) || 0,
+        points_deduction_reason: penaltyModal.points_deduction_reason || '',
+      });
+      notify(res.data?.message || 'حکم انضباطی کسر امتیاز با موفقیت اعمال شد.', 'success');
+      setPenaltyModal({ isOpen: false, standing: null, points_deduction: 0, points_deduction_reason: '' });
+      await fetchStandingsList();
+      try {
+        window.dispatchEvent(new Event('vml_league_schedule_updated'));
+      } catch (_e) {}
+    } catch (err) {
+      notify(err.response?.data?.error || 'خطا در اعمال جریمه', 'error');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -232,10 +343,11 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         console.error('Failed to load teams:', err);
       }
 
-      const [gwRes, matchesRes, cupsRes] = await Promise.all([
+      const [gwRes, matchesRes, cupsRes, standingsRes] = await Promise.all([
         matchApi.getGameweeksStatus().catch(() => ({ data: { gameweeks: [], active_gameweek: 'هفته ۱' } })),
         adminApi.getMatches().catch(() => ({ data: [] })),
         adminApi.getCups().catch(() => ({ data: [] })),
+        matchApi.getLeagueStandings().catch(() => ({ data: [] })),
       ]);
 
       const activeIds = loadedTeams.filter(t => t.is_active !== false).map(t => t.id);
@@ -254,6 +366,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         setSelectedGameweek(gwRes.data.active_gameweek);
       }
       setLeagueMatches(matchesRes.data || []);
+      setStandingsList(standingsRes.data || []);
       
       const cups = cupsRes.data || [];
       setCupsList(cups);
@@ -672,6 +785,21 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
             >
               <ArrowLeftRight className="w-4 h-4" />
               تقویم تلفیقی و سینک
+            </button>
+
+            <button
+              onClick={() => {
+                setHubTab('standings');
+                fetchStandingsList();
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                hubTab === 'standings'
+                  ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black shadow-lg shadow-amber-500/30'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <Award className="w-4 h-4" />
+              مدیریت جدول و جریمه‌ها
             </button>
           </div>
         </div>
@@ -2007,6 +2135,503 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
             </div>
           </div>
         </div>
+      )}
+
+      {/* TAB 4: LEAGUE STANDINGS & PENALTY MANAGEMENT */}
+      {hubTab === 'standings' && (
+        <div className="space-y-6">
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-slate-900/80 border border-white/5 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-gray-400 block mb-1">تعداد تیم‌ها در جدول</span>
+                <span className="text-2xl font-black text-amber-400">
+                  {standingsList.length} <span className="text-xs font-normal text-gray-400">باشگاه</span>
+                </span>
+              </div>
+              <Trophy className="w-8 h-8 text-amber-400/50" />
+            </div>
+
+            <div className="bg-slate-900/80 border border-white/5 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-gray-400 block mb-1">تیم‌های دارای جریمه کسر امتیاز</span>
+                <span className="text-2xl font-black text-rose-400">
+                  {standingsList.filter(r => (r.points_deduction || 0) > 0).length} <span className="text-xs font-normal text-gray-400">تیم</span>
+                </span>
+              </div>
+              <Scale className="w-8 h-8 text-rose-400/50" />
+            </div>
+
+            <div className="bg-slate-900/80 border border-white/5 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-gray-400 block mb-1">تیم‌های ویرایش‌شده دستی</span>
+                <span className="text-2xl font-black text-cyan-400">
+                  {standingsList.filter(r => r.is_manually_overridden).length} <span className="text-xs font-normal text-gray-400">تیم</span>
+                </span>
+              </div>
+              <Edit3 className="w-8 h-8 text-cyan-400/50" />
+            </div>
+
+            <div className="bg-slate-900/80 border border-white/5 rounded-2xl p-4 flex items-center justify-between">
+              <div>
+                <span className="text-xs text-gray-400 block mb-1">صدرنشین فعلی لیگ</span>
+                <span className="text-base sm:text-lg font-black text-white truncate max-w-[120px] block">
+                  {standingsList[0]?.name || '—'}
+                </span>
+              </div>
+              <Award className="w-8 h-8 text-emerald-400/50" />
+            </div>
+          </div>
+
+          {/* Action Bar & Table Container */}
+          <div className="bg-slate-900/90 border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                  <Award className="text-amber-400" size={20} />
+                  <span>مدیریت رسمی جدول لیگ و کنترل دستی / جریمه‌ها</span>
+                </h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  امکان ویرایش مستقیم مقادیر تمام تیم‌ها (برد، باخت، گل‌ها، امتیاز) و اعمال احکام انضباطی کسر امتیاز
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <button
+                  onClick={handleRecalculateStandings}
+                  disabled={recalculatingStandings || actionLoading}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-2xl text-xs font-bold transition-all shadow-lg shadow-indigo-600/30 active:scale-95 disabled:opacity-50"
+                  title="بازسازی و محاسبه مجدد هوشمند جدول از روی نتایج واقعی تمام بازی‌ها (جریمه‌های امتیازی حفظ می‌شوند)"
+                >
+                  <RefreshCw size={14} className={recalculatingStandings ? 'animate-spin' : ''} />
+                  <span>{recalculatingStandings ? 'در حال محاسبه مجدد...' : 'محاسبه مجدد خودکار جدول'}</span>
+                </button>
+
+                <button
+                  onClick={fetchStandingsList}
+                  disabled={loading}
+                  className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-950 hover:bg-slate-800 text-cyan-300 text-xs font-bold rounded-2xl border border-cyan-500/30 transition-all active:scale-95"
+                >
+                  <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+                  <span>بروزرسانی</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Standings Edit Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-right border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-950/80 border-b border-slate-700/60 text-[11px] text-slate-400 font-bold font-sport tracking-wider">
+                    <th className="py-3 px-2 text-center w-10">#</th>
+                    <th className="py-3 px-3 min-w-[160px]">باشگاه (CLUB)</th>
+                    <th className="py-3 px-2 text-center w-16" title="بازی‌های انجام شده">MP</th>
+                    <th className="py-3 px-2 text-center w-16 text-emerald-400" title="برد">W</th>
+                    <th className="py-3 px-2 text-center w-16 text-slate-400" title="مساوی">D</th>
+                    <th className="py-3 px-2 text-center w-16 text-rose-400" title="باخت">L</th>
+                    <th className="py-3 px-2 text-center w-16 text-slate-300" title="گل زده">GF</th>
+                    <th className="py-3 px-2 text-center w-16 text-slate-400" title="گل خورده">GA</th>
+                    <th className="py-3 px-2 text-center w-16" title="تفاضل گل">GD</th>
+                    <th className="py-3 px-2 text-center w-20 text-slate-300" title="امتیاز اصلی">امتیاز اصلی</th>
+                    <th className="py-3 px-3 text-center w-28 text-rose-400" title="جریمه کسر امتیاز">جریمه</th>
+                    <th className="py-3 px-3 text-center w-20 text-amber-300 font-black text-sm" title="امتیاز نهایی">PTS نهایی</th>
+                    <th className="py-3 px-3 text-center min-w-[160px]">عملیات ادمین</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-sans">
+                  {standingsList.length === 0 ? (
+                    <tr>
+                      <td colSpan="13" className="py-10 text-center text-gray-500">
+                        جدولی برای نمایش یافت نشد. می‌توانید با زدن دکمه «محاسبه مجدد خودکار جدول» آن را بازسازی کنید.
+                      </td>
+                    </tr>
+                  ) : (
+                    standingsList.map((row, idx) => {
+                      const isEditing = editingStandingId === (row.id || row.team_id);
+                      const rank = row.rank || idx + 1;
+                      const rawPts = row.raw_points ?? row.points ?? 0;
+                      const gd = isEditing
+                        ? (parseInt(editFormData.gf, 10) || 0) - (parseInt(editFormData.ga, 10) || 0)
+                        : (row.gf || 0) - (row.ga || 0);
+
+                      return (
+                        <tr
+                          key={row.id || row.team_id || idx}
+                          className={`transition-all ${
+                            isEditing
+                              ? 'bg-indigo-950/40 border-y-2 border-indigo-500/50'
+                              : row.points_deduction > 0
+                              ? 'bg-rose-950/10 hover:bg-slate-900/60'
+                              : 'hover:bg-slate-900/60'
+                          }`}
+                        >
+                          {/* Rank */}
+                          <td className="py-3 px-2 text-center">
+                            <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg text-xs font-black bg-slate-800 text-slate-300 font-sport">
+                              {rank}
+                            </span>
+                          </td>
+
+                          {/* Team Name & Logo */}
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-xl team-crest-badge flex items-center justify-center p-0.5 overflow-hidden shrink-0 shadow-sm relative">
+                                {getTeamLogoUrl(row) ? (
+                                  <img
+                                    src={getTeamLogoUrl(row)}
+                                    alt={row.name}
+                                    className="w-full h-full object-contain"
+                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                  />
+                                ) : null}
+                                <span className="text-[10px] font-black text-slate-800 font-sport -z-10 absolute">
+                                  {row.name ? row.name.slice(0, 2).toUpperCase() : 'FC'}
+                                </span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="font-bold text-xs text-white truncate max-w-[140px]">
+                                  {row.name}
+                                </span>
+                                <div className="flex items-center gap-1 mt-0.5">
+                                  {row.is_manually_overridden && (
+                                    <span className="text-[9px] bg-cyan-500/20 text-cyan-300 px-1 py-0.2 rounded border border-cyan-500/30">
+                                      ★ دستی
+                                    </span>
+                                  )}
+                                  {row.points_deduction > 0 && (
+                                    <span className="text-[9px] bg-rose-500/20 text-rose-400 px-1 py-0.2 rounded border border-rose-500/30">
+                                      جریمه‌دار
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* MP */}
+                          <td className="py-3 px-2 text-center font-bold text-slate-300">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="0"
+                                value={editFormData.played ?? 0}
+                                onChange={(e) => setEditFormData({ ...editFormData, played: e.target.value })}
+                                className="w-14 bg-slate-950 border border-indigo-500/50 rounded px-1 py-1 text-center text-xs font-mono text-white"
+                              />
+                            ) : (
+                              row.played || 0
+                            )}
+                          </td>
+
+                          {/* W */}
+                          <td className="py-3 px-2 text-center text-emerald-400 font-bold">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="0"
+                                value={editFormData.won ?? 0}
+                                onChange={(e) => setEditFormData({ ...editFormData, won: e.target.value })}
+                                className="w-14 bg-slate-950 border border-indigo-500/50 rounded px-1 py-1 text-center text-xs font-mono text-emerald-300"
+                              />
+                            ) : (
+                              row.won || 0
+                            )}
+                          </td>
+
+                          {/* D */}
+                          <td className="py-3 px-2 text-center text-slate-400 font-bold">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="0"
+                                value={editFormData.drawn ?? 0}
+                                onChange={(e) => setEditFormData({ ...editFormData, drawn: e.target.value })}
+                                className="w-14 bg-slate-950 border border-indigo-500/50 rounded px-1 py-1 text-center text-xs font-mono text-slate-300"
+                              />
+                            ) : (
+                              row.drawn || 0
+                            )}
+                          </td>
+
+                          {/* L */}
+                          <td className="py-3 px-2 text-center text-rose-400 font-bold">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="0"
+                                value={editFormData.lost ?? 0}
+                                onChange={(e) => setEditFormData({ ...editFormData, lost: e.target.value })}
+                                className="w-14 bg-slate-950 border border-indigo-500/50 rounded px-1 py-1 text-center text-xs font-mono text-rose-300"
+                              />
+                            ) : (
+                              row.lost || 0
+                            )}
+                          </td>
+
+                          {/* GF */}
+                          <td className="py-3 px-2 text-center text-slate-300 font-bold">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="0"
+                                value={editFormData.gf ?? 0}
+                                onChange={(e) => setEditFormData({ ...editFormData, gf: e.target.value })}
+                                className="w-14 bg-slate-950 border border-indigo-500/50 rounded px-1 py-1 text-center text-xs font-mono text-slate-200"
+                              />
+                            ) : (
+                              row.gf || 0
+                            )}
+                          </td>
+
+                          {/* GA */}
+                          <td className="py-3 px-2 text-center text-slate-400 font-bold">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="0"
+                                value={editFormData.ga ?? 0}
+                                onChange={(e) => setEditFormData({ ...editFormData, ga: e.target.value })}
+                                className="w-14 bg-slate-950 border border-indigo-500/50 rounded px-1 py-1 text-center text-xs font-mono text-slate-400"
+                              />
+                            ) : (
+                              row.ga || 0
+                            )}
+                          </td>
+
+                          {/* GD */}
+                          <td className={`py-3 px-2 text-center font-black text-xs font-sport ${
+                            gd > 0 ? 'text-emerald-400' : gd < 0 ? 'text-rose-400' : 'text-slate-400'
+                          }`}>
+                            {gd > 0 ? `+${gd}` : gd}
+                          </td>
+
+                          {/* Raw Points */}
+                          <td className="py-3 px-2 text-center text-slate-300 font-bold">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min="0"
+                                value={editFormData.raw_points ?? 0}
+                                onChange={(e) => setEditFormData({ ...editFormData, raw_points: e.target.value })}
+                                className="w-16 bg-slate-950 border border-amber-500/50 rounded px-1 py-1 text-center text-xs font-mono text-amber-300 font-bold"
+                              />
+                            ) : (
+                              rawPts
+                            )}
+                          </td>
+
+                          {/* Deduction Penalty */}
+                          <td className="py-3 px-3 text-center">
+                            {row.points_deduction > 0 ? (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-rose-950/80 border border-rose-500/40 text-rose-300 font-bold text-xs cursor-help"
+                                title={`علت: ${row.points_deduction_reason || 'جریمه انضباطی'}`}
+                              >
+                                <span className="font-mono">-{row.points_deduction}</span>
+                                <span className="text-[10px]">امتیاز</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-600 text-xs">—</span>
+                            )}
+                          </td>
+
+                          {/* Final Net Points */}
+                          <td className="py-3 px-3 text-center">
+                            <span className="font-black text-amber-300 text-sm font-sport">
+                              {isEditing
+                                ? Math.max(0, (parseInt(editFormData.raw_points, 10) || 0) - (parseInt(editFormData.points_deduction, 10) || 0))
+                                : row.points ?? Math.max(0, rawPts - (row.points_deduction || 0))}
+                            </span>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3 px-3 text-center">
+                            {isEditing ? (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => handleSaveEditStanding(row)}
+                                  disabled={actionLoading}
+                                  className="flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow-md active:scale-95"
+                                >
+                                  <Save size={12} />
+                                  <span>ذخیره</span>
+                                </button>
+                                <button
+                                  onClick={() => setEditingStandingId(null)}
+                                  className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold transition-all"
+                                >
+                                  انصراف
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => handleStartEditStanding(row)}
+                                  className="flex items-center gap-1 px-2 py-1 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-bold transition-all active:scale-95"
+                                  title="ویرایش دستی مقادیر و آمار این تیم"
+                                >
+                                  <Edit3 size={12} />
+                                  <span>ویرایش</span>
+                                </button>
+
+                                <button
+                                  onClick={() => handleOpenPenaltyModal(row)}
+                                  className="flex items-center gap-1 px-2 py-1 bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/30 rounded-lg text-xs font-bold transition-all active:scale-95"
+                                  title="ثبت یا تغییر کسر امتیاز انضباطی"
+                                >
+                                  <Scale size={12} />
+                                  <span>جریمه</span>
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PENALTY MODAL (Mandatory Portal Mounting on document.body) */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {penaltyModal.isOpen && penaltyModal.standing && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+              <div
+                className="fixed inset-0"
+                onClick={() => setPenaltyModal({ isOpen: false, standing: null, points_deduction: 0, points_deduction_reason: '' })}
+              />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="relative z-10 bg-slate-950 rounded-3xl w-full max-w-md my-auto p-6 border border-rose-500/30 shadow-2xl space-y-5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                      <Scale size={20} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-black text-white">
+                        ثبت حکم کسر امتیاز انضباطی
+                      </h4>
+                      <p className="text-[11px] text-gray-400">
+                        تیم «{penaltyModal.standing.name}»
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setPenaltyModal({ isOpen: false, standing: null, points_deduction: 0, points_deduction_reason: '' })}
+                    className="p-1.5 rounded-xl hover:bg-slate-800 text-gray-400 hover:text-white transition-all"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {/* Team Standing Preview */}
+                <div className="p-3.5 bg-slate-900/90 rounded-2xl border border-white/5 flex items-center justify-between text-xs font-sans">
+                  <div>
+                    <span className="text-gray-400 block text-[11px]">امتیاز اصلی فعلی:</span>
+                    <span className="text-sm font-bold text-white font-sport">
+                      {penaltyModal.standing.raw_points ?? penaltyModal.standing.points ?? 0} امتیاز
+                    </span>
+                  </div>
+                  <div className="text-left">
+                    <span className="text-gray-400 block text-[11px]">امتیاز پس از اعمال جریمه:</span>
+                    <span className="text-sm font-black text-amber-300 font-sport">
+                      {Math.max(
+                        0,
+                        (penaltyModal.standing.raw_points ?? penaltyModal.standing.points ?? 0) -
+                          (parseInt(penaltyModal.points_deduction, 10) || 0)
+                      )} امتیاز
+                    </span>
+                  </div>
+                </div>
+
+                {/* Points Deduction Input & Presets */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-300 block">
+                    تعداد امتیاز کسرشونده (جریمه):
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={penaltyModal.points_deduction}
+                      onChange={(e) =>
+                        setPenaltyModal({ ...penaltyModal, points_deduction: Math.max(0, parseInt(e.target.value, 10) || 0) })
+                      }
+                      className="flex-1 bg-slate-900 border border-rose-500/40 rounded-xl px-3 py-2 text-sm font-mono text-rose-300 font-bold focus:outline-none focus:border-rose-400"
+                      placeholder="0"
+                    />
+                    <span className="text-xs text-gray-400">امتیاز منفی</span>
+                  </div>
+
+                  {/* Quick Presets */}
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[0, 1, 2, 3, 6, 9].map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setPenaltyModal({ ...penaltyModal, points_deduction: val })}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                          penaltyModal.points_deduction === val
+                            ? 'bg-rose-600 text-white shadow-md'
+                            : 'bg-slate-900 text-gray-300 hover:bg-slate-800 border border-white/5'
+                        }`}
+                      >
+                        {val === 0 ? 'بدون جریمه (۰)' : `-${val} امتیاز`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Reason Field */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-300 block">
+                    علت کسر امتیاز (جهت نمایش در پایین جدول برای کاربران):
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={penaltyModal.points_deduction_reason}
+                    onChange={(e) =>
+                      setPenaltyModal({ ...penaltyModal, points_deduction_reason: e.target.value })
+                    }
+                    placeholder="مثال: عدم ارسال ترکیب به موقع در هفته سوم، تخلف در ثبت نتیجه مسابقه..."
+                    className="w-full bg-slate-900 border border-white/10 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-rose-500/50 resize-none"
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                  <button
+                    onClick={handleSavePenalty}
+                    disabled={actionLoading}
+                    className="flex-1 py-2.5 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-rose-600/30 active:scale-95 disabled:opacity-50"
+                  >
+                    {penaltyModal.points_deduction > 0 ? 'ثبت و اعمال حکم جریمه' : 'پاک کردن جریمه این تیم'}
+                  </button>
+
+                  <button
+                    onClick={() => setPenaltyModal({ isOpen: false, standing: null, points_deduction: 0, points_deduction_reason: '' })}
+                    className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-gray-300 rounded-xl text-xs font-bold transition-all border border-white/5"
+                  >
+                    انصراف
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
       )}
     </div>
   );

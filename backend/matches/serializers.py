@@ -288,11 +288,19 @@ class LeagueStandingSerializer(serializers.ModelSerializer):
     gf = serializers.IntegerField(source='goals_for', read_only=True)
     ga = serializers.IntegerField(source='goals_against', read_only=True)
     gd = serializers.SerializerMethodField()
+    raw_points = serializers.IntegerField(source='points', read_only=True)
+    points = serializers.SerializerMethodField()
 
     class Meta:
         model = LeagueStanding
-        fields = ['team_id', 'name', 'logo', 'played', 'won', 'drawn', 'lost',
-                  'gf', 'ga', 'gd', 'points']
+        fields = [
+            'id', 'team_id', 'name', 'logo', 'played', 'won', 'drawn', 'lost',
+            'gf', 'ga', 'gd', 'raw_points', 'points', 'points_deduction',
+            'points_deduction_reason', 'is_manually_overridden'
+        ]
 
     def get_gd(self, obj):
         return obj.goal_difference
+
+    def get_points(self, obj):
+        return obj.net_points

@@ -36,6 +36,9 @@ from .views import (
     AdminCupBracketView,
     AdminSyncCupLeagueView,
     AdminMatchForfeitView,
+    AdminStandingsManualEditView,
+    AdminStandingsApplyPenaltyView,
+    AdminStandingsRecalculateView,
 )
 
 urlpatterns = [
@@ -92,5 +95,8 @@ urlpatterns = [
     path('matches/admin/cups/<int:match_id>/advance/', AdminCupBracketView.as_view(), name='admin-cup-advance'),
     path('matches/admin/sync-cup-league/', AdminSyncCupLeagueView.as_view(), name='admin-sync-cup-league'),
     path('matches/<int:match_id>/forfeit/', AdminMatchForfeitView.as_view(), name='admin-match-forfeit'),
+    path('matches/admin/standings/manual-edit/', AdminStandingsManualEditView.as_view(), name='admin-standings-manual-edit'),
+    path('matches/admin/standings/apply-penalty/', AdminStandingsApplyPenaltyView.as_view(), name='admin-standings-apply-penalty'),
+    path('matches/admin/standings/recalculate/', AdminStandingsRecalculateView.as_view(), name='admin-standings-recalculate'),
 ]
 

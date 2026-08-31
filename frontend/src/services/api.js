@@ -161,6 +161,11 @@ export const adminApi = {
   advanceCupWinner: (matchId) => api.post(`/matches/admin/cups/${matchId}/advance/`),
   syncCupWithLeague: (data) => api.post('/matches/admin/sync-cup-league/', data),
   forfeitMatch: (matchId, data) => api.post(`/matches/${matchId}/forfeit/`, data),
+
+  // Standings Management & Penalty Points
+  manualEditStanding: (data) => api.post('/matches/admin/standings/manual-edit/', data),
+  applyStandingPenalty: (data) => api.post('/matches/admin/standings/apply-penalty/', data),
+  recalculateStandings: (data = {}) => api.post('/matches/admin/standings/recalculate/', data),
 };
 
 export const coreApi = {

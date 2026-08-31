@@ -365,6 +365,9 @@ class LeagueStanding(models.Model):
     goals_for = models.PositiveIntegerField(default=0, verbose_name="گل زده")
     goals_against = models.PositiveIntegerField(default=0, verbose_name="گل خورده")
     points = models.PositiveIntegerField(default=0, verbose_name="امتیاز")
+    points_deduction = models.PositiveIntegerField(default=0, verbose_name="کسر امتیاز جریمه")
+    points_deduction_reason = models.TextField(blank=True, default='', verbose_name="علت کسر امتیاز")
+    is_manually_overridden = models.BooleanField(default=False, verbose_name="ویرایش دستی شده توسط ادمین")
 
     class Meta:
         verbose_name = "جدول لیگ"
@@ -376,8 +379,13 @@ class LeagueStanding(models.Model):
     def goal_difference(self):
         return self.goals_for - self.goals_against
 
+    @property
+    def net_points(self):
+        return max(0, self.points - self.points_deduction)
+
     def __str__(self):
-        return f"{self.tournament.name} — {self.team.name}: {self.points}pts"
+        deduction_str = f" (-{self.points_deduction} جریمه)" if self.points_deduction > 0 else ""
+        return f"{self.tournament.name} — {self.team.name}: {self.points}pts{deduction_str}"
 
 
 class MatchGamePlan(models.Model):
