@@ -79,8 +79,8 @@ export default function LiveMatchStandby({
   if (nextMatch?.date) {
     try {
       const dt = new Date(nextMatch.date);
-      dateStr = dt.toLocaleDateString('fa-IR', { month: 'long', day: 'numeric' });
-      timeStr = dt.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', hour12: false });
+      dateStr = dt.toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran', month: 'long', day: 'numeric' });
+      timeStr = dt.toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', hour12: false });
     } catch (_e) {
       // fallback
     }

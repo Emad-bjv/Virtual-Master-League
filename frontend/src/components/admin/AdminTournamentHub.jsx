@@ -1409,9 +1409,9 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                         <div className="flex items-center justify-between mb-3 text-xs text-gray-400">
                           <span className="font-mono flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                            {match.date ? new Date(match.date).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : 'زمان نامشخص'}
+                            {match.date ? new Date(match.date).toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit' }) : 'زمان نامشخص'}
                             {' - '}
-                            {match.date ? new Date(match.date).toLocaleDateString('fa-IR') : ''}
+                            {match.date ? new Date(match.date).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' }) : ''}
                           </span>
 
                           <span
@@ -1995,10 +1995,10 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
 
                     <div className="text-left font-mono text-xs">
                       <span className="text-gray-300 block">
-                        {m.date ? new Date(m.date).toLocaleDateString('fa-IR') : 'تعیین‌نشده'}
+                        {m.date ? new Date(m.date).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' }) : 'تعیین‌نشده'}
                       </span>
                       <span className="text-gray-500 text-[10px]">
-                        {m.date ? new Date(m.date).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : ''}
+                        {m.date ? new Date(m.date).toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit' }) : ''}
                       </span>
                     </div>
                   </div>

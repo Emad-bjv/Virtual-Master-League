@@ -25,8 +25,8 @@ function formatMatchDate(dateString) {
   try {
     const d = new Date(dateString);
     return {
-      dateStr: d.toLocaleDateString('fa-IR', { month: 'long', day: 'numeric' }),
-      timeStr: d.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', hour12: false }),
+      dateStr: d.toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran', month: 'long', day: 'numeric' }),
+      timeStr: d.toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', hour12: false }),
     };
   } catch (_e) {
     return { dateStr: dateString, timeStr: '' };

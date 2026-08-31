@@ -696,7 +696,7 @@ export default function LiveBroadcastControl() {
                   </span>
 
                   <span className="text-slate-400 font-sport dir-ltr text-[10px]">
-                    {m.date ? new Date(m.date).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                    {m.date ? new Date(m.date).toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit' }) : '--:--'}
                   </span>
                 </div>
 

@@ -31,10 +31,12 @@ function formatMatchDateTime(dateString) {
   try {
     const dt = new Date(dateString);
     const dateStr = dt.toLocaleDateString('fa-IR', {
+      timeZone: 'Asia/Tehran',
       month: 'long',
       day: 'numeric',
     });
     const timeStr = dt.toLocaleTimeString('fa-IR', {
+      timeZone: 'Asia/Tehran',
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,

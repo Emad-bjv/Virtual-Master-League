@@ -1829,7 +1829,7 @@ export default function AdminDashboard({
                     if (m.date) {
                       try {
                         const dt = new Date(m.date);
-                        timeStr = dt.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', hour12: false });
+                        timeStr = dt.toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', hour12: false });
                       } catch (_e) {}
                     }
 
