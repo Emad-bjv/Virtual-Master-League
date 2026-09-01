@@ -445,6 +445,29 @@ class AdminResetActionView(APIView):
                         'message': f'آمار مسابقات، کارت‌ها و محرومیت‌های تمامی {players_count} بازیکن با موفقیت صفر شد.'
                     })
 
+                elif target_action == 'reset-stamina':
+                    players_count = t_models.Player.objects.count()
+                    t_models.Player.objects.all().update(
+                        virtual_stamina=100.0,
+                        consecutive_games=0,
+                        is_locked=False,
+                        is_injured=False,
+                        injury_return_date=None,
+                        last_match_date=None,
+                    )
+
+                    a_models.AdminAuditLog.objects.create(
+                        admin_user=request.user,
+                        action_type='RESET_STAMINA',
+                        before_value={'players_count': players_count},
+                        after_value={'virtual_stamina': 100.0, 'consecutive_games': 0, 'is_locked': False, 'is_injured': False},
+                        reason='ریست کامل خستگی و استقامت تمامی بازیکنان لیگ به ۱۰۰٪ و رفع مصدومیت‌ها'
+                    )
+                    return Response({
+                        'success': True,
+                        'message': f'استقامت و سطح خستگی تمامی {players_count} بازیکن با موفقیت به ۱۰۰٪ بازنشانی و مصدومیت‌ها برطرف شد.'
+                    })
+
                 elif target_action == 'reset-transfers':
                     active_listings = tr_models.TransferListing.objects.filter(status='ACTIVE').count()
                     tr_models.TransferListing.objects.filter(status='ACTIVE').update(status='CANCELLED')

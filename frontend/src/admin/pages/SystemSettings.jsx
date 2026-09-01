@@ -340,6 +340,23 @@ export default function SystemSettings() {
       ]
     },
     {
+      action: 'reset-stamina',
+      title: 'ریست خستگی و استقامت بازیکنان (Stamina Reset)',
+      severity: 'medium',
+      icon: Zap,
+      btnColor: 'bg-emerald-600 hover:bg-emerald-500 text-white',
+      badge: 'آمادگی جسمانی',
+      description: 'استقامت و سطح انرژی تمامی بازیکنان به ۱۰۰٪ بازگشته، قفل استقامت باز شده و مصدومیت‌ها برطرف می‌شوند.',
+      warning: 'خستگی تمام بازیکنان ۱۰۰٪ شده، بازی‌های متوالی صفر و مصدومیت‌ها پاک می‌شود.',
+      affectedItems: [
+        'تنظیم استقامت مجازی تمام بازیکنان به ۱۰۰٪ (virtual_stamina = 100%)',
+        'صفر کردن شمارنده بازی‌های متوالی (consecutive_games = 0)',
+        'باز کردن قفل استقامت تمام بازیکنان (is_locked = false)',
+        'برطرف کردن وضعیت مصدومیت تمام بازیکنان (is_injured = false)',
+        'پاکسازی تاریخ بازگشت از مصدومیت و آخرین مسابقه'
+      ]
+    },
+    {
       action: 'reset-transfers',
       title: 'ریست بازار نقل و انتقالات (Transfer Reset)',
       severity: 'medium',

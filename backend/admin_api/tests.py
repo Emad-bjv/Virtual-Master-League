@@ -132,3 +132,27 @@ class AdminControlCenterTests(TestCase):
         self.assertEqual(self.facilities.training_camp_level, 0)
         self.assertEqual(self.facilities.gym_level, 0)
         self.assertEqual(self.facilities.medical_level, 0)
+
+        # 4. Stamina & Fatigue reset
+        player = Player.objects.create(
+            team=self.team,
+            name='خسته و مصدوم',
+            age=26,
+            position='CF',
+            overall=85,
+            base_stamina=80,
+            virtual_stamina=Decimal('25.00'),
+            is_locked=True,
+            is_injured=True,
+            consecutive_games=4
+        )
+        stam_res = self.client.post('/api/admin/reset/reset-stamina/', {
+            'confirmation': 'ریست'
+        }, format='json')
+        self.assertEqual(stam_res.status_code, status.HTTP_200_OK)
+        player.refresh_from_db()
+        self.assertEqual(float(player.virtual_stamina), 100.0)
+        self.assertFalse(player.is_locked)
+        self.assertFalse(player.is_injured)
+        self.assertIsNone(player.injury_return_date)
+        self.assertEqual(player.consecutive_games, 0)

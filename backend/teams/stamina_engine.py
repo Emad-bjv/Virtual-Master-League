@@ -90,20 +90,10 @@ def update_lock_status(player):
         player.is_locked = False
 
 def injury_check(player, club) -> bool:
-    from datetime import timedelta
-    from teams.models import ClubFacilities
-    current_stamina = float(player.virtual_stamina)
-    risk_zone = 1.5 if 30 <= current_stamina <= 50 else 1.0
-    
-    medical_level = club.facilities.medical_level if club and hasattr(club, 'facilities') and club.facilities else 1
-    injury_reduction = ClubFacilities.scaled_effect(medical_level, 0.45)
-    
-    p_injury = 0.02 * risk_zone * (1.0 - injury_reduction)
-    if random.random() < p_injury:
-        duration = random.randint(3, 10) * (1.0 - injury_reduction)
-        player.is_injured = True
-        player.injury_return_date = timezone.now().date() + timedelta(days=max(1, round(duration)))
-        return True
+    """
+    Automatic in-match random injuries are disabled.
+    Injuries and suspensions are registered exclusively by administrators.
+    """
     return False
 
 def apply_fatigue(player, minutes_played: int) -> dict:
@@ -122,12 +112,8 @@ def apply_fatigue(player, minutes_played: int) -> dict:
     player.last_match_date = timezone.now().date()
     
     update_lock_status(player)
-    got_injured = injury_check(player, club)
     
     update_fields = ['virtual_stamina', 'consecutive_games', 'last_match_date', 'is_locked']
-    if got_injured:
-        update_fields.extend(['is_injured', 'injury_return_date'])
-        
     player.save(update_fields=update_fields)
 
     return {
@@ -139,7 +125,7 @@ def apply_fatigue(player, minutes_played: int) -> dict:
         'new_stamina': float(new_stamina),
         'consecutive_games': player.consecutive_games,
         'is_locked': player.is_locked,
-        'got_injured': got_injured,
+        'got_injured': False,
     }
 
 def apply_recovery(player) -> dict:
