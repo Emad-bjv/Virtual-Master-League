@@ -565,7 +565,7 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
                             {getTeamLogoUrl(row) ? (
                               <img src={getTeamLogoUrl(row)} alt={row.name} className="w-full h-full object-contain" />
                             ) : (
-                              <span className="text-[9px] font-black text-slate-800 font-sport">{row.name.slice(0, 2).toUpperCase()}</span>
+                              <span className="text-[9px] font-black text-slate-800 font-sport">{(row.name || 'FC').slice(0, 2).toUpperCase()}</span>
                             )}
                           </div>
                           <span className="font-bold text-xs truncate max-w-[130px] sm:max-w-[200px]">

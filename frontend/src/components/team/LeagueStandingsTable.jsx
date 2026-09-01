@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Award, Shield, AlertCircle, RefreshCw, Star, Crown } from 'lucide-react';
+import { Trophy, Award, Shield, ShieldAlert, AlertCircle, RefreshCw, Star, Crown } from 'lucide-react';
 import { matchApi } from '../../services/api';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 
@@ -28,6 +28,7 @@ export default function LeagueStandingsTable({ userTeamId, initialStandings = nu
       fetchStandings();
     } else {
       setStandings(initialStandings);
+      setLoading(false);
     }
   }, [initialStandings]);
 
@@ -155,6 +156,20 @@ export default function LeagueStandingsTable({ userTeamId, initialStandings = nu
                   <td colSpan="10" className="py-10 text-center text-slate-400 font-sans">
                     <RefreshCw className="animate-spin mx-auto mb-2 text-cyan-400" size={22} />
                     <span>در حال بارگذاری جدول رده‌بندی مستر لیگ...</span>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan="10" className="py-10 text-center text-rose-400 font-sans">
+                    <AlertCircle className="mx-auto mb-2 text-rose-400" size={24} />
+                    <p className="font-bold text-xs">{error}</p>
+                    <button
+                      onClick={fetchStandings}
+                      className="mt-3 px-4 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-xl text-xs font-bold border border-rose-500/40 inline-flex items-center gap-1.5 cursor-pointer shadow-md transition-all active:scale-95"
+                    >
+                      <RefreshCw size={13} />
+                      <span>تلاش مجدد</span>
+                    </button>
                   </td>
                 </tr>
               ) : sortedStandings.length === 0 ? (

@@ -162,12 +162,18 @@ class LeagueStandingsView(generics.GenericAPIView):
             tournament = Tournament.objects.first()
 
         if not tournament:
-            return Response([])
+            tournament = Tournament.objects.create(
+                name="مستر لیگ مجازی",
+                tournament_type="LEAGUE",
+                is_active=True
+            )
 
         force_recalculate = request.query_params.get('recalculate') == 'true'
         has_standings = LeagueStanding.objects.filter(tournament=tournament).exists()
+        active_teams_count = Team.objects.filter(is_active=True).count()
+        standings_count = LeagueStanding.objects.filter(tournament=tournament, team__is_active=True).count()
 
-        if force_recalculate or not has_standings:
+        if force_recalculate or not has_standings or (active_teams_count > 0 and standings_count < active_teams_count):
             try:
                 recalculate_tournament_standings(tournament.id)
             except Exception:
