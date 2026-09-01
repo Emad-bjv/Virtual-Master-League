@@ -812,13 +812,25 @@ export default function LiveBroadcastControl() {
                   </div>
                   <h3 className="font-black text-sm sm:text-base text-white">{selectedMatch.home_team_name}</h3>
                   <span className="text-[11px] text-slate-400 font-sport">@{selectedMatch.home_coach_name || 'مربی'}</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 font-sport ${
-                    selectedMatch.home_lineup_ready || homeGameplan?.is_submitted
-                      ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50'
-                      : 'bg-amber-950/80 text-amber-300 border-amber-500/50'
-                  }`}>
-                    {selectedMatch.home_lineup_ready || homeGameplan?.is_submitted ? '✓ ترکیب ارسال شده' : '⏳ ترکیب پیش‌فرض'}
-                  </span>
+                  
+                  {/* Lineup & Preset Indicator */}
+                  <div className="flex flex-col items-center gap-1">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 font-sport ${
+                      selectedMatch.home_lineup_ready || homeGameplan?.is_submitted
+                        ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50'
+                        : 'bg-amber-950/80 text-amber-300 border-amber-500/50'
+                    }`}>
+                      {selectedMatch.home_lineup_ready || homeGameplan?.is_submitted ? '✓ ترکیب ارسال شده' : '⏳ ترکیب پیش‌فرض'}
+                    </span>
+
+                    {(homeGameplan?.preset_name || selectedMatch.home_preset_name) && (
+                      <span className="text-[10px] bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-lg font-black flex items-center gap-1 shadow-sm">
+                        <span>⚡ تاکتیک ساده:</span>
+                        <strong className="text-white">{homeGameplan?.preset_name || selectedMatch.home_preset_name}</strong>
+                      </span>
+                    )}
+                  </div>
+
                   <div className="flex items-center gap-1.5 text-[10px]">
                     <span className="bg-slate-900 text-cyan-400 px-2 py-0.5 rounded border border-cyan-900/50">
                       تعویض: {selectedMatch.home_subs_count || 0}/5
@@ -855,13 +867,25 @@ export default function LiveBroadcastControl() {
                   </div>
                   <h3 className="font-black text-sm sm:text-base text-white">{selectedMatch.away_team_name}</h3>
                   <span className="text-[11px] text-slate-400 font-sport">@{selectedMatch.away_coach_name || 'مربی'}</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 font-sport ${
-                    selectedMatch.away_lineup_ready || awayGameplan?.is_submitted
-                      ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50'
-                      : 'bg-amber-950/80 text-amber-300 border-amber-500/50'
-                  }`}>
-                    {selectedMatch.away_lineup_ready || awayGameplan?.is_submitted ? '✓ ترکیب ارسال شده' : '⏳ ترکیب پیش‌فرض'}
-                  </span>
+
+                  {/* Lineup & Preset Indicator */}
+                  <div className="flex flex-col items-center gap-1">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 font-sport ${
+                      selectedMatch.away_lineup_ready || awayGameplan?.is_submitted
+                        ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50'
+                        : 'bg-amber-950/80 text-amber-300 border-amber-500/50'
+                    }`}>
+                      {selectedMatch.away_lineup_ready || awayGameplan?.is_submitted ? '✓ ترکیب ارسال شده' : '⏳ ترکیب پیش‌فرض'}
+                    </span>
+
+                    {(awayGameplan?.preset_name || selectedMatch.away_preset_name) && (
+                      <span className="text-[10px] bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-lg font-black flex items-center gap-1 shadow-sm">
+                        <span>⚡ تاکتیک ساده:</span>
+                        <strong className="text-white">{awayGameplan?.preset_name || selectedMatch.away_preset_name}</strong>
+                      </span>
+                    )}
+                  </div>
+
                   <div className="flex items-center gap-1.5 text-[10px]">
                     <span className="bg-slate-900 text-cyan-400 px-2 py-0.5 rounded border border-cyan-900/50">
                       تعویض: {selectedMatch.away_subs_count || 0}/5

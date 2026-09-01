@@ -1904,18 +1904,30 @@ export default function AdminDashboard({
                         </div>
 
                         {/* Lineup Readiness Summary */}
-                        <div className="flex items-center justify-between text-[10.5px] py-1 px-1 mt-1 border-t border-slate-800/50">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-slate-400">ترکیب میزبان:</span>
-                            <span className={`font-bold flex items-center gap-0.5 ${m.home_lineup_ready ? 'text-emerald-400' : 'text-amber-400'}`}>
-                              {m.home_lineup_ready ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-slate-400">ترکیب میهمان:</span>
-                            <span className={`font-bold flex items-center gap-0.5 ${m.away_lineup_ready ? 'text-emerald-400' : 'text-amber-400'}`}>
-                              {m.away_lineup_ready ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
-                            </span>
+                        <div className="flex flex-col gap-1 text-[10.5px] py-1 px-1 mt-1 border-t border-slate-800/50">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-slate-400">میزبان:</span>
+                              <span className={`font-bold flex items-center gap-0.5 ${m.home_lineup_ready ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                {m.home_lineup_ready ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
+                              </span>
+                              {m.home_preset_name && (
+                                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded text-[9px] font-black">
+                                  ⚡ {m.home_preset_name}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-slate-400">میهمان:</span>
+                              <span className={`font-bold flex items-center gap-0.5 ${m.away_lineup_ready ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                {m.away_lineup_ready ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
+                              </span>
+                              {m.away_preset_name && (
+                                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded text-[9px] font-black">
+                                  ⚡ {m.away_preset_name}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -1989,76 +2001,132 @@ export default function AdminDashboard({
                 {/* Coach Lineup Submission Indicators for this Match */}
                 <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-3 border-t border-slate-800/80">
                   {/* Home Team Lineup Status */}
-                  <div className={`p-2.5 rounded-2xl border flex items-center justify-between gap-2 text-xs transition-all ${
-                    (selectedLiveMatch.home_lineup_ready || teamGameplanData.home.gameplan?.is_submitted)
-                      ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
-                      : 'bg-amber-950/60 border-amber-500/40 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
-                  }`}>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-xl bg-white p-0.5 shrink-0 flex items-center justify-center shadow-sm">
-                        {getTeamLogoUrl(selectedLiveMatch.home_team_logo || selectedLiveMatch.home_team_name || selectedLiveMatch.home) ? (
-                          <img src={getTeamLogoUrl(selectedLiveMatch.home_team_logo || selectedLiveMatch.home_team_name || selectedLiveMatch.home)} alt="Home" className="w-full h-full object-contain" />
-                        ) : <Shield size={14} className="text-slate-800" />}
+                  {(() => {
+                    const homePreset = teamGameplanData.home.gameplan?.preset_name || selectedLiveMatch.home_preset_name;
+                    const homeHasCustom = teamGameplanData.home.gameplan?.has_custom_player_edits || selectedLiveMatch.home_has_custom_player_edits;
+                    const isSubmitted = selectedLiveMatch.home_lineup_ready || teamGameplanData.home.gameplan?.is_submitted;
+
+                    return (
+                      <div className={`p-3 rounded-2xl border flex flex-col gap-2 text-xs transition-all ${
+                        isSubmitted
+                          ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                          : 'bg-amber-950/60 border-amber-500/40 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                      }`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-7 h-7 rounded-xl bg-white p-0.5 shrink-0 flex items-center justify-center shadow-sm">
+                              {getTeamLogoUrl(selectedLiveMatch.home_team_logo || selectedLiveMatch.home_team_name || selectedLiveMatch.home) ? (
+                                <img src={getTeamLogoUrl(selectedLiveMatch.home_team_logo || selectedLiveMatch.home_team_name || selectedLiveMatch.home)} alt="Home" className="w-full h-full object-contain" />
+                              ) : <Shield size={14} className="text-slate-800" />}
+                            </div>
+                            <div className="truncate">
+                              <span className="font-black text-white block truncate">{selectedLiveMatch.home_team_name || selectedLiveMatch.home} (میزبان)</span>
+                              <span className="text-[10px] text-slate-400">سرمربی: {selectedLiveMatch.home_coach_name || 'ثبت نشده'}</span>
+                            </div>
+                          </div>
+                          <span className={`text-[11px] font-black px-2.5 py-1 rounded-xl border shrink-0 flex items-center gap-1 font-sport ${
+                            isSubmitted
+                              ? 'bg-emerald-900/90 border-emerald-400 text-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                              : 'bg-amber-900/90 border-amber-400 text-amber-200 animate-pulse'
+                          }`}>
+                            {isSubmitted ? (
+                              <>
+                                <CheckCircle size={13} className="text-[#00ff87]" />
+                                <span>ترکیب ارسال شده ✓</span>
+                              </>
+                            ) : (
+                              <>
+                                <Clock size={13} className="text-amber-300" />
+                                <span>ترکیب پیش‌فرض</span>
+                              </>
+                            )}
+                          </span>
+                        </div>
+
+                        {/* Explicit Simple Preset Callout */}
+                        {homePreset && (
+                          <div className="pt-2 border-t border-emerald-500/30 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] bg-amber-400 text-slate-950 font-black px-2 py-0.5 rounded-lg shadow-sm flex items-center gap-1">
+                                <span>⚡ تاکتیک ساده:</span>
+                                <span>{homePreset}</span>
+                              </span>
+                              <span className="text-[10px] text-amber-200 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/30">
+                                {homeHasCustom ? 'جابجایی دستی' : 'چیدمان خودکار هوشمند'}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-sport text-slate-300 font-bold">
+                              {teamGameplanData.home.formation || selectedLiveMatch.home_formation || '4-3-3'}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      <div className="truncate">
-                        <span className="font-black text-white block truncate">{selectedLiveMatch.home_team_name || selectedLiveMatch.home} (میزبان)</span>
-                        <span className="text-[10px] text-slate-400">سرمربی: {selectedLiveMatch.home_coach_name || 'ثبت نشده'}</span>
-                      </div>
-                    </div>
-                    <span className={`text-[11px] font-black px-2.5 py-1 rounded-xl border shrink-0 flex items-center gap-1 font-sport ${
-                      (selectedLiveMatch.home_lineup_ready || teamGameplanData.home.gameplan?.is_submitted)
-                        ? 'bg-emerald-900/90 border-emerald-400 text-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
-                        : 'bg-amber-900/90 border-amber-400 text-amber-200 animate-pulse'
-                    }`}>
-                      {(selectedLiveMatch.home_lineup_ready || teamGameplanData.home.gameplan?.is_submitted) ? (
-                        <>
-                          <CheckCircle size={13} className="text-[#00ff87]" />
-                          <span>ترکیب ارسال شده ✓</span>
-                        </>
-                      ) : (
-                        <>
-                          <Clock size={13} className="text-amber-300" />
-                          <span>ترکیب پیش‌فرض (ارسال نشده)</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
+                    );
+                  })()}
 
                   {/* Away Team Lineup Status */}
-                  <div className={`p-2.5 rounded-2xl border flex items-center justify-between gap-2 text-xs transition-all ${
-                    (selectedLiveMatch.away_lineup_ready || teamGameplanData.away.gameplan?.is_submitted)
-                      ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
-                      : 'bg-amber-950/60 border-amber-500/40 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
-                  }`}>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-xl bg-white p-0.5 shrink-0 flex items-center justify-center shadow-sm">
-                        {getTeamLogoUrl(selectedLiveMatch.away_team_logo || selectedLiveMatch.away_team_name || selectedLiveMatch.away) ? (
-                          <img src={getTeamLogoUrl(selectedLiveMatch.away_team_logo || selectedLiveMatch.away_team_name || selectedLiveMatch.away)} alt="Away" className="w-full h-full object-contain" />
-                        ) : <Shield size={14} className="text-slate-800" />}
+                  {(() => {
+                    const awayPreset = teamGameplanData.away.gameplan?.preset_name || selectedLiveMatch.away_preset_name;
+                    const awayHasCustom = teamGameplanData.away.gameplan?.has_custom_player_edits || selectedLiveMatch.away_has_custom_player_edits;
+                    const isSubmitted = selectedLiveMatch.away_lineup_ready || teamGameplanData.away.gameplan?.is_submitted;
+
+                    return (
+                      <div className={`p-3 rounded-2xl border flex flex-col gap-2 text-xs transition-all ${
+                        isSubmitted
+                          ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
+                          : 'bg-amber-950/60 border-amber-500/40 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                      }`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-7 h-7 rounded-xl bg-white p-0.5 shrink-0 flex items-center justify-center shadow-sm">
+                              {getTeamLogoUrl(selectedLiveMatch.away_team_logo || selectedLiveMatch.away_team_name || selectedLiveMatch.away) ? (
+                                <img src={getTeamLogoUrl(selectedLiveMatch.away_team_logo || selectedLiveMatch.away_team_name || selectedLiveMatch.away)} alt="Away" className="w-full h-full object-contain" />
+                              ) : <Shield size={14} className="text-slate-800" />}
+                            </div>
+                            <div className="truncate">
+                              <span className="font-black text-white block truncate">{selectedLiveMatch.away_team_name || selectedLiveMatch.away} (میهمان)</span>
+                              <span className="text-[10px] text-slate-400">سرمربی: {selectedLiveMatch.away_coach_name || 'ثبت نشده'}</span>
+                            </div>
+                          </div>
+                          <span className={`text-[11px] font-black px-2.5 py-1 rounded-xl border shrink-0 flex items-center gap-1 font-sport ${
+                            isSubmitted
+                              ? 'bg-emerald-900/90 border-emerald-400 text-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                              : 'bg-amber-900/90 border-amber-400 text-amber-200 animate-pulse'
+                          }`}>
+                            {isSubmitted ? (
+                              <>
+                                <CheckCircle size={13} className="text-[#00ff87]" />
+                                <span>ترکیب ارسال شده ✓</span>
+                              </>
+                            ) : (
+                              <>
+                                <Clock size={13} className="text-amber-300" />
+                                <span>ترکیب پیش‌فرض</span>
+                              </>
+                            )}
+                          </span>
+                        </div>
+
+                        {/* Explicit Simple Preset Callout */}
+                        {awayPreset && (
+                          <div className="pt-2 border-t border-emerald-500/30 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[11px] bg-amber-400 text-slate-950 font-black px-2 py-0.5 rounded-lg shadow-sm flex items-center gap-1">
+                                <span>⚡ تاکتیک ساده:</span>
+                                <span>{awayPreset}</span>
+                              </span>
+                              <span className="text-[10px] text-amber-200 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/30">
+                                {awayHasCustom ? 'جابجایی دستی' : 'چیدمان خودکار هوشمند'}
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-sport text-slate-300 font-bold">
+                              {teamGameplanData.away.formation || selectedLiveMatch.away_formation || '4-3-3'}
+                            </span>
+                          </div>
+                        )}
                       </div>
-                      <div className="truncate">
-                        <span className="font-black text-white block truncate">{selectedLiveMatch.away_team_name || selectedLiveMatch.away} (میهمان)</span>
-                        <span className="text-[10px] text-slate-400">سرمربی: {selectedLiveMatch.away_coach_name || 'ثبت نشده'}</span>
-                      </div>
-                    </div>
-                    <span className={`text-[11px] font-black px-2.5 py-1 rounded-xl border shrink-0 flex items-center gap-1 font-sport ${
-                      (selectedLiveMatch.away_lineup_ready || teamGameplanData.away.gameplan?.is_submitted)
-                        ? 'bg-emerald-900/90 border-emerald-400 text-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
-                        : 'bg-amber-900/90 border-amber-400 text-amber-200 animate-pulse'
-                    }`}>
-                      {(selectedLiveMatch.away_lineup_ready || teamGameplanData.away.gameplan?.is_submitted) ? (
-                        <>
-                          <CheckCircle size={13} className="text-[#00ff87]" />
-                          <span>ترکیب ارسال شده ✓</span>
-                        </>
-                      ) : (
-                        <>
-                          <Clock size={13} className="text-amber-300" />
-                          <span>ترکیب پیش‌فرض (ارسال نشده)</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -2238,37 +2306,75 @@ export default function AdminDashboard({
                       </div>
                     </div>
 
-                    {/* Lineup Origin Banner */}
-                    <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
-                      (selectedLiveTeamSwitch === 'home' 
+                    {/* Lineup Origin Banner & Simple Preset Indicator */}
+                    {(() => {
+                      const activeGp = selectedLiveTeamSwitch === 'home' ? teamGameplanData.home.gameplan : teamGameplanData.away.gameplan;
+                      const activePreset = activeGp?.preset_name || (selectedLiveTeamSwitch === 'home' ? selectedLiveMatch.home_preset_name : selectedLiveMatch.away_preset_name);
+                      const activeCustom = activeGp?.has_custom_player_edits || (selectedLiveTeamSwitch === 'home' ? selectedLiveMatch.home_has_custom_player_edits : selectedLiveMatch.away_has_custom_player_edits);
+                      const isSubmitted = selectedLiveTeamSwitch === 'home' 
                         ? (selectedLiveMatch.home_lineup_ready || teamGameplanData.home.gameplan?.is_submitted)
-                        : (selectedLiveMatch.away_lineup_ready || teamGameplanData.away.gameplan?.is_submitted))
-                        ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
-                        : 'bg-amber-950/50 border-amber-500/40 text-amber-300'
-                    }`}>
-                      <div className="flex items-center gap-2">
-                        {(selectedLiveTeamSwitch === 'home' 
-                          ? (selectedLiveMatch.home_lineup_ready || teamGameplanData.home.gameplan?.is_submitted)
-                          : (selectedLiveMatch.away_lineup_ready || teamGameplanData.away.gameplan?.is_submitted)) ? (
-                          <>
-                            <CheckCircle size={15} className="text-[#00ff87] shrink-0" />
-                            <span>
-                              این چیدمان و تاکتیک‌ها به صورت <strong>اختصاصی توسط سرمربی {activeTeamName}</strong> برای این مسابقه در اتاق داوری ثبت و تایید گردیده است.
+                        : (selectedLiveMatch.away_lineup_ready || teamGameplanData.away.gameplan?.is_submitted);
+
+                      if (activePreset) {
+                        return (
+                          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-950/80 via-slate-900 to-amber-950/40 border-2 border-amber-500/60 shadow-[0_0_20px_rgba(245,158,11,0.2)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-600 border border-amber-400 flex items-center justify-center text-slate-950 font-black text-lg shadow-lg shrink-0">
+                                ⚡
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-white text-sm">
+                                    تاکتیک ساده انتخابی مربی {activeTeamName}:
+                                  </span>
+                                  <span className="px-3 py-0.5 rounded-xl bg-amber-400 text-slate-950 font-black text-xs shadow-md">
+                                    {activePreset}
+                                  </span>
+                                  <span className="text-[10.5px] bg-amber-500/20 text-amber-200 px-2 py-0.5 rounded-lg border border-amber-500/40 font-bold">
+                                    {activeCustom ? 'با چیدمان و جابجایی دستی بازیکنان' : 'با چیدمان خودکار هوشمند'}
+                                  </span>
+                                </div>
+                                <p className="text-[11.5px] text-slate-300 mt-1 leading-relaxed">
+                                  سرمربی این تیم برای مسابقه جاری، سبک تاکتیکی آماده «<strong className="text-amber-300">{activePreset}</strong>» را برگزیده و تمامی پارامترهای تاکتیکی و موقعیت‌های بازیکنان بر اساس این سبک تنظیم شده‌اند.
+                                </p>
+                              </div>
+                            </div>
+                            <span className="text-xs font-sport font-black px-3.5 py-1.5 rounded-xl bg-slate-950 border border-amber-500/50 text-amber-300 shrink-0 shadow-inner">
+                              سیستم: {activeSideData.formation}
                             </span>
-                          </>
-                        ) : (
-                          <>
-                            <AlertTriangle size={15} className="text-amber-400 shrink-0" />
-                            <span>
-                              سرمربی {activeTeamName} هنوز ترکیب اختصاصی برای این مسابقه ارسال نکرده است (چیدمان پیش‌فرض باشگاه در حال نمایش است).
-                            </span>
-                          </>
-                        )}
-                      </div>
-                      <span className="text-[10px] font-sport px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-slate-300 shrink-0">
-                        {activeSideData.formation}
-                      </span>
-                    </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
+                          isSubmitted
+                            ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+                            : 'bg-amber-950/50 border-amber-500/40 text-amber-300'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            {isSubmitted ? (
+                              <>
+                                <CheckCircle size={15} className="text-[#00ff87] shrink-0" />
+                                <span>
+                                  این چیدمان و تاکتیک‌ها به صورت <strong>اختصاصی توسط سرمربی {activeTeamName}</strong> برای این مسابقه در اتاق داوری ثبت و تایید گردیده است (تاکتیک دستی پیشرفته).
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <AlertTriangle size={15} className="text-amber-400 shrink-0" />
+                                <span>
+                                  سرمربی {activeTeamName} هنوز ترکیب اختصاصی برای این مسابقه ارسال نکرده است (چیدمان پیش‌فرض باشگاه در حال نمایش است).
+                                </span>
+                              </>
+                            )}
+                          </div>
+                          <span className="text-[10px] font-sport px-2 py-0.5 rounded-md bg-slate-900 border border-slate-700 text-slate-300 shrink-0">
+                            {activeSideData.formation}
+                          </span>
+                        </div>
+                      );
+                    })()}
 
                     {/* Interactive Tactical Pitch */}
                     <div className="bg-slate-950 p-2 rounded-3xl border-2 border-slate-800 shadow-2xl relative">
@@ -2292,10 +2398,20 @@ export default function AdminDashboard({
                     {/* 14 Tactical Parameters Inspector */}
                     <div className="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3 mt-3">
                       <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <Sliders size={16} className="text-purple-400" />
-                          <h5 className="font-bold text-white text-xs sm:text-sm">
-                            تنظیمات تاکتیکی سرمربی {activeTeamName} (هماهنگ با پنل مربی)
+                          <h5 className="font-bold text-white text-xs sm:text-sm flex items-center gap-2 flex-wrap">
+                            <span>تنظیمات تاکتیکی سرمربی {activeTeamName}</span>
+                            {(() => {
+                              const activeGp = selectedLiveTeamSwitch === 'home' ? teamGameplanData.home.gameplan : teamGameplanData.away.gameplan;
+                              const activePreset = activeGp?.preset_name || (selectedLiveTeamSwitch === 'home' ? selectedLiveMatch.home_preset_name : selectedLiveMatch.away_preset_name);
+                              if (!activePreset) return null;
+                              return (
+                                <span className="text-[10px] bg-amber-400 text-slate-950 font-black px-2 py-0.5 rounded-lg shadow-sm">
+                                  ⚡ سبک ساده: {activePreset}
+                                </span>
+                              );
+                            })()}
                           </h5>
                         </div>
                         <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-[11px]">

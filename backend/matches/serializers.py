@@ -166,6 +166,12 @@ class MatchDetailSerializer(serializers.ModelSerializer):
     away_sub_windows_used = serializers.SerializerMethodField()
     home_red_cards = serializers.SerializerMethodField()
     away_red_cards = serializers.SerializerMethodField()
+    home_preset_name = serializers.SerializerMethodField()
+    away_preset_name = serializers.SerializerMethodField()
+    home_has_custom_player_edits = serializers.SerializerMethodField()
+    away_has_custom_player_edits = serializers.SerializerMethodField()
+    home_formation = serializers.SerializerMethodField()
+    away_formation = serializers.SerializerMethodField()
 
     class Meta:
         model = Match
@@ -179,6 +185,9 @@ class MatchDetailSerializer(serializers.ModelSerializer):
             'home_subs_count', 'away_subs_count',
             'home_sub_windows_used', 'away_sub_windows_used',
             'home_red_cards', 'away_red_cards',
+            'home_preset_name', 'away_preset_name',
+            'home_has_custom_player_edits', 'away_has_custom_player_edits',
+            'home_formation', 'away_formation',
             'events', 'team_stats', 'player_stats', 'substitution_requests', 'in_game_changes'
         ]
 
@@ -205,6 +214,60 @@ class MatchDetailSerializer(serializers.ModelSerializer):
         if not obj.away_team_id:
             return False
         return obj.gameplans.filter(team_id=obj.away_team_id, is_submitted=True).exists()
+
+    def get_home_preset_name(self, obj):
+        if not obj.home_team_id:
+            return ""
+        mgp = obj.gameplans.filter(team_id=obj.home_team_id).first()
+        if mgp and mgp.preset_name:
+            return mgp.preset_name
+        tgp = getattr(obj.home_team, 'gameplan', None)
+        return tgp.preset_name if tgp else ""
+
+    def get_away_preset_name(self, obj):
+        if not obj.away_team_id:
+            return ""
+        mgp = obj.gameplans.filter(team_id=obj.away_team_id).first()
+        if mgp and mgp.preset_name:
+            return mgp.preset_name
+        tgp = getattr(obj.away_team, 'gameplan', None)
+        return tgp.preset_name if tgp else ""
+
+    def get_home_has_custom_player_edits(self, obj):
+        if not obj.home_team_id:
+            return False
+        mgp = obj.gameplans.filter(team_id=obj.home_team_id).first()
+        if mgp:
+            return mgp.has_custom_player_edits
+        tgp = getattr(obj.home_team, 'gameplan', None)
+        return tgp.has_custom_player_edits if tgp else False
+
+    def get_away_has_custom_player_edits(self, obj):
+        if not obj.away_team_id:
+            return False
+        mgp = obj.gameplans.filter(team_id=obj.away_team_id).first()
+        if mgp:
+            return mgp.has_custom_player_edits
+        tgp = getattr(obj.away_team, 'gameplan', None)
+        return tgp.has_custom_player_edits if tgp else False
+
+    def get_home_formation(self, obj):
+        if not obj.home_team_id:
+            return "4-3-3"
+        mgp = obj.gameplans.filter(team_id=obj.home_team_id).first()
+        if mgp and mgp.formation:
+            return mgp.formation
+        tgp = getattr(obj.home_team, 'gameplan', None)
+        return tgp.formation if (tgp and tgp.formation) else (obj.home_team.default_formation or "4-3-3")
+
+    def get_away_formation(self, obj):
+        if not obj.away_team_id:
+            return "4-3-3"
+        mgp = obj.gameplans.filter(team_id=obj.away_team_id).first()
+        if mgp and mgp.formation:
+            return mgp.formation
+        tgp = getattr(obj.away_team, 'gameplan', None)
+        return tgp.formation if (tgp and tgp.formation) else (obj.away_team.default_formation or "4-3-3")
 
     def get_home_subs_count(self, obj):
         if not obj.home_team_id:
@@ -270,6 +333,10 @@ class MatchSummarySerializer(serializers.ModelSerializer):
     home_team_logo = serializers.CharField(source='home_team.logo', read_only=True)
     away_team_logo = serializers.CharField(source='away_team.logo', read_only=True)
     tournament_name = serializers.CharField(source='tournament.name', read_only=True)
+    home_preset_name = serializers.SerializerMethodField()
+    away_preset_name = serializers.SerializerMethodField()
+    home_lineup_ready = serializers.SerializerMethodField()
+    away_lineup_ready = serializers.SerializerMethodField()
 
     class Meta:
         model = Match
@@ -277,8 +344,38 @@ class MatchSummarySerializer(serializers.ModelSerializer):
             'id', 'tournament', 'tournament_name', 'round_name',
             'home_team', 'home_team_name', 'home_team_logo',
             'away_team', 'away_team_name', 'away_team_logo',
-            'home_score', 'away_score', 'status', 'date'
+            'home_score', 'away_score', 'status', 'date',
+            'home_preset_name', 'away_preset_name',
+            'home_lineup_ready', 'away_lineup_ready'
         ]
+
+    def get_home_lineup_ready(self, obj):
+        if not obj.home_team_id:
+            return False
+        return obj.gameplans.filter(team_id=obj.home_team_id, is_submitted=True).exists()
+
+    def get_away_lineup_ready(self, obj):
+        if not obj.away_team_id:
+            return False
+        return obj.gameplans.filter(team_id=obj.away_team_id, is_submitted=True).exists()
+
+    def get_home_preset_name(self, obj):
+        if not obj.home_team_id:
+            return ""
+        mgp = obj.gameplans.filter(team_id=obj.home_team_id).first()
+        if mgp and mgp.preset_name:
+            return mgp.preset_name
+        tgp = getattr(obj.home_team, 'gameplan', None)
+        return tgp.preset_name if tgp else ""
+
+    def get_away_preset_name(self, obj):
+        if not obj.away_team_id:
+            return ""
+        mgp = obj.gameplans.filter(team_id=obj.away_team_id).first()
+        if mgp and mgp.preset_name:
+            return mgp.preset_name
+        tgp = getattr(obj.away_team, 'gameplan', None)
+        return tgp.preset_name if tgp else ""
 
 
 class LeagueStandingSerializer(serializers.ModelSerializer):
