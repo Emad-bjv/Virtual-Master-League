@@ -920,10 +920,11 @@ export default function EFootballGamePlan({
     }
   };
 
-  // Pitch Player Click Handler: Opens quick substitution photo modal with bench players
+  // Pitch Player Click Handler: Direct on-pitch click-to-swap & highlight for Coach Mode (No Modal)
   const handlePitchPlayerClick = (clickedPlayer) => {
     setHighlightedPosition(null);
 
+    // In Admin Mode: keep the authoritative referee match event modal
     if (isAdminMode) {
       setAdminModalPlayer({ ...clickedPlayer, isPitchPlayer: true });
       setAdminModalTab('SUB');
@@ -932,25 +933,40 @@ export default function EFootballGamePlan({
 
     if (readOnly) return;
 
-    // Scenario 1: A bench/reserve player was already pre-selected -> Swap pitch player with bench player
-    if (selectedBenchPlayerId) {
-      swapPitchWithBench(clickedPlayer.id, selectedBenchPlayerId);
+    // Case 1: Clicking the already selected pitch player -> Deselect and cancel highlights
+    if (selectedPitchPlayerId === clickedPlayer.id) {
+      setSelectedPitchPlayerId(null);
       setSelectedBenchPlayerId(null);
       return;
     }
 
-    // Scenario 2: Open quick, fast substitution photo modal with all bench players
-    setQuickSubModal({
-      isOpen: true,
-      sourcePlayer: clickedPlayer,
-      targetType: 'bench',
-    });
+    // Case 2: A bench player was already selected -> Directly swap pitch player with bench player!
+    if (selectedBenchPlayerId) {
+      swapPitchWithBench(clickedPlayer.id, selectedBenchPlayerId);
+      setSelectedBenchPlayerId(null);
+      setSelectedPitchPlayerId(null);
+      return;
+    }
+
+    // Case 3: Another pitch player was already selected -> Directly swap the two pitch players' positions!
+    if (selectedPitchPlayerId) {
+      swapPitchPositions(selectedPitchPlayerId, clickedPlayer.id);
+      setSelectedPitchPlayerId(null);
+      setSelectedBenchPlayerId(null);
+      return;
+    }
+
+    // Case 4: First click on this pitch player -> Select player, highlight playable positions (green 🟢), and show stars ⭐ on candidates
+    setSelectedPitchPlayerId(clickedPlayer.id);
+    setSelectedBenchPlayerId(null);
+    showNotification(`«${clickedPlayer.name}» (${clickedPlayer.position}) انتخاب شد. برای جابجایی روی بازیکن مقصد یا نیمکت کلیک کنید ⭐`);
   };
 
-  // Bench / Reserve Player Click Handler: Opens quick substitution photo modal with pitch starters
+  // Bench / Reserve Player Click Handler: Direct on-pitch click-to-swap & highlight for Coach Mode (No Modal)
   const handleBenchPlayerClick = (clickedBenchPlayer, isFromSubstitutes = true) => {
     setHighlightedPosition(null);
 
+    // In Admin Mode: keep the authoritative referee match event modal
     if (isAdminMode) {
       setAdminModalPlayer({ ...clickedBenchPlayer, isPitchPlayer: false, isFromSubstitutes });
       setAdminModalTab('SUB');
@@ -959,19 +975,34 @@ export default function EFootballGamePlan({
 
     if (readOnly) return;
 
-    // Scenario 1: A pitch player was already pre-selected -> Swap pitch player with clicked bench player
-    if (selectedPitchPlayerId) {
-      swapPitchWithBench(selectedPitchPlayerId, clickedBenchPlayer.id, isFromSubstitutes);
+    // Case 1: Clicking the already selected bench player -> Deselect and cancel highlights
+    if (selectedBenchPlayerId === clickedBenchPlayer.id) {
+      setSelectedBenchPlayerId(null);
       setSelectedPitchPlayerId(null);
       return;
     }
 
-    // Scenario 2: Open quick, fast substitution photo modal with all 11 pitch players
-    setQuickSubModal({
-      isOpen: true,
-      sourcePlayer: clickedBenchPlayer,
-      targetType: 'pitch',
-    });
+    // Case 2: A pitch player was already selected -> Directly swap pitch player with this bench player!
+    if (selectedPitchPlayerId) {
+      swapPitchWithBench(selectedPitchPlayerId, clickedBenchPlayer.id, isFromSubstitutes);
+      setSelectedPitchPlayerId(null);
+      setSelectedBenchPlayerId(null);
+      return;
+    }
+
+    // Case 3: Another bench player was already selected -> Swap two bench players
+    if (selectedBenchPlayerId) {
+      swapBenchOrReserves(selectedBenchPlayerId, clickedBenchPlayer.id);
+      setSelectedBenchPlayerId(null);
+      setSelectedPitchPlayerId(null);
+      return;
+    }
+
+    // Case 4: First click on this bench player -> Select bench player, highlight playable slots (green 🟢), and show stars ⭐ on pitch players
+    setSelectedBenchPlayerId(clickedBenchPlayer.id);
+    setSelectedPitchPlayerId(null);
+    const natPos = clickedBenchPlayer.naturalPosition || clickedBenchPlayer.position;
+    showNotification(`بازیکن نیمکت «${clickedBenchPlayer.name}» (${natPos}) انتخاب شد. برای تعویض روی بازیکن مورد نظر در چمن کلیک کنید 🔄`);
   };
 
   // Admin Direct Substitution Execution Handler
@@ -1204,24 +1235,46 @@ export default function EFootballGamePlan({
       setSubstitutes(newSubs);
       setReserves(newRes);
       setSelectedBenchPlayerId(null);
+      setSelectedPitchPlayerId(null);
       setHighlightedPosition(null);
       showNotification(`بازیکن «${benchPlayer.name}» در پست ${slot.pos} در ترکیب اصلی قرار گرفت ✅`);
       if (onLineupChange) {
         onLineupChange({ startingXi: updatedXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
       }
-    } else {
-      setHighlightedPosition(null);
-      if (isAdminMode) {
-        setAdminModalPlayer({ id: `empty_${slot.pos}`, position: slot.pos, name: `پست ${slot.pos}`, isPitchPlayer: true });
-        setAdminModalTab('SUB');
-      } else {
-        setQuickSubModal({
-          isOpen: true,
-          sourcePlayer: { id: `empty_${slot.pos}`, position: slot.pos, name: `پست ${slot.pos}`, x_coord: slot.x, y_coord: slot.y },
-          targetType: 'bench',
-        });
+      return;
+    }
+
+    // Case 2: A pitch player was already selected -> Move them directly to this empty slot
+    if (selectedPitchPlayerId) {
+      const pitchPlayer = startingXi.find((p) => p.id === selectedPitchPlayerId);
+      if (pitchPlayer) {
+        const updatedXi = startingXi.map((item) =>
+          item.id === pitchPlayer.id
+            ? { ...item, position: slot.pos, x_coord: slot.x, y_coord: slot.y }
+            : item
+        );
+        setStartingXi(updatedXi);
+        setSelectedPitchPlayerId(null);
+        setSelectedBenchPlayerId(null);
+        setHighlightedPosition(null);
+        showNotification(`«${pitchPlayer.name}» به پست خالی ${slot.pos} منتقل شد ✅`);
+        if (onLineupChange) {
+          onLineupChange({ startingXi: updatedXi, substitutes, reserves, formation: currentFormation });
+        }
+        return;
       }
     }
+
+    // Case 3: In Admin Mode, keep modal
+    if (isAdminMode) {
+      setAdminModalPlayer({ id: `empty_${slot.pos}`, position: slot.pos, name: `پست ${slot.pos}`, isPitchPlayer: true });
+      setAdminModalTab('SUB');
+      return;
+    }
+
+    // Case 4: In Coach mode, select this empty slot and highlight suitable bench candidates
+    setHighlightedPosition(slot.pos);
+    showNotification(`پست خالی «${slot.pos}» انتخاب شد. روی بازیکن مورد نظر در نیمکت کلیک کنید 🟢`);
   };
 
   const activeSelectedPlayer =
