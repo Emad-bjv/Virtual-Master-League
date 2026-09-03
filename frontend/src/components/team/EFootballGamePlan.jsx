@@ -922,6 +922,8 @@ export default function EFootballGamePlan({
 
   // Pitch Player Click Handler: Opens quick substitution photo modal with bench players
   const handlePitchPlayerClick = (clickedPlayer) => {
+    setHighlightedPosition(null);
+
     if (isAdminMode) {
       setAdminModalPlayer({ ...clickedPlayer, isPitchPlayer: true });
       setAdminModalTab('SUB');
@@ -934,7 +936,6 @@ export default function EFootballGamePlan({
     if (selectedBenchPlayerId) {
       swapPitchWithBench(clickedPlayer.id, selectedBenchPlayerId);
       setSelectedBenchPlayerId(null);
-      setHighlightedPosition(null);
       return;
     }
 
@@ -948,6 +949,8 @@ export default function EFootballGamePlan({
 
   // Bench / Reserve Player Click Handler: Opens quick substitution photo modal with pitch starters
   const handleBenchPlayerClick = (clickedBenchPlayer, isFromSubstitutes = true) => {
+    setHighlightedPosition(null);
+
     if (isAdminMode) {
       setAdminModalPlayer({ ...clickedBenchPlayer, isPitchPlayer: false, isFromSubstitutes });
       setAdminModalTab('SUB');
@@ -960,7 +963,6 @@ export default function EFootballGamePlan({
     if (selectedPitchPlayerId) {
       swapPitchWithBench(selectedPitchPlayerId, clickedBenchPlayer.id, isFromSubstitutes);
       setSelectedPitchPlayerId(null);
-      setHighlightedPosition(null);
       return;
     }
 
@@ -1208,7 +1210,17 @@ export default function EFootballGamePlan({
         onLineupChange({ startingXi: updatedXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
       }
     } else {
-      handlePositionHighlight(slot.pos);
+      setHighlightedPosition(null);
+      if (isAdminMode) {
+        setAdminModalPlayer({ id: `empty_${slot.pos}`, position: slot.pos, name: `پست ${slot.pos}`, isPitchPlayer: true });
+        setAdminModalTab('SUB');
+      } else {
+        setQuickSubModal({
+          isOpen: true,
+          sourcePlayer: { id: `empty_${slot.pos}`, position: slot.pos, name: `پست ${slot.pos}`, x_coord: slot.x, y_coord: slot.y },
+          targetType: 'bench',
+        });
+      }
     }
   };
 
@@ -1585,18 +1597,13 @@ export default function EFootballGamePlan({
                   </div>
 
                   {/* Badge Pill: Position + Championship Gold OVR Rating */}
-                  <div className="flex items-center gap-0.5 sm:gap-1 mt-0.5 sm:mt-1 shadow-lg z-10">
+                  <div className="flex items-center gap-0.5 sm:gap-1 mt-0.5 sm:mt-1 shadow-lg z-10 pointer-events-none">
                     <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePositionHighlight(posCode);
-                      }}
-                      className={`text-[7px] sm:text-[8px] md:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-md shadow cursor-pointer transition-transform hover:scale-110 active:scale-95 ${
+                      className={`text-[7px] sm:text-[8px] md:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-md shadow ${
                         isGreenSlot
                           ? 'bg-[#00ff87] text-slate-950 font-black shadow-[0_0_10px_#00ff87] ring-1 ring-white'
                           : (POSITION_COLORS[posCode] || 'bg-purple-600 text-white font-bold')
                       }`}
-                      title={isGreenSlot ? `پست قابل بازی در این ترکیب (${posCode}) 🟢` : `کلیک جهت هایلایت همه بازیکنان ${posCode}`}
                     >
                       {posCode}
                     </span>
@@ -1664,16 +1671,11 @@ export default function EFootballGamePlan({
                     <User size={20} className={isSlotHighlighted ? 'text-emerald-300 opacity-85' : 'text-cyan-300/70 opacity-75'} />
                     <span className="text-[7.5px] sm:text-[8.5px] font-black tracking-tight">خالی</span>
                   </div>
-                  <div className="flex items-center gap-0.5 sm:gap-1 mt-0.5 sm:mt-1 shadow-lg z-10">
+                  <div className="flex items-center gap-0.5 sm:gap-1 mt-0.5 sm:mt-1 shadow-lg z-10 pointer-events-none">
                     <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePositionHighlight(slot.pos);
-                      }}
-                      className={`text-[7px] sm:text-[8px] md:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-md shadow cursor-pointer transition-transform hover:scale-110 active:scale-95 ${
+                      className={`text-[7px] sm:text-[8px] md:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-md shadow ${
                         POSITION_COLORS[slot.pos] || 'bg-purple-600 text-white font-bold'
                       }`}
-                      title={`کلیک جهت هایلایت همه بازیکنان ${slot.pos}`}
                     >
                       {slot.pos}
                     </span>
@@ -1980,14 +1982,9 @@ export default function EFootballGamePlan({
                       {sub.name}
                     </span>
 
-                    <div className="flex items-center gap-1 mt-1">
+                    <div className="flex items-center gap-1 mt-1 pointer-events-none">
                       <span
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePositionHighlight(natPos);
-                        }}
-                        className={`text-[7.5px] font-black px-1 rounded cursor-pointer hover:scale-110 active:scale-95 transition-transform ${POSITION_COLORS[natPos] || 'bg-slate-700 text-white'}`}
-                        title={`کلیک جهت هایلایت همه بازیکنان ${natPos}`}
+                        className={`text-[7.5px] font-black px-1 rounded ${POSITION_COLORS[natPos] || 'bg-slate-700 text-white'}`}
                       >
                         {natPos}
                       </span>
@@ -2076,12 +2073,7 @@ export default function EFootballGamePlan({
                             <span className="text-[8.5px] font-sport text-cyan-400 font-black">#{res.shirt_number}</span>
                           )}
                           <span
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handlePositionHighlight(natPos);
-                            }}
-                            className={`text-[8px] font-black px-1.5 py-0.5 rounded cursor-pointer hover:scale-110 active:scale-95 transition-transform ${POSITION_COLORS[natPos] || 'bg-slate-700 text-white'}`}
-                            title={`کلیک جهت هایلایت همه بازیکنان ${natPos}`}
+                            className={`text-[8px] font-black px-1.5 py-0.5 rounded pointer-events-none ${POSITION_COLORS[natPos] || 'bg-slate-700 text-white'}`}
                           >
                             {natPos}
                           </span>
