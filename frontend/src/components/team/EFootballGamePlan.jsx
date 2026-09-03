@@ -560,6 +560,7 @@ export default function EFootballGamePlan({
   const [selectedBenchPlayerId, setSelectedBenchPlayerId] = useState(null);
   const [highlightedPosition, setHighlightedPosition] = useState(null);
   const [adminModalPlayer, setAdminModalPlayer] = useState(null);
+  const [adminModalTab, setAdminModalTab] = useState('SUB'); // 'SUB' | 'ACTIONS'
   const [subModalBenchSelect, setSubModalBenchSelect] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   const [quickSubModal, setQuickSubModal] = useState({ isOpen: false, sourcePlayer: null, targetType: null });
@@ -922,8 +923,8 @@ export default function EFootballGamePlan({
   // Pitch Player Click Handler: Opens quick substitution photo modal with bench players
   const handlePitchPlayerClick = (clickedPlayer) => {
     if (isAdminMode) {
-      setAdminModalPlayer(clickedPlayer);
-      setSubModalBenchSelect(false);
+      setAdminModalPlayer({ ...clickedPlayer, isPitchPlayer: true });
+      setAdminModalTab('SUB');
       return;
     }
 
@@ -948,7 +949,8 @@ export default function EFootballGamePlan({
   // Bench / Reserve Player Click Handler: Opens quick substitution photo modal with pitch starters
   const handleBenchPlayerClick = (clickedBenchPlayer, isFromSubstitutes = true) => {
     if (isAdminMode) {
-      setAdminModalPlayer(clickedBenchPlayer);
+      setAdminModalPlayer({ ...clickedBenchPlayer, isPitchPlayer: false, isFromSubstitutes });
+      setAdminModalTab('SUB');
       return;
     }
 
@@ -968,6 +970,42 @@ export default function EFootballGamePlan({
       sourcePlayer: clickedBenchPlayer,
       targetType: 'pitch',
     });
+  };
+
+  // Admin Direct Substitution Execution Handler
+  const handleAdminExecuteSub = (pitchId, benchId) => {
+    const pitchPlayer = startingXi.find((p) => p.id === pitchId);
+    const benchPlayer = substitutes.find((b) => b.id === benchId) || reserves.find((r) => r.id === benchId);
+
+    if (!pitchPlayer || !benchPlayer) return;
+
+    if (benchPlayer.suspension_matches > 0 || benchPlayer.is_suspended || benchPlayer.isSuspended) {
+      showNotification(`⚠️ بازیکن «${benchPlayer.name}» به دلیل محرومیت (کارت قرمز) نمی‌تواند در ترکیب اصلی قرار گیرد 🟥`);
+      return;
+    }
+
+    swapPitchWithBench(pitchId, benchId);
+
+    const natPos = benchPlayer.naturalPosition || benchPlayer.position;
+    const text = `تعویض زنده داوری: ورود ${benchPlayer.name} (${natPos}) به جای ${pitchPlayer.name} (${pitchPlayer.position}) 🔄`;
+
+    if (onPushLiveEvent) {
+      onPushLiveEvent({
+        id: Date.now(),
+        type: 'SUB',
+        event_type: 'SUB',
+        player_out_id: pitchPlayer.id,
+        player_in_id: benchPlayer.id,
+        player_out_name: pitchPlayer.name,
+        player_in_name: benchPlayer.name,
+        text,
+        team: teamName,
+        minute: 45,
+      });
+    }
+
+    showNotification(text);
+    setAdminModalPlayer(null);
   };
 
   // Swap two pitch players' positions (x_coord & y_coord)
@@ -2080,41 +2118,59 @@ export default function EFootballGamePlan({
         </div>
       )}
 
-      {/* ADMIN QUICK MATCH EVENT REGISTRATION MODAL */}
-      {isAdminMode && adminModalPlayer && createPortal(
+      {/* ADMIN QUICK MATCH EVENT & PHOTO-BASED SUBSTITUTION MODAL */}
+      {isAdminMode && adminModalPlayer && typeof document !== 'undefined' && createPortal(
         <div 
-          className="fixed inset-0 w-screen h-screen z-[10000] flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md font-sans dir-rtl select-none"
+          className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md font-sans dir-rtl select-none overflow-y-auto"
           onClick={() => {
             setAdminModalPlayer(null);
             setSubModalBenchSelect(false);
           }}
         >
           <div 
-            className="w-full max-w-sm sm:max-w-md bg-[#0a1222] border-2 border-cyan-500/60 rounded-3xl p-4 sm:p-5 shadow-[0_0_50px_rgba(6,182,212,0.25)] flex flex-col max-h-[88vh] relative my-auto animate-in fade-in zoom-in-95 duration-150"
+            className="w-full max-w-lg sm:max-w-xl bg-slate-950 border-2 border-cyan-500/60 rounded-3xl p-4 sm:p-6 shadow-[0_0_60px_rgba(6,182,212,0.35)] flex flex-col max-h-[90vh] relative my-auto animate-in fade-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className="border-b border-slate-800/80 pb-3 flex justify-between items-center shrink-0">
+            {/* Header: Clicked Player Overview */}
+            <div className="border-b border-slate-800/80 pb-3.5 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/30 border border-cyan-400/40 flex items-center justify-center text-cyan-300 font-bold text-sm shrink-0">
-                  {adminModalPlayer.photo_url ? (
-                    <img src={getPlayerPhotoUrl(adminModalPlayer.photo_url)} alt="" className="w-full h-full object-cover rounded-2xl" />
+                <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/30 border-2 border-cyan-400/50 flex items-center justify-center text-cyan-300 font-bold overflow-hidden shrink-0 shadow-lg shadow-cyan-950/50">
+                  {adminModalPlayer.photo_url || adminModalPlayer.photo ? (
+                    <img 
+                      src={getPlayerPhotoUrl(adminModalPlayer.photo_url || adminModalPlayer.photo)} 
+                      alt="" 
+                      className="w-full h-full object-cover rounded-2xl" 
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
                   ) : (
-                    <span>{adminModalPlayer.position}</span>
+                    <span className="text-sm font-black font-sport">{adminModalPlayer.position || 'FP'}</span>
                   )}
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-black text-white text-sm sm:text-base">{adminModalPlayer.name}</span>
-                    <span className="text-[10px] font-mono font-bold bg-cyan-950 text-cyan-400 border border-cyan-500/30 px-1.5 py-0.2 rounded">
+                    <span className="text-[10.5px] font-mono font-black bg-cyan-950 text-cyan-300 border border-cyan-500/40 px-2 py-0.5 rounded-lg shadow-sm">
                       #{adminModalPlayer.shirt_number || 10}
                     </span>
+                    <span className="text-[10px] font-sport font-black bg-purple-950 text-purple-300 border border-purple-500/40 px-2 py-0.5 rounded-lg">
+                      OVR {adminModalPlayer.overall || 75}
+                    </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                    <span className="text-cyan-400 font-bold">{adminModalPlayer.position}</span>
+                  <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
+                    <span className="font-black text-cyan-400">{adminModalPlayer.position}</span>
                     <span>•</span>
-                    <span className="text-purple-300 font-bold">{teamName}</span>
-                  </p>
+                    <span className="font-bold text-slate-300">{teamName}</span>
+                    <span>•</span>
+                    <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full ${
+                      adminModalPlayer.isPitchPlayer 
+                        ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40' 
+                        : 'bg-blue-950/80 text-blue-300 border border-blue-500/40'
+                    }`}>
+                      {adminModalPlayer.isPitchPlayer ? '🟢 بازیکن روی چمن' : '🔵 بازیکن روی نیمکت'}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -2123,16 +2179,162 @@ export default function EFootballGamePlan({
                   setAdminModalPlayer(null);
                   setSubModalBenchSelect(false);
                 }}
-                className="w-8 h-8 rounded-xl bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center border border-slate-800 transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-xl bg-slate-900 text-slate-400 hover:text-white hover:bg-slate-800 flex items-center justify-center border border-slate-800 transition-colors cursor-pointer shrink-0"
               >
                 <X size={16} />
               </button>
             </div>
 
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar pr-0.5 py-3 space-y-3">
-              {!subModalBenchSelect ? (
-                <>
+            {/* Admin Modal Navigation Tabs */}
+            <div className="grid grid-cols-2 gap-2 mt-3 mb-2 shrink-0">
+              <button
+                onClick={() => setAdminModalTab('SUB')}
+                className={`py-2 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  adminModalTab === 'SUB'
+                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-md shadow-cyan-500/20 ring-1 ring-cyan-300'
+                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                }`}
+              >
+                <ArrowLeftRight size={14} />
+                <span>🔄 تعویض بازیکن (با عکس)</span>
+              </button>
+
+              <button
+                onClick={() => setAdminModalTab('ACTIONS')}
+                className={`py-2 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  adminModalTab === 'ACTIONS'
+                    ? 'bg-gradient-to-r from-amber-500 to-rose-600 text-slate-950 shadow-md shadow-amber-500/20 ring-1 ring-amber-300'
+                    : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                }`}
+              >
+                <Sliders size={14} />
+                <span>🎛️ وقایع و کارت‌های داوری</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar pr-0.5 py-2 space-y-3">
+              {adminModalTab === 'SUB' ? (
+                /* -------------------------------------------------------------
+                   PHOTO-BASED QUICK SUBSTITUTION PICKER
+                   If clicked player is on Pitch: Shows Bench candidates with photos
+                   If clicked player is on Bench: Shows Pitch candidates with photos
+                   ------------------------------------------------------------- */
+                <div className="space-y-3">
+                  <div className="p-2.5 rounded-2xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-between">
+                    <span className="text-xs font-bold text-cyan-200">
+                      {adminModalPlayer.isPitchPlayer
+                        ? `انتخاب بازیکن جایگزین از نیمکت جهت تعویض با «${adminModalPlayer.name}»:`
+                        : `انتخاب بازیکن اصلی از ترکیب چمن جهت خروج به جای «${adminModalPlayer.name}»:`}
+                    </span>
+                    <span className="text-[10px] bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded font-black font-sport">
+                      {adminModalPlayer.isPitchPlayer ? `${(substitutes || []).length} ذخیره` : `${(startingXi || []).length} بازیکن اصلی`}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 max-h-64 sm:max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                    {(() => {
+                      const candidates = adminModalPlayer.isPitchPlayer
+                        ? [...(substitutes || []), ...(reserves || [])]
+                        : (startingXi || []);
+
+                      if (candidates.length === 0) {
+                        return (
+                          <div className="text-center py-8 text-slate-400 text-xs font-bold">
+                            هیچ بازیکنی در این بخش یافت نشد.
+                          </div>
+                        );
+                      }
+
+                      return candidates.map((cand) => {
+                        if (!cand) return null;
+                        const candNatPos = cand.naturalPosition || cand.position || 'FP';
+                        const isOut = cand.isSubbedOut;
+                        const isSuspended = cand.suspension_matches > 0 || cand.is_suspended || cand.isSuspended;
+                        const photoUrl = cand.photo_url || cand.photo;
+
+                        return (
+                          <div
+                            key={cand.id}
+                            onClick={() => {
+                              if (isOut) {
+                                showNotification(`🚫 بازیکن «${cand.name}» قبلاً تعویض شده و طبق قوانین دیگر نمی‌تواند بازی کند.`);
+                                return;
+                              }
+                              if (isSuspended) {
+                                showNotification(`🚫 بازیکن «${cand.name}» به دلیل محرومیت نمی‌تواند وارد زمین شود.`);
+                                return;
+                              }
+
+                              if (adminModalPlayer.isPitchPlayer) {
+                                handleAdminExecuteSub(adminModalPlayer.id, cand.id);
+                              } else {
+                                handleAdminExecuteSub(cand.id, adminModalPlayer.id);
+                              }
+                            }}
+                            className={`p-2.5 rounded-2xl border flex items-center justify-between transition-all group ${
+                              isOut || isSuspended
+                                ? 'bg-rose-950/20 border-rose-900/40 opacity-50 cursor-not-allowed'
+                                : 'bg-slate-900/90 hover:bg-slate-800/90 border-slate-800 hover:border-cyan-400 cursor-pointer shadow-sm hover:shadow-md'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              {/* Candidate Photo */}
+                              <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-slate-950 border border-slate-700 flex items-center justify-center overflow-hidden shrink-0 group-hover:border-cyan-400 transition-colors">
+                                {photoUrl ? (
+                                  <img 
+                                    src={getPlayerPhotoUrl(photoUrl)} 
+                                    alt="" 
+                                    className="w-full h-full object-cover rounded-xl"
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                    }}
+                                  />
+                                ) : (
+                                  <span className="text-[10px] font-black text-slate-400 font-sport">{candNatPos}</span>
+                                )}
+                              </div>
+
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className={`font-black text-xs sm:text-sm ${isOut ? 'line-through text-slate-400' : 'text-white'}`}>
+                                    {cand.name}
+                                  </span>
+                                  {isOut && <span className="text-[8.5px] bg-rose-600 text-white font-black px-1.5 py-0.2 rounded-full">خارج شده</span>}
+                                  {isSuspended && <span className="text-[8.5px] bg-rose-700 text-white font-black px-1.5 py-0.2 rounded-full">محروم</span>}
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[10px] font-black bg-cyan-950 text-cyan-400 px-1.5 py-0.2 rounded border border-cyan-500/30">
+                                    {candNatPos}
+                                  </span>
+                                  <span className="text-[10px] font-mono text-slate-400 font-bold">
+                                    #{cand.shirt_number || 10}
+                                  </span>
+                                  <span className="text-[10px] font-sport text-amber-300 font-black">
+                                    ★ {cand.overall || 75}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              className="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 active:scale-95 text-slate-950 font-black text-xs flex items-center gap-1 transition-all shadow-md shadow-cyan-950/40 group-hover:bg-cyan-300"
+                            >
+                              <ArrowLeftRight size={13} />
+                              <span>تعویض</span>
+                            </button>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                /* -------------------------------------------------------------
+                   REFEREE MATCH EVENTS TAB (FotMob Rating, Goal, Cards, Injury)
+                   ------------------------------------------------------------- */
+                <div className="space-y-3">
                   {/* FotMob Match Rating Chip Bar */}
                   <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-slate-800/90 space-y-1.5">
                     <div className="flex justify-between items-center text-[11px]">
@@ -2251,76 +2453,6 @@ export default function EFootballGamePlan({
                       {adminModalPlayer.isInjured && <span className="text-[9px] bg-rose-950 px-1.5 py-0.5 rounded text-rose-300 font-bold">مصدوم ↩️</span>}
                     </button>
                   </div>
-
-                  {/* Substitution Trigger Button */}
-                  <button
-                    onClick={() => setSubModalBenchSelect(true)}
-                    className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold flex items-center justify-center gap-2 shadow-lg transition-all border border-purple-400/30 cursor-pointer active:scale-98 text-xs"
-                  >
-                    <ArrowLeftRight size={15} />
-                    <span>انجام تعویض زنده با بازیکنان نیمکت 🔄⚡</span>
-                  </button>
-                </>
-              ) : (
-                /* Bench selector mode */
-                <div className="space-y-2.5">
-                  <span className="text-slate-300 font-bold text-xs block">
-                    انتخاب بازیکن جایگزین از نیمکت برای تعویض با «{adminModalPlayer.name}»:
-                  </span>
-
-                  <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
-                    {substitutes.map((bPlayer) => {
-                      const natPos = bPlayer.naturalPosition || bPlayer.position;
-                      const isOut = bPlayer.isSubbedOut;
-
-                      return (
-                        <div
-                          key={bPlayer.id}
-                          onClick={() => {
-                            if (isOut) {
-                              showNotification(`🚫 بازیکن «${bPlayer.name}» قبلاً تعویض شده و طبق قوانین فوتبال دیگر نمی‌تواند به زمین برگردد.`);
-                              return;
-                            }
-                            swapPitchWithBench(adminModalPlayer.id, bPlayer.id, true);
-                            const text = `تعویض زنده ادمین: ورود ${bPlayer.name} (${natPos}) به جای ${adminModalPlayer.name} (${adminModalPlayer.position}) 🔄`;
-                            if (onPushLiveEvent) {
-                              onPushLiveEvent({
-                                id: Date.now(),
-                                type: 'SUB',
-                                text,
-                                team: teamName,
-                                icon: '🔄',
-                                color: 'text-purple-400 border-purple-500/40 bg-purple-950/40',
-                              });
-                            }
-                            setAdminModalPlayer(null);
-                            setSubModalBenchSelect(false);
-                          }}
-                          className={`p-2.5 rounded-2xl border flex justify-between items-center transition-all ${
-                            isOut
-                              ? 'bg-rose-950/30 border-rose-900/50 opacity-60 cursor-not-allowed'
-                              : 'bg-slate-900 border-slate-800 hover:border-cyan-400 cursor-pointer'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded">
-                              {natPos}
-                            </span>
-                            <span className={`font-bold text-xs ${isOut ? 'line-through text-slate-400' : 'text-white'}`}>{bPlayer.name}</span>
-                            {isOut && <span className="text-[9px] bg-rose-600 text-white font-black px-1.5 py-0.2 rounded-full">↩️ OUT</span>}
-                          </div>
-                          <span className="font-mono text-cyan-300 font-bold text-xs">OVR {bPlayer.overall}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <button
-                    onClick={() => setSubModalBenchSelect(false)}
-                    className="w-full bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold py-2 rounded-xl border border-slate-800 transition-colors text-xs cursor-pointer"
-                  >
-                    بازگشت به گزینه اتفاقات
-                  </button>
                 </div>
               )}
             </div>

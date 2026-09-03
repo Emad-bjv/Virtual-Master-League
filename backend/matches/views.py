@@ -324,18 +324,30 @@ class ApplySubstitutionView(APIView):
         player_out_id = request.data.get('player_out')
         minute = request.data.get('minute', 0)
 
-        MatchEvent.objects.create(match=match, player_id=player_out_id, event_type='SUB_OUT', minute=minute)
-        MatchEvent.objects.create(match=match, player_id=player_in_id, event_type='SUB_IN', minute=minute)
+        p_out = Player.objects.filter(id=player_out_id).first()
+        p_in = Player.objects.filter(id=player_in_id).first()
+        target_team = Team.objects.filter(id=team_id).first() if team_id else (p_out.team if p_out else None)
 
+        if match and target_team and p_out and p_in:
+            apply_substitution_to_match_gameplan(match, target_team, p_out, p_in)
+
+        ev_out = MatchEvent.objects.create(match=match, player_id=player_out_id, team=target_team, event_type='SUB_OUT', minute=minute, detail=f'خروج {p_out.name if p_out else ""}')
+        ev_in = MatchEvent.objects.create(match=match, player_id=player_in_id, team=target_team, event_type='SUB_IN', minute=minute, detail=f'ورود {p_in.name if p_in else ""}')
+
+        match_detail = MatchDetailSerializer(match).data
         broadcast_match_event(match_id, {
             'type': 'substitution',
             'team_id': team_id,
             'player_in': player_in_id,
             'player_out': player_out_id,
-            'minute': minute
+            'player_in_data': MatchEventSerializer(ev_in).data,
+            'player_out_data': MatchEventSerializer(ev_out).data,
+            'minute': minute,
+            'message': f'تعویض رسمی داور: ورود {p_in.name if p_in else ""} به جای {p_out.name if p_out else ""}',
+            'match': match_detail
         })
 
-        return Response({'detail': 'تعویض با موفقیت اعمال شد.'}, status=status.HTTP_200_OK)
+        return Response({'detail': 'تعویض با موفقیت اعمال شد.', 'match': match_detail}, status=status.HTTP_200_OK)
 
 
 class MatchStatusUpdateView(APIView):

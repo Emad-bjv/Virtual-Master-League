@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api, { adminApi, matchApi } from '../../services/api';
 import { useToast } from '../components/Toast';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
+import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 
 export default function LiveBroadcastControl() {
   const { showToast } = useToast();
@@ -1647,35 +1648,99 @@ export default function LiveBroadcastControl() {
 
                 {/* Sub Modals vs Standard Player Selector */}
                 {eventModalType === 'SUB' ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
+                    {/* Visual Photo Selector for Player OUT */}
                     <div>
-                      <label className="text-red-400 block mb-1 font-bold">بازیکن خروجی (Player OUT)</label>
-                      <select
-                        value={subOutPlayerId}
-                        onChange={(e) => setSubOutPlayerId(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white"
-                      >
-                        {activeTargetSquad.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.position}) {p.suspension_matches > 0 || p.is_suspended ? '• 🟥 محروم' : p.is_starting ? '• فیکس' : '• نیمکت'}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-rose-400 font-bold text-xs flex items-center gap-1.5">
+                          <span>🔴 بازیکن خروجی (Player OUT)</span>
+                          {subOutPlayerId && (
+                            <span className="text-white font-mono bg-rose-950/80 border border-rose-500/40 px-2 py-0.5 rounded text-[11px]">
+                              {activeTargetSquad.find(p => p.id.toString() === subOutPlayerId)?.name}
+                            </span>
+                          )}
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-44 overflow-y-auto custom-scrollbar p-1 bg-slate-950/60 rounded-xl border border-slate-800">
+                        {activeTargetSquad.filter(p => p.is_starting).map(p => {
+                          const isSelected = subOutPlayerId === p.id.toString();
+                          const photo = getPlayerPhotoUrl(p.photo_url || p.photo);
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => setSubOutPlayerId(p.id.toString())}
+                              className={`p-2 rounded-xl border flex items-center gap-2 cursor-pointer transition-all ${
+                                isSelected
+                                  ? 'bg-rose-950/60 border-rose-500 ring-1 ring-rose-400 text-white'
+                                  : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 text-slate-300'
+                              }`}
+                            >
+                              <div className="w-8 h-8 rounded-lg bg-slate-950 overflow-hidden shrink-0 border border-slate-700 flex items-center justify-center">
+                                {photo ? (
+                                  <img src={photo} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-[9px] font-bold">{p.position}</span>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-bold truncate">{p.name}</div>
+                                <div className="text-[10px] text-slate-400">{p.position}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
 
+                    {/* Visual Photo Selector for Player IN */}
                     <div>
-                      <label className="text-emerald-400 block mb-1 font-bold">بازیکن ورودی (Player IN)</label>
-                      <select
-                        value={subInPlayerId}
-                        onChange={(e) => setSubInPlayerId(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white"
-                      >
-                        {activeTargetSquad.map(p => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} ({p.position}) {p.suspension_matches > 0 || p.is_suspended ? '• 🟥 محروم' : !p.is_starting ? '• نیمکت' : '• فیکس'}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-emerald-400 font-bold text-xs flex items-center gap-1.5">
+                          <span>🟢 بازیکن ورودی (Player IN)</span>
+                          {subInPlayerId && (
+                            <span className="text-white font-mono bg-emerald-950/80 border border-emerald-500/40 px-2 py-0.5 rounded text-[11px]">
+                              {activeTargetSquad.find(p => p.id.toString() === subInPlayerId)?.name}
+                            </span>
+                          )}
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-44 overflow-y-auto custom-scrollbar p-1 bg-slate-950/60 rounded-xl border border-slate-800">
+                        {activeTargetSquad.filter(p => !p.is_starting).map(p => {
+                          const isSelected = subInPlayerId === p.id.toString();
+                          const isSuspended = p.suspension_matches > 0 || p.is_suspended;
+                          const photo = getPlayerPhotoUrl(p.photo_url || p.photo);
+                          return (
+                            <div
+                              key={p.id}
+                              onClick={() => {
+                                if (isSuspended) return;
+                                setSubInPlayerId(p.id.toString());
+                              }}
+                              className={`p-2 rounded-xl border flex items-center gap-2 transition-all ${
+                                isSuspended
+                                  ? 'bg-rose-950/20 border-rose-900/40 opacity-40 cursor-not-allowed'
+                                  : isSelected
+                                  ? 'bg-emerald-950/60 border-emerald-500 ring-1 ring-emerald-400 text-white cursor-pointer'
+                                  : 'bg-slate-900/80 border-slate-800 hover:border-slate-700 text-slate-300 cursor-pointer'
+                              }`}
+                            >
+                              <div className="w-8 h-8 rounded-lg bg-slate-950 overflow-hidden shrink-0 border border-slate-700 flex items-center justify-center">
+                                {photo ? (
+                                  <img src={photo} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-[9px] font-bold">{p.position}</span>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="text-xs font-bold truncate">{p.name}</div>
+                                <div className="text-[10px] text-slate-400">
+                                  {p.position} {isSuspended ? '• 🟥 محروم' : ''}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 ) : (

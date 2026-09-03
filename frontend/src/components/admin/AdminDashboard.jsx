@@ -540,6 +540,11 @@ export default function AdminDashboard({
             data.type === 'match_finished' ||
             data.type === 'new_event' ||
             data.type === 'event_deleted' ||
+            data.type === 'substitution' ||
+            data.type === 'coach_tactics_submitted' ||
+            data.type === 'coach_tactics_applied' ||
+            data.type === 'gameplan_submitted' ||
+            data.type === 'live_tactics_updated' ||
             data.type === 'in_game_change_applied'
           ) {
             fetchLiveMatchState(selectedLiveMatch.id);
@@ -659,6 +664,23 @@ export default function AdminDashboard({
   };
 
   // -------------------------------------------------------------
+  // ADMIN DIRECT PITCH EVENTS & LIVE SUBSTITUTION SYNC
+  // -------------------------------------------------------------
+  const handleAdminPitchLineupChange = (lineupData) => {
+    if (!lineupData) return;
+    setTeamGameplanData((prev) => ({
+      ...prev,
+      [selectedLiveTeamSwitch]: {
+        ...prev[selectedLiveTeamSwitch],
+        formation: lineupData.formation || prev[selectedLiveTeamSwitch]?.formation,
+        starters: lineupData.startingXi || prev[selectedLiveTeamSwitch]?.starters,
+        subs: lineupData.substitutes || prev[selectedLiveTeamSwitch]?.subs,
+        reserves: lineupData.reserves || prev[selectedLiveTeamSwitch]?.reserves,
+      },
+    }));
+  };
+
+  // -------------------------------------------------------------
   // R5: MATCH TEAM STATS SUBMISSION (DESK TAB 3)
   // -------------------------------------------------------------
   const handleDeskTeamStatsChange = (teamSide, metricKey, value) => {
@@ -745,7 +767,7 @@ export default function AdminDashboard({
   // ON-PITCH EVENT REGISTRATION CALLBACK
   // -------------------------------------------------------------
   const handleOnPushPitchEvent = async (eventObj) => {
-    if (!selectedLiveMatch?.id) return;
+    if (!selectedLiveMatch?.id || !eventObj) return;
     try {
       const activeTeamId =
         selectedLiveTeamSwitch === 'home'
@@ -753,6 +775,29 @@ export default function AdminDashboard({
           : selectedLiveMatch.away_team || selectedLiveMatch.awayId;
 
       const rawEventType = eventObj.type || eventObj.event_type || 'INFO';
+
+      if (rawEventType === 'SUB') {
+        const pOutId = parseInt(eventObj.player_out_id, 10);
+        const pInId = parseInt(eventObj.player_in_id, 10);
+        const curMin = parseInt(eventObj.minute || eventMinute || 45, 10);
+
+        if (!pOutId || !pInId) return;
+
+        // Authoritative backend control room substitution action
+        await matchApi.controlMatch(selectedLiveMatch.id, {
+          action: 'RECORD_SUBSTITUTION',
+          team_id: activeTeamId,
+          player_out_id: pOutId,
+          player_in_id: pInId,
+          minute: curMin,
+        });
+
+        showNotification(`تعویض زنده داوری با موفقیت ثبت، ذخیره و مخابره شد 🔄✅`);
+        await reloadTeamGameplans();
+        await fetchLiveMatchState(selectedLiveMatch.id);
+        return;
+      }
+
       const eventType = rawEventType === 'ASSIST' || rawEventType === 'RATING' ? 'INFO' : rawEventType;
       const playerId = eventObj.player_id || eventObj.player || eventObj.player_obj?.id;
 
@@ -2386,7 +2431,7 @@ export default function AdminDashboard({
                         <EFootballGamePlan
                           key={`admin-pitch-${selectedLiveMatch.id}-${selectedLiveTeamSwitch}-${activeSideData.starters.length}-${activeSideData.formation}`}
                           teamName={activeTeamName}
-                          readOnly={true}
+                          readOnly={false}
                           isAdminMode={true}
                           formation={activeSideData.formation}
                           initialStartingXi={activeSideData.starters}
@@ -2394,6 +2439,7 @@ export default function AdminDashboard({
                           initialReserves={activeSideData.reserves}
                           matchState={halfStatus || currentMatchStatus}
                           onPushLiveEvent={handleOnPushPitchEvent}
+                          onLineupChange={handleAdminPitchLineupChange}
                           hideReserves={false}
                         />
                       </ErrorBoundary>
