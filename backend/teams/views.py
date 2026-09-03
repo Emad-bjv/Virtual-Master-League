@@ -86,15 +86,18 @@ class TeamViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("شما دسترسی برای تغییر تاکتیک این تیم را ندارید.")
         serializer = GamePlanUpdateSerializer(data=request.data, many=True)
         if serializer.is_valid():
+            player_ids = [item['player_id'] for item in serializer.validated_data if 'player_id' in item]
+            players_map = {p.id: p for p in Player.objects.filter(id__in=player_ids, team=team)}
+            to_update = []
             for item in serializer.validated_data:
-                try:
-                    player = Player.objects.get(id=item['player_id'], team=team)
-                    player.x_coord = item['x_coord']
-                    player.y_coord = item['y_coord']
-                    player.is_starting = item['is_starting']
-                    player.save(update_fields=['x_coord', 'y_coord', 'is_starting'])
-                except Player.DoesNotExist:
-                    continue
+                player = players_map.get(item.get('player_id'))
+                if player:
+                    player.x_coord = item.get('x_coord', player.x_coord)
+                    player.y_coord = item.get('y_coord', player.y_coord)
+                    player.is_starting = item.get('is_starting', player.is_starting)
+                    to_update.append(player)
+            if to_update:
+                Player.objects.bulk_update(to_update, ['x_coord', 'y_coord', 'is_starting'])
             return Response({'status': 'Game plan updated successfully'})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -214,24 +217,23 @@ class TeamViewSet(viewsets.ModelViewSet):
                 active_gameplan = default_gameplan
 
             if players_data:
+                p_ids = [item.get('player_id') or item.get('id') for item in players_data if item.get('player_id') or item.get('id')]
+                players_map = {p.id: p for p in Player.objects.filter(id__in=p_ids, team=team)}
+                to_update = []
                 for item in players_data:
-                    try:
-                        p_id = item.get('player_id') or item.get('id')
-                        player = Player.objects.get(id=p_id, team=team)
-                        update_fields = []
-                        if 'x_coord' in item and item['x_coord'] is not None:
-                            player.x_coord = item['x_coord']
-                            update_fields.append('x_coord')
-                        if 'y_coord' in item and item['y_coord'] is not None:
-                            player.y_coord = item['y_coord']
-                            update_fields.append('y_coord')
-                        if 'is_starting' in item and item['is_starting'] is not None:
-                            player.is_starting = item['is_starting']
-                            update_fields.append('is_starting')
-                        if update_fields:
-                            player.save(update_fields=update_fields)
-                    except Player.DoesNotExist:
+                    p_id = item.get('player_id') or item.get('id')
+                    player = players_map.get(p_id)
+                    if not player:
                         continue
+                    if 'x_coord' in item and item['x_coord'] is not None:
+                        player.x_coord = item['x_coord']
+                    if 'y_coord' in item and item['y_coord'] is not None:
+                        player.y_coord = item['y_coord']
+                    if 'is_starting' in item and item['is_starting'] is not None:
+                        player.is_starting = item['is_starting']
+                    to_update.append(player)
+                if to_update:
+                    Player.objects.bulk_update(to_update, ['x_coord', 'y_coord', 'is_starting'])
 
             from teams.lineup_services import auto_replace_ineligible_starters
             auto_replace_ineligible_starters(team, target_match)

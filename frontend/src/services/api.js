@@ -10,6 +10,40 @@ const api = axios.create({
   timeout: 8000,
 });
 
+// In-Memory SWR Cache Storage for Ultra-Fast Tab Switching
+const requestCache = new Map();
+
+export const clearApiCache = (pattern) => {
+  if (!pattern) {
+    requestCache.clear();
+    return;
+  }
+  for (const key of requestCache.keys()) {
+    if (key.includes(pattern)) requestCache.delete(key);
+  }
+};
+
+export const cachedGet = async (url, config = {}, ttlMs = 25000) => {
+  const cacheKey = `${url}?${JSON.stringify(config.params || {})}`;
+  const cached = requestCache.get(cacheKey);
+  const now = Date.now();
+
+  if (cached && (now - cached.timestamp < ttlMs)) {
+    return cached.promise;
+  }
+
+  const promise = api.get(url, config).then((res) => {
+    requestCache.set(cacheKey, { timestamp: Date.now(), promise: Promise.resolve(res) });
+    return res;
+  }).catch((err) => {
+    requestCache.delete(cacheKey);
+    return Promise.reject(err);
+  });
+
+  requestCache.set(cacheKey, { timestamp: now, promise });
+  return promise;
+};
+
 // Request Interceptor: Attach JWT Bearer token if available
 api.interceptors.request.use(
   (config) => {
@@ -26,13 +60,26 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Catch HTTP 401 Unauthorized
+// Response Interceptor: Catch HTTP 401 Unauthorized & Bust Stale Cache on Mutations
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Invalidate related cache segments whenever a write operation succeeds
+    const method = response.config?.method?.toLowerCase();
+    if (['post', 'put', 'patch', 'delete'].includes(method)) {
+      const url = response.config?.url || '';
+      if (url.includes('/teams/')) clearApiCache('/teams/');
+      if (url.includes('/players/')) clearApiCache('/players/');
+      if (url.includes('/market/')) clearApiCache('/market/');
+      if (url.includes('/users/')) clearApiCache('/users/');
+      if (url.includes('/matches/')) clearApiCache('/matches/standings');
+    }
+    return response;
+  },
   (error) => {
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('vml_token');
       localStorage.removeItem('vml_refresh_token');
+      requestCache.clear();
     }
     return Promise.reject(error);
   }
@@ -41,14 +88,14 @@ api.interceptors.response.use(
 export const authApi = {
   login: (username, password) => api.post('/users/auth/login/', { username, password }),
   quickLogin: (role) => api.post('/users/auth/quick/', { role }),
-  getProfile: () => api.get('/users/me/'),
+  getProfile: () => cachedGet('/users/me/', {}, 30000),
   updateProfile: (data) => api.patch('/users/me/', data),
-  getLeaderboard: () => api.get('/users/leaderboard/'),
+  getLeaderboard: () => cachedGet('/users/leaderboard/', {}, 45000),
 };
 
 export const teamApi = {
-  getTeams: () => api.get('/teams/'),
-  getTeam: (teamId) => api.get(`/teams/${teamId}/`),
+  getTeams: () => cachedGet('/teams/', {}, 45000),
+  getTeam: (teamId) => cachedGet(`/teams/${teamId}/`, {}, 25000),
   updateGameplan: (teamId, players) =>
     api.post(`/teams/${teamId}/update_gameplan/`, players),
   submitGameplan: (teamId, payload, matchId) =>
@@ -169,8 +216,8 @@ export const adminApi = {
 };
 
 export const coreApi = {
-  getPublicFeatureFlags: () => api.get('/core/feature-flags/'),
-  getGlobalSettings: () => api.get('/core/settings/'),
+  getPublicFeatureFlags: () => cachedGet('/core/feature-flags/', {}, 60000),
+  getGlobalSettings: () => cachedGet('/core/settings/', {}, 60000),
 };
 
 
@@ -181,8 +228,8 @@ export const matchApi = {
   controlMatch: (matchId, payload) => api.post(`/matches/${matchId}/control/`, payload),
   getUpcomingMatches: () => api.get('/matches/upcoming/'),
   getMatchHistory: () => api.get('/matches/history/'),
-  getLeagueStandings: () => api.get('/matches/standings/'),
-  getTournamentStandings: (tournamentId) => api.get(`/tournaments/${tournamentId}/standings/`),
+  getLeagueStandings: (config) => cachedGet('/matches/standings/', config, 25000),
+  getTournamentStandings: (tournamentId) => cachedGet(`/tournaments/${tournamentId}/standings/`, {}, 25000),
   getMatchDetail: (matchId) => api.get(`/matches/${matchId}/detail/`),
   getTeamMatchHistory: (teamId) => api.get(`/teams/${teamId}/match-history/`),
   getTeamSchedule: (teamId, params) => api.get(`/teams/${teamId}/schedule/`, { params }),

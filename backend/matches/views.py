@@ -912,9 +912,9 @@ class ActiveLiveMatchContextView(APIView):
         from django.utils import timezone
         from django.db.models import Q
         now = timezone.now()
-        active_match = Match.objects.filter(status='LIVE').select_related('home_team', 'away_team', 'tournament').order_by('date', 'id').first()
-        next_match = Match.objects.filter(status='SCHEDULED').select_related('home_team', 'away_team', 'tournament').order_by('date', 'id').first()
-        recent_finished_match = Match.objects.filter(status='FINISHED').select_related('home_team', 'away_team', 'tournament').order_by('-date', '-id').first()
+        active_match = Match.objects.filter(status='LIVE').select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('date', 'id').first()
+        next_match = Match.objects.filter(status='SCHEDULED').select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('date', 'id').first()
+        recent_finished_match = Match.objects.filter(status='FINISHED').select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('-date', '-id').first()
 
         time_to_kickoff = None
         is_within_reminder = False
@@ -943,17 +943,17 @@ class ActiveLiveMatchContextView(APIView):
             team_active_match = Match.objects.filter(
                 Q(home_team=user_team) | Q(away_team=user_team),
                 status='LIVE'
-            ).select_related('home_team', 'away_team', 'tournament').order_by('date', 'id').first()
+            ).select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('date', 'id').first()
 
             team_next_match = Match.objects.filter(
                 Q(home_team=user_team) | Q(away_team=user_team),
                 status='SCHEDULED'
-            ).select_related('home_team', 'away_team', 'tournament').order_by('date', 'id').first()
+            ).select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('date', 'id').first()
 
             team_recent_finished_match = Match.objects.filter(
                 Q(home_team=user_team) | Q(away_team=user_team),
                 status='FINISHED'
-            ).select_related('home_team', 'away_team', 'tournament').order_by('-date', '-id').first()
+            ).select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('-date', '-id').first()
 
             if team_next_match and team_next_match.date:
                 team_diff = (team_next_match.date - now).total_seconds()
@@ -1001,10 +1001,10 @@ class MatchLiveStateView(APIView):
 
     def get(self, request, match_id):
         match = get_object_or_404(
-            Match.objects.select_related('home_team', 'away_team', 'tournament'),
+            Match.objects.select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament'),
             id=match_id
         )
-        events = MatchEvent.objects.filter(match=match).select_related('player', 'player__team').order_by('-id')
+        events = MatchEvent.objects.filter(match=match).select_related('player', 'player__team', 'team').order_by('-id')
 
         home_subs = MatchEvent.objects.filter(match=match, player__team_id=match.home_team_id, event_type='SUB_IN').count()
         away_subs = MatchEvent.objects.filter(match=match, player__team_id=match.away_team_id, event_type='SUB_IN').count()
