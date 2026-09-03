@@ -351,12 +351,11 @@ export function autoSelectOptimalLineup(playersList, formationName) {
       }
 
       const ovr = Number(p.overall) || Number(p.base_overall) || Number(p.rating) || 70;
-      const injuryPenalty = (p.is_injured || p.isInjured) ? 150 : 0;
-      const stamina = Number(p.virtual_stamina || p.stamina || 90);
-      const staminaPenalty = stamina < 30 ? 80 : 0;
+      const isInjured = Boolean(p.is_injured || p.isInjured || (p.injury_matches > 0));
+      const injuryPenalty = isInjured ? 1000 : 0;
 
       // Make OVR weigh heavily so between players for the same position, the highest OVR always wins
-      const totalScore = matchScore * 10 + ovr * 2 - injuryPenalty - staminaPenalty;
+      const totalScore = matchScore * 10 + ovr * 2 - injuryPenalty;
 
       if (totalScore > bestScore) {
         bestScore = totalScore;

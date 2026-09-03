@@ -167,24 +167,66 @@ def task_decrement_suspended_players(match_id: int):
     results = []
 
     for team in teams:
+        from matches.models import MatchEvent
+        from teams.lineup_services import auto_replace_ineligible_starters
+
+        # 1. Suspensions
+        this_match_reds = set(MatchEvent.objects.filter(
+            match=match, event_type__in=['RED', 'SECOND_YELLOW'], is_undone=False
+        ).values_list('player_id', flat=True))
+
         suspended_players = team.players.filter(suspension_matches__gt=0)
         for player in suspended_players:
-            player.suspension_matches = max(0, player.suspension_matches - 1)
-            player.save(update_fields=['suspension_matches'])
-            logger.info(
-                f"[Suspension Decrement] Player {player.name} served 1 match suspension. "
-                f"Remaining: {player.suspension_matches}"
-            )
-            results.append({
-                'player_id': player.id,
-                'player_name': player.name,
-                'team': team.name,
-                'suspension_remaining': player.suspension_matches,
-            })
+            if player.id not in this_match_reds:
+                player.suspension_matches = max(0, player.suspension_matches - 1)
+                player.save(update_fields=['suspension_matches'])
+                logger.info(
+                    f"[Suspension Decrement] Player {player.name} served 1 match suspension. "
+                    f"Remaining: {player.suspension_matches}"
+                )
+                results.append({
+                    'player_id': player.id,
+                    'player_name': player.name,
+                    'team': team.name,
+                    'type': 'suspension',
+                    'remaining': player.suspension_matches,
+                })
+
+        # 2. Injuries (2-match absence rule)
+        from django.db.models import Q
+        this_match_injuries = set(MatchEvent.objects.filter(
+            match=match, event_type='INJURY', is_undone=False
+        ).values_list('player_id', flat=True))
+
+        injured_players = team.players.filter(Q(is_injured=True) | Q(injury_matches__gt=0))
+        for player in injured_players:
+            # If the player was injured in THIS match, they don't serve their 2-game ban in this match
+            if player.id not in this_match_injuries:
+                player.injury_matches = max(0, player.injury_matches - 1)
+                if player.injury_matches == 0:
+                    player.is_injured = False
+                player.save(update_fields=['injury_matches', 'is_injured'])
+                logger.info(
+                    f"[Injury Decrement] Player {player.name} served 1 match injury absence. "
+                    f"Remaining: {player.injury_matches} (is_injured={player.is_injured})"
+                )
+                results.append({
+                    'player_id': player.id,
+                    'player_name': player.name,
+                    'team': team.name,
+                    'type': 'injury',
+                    'remaining': player.injury_matches,
+                })
+
+        # Auto-align lineups for next match if team has injured/suspended starters
+        try:
+            auto_replace_ineligible_starters(team)
+        except Exception as e:
+            logger.warning(f"[Lineup Auto-Align] Failed for team {team.name}: {e}")
 
     return {
         'match_id': match_id,
-        'players_decremented': results,
+        'decremented': results,
     }
 
 

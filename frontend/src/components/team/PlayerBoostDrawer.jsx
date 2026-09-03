@@ -61,11 +61,6 @@ export default function PlayerBoostDrawer({
         if (sortBy === 'LVL_ASC') {
           return (Number(a.level) || 1) - (Number(b.level) || 1);
         }
-        if (sortBy === 'STAMINA_ASC') {
-          const stamA = Number(a.virtual_stamina || a.stamina || 90);
-          const stamB = Number(b.virtual_stamina || b.stamina || 90);
-          return stamA - stamB;
-        }
         return 0;
       });
   }, [players, searchTerm, posFilter, sortBy]);
@@ -183,7 +178,6 @@ export default function PlayerBoostDrawer({
                 >
                   <option value="OVR_DESC">بیشترین OVR</option>
                   <option value="LVL_ASC">کمترین لول (آماده ارتقا)</option>
-                  <option value="STAMINA_ASC">خسته‌ترین‌ها</option>
                 </select>
               </div>
             </div>
@@ -283,26 +277,11 @@ export default function PlayerBoostDrawer({
                         </div>
                       </div>
 
-                      {/* Status Row (Stamina & Injury) */}
+                      {/* Status Row */}
                       <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/5 text-[11px]">
-                        {/* Stamina Meter */}
-                        <div className="flex items-center gap-2 font-sport">
-                          <span className="text-slate-400">استقامت:</span>
-                          <strong className={stamina < 50 ? 'text-rose-400 font-bold' : 'text-[#00ff87] font-bold'}>
-                            {stamina}٪
-                          </strong>
-                          {stamina < 100 && onRecoverStamina && (
-                            <button
-                              type="button"
-                              onClick={() => onRecoverStamina(player.id, player.name)}
-                              disabled={isLoading}
-                              className="px-2 py-0.5 rounded-lg bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-[10px] font-black flex items-center gap-1 cursor-pointer transition-all active:scale-95"
-                              title="شارژ ۵۰٪ استقامت با ۱۵ جم"
-                            >
-                              <Zap size={11} className="text-[#00ff87] fill-[#00ff87]" />
-                              <span>+۵۰٪ (۱۵ 💎)</span>
-                            </button>
-                          )}
+                        <div className="flex items-center gap-1.5 font-sport">
+                          <span className="text-slate-400">وضعیت بدنی:</span>
+                          <span className="text-[#00ff87] font-bold">۱۰۰٪ آماده</span>
                         </div>
 
                         {/* Injury / Suspension Status */}

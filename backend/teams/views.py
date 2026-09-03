@@ -411,13 +411,28 @@ class TeamViewSet(viewsets.ModelViewSet):
                 update_lock_status(player)
             if 'heal_injury' in request.data and request.data['heal_injury']:
                 player.is_injured = False
+                player.injury_matches = 0
                 player.injury_return_date = None
+            if 'is_injured' in request.data:
+                player.is_injured = bool(request.data['is_injured'])
+                if not player.is_injured:
+                    player.injury_matches = 0
+                    player.injury_return_date = None
+                elif player.injury_matches <= 0:
+                    player.injury_matches = int(request.data.get('injury_matches', 2))
+            if 'injury_matches' in request.data:
+                try:
+                    player.injury_matches = max(0, int(request.data['injury_matches']))
+                    player.is_injured = player.injury_matches > 0
+                except (ValueError, TypeError):
+                    pass
             player.save()
             
             after_value = {
                 'overall': int(player.overall),
                 'virtual_stamina': float(player.virtual_stamina),
                 'is_injured': player.is_injured,
+                'injury_matches': player.injury_matches,
                 'injury_return_date': str(player.injury_return_date) if player.injury_return_date else None
             }
             from audit.utils import log_admin_action
@@ -585,47 +600,18 @@ class PlayerViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def recover_stamina(self, request, pk=None):
-        player = self.get_object()
-        if not player.team:
-            return Response({'error': 'بازیکن در تیمی عضو نیست.'}, status=status.HTTP_400_BAD_REQUEST)
-            
-        if not request.user.is_staff and player.team.manager != request.user:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied("شما دسترسی برای مدیریت این بازیکن را ندارید.")
-            
-        current_stamina = float(player.virtual_stamina)
-        if current_stamina >= 100.0 and not player.is_locked:
-            return Response({'error': 'استقامت بازیکن در حداکثر توان (۱۰۰٪) است.'}, status=status.HTTP_400_BAD_REQUEST)
-            
-        STAMINA_RECOVERY_COST = 10
-        from economy.services import process_atomic_wallet_update
-        wallet_res = process_atomic_wallet_update(
-            team_id=player.team.id,
-            amount=-STAMINA_RECOVERY_COST,
-            currency='GEMS',
-            transaction_type='STAMINA_RECOVERY',
-            description=f"شارژ فوری استقامت بازیکن {player.name} (+۵۰٪)"
-        )
-        if not wallet_res.get('success'):
-            return Response({
-                'error': f"جم کافی نیست. هزینه شارژ استقامت: {STAMINA_RECOVERY_COST} جم. (موجودی فعلی: {player.team.gems} جم)",
-                'required_gems': STAMINA_RECOVERY_COST,
-                'current_gems': player.team.gems
-            }, status=status.HTTP_400_BAD_REQUEST)
-            
-        new_stamina = min(100.0, current_stamina + 50.0)
-        player.virtual_stamina = Decimal(str(new_stamina))
-        if new_stamina >= 30.0:
-            player.is_locked = False
-        player.save(update_fields=['virtual_stamina', 'is_locked'])
-        player.team.refresh_from_db(fields=['gems'])
-        
         return Response({
-            'status': f'استقامت {player.name} ۵۰٪ شارژ شد.',
-            'new_stamina': float(player.virtual_stamina),
-            'gem_cost': STAMINA_RECOVERY_COST,
-            'remaining_gems': player.team.gems,
-            'player': PlayerSerializer(player).data
+            'status': 'سیستم خستگی غیرفعال است و بازیکنان همیشه ۱۰۰٪ آماده هستند.',
+            'new_stamina': 100.0,
+            'gem_cost': 0,
+        })
+
+    @action(detail=True, methods=['post'])
+    def recharge_stamina(self, request, pk=None):
+        return Response({
+            'status': 'سیستم خستگی غیرفعال است و بازیکنان همیشه ۱۰۰٪ آماده هستند.',
+            'new_stamina': 100.0,
+            'gem_cost': 0,
         })
 
     @action(detail=True, methods=['post'])
@@ -638,7 +624,7 @@ class PlayerViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("شما دسترسی برای مدیریت این بازیکن را ندارید.")
             
-        if not player.is_injured and not player.injury_return_date:
+        if not player.is_injured and not player.injury_return_date and player.injury_matches <= 0:
             return Response({'error': 'این بازیکن در حال حاضر مصدوم نیست.'}, status=status.HTTP_400_BAD_REQUEST)
             
         INJURY_HEAL_COST = player.team.injury_heal_cost
@@ -658,8 +644,9 @@ class PlayerViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
             
         player.is_injured = False
+        player.injury_matches = 0
         player.injury_return_date = None
-        player.save(update_fields=['is_injured', 'injury_return_date'])
+        player.save(update_fields=['is_injured', 'injury_matches', 'injury_return_date'])
         player.team.refresh_from_db(fields=['gems'])
         
         return Response({
@@ -975,7 +962,19 @@ class PlayerViewSet(viewsets.ModelViewSet):
         if 'is_injured' in data:
             player.is_injured = bool(data['is_injured'])
             if not player.is_injured:
+                player.injury_matches = 0
                 player.injury_return_date = None
+            elif player.injury_matches <= 0:
+                player.injury_matches = int(data.get('injury_matches', 2))
+        if 'injury_matches' in data:
+            try:
+                player.injury_matches = max(0, int(data['injury_matches']))
+                if player.injury_matches > 0:
+                    player.is_injured = True
+                else:
+                    player.is_injured = False
+            except (ValueError, TypeError):
+                pass
         if 'suspension_matches' in data:
             try:
                 player.suspension_matches = max(0, int(data['suspension_matches']))

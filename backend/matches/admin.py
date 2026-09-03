@@ -90,11 +90,11 @@ class MatchAdmin(admin.ModelAdmin):
     )
     list_filter = ('status', 'tournament', 'is_knockout', 'fatigue_applied')
     inlines = [MatchEventInline, PlayerMatchStatInline]
-    actions = ['action_apply_fatigue', 'action_run_growth_evaluation', 'action_advance_winners']
+    actions = ['action_run_growth_evaluation', 'action_advance_winners']
     
     fieldsets = (
         ('اطلاعات پایه مسابقه', {
-            'fields': ('tournament', 'round_name', 'is_knockout', 'date', 'status', 'fatigue_applied', 'stream_url')
+            'fields': ('tournament', 'round_name', 'is_knockout', 'date', 'status', 'stream_url')
         }),
         ('تیم‌ها و نتیجه', {
             'fields': ('home_team', 'away_team', 'home_score', 'away_score')
@@ -128,44 +128,7 @@ class MatchAdmin(admin.ModelAdmin):
 
     @admin.action(description="اعمال خستگی روی بازیکنان بازی‌های انتخاب‌شده")
     def action_apply_fatigue(self, request, queryset):
-        """
-        Admin action: Apply fatigue to all players in selected FINISHED matches.
-        """
-        from teams.stamina_engine import apply_fatigue
-
-        processed = 0
-        skipped = 0
-
-        for match in queryset:
-            if match.status != 'FINISHED':
-                skipped += 1
-                continue
-            if match.fatigue_applied:
-                skipped += 1
-                continue
-
-            stats = PlayerMatchStat.objects.filter(match=match).select_related('player')
-
-            if not stats.exists():
-                messages.warning(
-                    request,
-                    f"بازی {match} آمار بازیکنان (PlayerMatchStat) ندارد. ابتدا آمار را ثبت کنید."
-                )
-                skipped += 1
-                continue
-
-            for stat in stats:
-                if stat.minutes_played > 0:
-                    apply_fatigue(stat.player, stat.minutes_played)
-
-            match.fatigue_applied = True
-            match.save(update_fields=['fatigue_applied'])
-            processed += 1
-
-        if processed:
-            messages.success(request, f"خستگی برای {processed} بازی اعمال شد.")
-        if skipped:
-            messages.warning(request, f"{skipped} بازی رد شد (هنوز پایان نیافته یا قبلاً اعمال شده).")
+        messages.info(request, "سیستم خستگی به طور کامل از پروژه غیرفعال شده است.")
 
     @admin.action(description="اجرای ارزیابی رشد/افت بازیکنان برای بازی‌های انتخاب‌شده")
     def action_run_growth_evaluation(self, request, queryset):

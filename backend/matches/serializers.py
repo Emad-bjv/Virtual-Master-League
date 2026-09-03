@@ -110,6 +110,8 @@ class MatchEventSerializer(serializers.ModelSerializer):
     assist_player_name = serializers.CharField(source='assist_player.name', read_only=True)
     event_type_display = serializers.CharField(source='get_event_type_display', read_only=True)
     team_name = serializers.CharField(source='team.name', read_only=True)
+    emoji = serializers.SerializerMethodField()
+    icon = serializers.SerializerMethodField()
 
     class Meta:
         model = MatchEvent
@@ -119,6 +121,29 @@ class MatchEventSerializer(serializers.ModelSerializer):
             'player': {'required': False, 'allow_null': True},
             'minute': {'required': False, 'default': 1},
         }
+
+    def get_emoji(self, obj):
+        EVENT_EMOJIS = {
+            'GOAL': '⚽',
+            'ASSIST': '🅰️',
+            'OWN_GOAL': '🤦‍♂️',
+            'PENALTY_SCORED': '🎯',
+            'PENALTY_MISSED': '❌',
+            'YELLOW': '🟨',
+            'SECOND_YELLOW': '🟨🟥',
+            'RED': '🟥',
+            'SUB_IN': '🔄',
+            'SUB_OUT': '⬅️',
+            'INJURY': '🚑',
+            'VAR': '🖥️',
+            'UNDO_GOAL': '↩️',
+            'UNDO_EVENT': '↩️',
+            'INFO': '📢',
+        }
+        return EVENT_EMOJIS.get(obj.event_type, '📢')
+
+    def get_icon(self, obj):
+        return self.get_emoji(obj)
 
 
 class PlayerMatchStatSerializer(serializers.ModelSerializer):

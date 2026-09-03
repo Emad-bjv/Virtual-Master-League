@@ -61,33 +61,16 @@ def pool_multiplier(pool_level: int) -> float:
     return 1.0 + ClubFacilities.scaled_effect(pool_level, 0.80)
 
 def calculate_fatigue(player, club, minutes_played: int) -> Decimal:
-    base_drain = (minutes_played / 90.0) * float(BASE_FATIGUE_FULL_MATCH)
-    gym_level = club.facilities.gym_level if club and hasattr(club, 'facilities') and club.facilities else 1
-    
-    # Gym level allows players to sustain more consecutive matches:
-    # 1. Level >= 10 provides 1 free consecutive match buffer
-    # 2. Gym reduces consecutive penalty slope by up to 60%
-    free_buffer = 1 if gym_level >= 10 else 0
-    effective_consecutive = max(0, player.consecutive_games - free_buffer)
-    consecutive_penalty = float(effective_consecutive) * 6.0 * gym_consecutive_multiplier(gym_level)
-    
-    pos_mult = POSITION_MULTIPLIER.get(player.position_group, 1.0)
-
-    drain = (
-        base_drain
-        * pos_mult
-        * age_factor(player.age)
-        * gym_reduction(gym_level)
-    ) + consecutive_penalty
-    
-    return Decimal(str(drain)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    """
+    Fatigue calculation is disabled. Players never fatigue.
+    """
+    return Decimal('0.00')
 
 def update_lock_status(player):
-    current_stamina = float(player.virtual_stamina)
-    if current_stamina < 30:
-        player.is_locked = True
-    elif current_stamina >= 40:
-        player.is_locked = False
+    """
+    Stamina lock is disabled. Players are never locked due to stamina.
+    """
+    player.is_locked = False
 
 def injury_check(player, club) -> bool:
     """
@@ -98,20 +81,15 @@ def injury_check(player, club) -> bool:
 
 def apply_fatigue(player, minutes_played: int) -> dict:
     from django.utils import timezone
-    old_stamina = Decimal(str(player.virtual_stamina))
     club = player.team
 
     if not club:
         return {}
 
-    fatigue = calculate_fatigue(player, club, minutes_played)
-    new_stamina = max(MIN_STAMINA, old_stamina - fatigue)
-
-    player.virtual_stamina = new_stamina
-    player.consecutive_games += 1
+    player.virtual_stamina = Decimal('100.00')
+    player.consecutive_games = 0
     player.last_match_date = timezone.now().date()
-    
-    update_lock_status(player)
+    player.is_locked = False
     
     update_fields = ['virtual_stamina', 'consecutive_games', 'last_match_date', 'is_locked']
     player.save(update_fields=update_fields)
@@ -120,45 +98,33 @@ def apply_fatigue(player, minutes_played: int) -> dict:
         'player_id': player.id,
         'player_name': player.name,
         'minutes_played': minutes_played,
-        'old_stamina': float(old_stamina),
-        'fatigue': float(fatigue),
-        'new_stamina': float(new_stamina),
-        'consecutive_games': player.consecutive_games,
-        'is_locked': player.is_locked,
+        'old_stamina': 100.0,
+        'fatigue': 0.0,
+        'new_stamina': 100.0,
+        'consecutive_games': 0,
+        'is_locked': False,
         'got_injured': False,
     }
 
 def apply_recovery(player) -> dict:
-    old_stamina = Decimal(str(player.virtual_stamina))
-    club = player.team
-    medical_level = club.facilities.medical_level if club and hasattr(club, 'facilities') and club.facilities else 1
-    pool_level = club.facilities.pool_level if club and hasattr(club, 'facilities') and club.facilities else 1
-    
-    base_rec = 5.0 if player.is_injured else 15.0
-    recovery = base_rec * medical_multiplier(medical_level) * pool_multiplier(pool_level)
-    recovery_dec = Decimal(str(recovery)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    
-    new_stamina = min(MAX_STAMINA, old_stamina + recovery_dec)
-
-    player.virtual_stamina = new_stamina
+    player.virtual_stamina = Decimal('100.00')
     player.consecutive_games = 0
-    
-    if player.is_injured and player.injury_return_date:
-        if timezone.now().date() >= player.injury_return_date:
-            player.is_injured = False
-            player.injury_return_date = None
+    player.is_locked = False
 
-    update_lock_status(player)
-    
-    player.save(update_fields=['virtual_stamina', 'consecutive_games', 'is_locked', 'is_injured', 'injury_return_date'])
+    update_fields = ['virtual_stamina', 'consecutive_games', 'is_locked']
+    if hasattr(player, 'injury_matches') and player.injury_matches <= 0 and player.is_injured:
+        player.is_injured = False
+        update_fields.append('is_injured')
+
+    player.save(update_fields=update_fields)
 
     return {
         'player_id': player.id,
         'player_name': player.name,
-        'old_stamina': float(old_stamina),
-        'recovery': float(recovery_dec),
-        'new_stamina': float(new_stamina),
-        'is_locked': player.is_locked,
+        'old_stamina': 100.0,
+        'recovery': 0.0,
+        'new_stamina': 100.0,
+        'is_locked': False,
     }
 
 def apply_post_match_fatigue(match) -> list:

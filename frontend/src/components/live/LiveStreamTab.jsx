@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import EFootballGamePlan from '../team/EFootballGamePlan';
 import LiveMatchStandby from './LiveMatchStandby';
 import PostMatchRecapView from './PostMatchRecapView';
-import { matchApi, teamApi } from '../../services/api';
+import api, { matchApi, teamApi } from '../../services/api';
 import CustomSelect from '../common/CustomSelect';
 import { TACTICAL_GUIDES } from '../../utils/tacticalGuides';
 import notificationSoundService from '../../services/notificationSound';
@@ -129,45 +129,93 @@ export default function LiveStreamTab({
     return () => clearInterval(interval);
   }, [teamData?.id, userRole]);
 
-  // 2. Fetch Team Tactical GamePlan and Team's Matches
+  // 2. Fetch Team Tactical GamePlan and Team's Matches with in-game persistence
   const [teamNextMatch, setTeamNextMatch] = useState(null);
+
+  const fetchLiveGameplan = async (targetMatchId) => {
+    if (!teamData?.id) return;
+    try {
+      let cachedLineup = null;
+      if (targetMatchId) {
+        try {
+          const raw = localStorage.getItem(`vml_live_lineup_${targetMatchId}_${teamData.id}`);
+          if (raw) cachedLineup = JSON.parse(raw);
+        } catch (_e) {}
+      }
+
+      let res = null;
+      if (targetMatchId) {
+        try {
+          res = await api.get(`/teams/${teamData.id}/submit_gameplan/`, { params: { match_id: targetMatchId } });
+        } catch (_e) {}
+      }
+      if (!res || !res.data) {
+        res = await teamApi.getGameplan(teamData.id);
+      }
+
+      if (res?.data) {
+        const teamPlayers = res.data.team?.players || [];
+        const gp = res.data.gameplan || null;
+        let finalPlayers = teamPlayers;
+
+        if (gp && Array.isArray(gp.players_data) && gp.players_data.length > 0) {
+          const pMap = new Map();
+          gp.players_data.forEach((item) => {
+            const pid = item.player_id || item.id;
+            if (pid) pMap.set(String(pid), item);
+          });
+          finalPlayers = teamPlayers.map((p) => {
+            const custom = pMap.get(String(p.id));
+            if (custom) {
+              return {
+                ...p,
+                is_starting: Boolean(custom.is_starting),
+                x_coord: custom.x_coord != null ? custom.x_coord : p.x_coord,
+                y_coord: custom.y_coord != null ? custom.y_coord : p.y_coord,
+                position: custom.position || p.position,
+              };
+            }
+            return p;
+          });
+        }
+
+        setServerPlayers(finalPlayers);
+
+        if (gp) {
+          if (gp.formation) setServerFormation(gp.formation);
+          setTactics((prev) => ({
+            ...prev,
+            ...gp,
+          }));
+
+          const starters = finalPlayers.filter((p) => p.is_starting);
+          initialBaselineRef.current = {
+            tactics: { ...gp },
+            formation: gp.formation || '4-3-3 (4-2-1-3)',
+            startingXi: starters.map((p) => ({ ...p })),
+          };
+        }
+
+        if (cachedLineup?.startingXi && Array.isArray(cachedLineup.startingXi)) {
+          setLiveWorkingLineup(cachedLineup);
+          if (cachedLineup.formation) setServerFormation(cachedLineup.formation);
+        }
+      }
+    } catch (err) {
+      console.log('Failed to fetch live gameplan', err);
+    }
+  };
 
   useEffect(() => {
     if (teamData?.id) {
-      // Fetch Team Gameplan
-      teamApi.getGameplan(teamData.id).then((res) => {
-        if (res.data) {
-          if (res.data.team && res.data.team.players) {
-            setServerPlayers(res.data.team.players);
-          }
-          if (res.data.gameplan) {
-            if (res.data.gameplan.formation) setServerFormation(res.data.gameplan.formation);
-            setTactics((prev) => ({
-              ...prev,
-              ...res.data.gameplan,
-            }));
-
-            // Initialize baseline snapshot for smart diffing
-            const starters = (res.data.team?.players || []).filter((p) => p.is_starting);
-            initialBaselineRef.current = {
-              tactics: { ...res.data.gameplan },
-              formation: res.data.gameplan.formation || '4-3-3 (4-2-1-3)',
-              startingXi: starters.map((p) => ({ ...p })),
-            };
-          }
-        }
-      }).catch((err) => console.log('Failed to fetch live gameplan', err));
-
-      // Fetch Team Schedule to find the exact fixture & opponent details
       matchApi.getTeamSchedule(teamData.id).then((res) => {
         const matches = res.data || [];
         if (matches.length > 0) {
-          // Look for LIVE match first, then SCHEDULED, then FINISHED, or fallback to first match
           const liveM = matches.find((m) => m.status === 'LIVE');
           const schedM = matches.find((m) => m.status === 'SCHEDULED');
           const recentFinM = matches.find((m) => m.status === 'FINISHED');
           const currentM = liveM || schedM || recentFinM || matches[0];
-          
+
           const isHome = currentM.home_team === teamData.id;
           const resolvedOpponentName = isHome 
             ? (currentM.away_team_name || currentM.opponent_name || 'حریف مسابقه') 
@@ -195,12 +243,17 @@ export default function LiveStreamTab({
           };
 
           setTeamNextMatch(formattedMatch);
-
           if (liveM) {
             setActiveMatch(formattedMatch);
           }
+
+          fetchLiveGameplan(currentM.id);
+        } else {
+          fetchLiveGameplan(null);
         }
-      }).catch((_e) => {});
+      }).catch((_e) => {
+        fetchLiveGameplan(null);
+      });
     }
   }, [teamData?.id, teamData?.name, teamData?.logo]);
 
@@ -367,6 +420,13 @@ export default function LiveStreamTab({
               notificationSoundService.playMatchAlertChime();
               setSaveToast(data.message || data.custom_text || 'پیغام انجام شد: تغییرات شما با موفقیت توسط داور در زمین مسابقه اعمال و تیک خورد ✅');
               setTimeout(() => setSaveToast(''), 7000);
+              const curId = activeMatch?.id || teamNextMatch?.id;
+              if (curId) fetchLiveGameplan(curId);
+            }
+          } else if (data.type === 'substitution') {
+            if (data.team_id === teamData?.id) {
+              const curId = activeMatch?.id || teamNextMatch?.id;
+              if (curId) fetchLiveGameplan(curId);
             }
           } else if (data.type === 'in_game_change_rejected') {
             if (data.team_id === teamData?.id) {
@@ -395,6 +455,12 @@ export default function LiveStreamTab({
             setMatchState('FINISHED');
             if (onMatchStatusChange) onMatchStatusChange('FINISHED');
             notificationSoundService.playMatchAlertChime();
+            const curId = activeMatch?.id || teamNextMatch?.id;
+            if (curId && teamData?.id) {
+              try {
+                localStorage.removeItem(`vml_live_lineup_${curId}_${teamData.id}`);
+              } catch (_e) {}
+            }
           } else if (data.type === 'stoppage_time_update') {
             setStoppageTime(data.stoppage_time || 0);
           } else if (data.type === 'clock_sync') {
@@ -500,8 +566,8 @@ export default function LiveStreamTab({
     return sourcePlayers.map((p) => ({
       ...p,
       id: p.id.toString(),
-      stamina: p.virtual_stamina != null ? Math.round(Number(p.virtual_stamina)) : 100,
-      status: p.is_injured ? 'مصدوم' : (Number(p.virtual_stamina ?? 100)) < 40 ? 'خسته' : 'سالم',
+      stamina: 100,
+      status: (p.is_injured || (p.injury_matches > 0)) ? 'مصدوم' : 'سالم',
       trend: '▲',
       age: p.age || 26,
       consecutive_games: p.consecutive_games || 0,
@@ -1304,13 +1370,21 @@ export default function LiveStreamTab({
 
               {/* Full Interactive Pitch with Live Sub Capabilities */}
               <EFootballGamePlan
-                key={`${formation}-${startingXi.length}`}
-                initialFormationProp={formation}
-                initialStartingXi={startingXi}
-                initialSubstitutes={substitutes}
-                initialReserves={reserves}
+                key={`live-pitch-${(liveWorkingLineup?.startingXi || startingXi).map(p => p.id).join('-')}`}
+                initialFormationProp={liveWorkingLineup?.formation || formation}
+                initialStartingXi={liveWorkingLineup?.startingXi || startingXi}
+                initialSubstitutes={liveWorkingLineup?.substitutes || substitutes}
+                initialReserves={liveWorkingLineup?.reserves || reserves}
                 onSaveGamePlan={handleSaveGamePlan}
-                onLineupChange={(lineupData) => setLiveWorkingLineup(lineupData)}
+                onLineupChange={(lineupData) => {
+                  setLiveWorkingLineup(lineupData);
+                  const curId = activeMatch?.id || teamNextMatch?.id;
+                  if (curId && teamData?.id) {
+                    try {
+                      localStorage.setItem(`vml_live_lineup_${curId}_${teamData.id}`, JSON.stringify(lineupData));
+                    } catch (_e) {}
+                  }
+                }}
                 readOnly={false}
                 hideReserves={true}
                 isAdminMode={false}

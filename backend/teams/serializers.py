@@ -287,14 +287,10 @@ class GamePlanUpdateSerializer(serializers.Serializer):
                         f"بازیکن {player.name} به دلیل محرومیت ({player.suspension_matches} بازی باقی‌مانده) "
                         f"نمی‌تواند در ترکیب اصلی قرار گیرد."
                     )
-                if player.is_stamina_locked:
+                if player.is_injured or player.injury_matches > 0:
+                    matches_left = player.injury_matches if player.injury_matches > 0 else 2
                     raise serializers.ValidationError(
-                        f"بازیکن {player.name} استقامت زیر 30% دارد "
-                        f"(فعلی: {player.virtual_stamina}%) و نمی‌تواند در ترکیب اصلی قرار گیرد."
-                    )
-                if player.is_injured:
-                    raise serializers.ValidationError(
-                        f"بازیکن {player.name} مصدوم است و نمی‌تواند بازی کند."
+                        f"بازیکن {player.name} به دلیل مصدومیت ({matches_left} مسابقه باقی‌مانده) نمی‌تواند در ترکیب اصلی قرار گیرد."
                     )
             except Player.DoesNotExist:
                 raise serializers.ValidationError(

@@ -269,6 +269,28 @@ class MatchEventCreateView(APIView):
                     match.away_score = max(0, (match.away_score or 0) - 1)
                 match.save(update_fields=['home_score', 'away_score'])
 
+            elif event_type == 'INJURY' and ev.player:
+                other_injury = MatchEvent.objects.filter(
+                    match=match, player=ev.player, event_type='INJURY', is_undone=False
+                ).exclude(id=ev.id).first()
+                if other_injury:
+                    # Toggle OFF: player was already marked injured in this match
+                    other_injury.is_undone = True
+                    other_injury.save(update_fields=['is_undone'])
+                    ev.is_undone = True
+                    ev.detail = 'لغو مصدومیت'
+                    ev.save(update_fields=['is_undone', 'detail'])
+                    ev.player.is_injured = False
+                    ev.player.injury_matches = 0
+                    ev.player.save(update_fields=['is_injured', 'injury_matches'])
+                else:
+                    ev.player.is_injured = True
+                    ev.player.injury_matches = 2
+                    ev.player.save(update_fields=['is_injured', 'injury_matches'])
+                    if ev.player.team:
+                        from teams.lineup_services import auto_replace_ineligible_starters
+                        auto_replace_ineligible_starters(ev.player.team)
+
             event_data = MatchEventSerializer(ev).data
             match_data = MatchDetailSerializer(match).data
 
@@ -984,6 +1006,56 @@ class MatchLiveStateView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+def apply_substitution_to_match_gameplan(match, team, p_out, p_in):
+    """
+    Updates the match-specific MatchGamePlan.players_data so that p_out is moved to bench
+    and p_in takes p_out's starting position and pitch coordinates.
+    """
+    try:
+        from .models import MatchGamePlan
+        mgp = MatchGamePlan.objects.filter(match=match, team=team).first()
+        if not mgp:
+            return
+        
+        players_data = list(mgp.players_data or [])
+        out_id_str = str(p_out.id)
+        in_id_str = str(p_in.id)
+        
+        out_item = None
+        in_item = None
+        for item in players_data:
+            pid = str(item.get('player_id') or item.get('id') or '')
+            if pid == out_id_str:
+                out_item = item
+            elif pid == in_id_str:
+                in_item = item
+                
+        if out_item:
+            coord_x = out_item.get('x_coord', 50)
+            coord_y = out_item.get('y_coord', 50)
+            pos = out_item.get('position', getattr(p_in, 'position', 'SUB'))
+            
+            out_item['is_starting'] = False
+            if in_item:
+                in_item['is_starting'] = True
+                in_item['x_coord'] = coord_x
+                in_item['y_coord'] = coord_y
+                in_item['position'] = pos
+            else:
+                players_data.append({
+                    'player_id': p_in.id,
+                    'id': p_in.id,
+                    'is_starting': True,
+                    'x_coord': coord_x,
+                    'y_coord': coord_y,
+                    'position': pos,
+                })
+            mgp.players_data = players_data
+            mgp.save(update_fields=['players_data'])
+    except Exception as e:
+        print("Error updating MatchGamePlan on substitution:", e)
+
+
 class AdminMatchControlRoomView(APIView):
     """
     Admin Arbiter Control Room Endpoint:
@@ -1205,6 +1277,15 @@ class AdminMatchControlRoomView(APIView):
                     from teams.lineup_services import auto_replace_ineligible_starters
                     auto_replace_ineligible_starters(player.team)
 
+            # If injury is issued, mark player injured for 2 matches and auto-replace starter
+            if event_type == 'INJURY' and player:
+                player.is_injured = True
+                player.injury_matches = 2
+                player.save(update_fields=['is_injured', 'injury_matches'])
+                if player.team:
+                    from teams.lineup_services import auto_replace_ineligible_starters
+                    auto_replace_ineligible_starters(player.team)
+
             serialized_ev = MatchEventSerializer(ev).data
             match_detail = MatchDetailSerializer(match).data
 
@@ -1250,6 +1331,14 @@ class AdminMatchControlRoomView(APIView):
                         match.home_score += 1
                     elif target_team_id == match.away_team_id or (ev.player and ev.player.team_id == match.away_team_id):
                         match.away_score += 1
+                elif ev.event_type == 'INJURY' and ev.player:
+                    has_other_injury = MatchEvent.objects.filter(
+                        match=match, player=ev.player, event_type='INJURY', is_undone=False
+                    ).exclude(id=ev.id).exists()
+                    if not has_other_injury:
+                        ev.player.is_injured = False
+                        ev.player.injury_matches = 0
+                        ev.player.save(update_fields=['is_injured', 'injury_matches'])
 
                 ev.is_undone = True
                 ev.save()
@@ -1309,6 +1398,8 @@ class AdminMatchControlRoomView(APIView):
             p_out = get_object_or_404(Player, id=player_out_id)
             p_in = get_object_or_404(Player, id=player_in_id)
             target_team = Team.objects.filter(id=team_id).first()
+
+            apply_substitution_to_match_gameplan(match, target_team, p_out, p_in)
 
             ev_out = MatchEvent.objects.create(
                 match=match, player=p_out, team=target_team,
@@ -1377,6 +1468,8 @@ class AdminMatchControlRoomView(APIView):
 
             sub_req.status = 'APPLIED'
             sub_req.save()
+
+            apply_substitution_to_match_gameplan(match, sub_req.team, sub_req.player_out, sub_req.player_in)
 
             match_detail = MatchDetailSerializer(match).data
             broadcast_match_event(match_id, {
@@ -1606,6 +1699,7 @@ class LiveInGameChangeApplyView(APIView):
                         match=match, player=p_in, team=change.team, event_type='SUB_IN',
                         minute=minute, detail=f'تعویض (ورود): {p_in.name}'
                     )
+                apply_substitution_to_match_gameplan(match, change.team, p_out, p_in)
 
         serialized = LiveInGameChangeSerializer(change).data
         match_detail = MatchDetailSerializer(match).data

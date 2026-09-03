@@ -452,6 +452,7 @@ class AdminResetActionView(APIView):
                         consecutive_games=0,
                         is_locked=False,
                         is_injured=False,
+                        injury_matches=0,
                         injury_return_date=None,
                         last_match_date=None,
                     )
@@ -460,7 +461,7 @@ class AdminResetActionView(APIView):
                         admin_user=request.user,
                         action_type='RESET_STAMINA',
                         before_value={'players_count': players_count},
-                        after_value={'virtual_stamina': 100.0, 'consecutive_games': 0, 'is_locked': False, 'is_injured': False},
+                        after_value={'virtual_stamina': 100.0, 'consecutive_games': 0, 'is_locked': False, 'is_injured': False, 'injury_matches': 0},
                         reason='ریست کامل خستگی و استقامت تمامی بازیکنان لیگ به ۱۰۰٪ و رفع مصدومیت‌ها'
                     )
                     return Response({

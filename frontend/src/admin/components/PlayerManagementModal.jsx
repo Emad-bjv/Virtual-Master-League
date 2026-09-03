@@ -21,6 +21,7 @@ const INITIAL_FORM = {
   shirt_number: '',
   is_starting: false,
   is_injured: false,
+  injury_matches: 0,
   suspension_matches: 0,
   yellow_card_accumulator: 0
 };
@@ -80,6 +81,7 @@ const PlayerManagementModal = ({ isOpen, onClose, team }) => {
       shirt_number: player.shirt_number || '',
       is_starting: Boolean(player.is_starting),
       is_injured: Boolean(player.is_injured),
+      injury_matches: player.injury_matches || (player.is_injured ? 2 : 0),
       suspension_matches: player.suspension_matches || 0,
       yellow_card_accumulator: player.yellow_card_accumulator || 0
     });
@@ -110,7 +112,9 @@ const PlayerManagementModal = ({ isOpen, onClose, team }) => {
         potential_ovr: parseInt(formData.potential_ovr) || 85,
         level: parseInt(formData.level) || 1,
         base_stamina: parseInt(formData.base_stamina) || 75,
-        virtual_stamina: parseFloat(formData.virtual_stamina) || 100.0,
+        virtual_stamina: 100.0,
+        injury_matches: parseInt(formData.injury_matches) || (formData.is_injured ? 2 : 0),
+        is_injured: Boolean(formData.is_injured || (parseInt(formData.injury_matches) > 0)),
         wage: parseFloat(formData.wage) || 100.0,
         market_value: parseFloat(formData.market_value) || 1000000.0,
         shirt_number: formData.shirt_number ? parseInt(formData.shirt_number) : null,
@@ -268,17 +272,15 @@ const PlayerManagementModal = ({ isOpen, onClose, team }) => {
             </div>
 
             <div>
-              <label className="admin-label">استقامت فعلی (۰-۱۰۰٪):</label>
+              <label className="admin-label">بازی‌های غیبت مصدومیت:</label>
               <input
                 type="number"
-                name="virtual_stamina"
+                name="injury_matches"
                 min="0"
-                max="100"
-                step="0.1"
-                className="admin-input text-cyan-300"
-                value={formData.virtual_stamina}
+                max="10"
+                className="admin-input text-rose-300"
+                value={formData.injury_matches || 0}
                 onChange={handleInputChange}
-                required
               />
             </div>
 
@@ -398,7 +400,7 @@ const PlayerManagementModal = ({ isOpen, onClose, team }) => {
                   <th>سن</th>
                   <th>OVR</th>
                   <th>لول</th>
-                  <th>استقامت فعلی</th>
+                  <th>غیبت مصدومیت</th>
                   <th>وضعیت</th>
                   <th style={{ textAlign: 'center' }}>عملیات</th>
                 </tr>
@@ -426,9 +428,9 @@ const PlayerManagementModal = ({ isOpen, onClose, team }) => {
                       <td>
                         <span style={{
                           fontWeight: 'bold',
-                          color: p.virtual_stamina < 30 ? '#f43f5e' : p.virtual_stamina < 70 ? '#f59e0b' : '#10b981'
+                          color: (p.injury_matches > 0 || p.is_injured) ? '#f43f5e' : '#10b981'
                         }}>
-                          {Math.round(p.virtual_stamina)}%
+                          {p.injury_matches > 0 ? `${p.injury_matches} بازی` : p.is_injured ? '۲ بازی' : 'آماده'}
                         </span>
                       </td>
                       <td>

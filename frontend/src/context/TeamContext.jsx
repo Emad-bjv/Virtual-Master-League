@@ -389,7 +389,7 @@ export function TeamProvider({ children }) {
         wage: p.wage || '1000',
         market_value: p.market_value != null ? Number(p.market_value) : 1000000,
         rarity: p.rarity || 'REGULAR',
-        status: p.is_injured ? 'مصدوم' : (Number(p.virtual_stamina) || 100) < 50 ? 'خسته' : 'سالم',
+        status: (p.is_injured || (p.injury_matches > 0)) ? 'مصدوم' : 'سالم',
         trend: '▲',
       }));
 
@@ -603,7 +603,7 @@ export function TeamProvider({ children }) {
             stamina: virtualStamina,
             is_injured: Boolean(updatedPlayer.is_injured),
             is_locked: Boolean(updatedPlayer.is_locked),
-            status: updatedPlayer.is_injured ? 'مصدوم' : virtualStamina < 50 ? 'خسته' : 'سالم',
+            status: (updatedPlayer.is_injured || (updatedPlayer.injury_matches > 0)) ? 'مصدوم' : 'سالم',
           };
         }
         return p;

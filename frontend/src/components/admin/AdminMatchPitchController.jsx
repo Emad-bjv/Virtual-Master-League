@@ -342,7 +342,7 @@ export default function AdminMatchPitchController({
           updated.isInjured = true;
           icon = '🚑';
           color = 'text-rose-300 border-rose-500/40 bg-rose-950/60';
-          text = `ثبت مصدومیت و خروج از زمین برای ${p.name} (${currentTeam.name}) 🚑`;
+          text = `ثبت مصدومیت و غیبت در ۲ مسابقه بعدی برای ${p.name} (${currentTeam.name}) 🚑`;
         }
       }
 
@@ -746,7 +746,7 @@ export default function AdminMatchPitchController({
                         : 'bg-rose-900/60 hover:bg-rose-800/60 border-rose-500/40 text-rose-200'
                     }`}
                   >
-                    <span>🚑 ثبت مصدومیت</span>
+                    <span>🚑 ثبت مصدومیت (۲ مسابقه غیبت)</span>
                     {activePitchPlayerModal.isInjured ? (
                       <span className="text-[10px] bg-emerald-950 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/40 flex items-center gap-1">
                         <Undo2 size={10} /> لغو / بهبودی

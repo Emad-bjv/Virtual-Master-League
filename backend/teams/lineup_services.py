@@ -1820,7 +1820,11 @@ def auto_replace_ineligible_starters(team, target_match=None):
 
     ineligible_starters = [
         p for p in all_players 
-        if p.is_starting and (p.suspension_matches > 0 or p.is_injured or p.is_stamina_locked or (p.virtual_stamina is not None and p.virtual_stamina < 30))
+        if p.is_starting and (
+            p.suspension_matches > 0 or 
+            p.is_injured or 
+            (getattr(p, 'injury_matches', 0) > 0)
+        )
     ]
 
     if not ineligible_starters:
@@ -1829,7 +1833,10 @@ def auto_replace_ineligible_starters(team, target_match=None):
     # Available bench substitutes
     available_subs = [
         p for p in all_players
-        if not p.is_starting and p.suspension_matches == 0 and not p.is_injured and not p.is_stamina_locked and (p.virtual_stamina is None or p.virtual_stamina >= 30)
+        if not p.is_starting and 
+           p.suspension_matches == 0 and 
+           not p.is_injured and 
+           (getattr(p, 'injury_matches', 0) == 0)
     ]
     # Sort available by overall descending
     available_subs.sort(key=lambda p: p.overall, reverse=True)

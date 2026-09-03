@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { 
   Shirt, Star, Search, ArrowUpDown, 
-  User, Sparkles, HeartPulse, Zap, X, DollarSign, Check, Edit3
+  User, Sparkles, HeartPulse, Zap, X, DollarSign, Check, Edit3, ShieldCheck
 } from 'lucide-react';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import { playerApi } from '../../services/api';
@@ -634,20 +634,20 @@ export default function PlayerOverallRecords({
                 )}
               </div>
 
-              {/* Quick Actions (Heal, Recover, Level Boost) */}
+              {/* Quick Actions (Heal, Level Boost) */}
               <div className="bg-slate-900/70 p-3 rounded-2xl border border-slate-800 space-y-2 text-xs">
                 <div className="flex justify-between items-center text-slate-300">
                   <span className="font-bold flex items-center gap-1.5">
-                    <Zap size={14} className="text-yellow-400" />
-                    <span>وضعیت آمادگی و مدیریت بازیکن:</span>
+                    <ShieldCheck size={14} className="text-emerald-400" />
+                    <span>وضعیت بازیکن:</span>
                   </span>
-                  <span className="font-sport font-black text-cyan-400 dir-ltr">
-                    STAMINA: {Math.round(Number(selectedPlayer.virtual_stamina || selectedPlayer.stamina || 100))}%
+                  <span className="font-sport font-black text-emerald-400">
+                    {selectedPlayer.is_injured ? 'مصدوم' : '۱۰۰٪ آماده'}
                   </span>
                 </div>
 
                 <div className="flex flex-wrap gap-2 pt-1">
-                  {selectedPlayer.is_injured ? (
+                  {selectedPlayer.is_injured && (
                     <button
                       onClick={() => {
                         handleHealInjury(selectedPlayer.id, selectedPlayer.name);
@@ -658,18 +658,7 @@ export default function PlayerOverallRecords({
                       <HeartPulse size={14} />
                       <span>درمان فوری مصدومیت ({teamData?.injury_heal_cost || 25}💎)</span>
                     </button>
-                  ) : Number(selectedPlayer.virtual_stamina || 100) < 100 ? (
-                    <button
-                      onClick={() => {
-                        handleRecoverStamina(selectedPlayer.id, selectedPlayer.name);
-                        setSelectedPlayer(null);
-                      }}
-                      className="flex-1 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-cyan-600 to-blue-600 text-white flex items-center justify-center gap-1 shadow-lg hover:from-cyan-500 hover:to-blue-500 cursor-pointer"
-                    >
-                      <Zap size={14} />
-                      <span>شارژ استقامت (10💎)</span>
-                    </button>
-                  ) : null}
+                  )}
 
                   {(selectedPlayer.level || 1) < 20 && (
                     <button

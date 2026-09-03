@@ -518,23 +518,25 @@ export default function TeamTab({
         shirt_number: p.shirt_number || (idx + 1),
         is_starting: Boolean(p.is_starting),
         stamina: Number(p.virtual_stamina) || 90,
-        virtual_stamina: Number(p.virtual_stamina) || 90,
-        status: (p.suspension_matches > 0 || p.is_suspended) ? 'محروم' : p.is_injured ? 'مصدوم' : (Number(p.virtual_stamina) || 90) < 50 ? 'خسته' : 'سالم',
+        virtual_stamina: 100,
+        status: (p.suspension_matches > 0 || p.is_suspended) ? 'محروم' : (p.is_injured || (p.injury_matches > 0)) ? 'مصدوم' : 'سالم',
         trend: '▲',
         age: p.age || 26,
-        consecutive_games: p.consecutive_games || 0,
-        base_stamina: p.base_stamina || 80,
+        consecutive_games: 0,
+        base_stamina: 100,
         position_group: p.position_group || 'CMF',
       }));
 
-      // Check if any starter is suspended
-      const isPlayerSuspended = (p) => Boolean((p?.suspension_matches > 0) || p?.is_suspended || p?.isSuspended);
-      let starters = mapped.filter((p) => p.is_starting && !isPlayerSuspended(p));
-      let nonStarters = mapped.filter((p) => !p.is_starting || isPlayerSuspended(p)).map((p) => isPlayerSuspended(p) ? { ...p, is_starting: false } : p);
+      // Check if any starter is suspended or injured
+      const isPlayerIneligibleStarter = (p) => Boolean(
+        (p?.suspension_matches > 0) || p?.is_suspended || p?.isSuspended || p?.is_injured || (p?.injury_matches > 0)
+      );
+      let starters = mapped.filter((p) => p.is_starting && !isPlayerIneligibleStarter(p));
+      let nonStarters = mapped.filter((p) => !p.is_starting || isPlayerIneligibleStarter(p)).map((p) => isPlayerIneligibleStarter(p) ? { ...p, is_starting: false } : p);
 
       if (starters.length < 11 && nonStarters.length > 0 && mapped.length >= 11) {
         const needed = 11 - starters.length;
-        const eligibleBench = nonStarters.filter((p) => !isPlayerSuspended(p) && !p.is_injured && (p.virtual_stamina >= 30));
+        const eligibleBench = nonStarters.filter((p) => !isPlayerIneligibleStarter(p));
         const promoted = eligibleBench.slice(0, needed);
         starters = [...starters, ...promoted.map((p) => ({ ...p, is_starting: true }))];
         const promotedIds = new Set(promoted.map((p) => p.id));

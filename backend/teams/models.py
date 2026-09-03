@@ -160,6 +160,10 @@ class Player(models.Model):
     )
     is_injured = models.BooleanField(default=False, verbose_name="مصدوم است؟")
     injury_return_date = models.DateField(null=True, blank=True, verbose_name="تاریخ بازگشت از مصدومیت")
+    injury_matches = models.PositiveIntegerField(
+        default=0, verbose_name="بازی‌های مصدومیت",
+        help_text="تعداد بازی‌هایی که بازیکن به دلیل مصدومیت غایب است."
+    )
     consecutive_games = models.PositiveIntegerField(default=0, verbose_name="بازی‌های متوالی", help_text="تعداد بازی‌هایی که بازیکن بدون استراحت بازی کرده.")
     last_match_date = models.DateField(null=True, blank=True, verbose_name="تاریخ آخرین بازی")
     matches_benched_streak = models.PositiveIntegerField(default=0, verbose_name="تعداد بازی متوالی نیمکت‌نشین")
@@ -203,24 +207,37 @@ class Player(models.Model):
     def __str__(self):
         return f"{self.name} ({self.position} - {self.overall})"
 
+    def save(self, *args, **kwargs):
+        # Fatigue is disabled: players are always 100% fresh and unlocked
+        self.virtual_stamina = Decimal('100.00')
+        self.is_locked = False
+        self.consecutive_games = 0
+
+        # Synchronize injury status
+        if self.injury_matches > 0:
+            self.is_injured = True
+        elif not self.is_injured:
+            self.injury_matches = 0
+
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            kwargs['update_fields'] = set(update_fields).union({
+                'virtual_stamina', 'is_locked', 'consecutive_games', 'is_injured', 'injury_matches'
+            })
+        super().save(*args, **kwargs)
+
     @property
     def is_suspended(self) -> bool:
         return (self.suspension_matches or 0) > 0
 
     @property
     def is_stamina_locked(self) -> bool:
-        return self.is_locked or self.virtual_stamina < 30.0
+        return False
 
     @property
     def stamina_status(self) -> str:
-        if self.is_injured:
+        if self.is_injured or (self.injury_matches and self.injury_matches > 0):
             return "مصدوم"
-        if self.is_stamina_locked:
-            return "قفل شده (خسته)"
-        if self.virtual_stamina < 50.0:
-            return "افت شدید"
-        if self.virtual_stamina < 80.0:
-            return "خستگی جزئی"
         return "کامل"
 
     @property

@@ -284,8 +284,8 @@ export default function LiveBroadcastControl() {
             setMatchMinutes(90);
           } else if (data.type === 'stoppage_time_update') {
             setStoppageTime(data.stoppage_time || 0);
-          } else if (data.type === 'coach_tactics_submitted' || data.type === 'new_in_game_change' || data.type === 'in_game_change_applied') {
-            // Instantly synchronize coach's latest live lineup & tactics on admin broadcast room
+          } else if (data.type === 'coach_tactics_submitted' || data.type === 'new_in_game_change' || data.type === 'in_game_change_applied' || data.type === 'new_event' || data.type === 'substitution') {
+            // Instantly synchronize coach's latest live lineup, events & tactics on admin broadcast room
             if (selectedMatch?.id) {
               fetchMatchDetail(selectedMatch);
             }

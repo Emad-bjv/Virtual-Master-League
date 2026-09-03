@@ -31,7 +31,7 @@ class TeamAdmin(admin.ModelAdmin):
 class PlayerAdmin(admin.ModelAdmin):
     list_display = (
         'name', 'team', 'base_team', 'position', 'compatible_positions', 'overall', 'level', 'xp',
-        'virtual_stamina', 'consecutive_games',
+        'is_injured', 'injury_matches',
         'stamina_status_display', 'is_starting'
     )
     list_filter = ('team', 'base_team', 'position', 'is_starting', 'is_injured', 'level')
@@ -46,15 +46,9 @@ class PlayerAdmin(admin.ModelAdmin):
         ('سیستم لول', {
             'fields': ('level', 'xp', 'total_xp')
         }),
-        ('سیستم استقامت', {
-            'fields': (
-                'base_stamina', 'virtual_stamina', 'consecutive_games',
-                'last_match_date', 'stamina_status_display', 'is_stamina_locked_display',
-            ),
-            'description': 'استقامت مجازی هر بازیکن پس از هر بازی کاهش و پس از استراحت افزایش می‌یابد.',
-        }),
-        ('مصدومیت', {
-            'fields': ('is_injured', 'injury_return_date'),
+        ('مصدومیت و غیبت', {
+            'fields': ('is_injured', 'injury_matches', 'injury_return_date'),
+            'description': 'ثبت مصدومیت در حین مسابقه توسط ادمین صورت می‌گیرد (۲ بازی غیبت).',
         }),
         ('موقعیت در ترکیب', {
             'fields': ('x_coord', 'y_coord', 'is_starting'),
@@ -62,15 +56,11 @@ class PlayerAdmin(admin.ModelAdmin):
         }),
     )
 
-    @admin.display(description="وضعیت استقامت")
+    @admin.display(description="وضعیت سلامت")
     def stamina_status_display(self, obj):
-        status_map = {
-            'FRESH': '🟢 تازه‌نفس',
-            'GOOD': '🟡 خوب',
-            'TIRED': '🟠 خسته',
-            'EXHAUSTED': '🔴 فرسوده (قفل)',
-        }
-        return status_map.get(obj.stamina_status, '❓')
+        if obj.is_injured or (obj.injury_matches and obj.injury_matches > 0):
+            return f"🚑 مصدوم ({obj.injury_matches} بازی)"
+        return "🟢 آماده مسابقه"
 
     @admin.display(description="قفل شده؟", boolean=True)
     def is_stamina_locked_display(self, obj):

@@ -752,13 +752,17 @@ export default function AdminDashboard({
           ? selectedLiveMatch.home_team || selectedLiveMatch.homeId
           : selectedLiveMatch.away_team || selectedLiveMatch.awayId;
 
+      const rawEventType = eventObj.type || eventObj.event_type || 'INFO';
+      const eventType = rawEventType === 'ASSIST' || rawEventType === 'RATING' ? 'INFO' : rawEventType;
+      const playerId = eventObj.player_id || eventObj.player || eventObj.player_obj?.id;
+
       const res = await matchApi.recordEvent(selectedLiveMatch.id, {
-        event_type: eventObj.type === 'ASSIST' || eventObj.type === 'RATING' ? 'INFO' : eventObj.type,
-        minute: eventMinute,
+        event_type: eventType,
+        minute: eventObj.minute || eventMinute || 45,
         team_id: activeTeamId,
-        player_id: eventObj.player_id || eventObj.player,
-        player: eventObj.player_id || eventObj.player,
-        detail: eventObj.text || 'رویداد زمین مسابقه',
+        player_id: playerId,
+        player: playerId,
+        detail: eventObj.text || eventObj.detail || 'رویداد زمین مسابقه',
       });
 
       const updatedHomeScore = res.data?.home_score ?? res.data?.match?.home_score;
@@ -2581,9 +2585,24 @@ export default function AdminDashboard({
                             }`}
                           >
                             <div className="flex items-center gap-2">
-                              <span className="font-sport font-bold text-amber-400 text-xs">'{ev.minute}</span>
-                              <span className="font-black text-cyan-300">{ev.event_type}</span>
-                              <span className="text-slate-300">{ev.detail || ev.player?.name}</span>
+                              <span className="font-sport font-bold text-amber-400 text-xs shrink-0">'{ev.minute}</span>
+                              <span className="text-base shrink-0">
+                                {ev.emoji || ev.icon || (
+                                  ev.event_type === 'GOAL' ? '⚽' :
+                                  ev.event_type === 'OWN_GOAL' ? '🤦‍♂️' :
+                                  ev.event_type === 'PENALTY_SCORED' ? '🎯' :
+                                  ev.event_type === 'PENALTY_MISSED' ? '❌' :
+                                  ev.event_type === 'YELLOW' ? '🟨' :
+                                  ev.event_type === 'SECOND_YELLOW' ? '🟨🟥' :
+                                  ev.event_type === 'RED' ? '🟥' :
+                                  ev.event_type === 'SUB_IN' ? '🔄' :
+                                  ev.event_type === 'SUB_OUT' ? '⬅️' :
+                                  ev.event_type === 'INJURY' ? '🚑' :
+                                  ev.event_type === 'VAR' ? '🖥️' : '📢'
+                                )}
+                              </span>
+                              <span className="font-black text-cyan-300 text-[11px]">{ev.event_type_display || ev.event_type}</span>
+                              <span className="text-slate-300 truncate max-w-xs">{ev.detail || ev.player_name || ev.player?.name}</span>
                             </div>
 
                             {!ev.is_undone && (

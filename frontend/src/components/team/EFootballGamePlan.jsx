@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Shield, Users, AlertCircle, ArrowLeftRight, User, Sliders, Plus, Zap, Sparkles, Gem, HeartPulse, X } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import CustomSelect from '../common/CustomSelect';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
@@ -422,9 +422,8 @@ export default function EFootballGamePlan({
     const isPlayerIneligible = (p) => {
       if (!p) return false;
       const isSuspended = Boolean((p.suspension_matches > 0) || p.is_suspended || p.isSuspended);
-      const isInjured = Boolean(p.is_injured || p.isInjured);
-      const isStaminaLocked = Boolean(p.is_locked || p.is_stamina_locked || ((p.virtual_stamina != null && Number(p.virtual_stamina) < 30)));
-      return isSuspended || isInjured || isStaminaLocked;
+      const isInjured = Boolean(p.is_injured || p.isInjured || (p.injury_matches > 0));
+      return isSuspended || isInjured;
     };
 
     const ineligibleStarters = currentStarters.filter(isPlayerIneligible);
@@ -563,6 +562,7 @@ export default function EFootballGamePlan({
   const [adminModalPlayer, setAdminModalPlayer] = useState(null);
   const [subModalBenchSelect, setSubModalBenchSelect] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
+  const [quickSubModal, setQuickSubModal] = useState({ isOpen: false, sourcePlayer: null, targetType: null });
 
   const selectedPitchPlayer = useMemo(() => {
     return selectedPitchPlayerId
@@ -590,51 +590,14 @@ export default function EFootballGamePlan({
     return null;
   }, [highlightedPosition, selectedPitchPlayer, selectedBenchPlayer]);
 
-  // Gem Player Actions (Stamina Recovery & Boost)
+  // Gem Player Actions (Boost / Level Up)
   const { team, updateTeamGems, updatePlayerState } = useTeam();
-  const [actionPlayerToRecover, setActionPlayerToRecover] = useState(null);
   const [actionPlayerToBoost, setActionPlayerToBoost] = useState(null);
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   const showNotification = (msg) => {
     setStatusMsg(msg);
     setTimeout(() => setStatusMsg(''), 4000);
-  };
-
-  const handleRecoverStamina = async (player) => {
-    if (!player) return;
-    setIsActionLoading(true);
-    try {
-      const res = await playerApi.recoverStamina(player.id);
-      const newStamina = res.data?.new_stamina || Math.min(100, (player.virtual_stamina || player.stamina || 50) + 50);
-
-      const updateList = (list) =>
-        list.map((p) => (p.id === player.id ? { ...p, virtual_stamina: newStamina, stamina: newStamina, is_locked: false } : p));
-
-      const newXi = updateList(startingXi);
-      const newSubs = updateList(substitutes);
-      const newRes = updateList(reserves);
-
-      setStartingXi(newXi);
-      setSubstitutes(newSubs);
-      setReserves(newRes);
-
-      if (updatePlayerState) {
-        updatePlayerState(player.id, { virtual_stamina: newStamina, stamina: newStamina, is_locked: false });
-      }
-      if (updateTeamGems && res.data?.remaining_gems !== undefined) {
-        updateTeamGems(res.data.remaining_gems);
-      }
-      showNotification(`⚡ استقامت «${player.name}» با موفقیت ۵۰٪ شارژ شد! (استقامت فعلی: ${Math.round(newStamina)}٪)`);
-      setActionPlayerToRecover(null);
-      if (onLineupChange) {
-        onLineupChange({ startingXi: newXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
-      }
-    } catch (err) {
-      showNotification('خطا در شارژ استقامت: ' + (err.response?.data?.error || err.message));
-    } finally {
-      setIsActionLoading(false);
-    }
   };
 
   const handleGemBoost = async (player) => {
@@ -914,15 +877,27 @@ export default function EFootballGamePlan({
       })
     );
 
+    let eventType = 'YELLOW';
+    if (actionType === 'TOGGLE_YELLOW_1') eventType = 'YELLOW';
+    else if (actionType === 'TOGGLE_YELLOW_2') eventType = 'SECOND_YELLOW';
+    else if (actionType === 'TOGGLE_RED') eventType = 'RED';
+    else if (actionType === 'TOGGLE_INJURY') eventType = 'INJURY';
+
+    if (text.includes('لغو')) {
+      eventType = 'UNDO_EVENT';
+    }
+
     if (onPushLiveEvent) {
       onPushLiveEvent({
         id: Date.now(),
-        type: 'ADMIN_EVENT',
+        type: eventType,
+        event_type: eventType,
         text,
         team: teamName,
         player_id: adminModalPlayer.id,
         player_name: adminModalPlayer.name,
         icon,
+        emoji: icon,
         color,
       });
     }
@@ -944,7 +919,7 @@ export default function EFootballGamePlan({
     }
   };
 
-  // Pitch Player Click Handler
+  // Pitch Player Click Handler: Opens quick substitution photo modal with bench players
   const handlePitchPlayerClick = (clickedPlayer) => {
     if (isAdminMode) {
       setAdminModalPlayer(clickedPlayer);
@@ -954,7 +929,7 @@ export default function EFootballGamePlan({
 
     if (readOnly) return;
 
-    // Scenario 1: A bench/reserve player was pre-selected -> Swap pitch player with bench player
+    // Scenario 1: A bench/reserve player was already pre-selected -> Swap pitch player with bench player
     if (selectedBenchPlayerId) {
       swapPitchWithBench(clickedPlayer.id, selectedBenchPlayerId);
       setSelectedBenchPlayerId(null);
@@ -962,31 +937,15 @@ export default function EFootballGamePlan({
       return;
     }
 
-    // Scenario 2: No player currently selected -> Select this pitch player on FIRST CLICK
-    if (!selectedPitchPlayerId) {
-      setSelectedPitchPlayerId(clickedPlayer.id);
-      setSelectedBenchPlayerId(null);
-      setHighlightedPosition(null);
-      const natPos = clickedPlayer.naturalPosition || clickedPlayer.base_position || clickedPlayer.main_position || clickedPlayer.position;
-      const posTitle = POSITION_INFO[clickedPlayer.position]?.title || clickedPlayer.position;
-      showNotification(`بازیکن «${clickedPlayer.name} (${natPos})» انتخاب شد. پست‌های سازگار در چمن و گزینه‌های تعویض با ⭐ مشخص شدند.`);
-      return;
-    }
-
-    // Scenario 3: Clicked the same player -> Unselect
-    if (selectedPitchPlayerId === clickedPlayer.id) {
-      setSelectedPitchPlayerId(null);
-      setHighlightedPosition(null);
-      return;
-    }
-
-    // Scenario 4: Clicked another player on the pitch -> Swap their coordinates on pitch!
-    swapPitchPositions(selectedPitchPlayerId, clickedPlayer.id);
-    setSelectedPitchPlayerId(null);
-    setHighlightedPosition(null);
+    // Scenario 2: Open quick, fast substitution photo modal with all bench players
+    setQuickSubModal({
+      isOpen: true,
+      sourcePlayer: clickedPlayer,
+      targetType: 'bench',
+    });
   };
 
-  // Bench / Reserve Player Click Handler
+  // Bench / Reserve Player Click Handler: Opens quick substitution photo modal with pitch starters
   const handleBenchPlayerClick = (clickedBenchPlayer, isFromSubstitutes = true) => {
     if (isAdminMode) {
       setAdminModalPlayer(clickedBenchPlayer);
@@ -995,7 +954,7 @@ export default function EFootballGamePlan({
 
     if (readOnly) return;
 
-    // Scenario 1: A pitch player was pre-selected -> Swap pitch player with clicked bench player
+    // Scenario 1: A pitch player was already pre-selected -> Swap pitch player with clicked bench player
     if (selectedPitchPlayerId) {
       swapPitchWithBench(selectedPitchPlayerId, clickedBenchPlayer.id, isFromSubstitutes);
       setSelectedPitchPlayerId(null);
@@ -1003,26 +962,12 @@ export default function EFootballGamePlan({
       return;
     }
 
-    // Scenario 2: A bench player was ALREADY selected -> Swap two bench/reserve players!
-    if (selectedBenchPlayerId) {
-      if (selectedBenchPlayerId === clickedBenchPlayer.id) {
-        setSelectedBenchPlayerId(null); // Clicked same -> unselect
-        setHighlightedPosition(null);
-      } else {
-        swapBenchOrReserves(selectedBenchPlayerId, clickedBenchPlayer.id);
-        setSelectedBenchPlayerId(null);
-        setHighlightedPosition(null);
-      }
-      return;
-    }
-
-    // Scenario 3: Select bench/reserve player on FIRST CLICK -> ONLY highlight compatible pitch slots!
-    setSelectedBenchPlayerId(clickedBenchPlayer.id);
-    setSelectedPitchPlayerId(null);
-    setHighlightedPosition(null);
-    const naturalPos = clickedBenchPlayer.naturalPosition || clickedBenchPlayer.position;
-    const posTitle = POSITION_INFO[naturalPos]?.title || naturalPos;
-    showNotification(`بازیکن «${clickedBenchPlayer.name} (${naturalPos} - ${posTitle})» انتخاب شد. موقعیت‌های مناسب او در زمین با ⭐ روشن شدند.`);
+    // Scenario 2: Open quick, fast substitution photo modal with all 11 pitch players
+    setQuickSubModal({
+      isOpen: true,
+      sourcePlayer: clickedBenchPlayer,
+      targetType: 'pitch',
+    });
   };
 
   // Swap two pitch players' positions (x_coord & y_coord)
@@ -1544,11 +1489,11 @@ export default function EFootballGamePlan({
                     </div>
 
                     {/* In Coach Mode: Clean Injury or Suspension Pill Indicator */}
-                    {!isLiveMode && !isAdminMode && (player.is_injured || player.isInjured || (player.suspension_matches > 0) || player.is_suspended) && (
+                    {!isLiveMode && !isAdminMode && (player.is_injured || player.isInjured || (player.injury_matches > 0) || (player.suspension_matches > 0) || player.is_suspended) && (
                       <div className="absolute -bottom-2 z-30 flex items-center justify-center pointer-events-none drop-shadow">
-                        {(player.is_injured || player.isInjured) ? (
+                        {(player.is_injured || player.isInjured || player.injury_matches > 0) ? (
                           <span className="bg-rose-950 text-rose-300 border border-rose-500 text-[7px] sm:text-[8px] font-black px-1.5 py-0.2 rounded-full shadow flex items-center gap-0.5">
-                            🩹 مصدوم
+                            🩹 مصدوم ({player.injury_matches || 2} بازی)
                           </span>
                         ) : (
                           <span className="bg-red-950 text-red-300 border border-red-500 text-[7px] sm:text-[8px] font-black px-1.5 py-0.2 rounded-full shadow flex items-center gap-0.5">
@@ -1807,26 +1752,17 @@ export default function EFootballGamePlan({
                   </div>
 
                   <div className="flex items-center gap-3 text-[11px] text-slate-300">
-                    <span>
-                      استقامت:{' '}
-                      <strong
-                        className={
-                          Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) < 50
-                            ? 'text-rose-400 font-bold'
-                            : 'text-[#00ff87] font-bold'
-                        }
-                      >
-                        {Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90))}%
-                      </strong>
+                    <span className="text-emerald-400 font-bold bg-emerald-950/70 px-2 py-0.5 rounded border border-emerald-500/30">
+                      ⚡ آمادگی بدنی: ۱۰۰٪ کامل
                     </span>
                     {activeSelectedPlayer.potential_ovr && (
                       <span>
                         پتانسیل: <strong className="text-purple-300 font-bold">{activeSelectedPlayer.potential_ovr}</strong>
                       </span>
                     )}
-                    {activeSelectedPlayer.is_injured && (
-                      <span className="text-rose-400 font-bold bg-rose-950/80 px-1.5 py-0.2 rounded border border-rose-500/40">
-                        مصدوم
+                    {Boolean(activeSelectedPlayer.is_injured || activeSelectedPlayer.isInjured || (activeSelectedPlayer.injury_matches > 0)) && (
+                      <span className="text-rose-400 font-bold bg-rose-950/80 px-2 py-0.5 rounded border border-rose-500/40 shadow flex items-center gap-1">
+                        <span>🩹</span> مصدوم ({activeSelectedPlayer.injury_matches || 2} بازی)
                       </span>
                     )}
                     {(activeSelectedPlayer.suspension_matches > 0 || activeSelectedPlayer.is_suspended) && (
@@ -1841,21 +1777,6 @@ export default function EFootballGamePlan({
               {/* Gem Quick Action Buttons (Compact, non-intrusive) */}
               {!readOnly && (
                 <div className="flex items-center gap-2 shrink-0">
-                  {/* Recover Stamina Button */}
-                  <button
-                    onClick={() => setActionPlayerToRecover(activeSelectedPlayer)}
-                    disabled={Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) >= 100}
-                    className={`px-3 py-2 rounded-2xl font-sport text-xs font-black flex items-center gap-1.5 shadow-md transition-all cursor-pointer ${
-                      Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) >= 100
-                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
-                        : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 border border-emerald-400/50 active:scale-95'
-                    }`}
-                    title="شارژ فوری ۵۰٪ استقامت بازیکن با ۱۵ جم"
-                  >
-                    <Zap size={14} className={Math.round(Number(activeSelectedPlayer.virtual_stamina || activeSelectedPlayer.stamina || 90)) >= 100 ? 'text-slate-500' : 'text-slate-950 fill-slate-950'} />
-                    <span>ریکاوری استقامت (۱۵ 💎)</span>
-                  </button>
-
                   {/* Gem Boost / Level Up Button */}
                   <button
                     onClick={() => setActionPlayerToBoost(activeSelectedPlayer)}
@@ -1986,7 +1907,12 @@ export default function EFootballGamePlan({
                         🟥 محروم
                       </span>
                     )}
-                    {isOut && !isSuspended && (
+                    {Boolean(sub.is_injured || sub.isInjured || (sub.injury_matches > 0)) && !isSuspended && (
+                      <span className="absolute top-1 right-1 text-[7px] font-black bg-rose-700 text-white px-1 py-0.2 rounded-full flex items-center gap-0.5 shadow z-10 font-sport">
+                        🩹 مصدوم ({sub.injury_matches || 2})
+                      </span>
+                    )}
+                    {isOut && !isSuspended && !(sub.is_injured || sub.isInjured || (sub.injury_matches > 0)) && (
                       <span className="absolute top-1 right-1 text-[7px] font-black bg-rose-600 text-white px-1 py-0.2 rounded-full flex items-center gap-0.5 shadow z-10 font-sport">
                         ↩️ OUT
                       </span>
@@ -2015,11 +1941,6 @@ export default function EFootballGamePlan({
                     <span className={`font-black text-[9px] leading-tight w-full truncate max-w-[70px] ${isOut ? 'line-through text-slate-400' : 'text-white'}`}>
                       {sub.name}
                     </span>
-
-                    {/* Stamina Meter */}
-                    <div className="w-11 h-1 bg-[#05080e] rounded-full overflow-hidden border border-white/10 mt-1">
-                      <div className={`h-full rounded-full ${subStaminaColor}`} style={{ width: `${subStamina}%` }}></div>
-                    </div>
 
                     <div className="flex items-center gap-1 mt-1">
                       <span
@@ -2092,6 +2013,11 @@ export default function EFootballGamePlan({
                           {isSuspended && (
                             <span className="text-[7.5px] font-black bg-red-600 text-white px-1 py-0.2 rounded-full font-sport">
                               🟥
+                            </span>
+                          )}
+                          {Boolean(res.is_injured || res.isInjured || (res.injury_matches > 0)) && !isSuspended && (
+                            <span className="text-[7.5px] font-black bg-rose-700 text-white px-1 py-0.2 rounded-full font-sport" title={`مصدوم (${res.injury_matches || 2} بازی)`}>
+                              🩹
                             </span>
                           )}
                           <div className="w-6 h-6 rounded-lg flex items-center justify-center border border-slate-700 bg-[#05080e] relative overflow-hidden shrink-0 shadow-inner">
@@ -2404,38 +2330,7 @@ export default function EFootballGamePlan({
       )}
 
       {/* CONFIRM MODAL: STAMINA RECOVERY */}
-      {actionPlayerToRecover && (
-        <ConfirmModal
-          isOpen={!!actionPlayerToRecover}
-          title="شارژ فوری استقامت بازیکن (Stamina Recovery)"
-          message={`آیا از شارژ ۵۰٪ استقامت «${actionPlayerToRecover.name}» با استفاده از ۱۵ الماس (جم 💎) اطمینان دارید؟`}
-          details={
-            <div className="space-y-1.5 font-sport text-xs">
-              <div className="flex justify-between text-slate-300">
-                <span>استقامت فعلی:</span>
-                <span className="text-amber-400 font-bold dir-ltr">
-                  {Math.round(Number(actionPlayerToRecover.virtual_stamina || actionPlayerToRecover.stamina || 50))}%
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-300">
-                <span>استقامت پس از شارژ:</span>
-                <span className="text-[#00ff87] font-black dir-ltr">
-                  {Math.min(100, Math.round(Number(actionPlayerToRecover.virtual_stamina || actionPlayerToRecover.stamina || 50)) + 50)}% (+۵۰٪)
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-300">
-                <span>هزینه الماس:</span>
-                <span className="text-cyan-300 font-black">۱۵ 💎</span>
-              </div>
-            </div>
-          }
-          confirmText="بله، شارژ استقامت ⚡"
-          cancelText="خیر، انصراف"
-          onConfirm={() => handleRecoverStamina(actionPlayerToRecover)}
-          onCancel={() => setActionPlayerToRecover(null)}
-          loading={isActionLoading}
-        />
-      )}
+
 
       {/* CONFIRM MODAL: GEM BOOST / LEVEL UP */}
       {actionPlayerToBoost && (
@@ -2478,6 +2373,174 @@ export default function EFootballGamePlan({
           onCancel={() => setActionPlayerToBoost(null)}
           loading={isActionLoading}
         />
+      )}
+
+      {/* QUICK SUBSTITUTION PHOTO PICKER MODAL */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {quickSubModal.isOpen && quickSubModal.sourcePlayer && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
+              <div
+                className="fixed inset-0"
+                onClick={() => setQuickSubModal({ isOpen: false, sourcePlayer: null, targetType: null })}
+              />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0, y: 15 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.95, opacity: 0, y: 15 }}
+                className="relative z-10 bg-slate-950 border-2 border-emerald-500/40 rounded-3xl w-full max-w-2xl my-auto p-4 sm:p-6 space-y-4 shadow-[0_0_50px_rgba(0,0,0,0.9)] text-right"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-2xl bg-emerald-950 text-emerald-400 border border-emerald-500/30">
+                      <ArrowLeftRight size={22} />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-sm sm:text-base text-white">
+                        {quickSubModal.targetType === 'bench' ? 'تعویض بازیکن: انتخاب جانشین از روی نیمکت' : 'تعویض بازیکن: انتخاب بازیکن داخل زمین برای خروج'}
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        {quickSubModal.targetType === 'bench'
+                          ? `خروج «${quickSubModal.sourcePlayer.name}» از زمین و ورود یک بازیکن از نیمکت`
+                          : `ورود «${quickSubModal.sourcePlayer.name}» به جای یکی از ۱۱ بازیکن داخل زمین`}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setQuickSubModal({ isOpen: false, sourcePlayer: null, targetType: null })}
+                    className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-700 transition-all cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Source Player Banner */}
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-900/90 border border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="relative w-12 h-12 rounded-xl overflow-hidden bg-slate-950 border border-slate-700 shrink-0">
+                      {getPlayerPhotoUrl(quickSubModal.sourcePlayer) ? (
+                        <img
+                          src={getPlayerPhotoUrl(quickSubModal.sourcePlayer)}
+                          alt={quickSubModal.sourcePlayer.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center font-bold text-slate-400 text-xs">
+                          {String(quickSubModal.sourcePlayer.name || 'PL').slice(0, 2)}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-sm text-white">{quickSubModal.sourcePlayer.name}</span>
+                        <span className="px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-sport font-black text-xs border border-emerald-500/30">
+                          {quickSubModal.sourcePlayer.position || quickSubModal.sourcePlayer.naturalPosition}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 font-sport font-black text-xs border border-amber-500/30">
+                          OVR {quickSubModal.sourcePlayer.overall || 75}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        {quickSubModal.targetType === 'bench' ? '⬅️ بازیکن در حال خروج از زمین' : '➡️ بازیکن در حال ورود به زمین'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Candidates List Header */}
+                <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+                  <span>
+                    {quickSubModal.targetType === 'bench'
+                      ? 'روی بازیکن دلخواه از نیمکت کلیک کنید تا تعویض فوراً انجام شود:'
+                      : 'روی بازیکنی از ۱۱ نفر اصلی کلیک کنید تا با این بازیکن جابجا شود:'}
+                  </span>
+                  <span className="font-sport text-cyan-400 font-bold">
+                    {quickSubModal.targetType === 'bench'
+                      ? `${(substitutes || []).length} بازیکن نیمکت`
+                      : '۱۱ بازیکن ترکیب اصلی'}
+                  </span>
+                </div>
+
+                {/* Candidate Players Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[50vh] overflow-y-auto pr-1 custom-scrollbar">
+                  {(quickSubModal.targetType === 'bench' ? (substitutes || []) : (startingXi || [])).map((candidate) => {
+                    const candPhoto = getPlayerPhotoUrl(candidate);
+                    const isCandidateCompatible = quickSubModal.targetType === 'bench'
+                      ? ((candidate.naturalPosition || candidate.position) === quickSubModal.sourcePlayer.position)
+                      : (quickSubModal.sourcePlayer.naturalPosition === (candidate.position || candidate.naturalPosition));
+
+                    return (
+                      <button
+                        key={candidate.id}
+                        onClick={() => {
+                          if (quickSubModal.targetType === 'bench') {
+                            swapPitchWithBench(quickSubModal.sourcePlayer.id, candidate.id);
+                            showNotification(`تعویض انجام شد: «${candidate.name}» به جای «${quickSubModal.sourcePlayer.name}» وارد زمین شد 🔄`);
+                          } else {
+                            swapPitchWithBench(candidate.id, quickSubModal.sourcePlayer.id);
+                            showNotification(`تعویض انجام شد: «${quickSubModal.sourcePlayer.name}» به جای «${candidate.name}» وارد زمین شد 🔄`);
+                          }
+                          setQuickSubModal({ isOpen: false, sourcePlayer: null, targetType: null });
+                        }}
+                        className={`p-2.5 rounded-2xl border text-right transition-all flex items-center justify-between gap-3 group cursor-pointer hover:scale-[1.01] ${
+                          isCandidateCompatible
+                            ? 'bg-emerald-950/40 border-emerald-500/50 hover:bg-emerald-900/60 hover:border-emerald-400 shadow-md'
+                            : 'bg-slate-900/70 border-slate-800 hover:bg-slate-800/90 hover:border-cyan-500/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 overflow-hidden">
+                          <div className="relative w-11 h-11 rounded-xl overflow-hidden bg-slate-950 border border-slate-700 shrink-0 group-hover:border-emerald-400 transition-colors">
+                            {candPhoto ? (
+                              <img
+                                src={candPhoto}
+                                alt={candidate.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center font-bold text-slate-400 text-xs">
+                                {String(candidate.name || 'PL').slice(0, 2)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="truncate">
+                            <div className="font-bold text-xs text-white group-hover:text-emerald-300 transition-colors truncate">
+                              {candidate.name}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="font-sport font-black text-[10px] px-1.5 py-0.2 rounded bg-slate-950 text-cyan-300 border border-slate-800">
+                                {candidate.position || candidate.naturalPosition}
+                              </span>
+                              <span className="font-sport font-bold text-[10px] text-amber-300">
+                                OVR {candidate.overall || 75}
+                              </span>
+                              {isCandidateCompatible && (
+                                <span className="text-[9px] font-bold text-emerald-400 bg-emerald-950/80 px-1 rounded border border-emerald-500/30">
+                                  سازگار ⭐
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0">
+                          <span className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1 shadow group-hover:bg-emerald-400 group-hover:text-black transition-all">
+                            <span>تعویض</span>
+                            <ArrowLeftRight size={13} />
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
       )}
     </div>
   );

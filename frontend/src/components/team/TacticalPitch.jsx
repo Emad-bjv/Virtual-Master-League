@@ -73,17 +73,6 @@ export default function TacticalPitch({
           const posY = player.y_coord != null ? player.y_coord : 50;
           const posCode = player.position || player.naturalPosition || 'CMF';
 
-          // Readiness / Stamina Calculation (linked with facilities & fatigue formula)
-          const staminaPercent = Math.max(5, Math.min(100, Math.round(Number(player.stamina ?? player.virtual_stamina ?? 90))));
-          const staminaColorClass =
-            staminaPercent >= 80
-              ? 'bg-[#00ff87] shadow-[0_0_8px_#00ff87]'
-              : staminaPercent >= 50
-              ? 'bg-cyan-400 shadow-[0_0_8px_#00f3ff]'
-              : staminaPercent >= 30
-              ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'
-              : 'bg-rose-500 shadow-[0_0_8px_#f43f5e] animate-pulse';
-
           const photoUrl = getPlayerPhotoUrl(player);
 
           return (
@@ -216,17 +205,6 @@ export default function TacticalPitch({
                 )}
                 {player.name}
               </span>
-
-              {/* Stamina / Readiness Bar under Player Name */}
-              <div 
-                className="w-13 md:w-15 h-1.5 bg-[#05080e]/95 rounded-full overflow-hidden border border-white/15 p-0.2 mt-0.5 shadow-inner"
-                title={`میزان آمادگی و استقامت: ${staminaPercent}٪`}
-              >
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${staminaColorClass}`}
-                  style={{ width: `${staminaPercent}%` }}
-                ></div>
-              </div>
             </motion.div>
           );
         })}

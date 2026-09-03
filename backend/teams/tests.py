@@ -38,28 +38,24 @@ class StaminaEngineTestCase(TestCase):
     def test_fatigue_difference(self):
         young_fatigue = calculate_fatigue(self.young_player, self.team, 90)
         vet_fatigue = calculate_fatigue(self.veteran_player, self.team, 90)
-        self.assertGreater(vet_fatigue, young_fatigue)
+        self.assertEqual(young_fatigue, Decimal('0.00'))
+        self.assertEqual(vet_fatigue, Decimal('0.00'))
 
     def test_apply_fatigue(self):
         apply_fatigue(self.young_player, 90)
         self.young_player.refresh_from_db()
-        self.assertEqual(self.young_player.consecutive_games, 1)
-        self.assertLess(self.young_player.virtual_stamina, Decimal('100.00'))
+        self.assertEqual(self.young_player.consecutive_games, 0)
+        self.assertEqual(self.young_player.virtual_stamina, Decimal('100.00'))
         self.assertFalse(self.young_player.is_locked)
 
     def test_stamina_lock_threshold(self):
-        self.young_player.virtual_stamina = Decimal('29.00')
-        self.young_player.save()
         update_lock_status(self.young_player)
-        self.assertTrue(self.young_player.is_locked)
+        self.assertFalse(self.young_player.is_locked)
 
     def test_recovery(self):
-        self.young_player.virtual_stamina = Decimal('50.00')
-        self.young_player.consecutive_games = 2
-        self.young_player.save()
         apply_recovery(self.young_player)
         self.young_player.refresh_from_db()
-        self.assertGreater(self.young_player.virtual_stamina, Decimal('50.00'))
+        self.assertEqual(self.young_player.virtual_stamina, Decimal('100.00'))
         self.assertEqual(self.young_player.consecutive_games, 0)
 
 
@@ -130,19 +126,10 @@ class PlayerAndFacilityActionsTestCase(APITestCase):
         url = f"/api/players/{self.player.id}/recover_stamina/"
         response = self.client.post(url)
         self.assertEqual(response.status_code, 200)
+        self.assertIn('غیرفعال', response.data['status'])
         self.player.refresh_from_db()
-        self.team.refresh_from_db()
-        self.assertEqual(float(self.player.virtual_stamina), 70.0)
+        self.assertEqual(float(self.player.virtual_stamina), 100.0)
         self.assertFalse(self.player.is_locked)
-        self.assertEqual(self.team.gems, 40) # 50 - 10
-
-    def test_recover_stamina_insufficient_gems(self):
-        self.team.gems = 5
-        self.team.save()
-        url = f"/api/players/{self.player.id}/recover_stamina/"
-        response = self.client.post(url)
-        self.assertEqual(response.status_code, 400)
-        self.assertIn('جم کافی نیست', response.data['error'])
 
     def test_heal_injury_success(self):
         url = f"/api/players/{self.player.id}/heal_injury/"
@@ -151,6 +138,7 @@ class PlayerAndFacilityActionsTestCase(APITestCase):
         self.player.refresh_from_db()
         self.team.refresh_from_db()
         self.assertFalse(self.player.is_injured)
+        self.assertEqual(self.player.injury_matches, 0)
         self.assertIsNone(self.player.injury_return_date)
         self.assertEqual(self.team.gems, 25) # 50 - 25
 
