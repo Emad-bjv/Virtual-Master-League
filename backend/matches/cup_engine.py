@@ -144,15 +144,6 @@ def advance_winner(match: Match) -> dict:
     if match.status != 'FINISHED':
         return {'success': False, 'error': 'مسابقه هنوز پایان نیافته است.'}
 
-    if not match.next_match:
-        winner = match.home_team if match.home_score > match.away_score else match.away_team
-        return {
-            'success': True,
-            'is_champion': True,
-            'winner': winner.name if winner else 'نامشخص',
-            'message': f'مسابقه فینال بود! قهرمان: {winner.name if winner else "نامشخص"}'
-        }
-
     # Determine winner
     winner = None
     if match.home_score > match.away_score:
@@ -173,6 +164,14 @@ def advance_winner(match: Match) -> dict:
 
     if not winner:
         return {'success': False, 'error': 'برنده مشخص نشد.'}
+
+    if not match.next_match:
+        return {
+            'success': True,
+            'is_champion': True,
+            'winner': winner.name,
+            'message': f'مسابقه فینال بود! قهرمان: {winner.name}'
+        }
 
     # Advance winner to next match
     next_match = match.next_match

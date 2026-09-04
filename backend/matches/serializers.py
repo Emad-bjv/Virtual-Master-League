@@ -204,7 +204,7 @@ class MatchDetailSerializer(serializers.ModelSerializer):
             'id', 'tournament', 'round_name', 'status', 'half_status',
             'home_team', 'home_team_name', 'home_team_logo', 'home_coach_name', 'home_lineup_ready',
             'away_team', 'away_team_name', 'away_team_logo', 'away_coach_name', 'away_lineup_ready',
-            'home_score', 'away_score', 'date', 'is_knockout',
+            'home_score', 'away_score', 'home_penalties', 'away_penalties', 'next_match', 'date', 'is_knockout',
             'importance_multiplier', 'standings_processed',
             'stoppage_time', 'current_minute', 'stream_url',
             'home_subs_count', 'away_subs_count',

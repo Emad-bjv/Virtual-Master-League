@@ -211,6 +211,13 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
   const [editingMatchId, setEditingMatchId] = useState(null);
   const [editDate, setEditDate] = useState('');
   const [editStatus, setEditStatus] = useState('SCHEDULED');
+  const [editHomeScore, setEditHomeScore] = useState(0);
+  const [editAwayScore, setEditAwayScore] = useState(0);
+  const [editHomePenalties, setEditHomePenalties] = useState('');
+  const [editAwayPenalties, setEditAwayPenalties] = useState('');
+
+  // Cup Stage Navigation State
+  const [selectedCupStage, setSelectedCupStage] = useState('');
 
   // Standings Management State
   const [standingsList, setStandingsList] = useState([]);
@@ -404,6 +411,38 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
     }
   }, [selectedCupId]);
 
+  // Derived Stages and Matches for Cup Management
+  const cupStages = useMemo(() => {
+    if (!cupBracketData?.rounds || cupBracketData.rounds.length === 0) {
+      return [];
+    }
+    return (cupBracketData.rounds || []).map((r) => ({
+      name: r.name,
+      total_matches: (r.matches || []).length,
+      finished_matches: (r.matches || []).filter((m) => m.status === 'FINISHED').length,
+      live_matches: (r.matches || []).filter((m) => m.status === 'LIVE').length,
+      is_finished: (r.matches || []).length > 0 && (r.matches || []).every((m) => m.status === 'FINISHED'),
+    }));
+  }, [cupBracketData]);
+
+  useEffect(() => {
+    if (cupStages.length > 0) {
+      const exists = cupStages.some((s) => s.name === selectedCupStage);
+      if (!exists) {
+        const activeStage = cupStages.find((s) => !s.is_finished && s.total_matches > 0);
+        setSelectedCupStage(activeStage ? activeStage.name : cupStages[0].name);
+      }
+    } else {
+      setSelectedCupStage('');
+    }
+  }, [cupStages, selectedCupStage]);
+
+  const currentCupStageMatches = useMemo(() => {
+    if (!cupBracketData?.rounds || !selectedCupStage) return [];
+    const foundRound = (cupBracketData.rounds || []).find((r) => r.name === selectedCupStage);
+    return foundRound?.matches || [];
+  }, [cupBracketData, selectedCupStage]);
+
   // Quick Team Selection Helpers
   const activeTeams = useMemo(() => (teams || []).filter(t => t.is_active !== false), [teams]);
 
@@ -528,6 +567,18 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
   };
 
   // Handle Quick Forfeit (3-0)
+  // Handle Start Match Edit
+  const handleStartEditMatch = (match) => {
+    setEditingMatchId(match.id);
+    setEditDate(match.date ? match.date.substring(0, 16) : '');
+    setEditStatus(match.status || 'SCHEDULED');
+    setEditHomeScore(match.home_score ?? 0);
+    setEditAwayScore(match.away_score ?? 0);
+    setEditHomePenalties(match.home_penalties !== null && match.home_penalties !== undefined ? match.home_penalties : '');
+    setEditAwayPenalties(match.away_penalties !== null && match.away_penalties !== undefined ? match.away_penalties : '');
+  };
+
+  // Handle Quick Forfeit (3-0)
   const handleForfeit = async (matchId, forfeitTeam) => {
     const teamLabel = forfeitTeam === 'home' ? 'میزبان' : 'میهمان';
     if (!window.confirm(`ثبت باخت فنی ۳-۰ به ضرر تیم ${teamLabel}؟`)) return;
@@ -541,6 +592,10 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         localStorage.setItem('vml_last_schedule_update', Date.now().toString());
       } catch (_e) {}
       await loadData();
+      if (selectedCupId) {
+        const bRes = await adminApi.getCupBracket(selectedCupId);
+        setCupBracketData(bRes.data);
+      }
     } catch (err) {
       notify(err.response?.data?.error || 'خطا در ثبت باخت فنی', 'error');
     } finally {
@@ -548,17 +603,35 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
     }
   };
 
-  // Handle Match Date & Status Update
+  // Handle Match Date, Status, Score & Penalties Update
   const handleSaveMatchEdit = async (matchId) => {
     setActionLoading(true);
     try {
-      await adminApi.updateMatch(matchId, {
+      const payload = {
         date: editDate ? new Date(editDate).toISOString() : undefined,
         status: editStatus,
-      });
-      notify('تغییرات مسابقه ذخیره و به پنل مربیان ارسال گردید.', 'success');
+        home_score: parseInt(editHomeScore, 10) || 0,
+        away_score: parseInt(editAwayScore, 10) || 0,
+      };
+      if (editHomePenalties !== '' && editHomePenalties !== null && editHomePenalties !== undefined) {
+        payload.home_penalties = parseInt(editHomePenalties, 10);
+      }
+      if (editAwayPenalties !== '' && editAwayPenalties !== null && editAwayPenalties !== undefined) {
+        payload.away_penalties = parseInt(editAwayPenalties, 10);
+      }
+
+      const res = await adminApi.updateMatch(matchId, payload);
+      if (res.data?.advance_result?.winner) {
+        notify(`تغییرات مسابقه ذخیره شد. 🏆 صعود برنده (${res.data.advance_result.winner}) به مرحله بعد ثبت گردید.`, 'success');
+      } else {
+        notify('تغییرات مسابقه با موفقیت ذخیره شد.', 'success');
+      }
       setEditingMatchId(null);
       await loadData();
+      if (selectedCupId) {
+        const bRes = await adminApi.getCupBracket(selectedCupId);
+        setCupBracketData(bRes.data);
+      }
     } catch (err) {
       notify(err.response?.data?.error || 'خطا در ویرایش مسابقه', 'error');
     } finally {
@@ -1604,16 +1677,38 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                                   <option value="FINISHED">پایان یافته</option>
                                 </select>
                               </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="flex items-center gap-1.5 bg-slate-950 px-2 py-1 rounded-lg border border-white/10">
+                                  <span className="text-[10px] text-gray-400 shrink-0">گل میزبان:</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={editHomeScore}
+                                    onChange={(e) => setEditHomeScore(e.target.value)}
+                                    className="w-full bg-transparent text-xs text-white font-mono font-bold focus:outline-none"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-1.5 bg-slate-950 px-2 py-1 rounded-lg border border-white/10">
+                                  <span className="text-[10px] text-gray-400 shrink-0">گل میهمان:</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={editAwayScore}
+                                    onChange={(e) => setEditAwayScore(e.target.value)}
+                                    className="w-full bg-transparent text-xs text-white font-mono font-bold focus:outline-none"
+                                  />
+                                </div>
+                              </div>
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => handleSaveMatchEdit(match.id)}
-                                  className="flex-1 py-1 bg-emerald-600 rounded-lg text-white font-bold text-[11px]"
+                                  className="flex-1 py-1 bg-emerald-600 rounded-lg text-white font-bold text-[11px] hover:bg-emerald-500 transition-colors"
                                 >
                                   ذخیره
                                 </button>
                                 <button
                                   onClick={() => setEditingMatchId(null)}
-                                  className="px-3 py-1 bg-slate-800 rounded-lg text-gray-300 text-[11px]"
+                                  className="px-3 py-1 bg-slate-800 rounded-lg text-gray-300 text-[11px] hover:bg-slate-700 transition-colors"
                                 >
                                   لغو
                                 </button>
@@ -1634,14 +1729,10 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                                 )}
 
                                 <button
-                                  onClick={() => {
-                                    setEditingMatchId(match.id);
-                                    setEditDate(match.date ? match.date.substring(0, 16) : '');
-                                    setEditStatus(match.status || 'SCHEDULED');
-                                  }}
+                                  onClick={() => handleStartEditMatch(match)}
                                   className="text-gray-300 hover:text-indigo-300 font-medium text-[11px] px-2 py-1 bg-slate-900/90 rounded-xl border border-white/10 transition-all hover:border-indigo-500/40"
                                 >
-                                  ✏️ ویرایش ساعت/وضعیت
+                                  ✏️ ویرایش ساعت/نتیجه
                                 </button>
                               </div>
 
@@ -1930,6 +2021,349 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Stage-by-Stage Knockout Match Management (identical to League management with knockout features) */}
+          {cupBracketData?.rounds && cupBracketData.rounds.length > 0 && (
+            <div className="bg-slate-900/90 border border-amber-500/20 rounded-3xl p-6 shadow-xl space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                <div className="flex items-center gap-3">
+                  <Calendar className="w-6 h-6 text-amber-400" />
+                  <div>
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <span>مدیریت مسابقات جام حذفی به تفکیک مرحله</span>
+                      <span className="text-[11px] font-sport font-black bg-amber-950 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded-full">
+                        {selectedCupStage || 'مراحل حذفی'}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-gray-400">کنترل ساعت برگزاری، ثبت نتایج، ضیافت پنالتی‌ها، باخت فنی و صعود مستقیم به مرحله بعد</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400">
+                    تعداد مسابقات مرحله: <strong className="text-amber-300 font-sport font-bold">{currentCupStageMatches.length}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Cup Stages Tabs Carousel */}
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                {(cupStages || []).map((stg) => {
+                  const isSelected = stg.name === selectedCupStage;
+                  const isFinished = stg.is_finished;
+                  return (
+                    <button
+                      key={stg.name}
+                      onClick={() => setSelectedCupStage(stg.name)}
+                      className={`flex-shrink-0 px-4 py-2.5 rounded-2xl border text-xs font-bold flex flex-col items-center gap-1 transition-all ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-amber-600 to-orange-600 border-amber-400 text-white shadow-lg shadow-amber-600/30 scale-105'
+                          : isFinished
+                          ? 'bg-slate-950 border-white/5 text-gray-500 hover:text-gray-300'
+                          : 'bg-slate-950/80 border-white/10 text-gray-300 hover:border-white/20'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1">
+                        {stg.name === 'فینال' && <span>🏆</span>}
+                        <span>{stg.name}</span>
+                      </span>
+                      <span className="text-[10px] opacity-75 font-sport">
+                        {isFinished ? '✓ پایان‌یافته' : `${stg.finished_matches || 0}/${stg.total_matches || 0} بازی`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Current Stage Matches List */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-bold text-gray-300 flex items-center justify-between">
+                  <span>مسابقات مرحله «{selectedCupStage}» ({currentCupStageMatches.length} مسابقه):</span>
+                </h4>
+
+                {currentCupStageMatches.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500 bg-slate-950/50 rounded-2xl border border-white/5">
+                    مسابقه‌ای برای این مرحله یافت نشد.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {(currentCupStageMatches || []).map((match) => {
+                      const isEditing = editingMatchId === match.id;
+                      const isFinished = match.status === 'FINISHED';
+                      const isLive = match.status === 'LIVE';
+                      const isExtraTime = match.half_status === 'EXTRA_TIME';
+                      const isPenalties = match.half_status === 'PENALTIES';
+                      const hasPenalties = match.home_penalties !== null && match.away_penalties !== null && match.home_penalties !== undefined && match.away_penalties !== undefined;
+                      
+                      const homeWon = isFinished && (
+                        match.home_score > match.away_score || 
+                        (match.home_score === match.away_score && hasPenalties && match.home_penalties > match.away_penalties)
+                      );
+                      const awayWon = isFinished && (
+                        match.away_score > match.home_score || 
+                        (match.home_score === match.away_score && hasPenalties && match.away_penalties > match.home_penalties)
+                      );
+
+                      return (
+                        <div
+                          key={match.id}
+                          className={`p-4 rounded-2xl border transition-all ${
+                            isLive
+                              ? 'bg-red-950/20 border-red-500/50 shadow-lg shadow-red-950/30'
+                              : isFinished
+                              ? 'bg-slate-950/60 border-amber-500/20'
+                              : 'bg-slate-950/90 border-white/10 hover:border-amber-500/30'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-3 text-xs text-gray-400">
+                            <span className="font-mono flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-amber-400" />
+                              {match.date ? new Date(match.date).toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit' }) : 'زمان نامشخص'}
+                              {' - '}
+                              {match.date ? new Date(match.date).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' }) : ''}
+                            </span>
+
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                isLive
+                                  ? 'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse'
+                                  : isFinished
+                                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                  : 'bg-slate-800 text-gray-300'
+                              }`}
+                            >
+                              {isLive
+                                ? (isExtraTime ? '⏱️ وقت اضافه' : isPenalties ? '🥅 ضربات پنالتی' : '🔴 در حال برگزاری')
+                                : isFinished
+                                ? 'پایان‌یافته'
+                                : 'برنامه‌ریزی‌شده'}
+                            </span>
+                          </div>
+
+                          {/* Match Teams Row */}
+                          <div className="flex items-center justify-between py-2 border-y border-white/5">
+                            {/* Home Team */}
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              {match.home_team_logo ? (
+                                <img
+                                  src={getTeamLogoUrl(match.home_team_name, match.home_team_logo)}
+                                  alt={match.home_team_name || ''}
+                                  className="w-7 h-7 object-contain shrink-0"
+                                />
+                              ) : (
+                                <Shield className="w-6 h-6 text-slate-600 shrink-0" />
+                              )}
+                              <div className="flex flex-col min-w-0">
+                                <span className={`text-sm font-bold truncate ${homeWon ? 'text-amber-300 font-black' : 'text-white'}`}>
+                                  {match.home_team_name || 'در انتظار برنده...'}
+                                </span>
+                                {homeWon && (
+                                  <span className="text-[9px] text-amber-400 font-bold flex items-center gap-0.5">
+                                    <span>🏆 برنده / صعود</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Score / VS & Penalty Badge */}
+                            <div className="flex flex-col items-center px-3 py-1 bg-slate-900 rounded-xl">
+                              <span className="font-mono font-black text-sm text-white">
+                                {isFinished || isLive ? `${match.home_score} - ${match.away_score}` : 'VS'}
+                              </span>
+                              {hasPenalties && (
+                                <span className="text-[9.5px] font-sport text-amber-300 font-bold mt-0.5">
+                                  پنالتی: ({match.home_penalties} - {match.away_penalties})
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Away Team */}
+                            <div className="flex items-center justify-end gap-2 flex-1 min-w-0">
+                              <div className="flex flex-col items-end min-w-0">
+                                <span className={`text-sm font-bold truncate ${awayWon ? 'text-amber-300 font-black' : 'text-white'}`}>
+                                  {match.away_team_name || 'در انتظار برنده...'}
+                                </span>
+                                {awayWon && (
+                                  <span className="text-[9px] text-amber-400 font-bold flex items-center gap-0.5">
+                                    <span>🏆 برنده / صعود</span>
+                                  </span>
+                                )}
+                              </div>
+                              {match.away_team_logo ? (
+                                <img
+                                  src={getTeamLogoUrl(match.away_team_name, match.away_team_logo)}
+                                  alt={match.away_team_name || ''}
+                                  className="w-7 h-7 object-contain shrink-0"
+                                />
+                              ) : (
+                                <Shield className="w-6 h-6 text-slate-600 shrink-0" />
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Match Actions / In-Place Editor */}
+                          <div className="mt-3 flex items-center justify-between gap-2 pt-1 text-xs">
+                            {isEditing ? (
+                              <div className="w-full space-y-2.5 bg-slate-900 p-3 rounded-xl border border-amber-500/40">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="text-[10px] text-gray-400 block mb-1">تاریخ و ساعت مسابقه:</label>
+                                    <input
+                                      type="datetime-local"
+                                      value={editDate}
+                                      onChange={(e) => setEditDate(e.target.value)}
+                                      className="w-full bg-slate-950 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] text-gray-400 block mb-1">وضعیت مسابقه:</label>
+                                    <select
+                                      value={editStatus}
+                                      onChange={(e) => setEditStatus(e.target.value)}
+                                      className="w-full bg-slate-950 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white"
+                                    >
+                                      <option value="SCHEDULED">برنامه‌ریزی شده</option>
+                                      <option value="LIVE">در حال برگزاری</option>
+                                      <option value="FINISHED">پایان یافته</option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                {/* Goals & Penalties Input Grid */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {/* Goals */}
+                                  <div className="p-2 bg-slate-950/80 rounded-xl border border-white/10 space-y-1.5">
+                                    <span className="text-[10px] font-bold text-gray-300 block">گل‌های جریان بازی:</span>
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex items-center gap-1 flex-1">
+                                        <span className="text-[10px] text-gray-400 shrink-0">میزبان:</span>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={editHomeScore}
+                                          onChange={(e) => setEditHomeScore(e.target.value)}
+                                          className="w-full bg-slate-900 border border-white/10 rounded px-1.5 py-0.5 text-xs text-white font-mono font-bold"
+                                        />
+                                      </div>
+                                      <div className="flex items-center gap-1 flex-1">
+                                        <span className="text-[10px] text-gray-400 shrink-0">میهمان:</span>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={editAwayScore}
+                                          onChange={(e) => setEditAwayScore(e.target.value)}
+                                          className="w-full bg-slate-900 border border-white/10 rounded px-1.5 py-0.5 text-xs text-white font-mono font-bold"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Penalties */}
+                                  <div className="p-2 bg-amber-950/40 rounded-xl border border-amber-500/30 space-y-1.5">
+                                    <span className="text-[10px] font-bold text-amber-300 block">ضربات پنالتی (در صورت تساوی):</span>
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex items-center gap-1 flex-1">
+                                        <span className="text-[10px] text-amber-400 shrink-0">میزبان:</span>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          placeholder="-"
+                                          value={editHomePenalties}
+                                          onChange={(e) => setEditHomePenalties(e.target.value)}
+                                          className="w-full bg-slate-900 border border-amber-500/30 rounded px-1.5 py-0.5 text-xs text-amber-200 font-mono font-bold"
+                                        />
+                                      </div>
+                                      <div className="flex items-center gap-1 flex-1">
+                                        <span className="text-[10px] text-amber-400 shrink-0">میهمان:</span>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          placeholder="-"
+                                          value={editAwayPenalties}
+                                          onChange={(e) => setEditAwayPenalties(e.target.value)}
+                                          className="w-full bg-slate-900 border border-amber-500/30 rounded px-1.5 py-0.5 text-xs text-amber-200 font-mono font-bold"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="flex gap-2 pt-1">
+                                  <button
+                                    onClick={() => handleSaveMatchEdit(match.id)}
+                                    className="flex-1 py-1.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 rounded-lg text-white font-bold text-[11px] shadow-md transition-all cursor-pointer"
+                                  >
+                                    ذخیره تغییرات و صعود هوشمند برنده
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingMatchId(null)}
+                                    className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-gray-300 text-[11px] transition-colors cursor-pointer"
+                                  >
+                                    لغو
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {onOpenRefereeRoom && (
+                                    <button
+                                      onClick={() => onOpenRefereeRoom(match)}
+                                      className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white font-bold text-[11px] shadow-md shadow-amber-600/30 transition-all cursor-pointer font-sport active:scale-95"
+                                      title="ورود مستقیم به اتاق داوری و کنترل زنده این مسابقه حذفی"
+                                    >
+                                      <span>⚖️</span>
+                                      <span>ورود به اتاق داوری</span>
+                                    </button>
+                                  )}
+
+                                  <button
+                                    onClick={() => handleStartEditMatch(match)}
+                                    className="text-gray-300 hover:text-amber-300 font-medium text-[11px] px-2 py-1 bg-slate-900/90 rounded-xl border border-white/10 transition-all hover:border-amber-500/40"
+                                  >
+                                    ✏️ ویرایش ساعت/نتیجه
+                                  </button>
+
+                                  {isFinished && match.next_match_id && (
+                                    <button
+                                      onClick={() => handleAdvanceWinner(match.id)}
+                                      className="px-2 py-1 rounded-xl text-[10px] font-bold bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-500/40 transition-all flex items-center gap-1 shadow-sm"
+                                      title="صعود دستی برنده به مسابقه مرحله بعدی در صورت عدم پیشروی خودکار"
+                                    >
+                                      <span>صعود دستی برنده ➔</span>
+                                    </button>
+                                  )}
+                                </div>
+
+                                {!isFinished && (
+                                  <div className="flex items-center gap-1.5">
+                                    <button
+                                      onClick={() => handleForfeit(match.id, 'away')}
+                                      className="px-2 py-0.5 rounded-lg bg-red-950/40 text-red-400 hover:bg-red-900/50 text-[10px] font-bold transition-colors"
+                                      title="ثبت باخت فنی ۳-۰ به نفع میزبان و صعود مستقیم میزبان"
+                                    >
+                                      باخت فنی میهمان (۳-۰)
+                                    </button>
+                                    <button
+                                      onClick={() => handleForfeit(match.id, 'home')}
+                                      className="px-2 py-0.5 rounded-lg bg-red-950/40 text-red-400 hover:bg-red-900/50 text-[10px] font-bold transition-colors"
+                                      title="ثبت باخت فنی ۳-۰ به نفع میهمان و صعود مستقیم میهمان"
+                                    >
+                                      باخت فنی میزبان (۰-۳)
+                                    </button>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

@@ -20,6 +20,15 @@ export default function LiveBroadcastControl() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Tournament Type Toggle State: 'LEAGUE' | 'CUP'
+  const [tournamentType, setTournamentType] = useState('LEAGUE');
+  const [cupsList, setCupsList] = useState([]);
+  const [selectedCupId, setSelectedCupId] = useState(null);
+  const [cupStages, setCupStages] = useState([]);
+  const [selectedCupStage, setSelectedCupStage] = useState('');
+  const [cupBracketData, setCupBracketData] = useState(null);
+  const [livePenalties, setLivePenalties] = useState({ home: 0, away: 0 });
+
   const [gameweekData, setGameweekData] = useState({ active_gameweek: 'هفته ۱', gameweeks: [] });
   const [selectedGameweek, setSelectedGameweek] = useState('هفته ۱');
   const [gameweekMatches, setGameweekMatches] = useState([]);
@@ -100,6 +109,95 @@ export default function LiveBroadcastControl() {
   };
 
   // -------------------------------------------------------------
+  // 1b. Fetch Cup Progression & Stages
+  // -------------------------------------------------------------
+  const fetchCupTournamentsAndStages = async (preferredCupId = null, preferredStage = null) => {
+    try {
+      setRefreshing(true);
+      const cupsRes = await adminApi.getCups();
+      const cups = cupsRes.data || [];
+      setCupsList(cups);
+
+      const activeCupId = preferredCupId || selectedCupId || (cups.length > 0 ? cups[0].id : null);
+      if (activeCupId) {
+        setSelectedCupId(activeCupId);
+        const bracketRes = await adminApi.getCupBracket(activeCupId);
+        setCupBracketData(bracketRes.data);
+        const rounds = bracketRes.data?.rounds || [];
+        const stagesList = rounds.map((r) => ({
+          name: r.name,
+          total_matches: (r.matches || []).length,
+          finished_matches: (r.matches || []).filter((m) => m.status === 'FINISHED').length,
+          live_matches: (r.matches || []).filter((m) => m.status === 'LIVE').length,
+          is_finished: (r.matches || []).length > 0 && (r.matches || []).every((m) => m.status === 'FINISHED'),
+        }));
+        setCupStages(stagesList);
+
+        const stageToSelect = preferredStage || selectedCupStage || (stagesList.find((s) => !s.is_finished && s.total_matches > 0)?.name || stagesList[0]?.name || '');
+        setSelectedCupStage(stageToSelect);
+
+        // Filter or fetch matches for this stage
+        const targetRound = rounds.find((r) => r.name === stageToSelect);
+        const matches = targetRound?.matches || [];
+        setGameweekMatches(matches);
+
+        if (selectedMatch) {
+          fetchSelectedMatchDetails(selectedMatch.id);
+        }
+      } else {
+        setGameweekMatches([]);
+      }
+    } catch (err) {
+      console.error('Error fetching cup stages/fixtures:', err);
+      showToast('خطا در دریافت اطلاعات جام حذفی', 'error');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleTournamentTypeChange = (type) => {
+    setTournamentType(type);
+    if (type === 'CUP') {
+      fetchCupTournamentsAndStages();
+    } else {
+      fetchGameweeksAndFixtures();
+    }
+  };
+
+  const handleCupChange = (cupId) => {
+    setSelectedCupId(cupId);
+    fetchCupTournamentsAndStages(cupId);
+  };
+
+  const handleCupStageSelect = (stageName) => {
+    setSelectedCupStage(stageName);
+    if (cupBracketData?.rounds) {
+      const targetRound = (cupBracketData.rounds || []).find((r) => r.name === stageName);
+      setGameweekMatches(targetRound?.matches || []);
+    }
+  };
+
+  const handleSavePenalties = async () => {
+    if (!selectedMatch) return;
+    try {
+      const res = await adminApi.recordCupPenaltyShootout(selectedMatch.id, {
+        home_penalties: livePenalties.home,
+        away_penalties: livePenalties.away,
+      });
+      if (res.data?.match) {
+        setSelectedMatch(res.data.match);
+      }
+      showToast('نتیجه ضربات پنالتی با موفقیت ثبت شد', 'success');
+      if (tournamentType === 'CUP') {
+        fetchCupTournamentsAndStages(selectedCupId, selectedCupStage);
+      }
+    } catch (err) {
+      showToast(err.response?.data?.error || 'خطا در ثبت ضربات پنالتی', 'error');
+    }
+  };
+
+  // -------------------------------------------------------------
   // 2. Fetch Selected Match Deep State & Squad Lineups
   // -------------------------------------------------------------
   const fetchSelectedMatchDetails = async (matchId) => {
@@ -110,6 +208,10 @@ export default function LiveBroadcastControl() {
         setSelectedMatch(m);
         setStoppageTime(m.stoppage_time || 0);
         setMatchMinutes(m.current_minute || (m.half_status === '2ND_HALF' ? 46 : 1));
+        setLivePenalties({
+          home: m.home_penalties ?? 0,
+          away: m.away_penalties ?? 0,
+        });
 
         // Sync Clock running state with status
         if (m.status === 'LIVE' && m.half_status !== 'HALF_TIME') {
@@ -590,68 +692,158 @@ export default function LiveBroadcastControl() {
       </header>
 
       {/* ─────────────────────────────────────────────────────────────
-          2. GAMEWEEK-BASED MATCHDAY NAVIGATION BAR
+          2. TOURNAMENT SWITCHER & MATCHDAY/STAGE NAVIGATION BAR
       ───────────────────────────────────────────────────────────── */}
-      <section className="glass-panel p-4 sm:p-5 rounded-3xl border border-slate-800 bg-slate-950/70 shadow-xl space-y-3">
+      <section className="glass-panel p-4 sm:p-5 rounded-3xl border border-slate-800 bg-slate-950/70 shadow-xl space-y-4">
+        {/* Dual Neon Tournament Selector */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-1.5 bg-slate-900/90 rounded-2xl border border-slate-800">
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              onClick={() => handleTournamentTypeChange('LEAGUE')}
+              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                tournamentType === 'LEAGUE'
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-600/30 border border-purple-400/50 scale-[1.02]'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <span>⚽</span>
+              <span>مسابقات لیگ برتر (League)</span>
+            </button>
+
+            <button
+              onClick={() => handleTournamentTypeChange('CUP')}
+              className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                tournamentType === 'CUP'
+                  ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-lg shadow-amber-600/30 border border-amber-400/50 scale-[1.02]'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              <span>🏆</span>
+              <span>مسابقات جام حذفی (Hazfi Cup)</span>
+            </button>
+          </div>
+
+          {tournamentType === 'CUP' && cupsList.length > 0 && (
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <span className="text-xs text-amber-400 font-bold">انتخاب جام:</span>
+              <select
+                value={selectedCupId || ''}
+                onChange={(e) => handleCupChange(Number(e.target.value))}
+                className="bg-slate-950 border border-amber-500/40 text-amber-200 text-xs rounded-xl px-3 py-1.5 font-bold focus:outline-none focus:border-amber-400"
+              >
+                {cupsList.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* Header Strip for Active Tournament */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
           <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
-              <Calendar size={18} />
+            <span className={`p-2 rounded-xl border ${
+              tournamentType === 'CUP'
+                ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                : 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+            }`}>
+              {tournamentType === 'CUP' ? <Trophy size={18} /> : <Calendar size={18} />}
             </span>
             <div>
-              <span className="text-xs font-bold text-white block">تقویم مسابقات لیگ (هفته به هفته)</span>
+              <span className="text-xs font-bold text-white block">
+                {tournamentType === 'CUP'
+                  ? `تقویم مسابقات جام حذفی (${cupBracketData?.tournament?.name || 'جام حذفی'})`
+                  : 'تقویم مسابقات لیگ (هفته به هفته)'}
+              </span>
               <span className="text-[11px] text-slate-400">
-                هفته فعال جاری: <strong className="text-cyan-400 font-sport">{gameweekData.active_gameweek}</strong>
+                {tournamentType === 'CUP'
+                  ? `مرحله فعال: `
+                  : `هفته فعال جاری: `}
+                <strong className={`font-sport ${tournamentType === 'CUP' ? 'text-amber-400' : 'text-cyan-400'}`}>
+                  {tournamentType === 'CUP' ? (selectedCupStage || 'تعیین‌نشده') : gameweekData.active_gameweek}
+                </strong>
               </span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-slate-400 font-sport">
-              نمایش ۸ مسابقه برای {selectedGameweek}
+              نمایش {gameweekMatches.length} مسابقه برای {tournamentType === 'CUP' ? selectedCupStage : selectedGameweek}
             </span>
           </div>
         </div>
 
-        {/* Gameweek Scrollable Pill Selector (Week 1 to 30) */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-700">
-          {(gameweekData.gameweeks.length > 0 ? gameweekData.gameweeks : Array.from({ length: 30 }, (_, i) => ({
-            round_name: `هفته ${i + 1}`,
-            round_number: i + 1,
-            is_finished: false,
-            is_live: false,
-            finished_matches: 0,
-            total_matches: 8
-          }))).map((gw) => {
-            const isSelected = selectedGameweek === gw.round_name;
-            const isAutoActive = gameweekData.active_gameweek === gw.round_name;
+        {/* Scrollable Pill Selector: Either Gameweeks (League) or Stages (Cup) */}
+        {tournamentType === 'LEAGUE' ? (
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-700">
+            {(gameweekData.gameweeks.length > 0 ? gameweekData.gameweeks : Array.from({ length: 30 }, (_, i) => ({
+              round_name: `هفته ${i + 1}`,
+              round_number: i + 1,
+              is_finished: false,
+              is_live: false,
+              finished_matches: 0,
+              total_matches: 8
+            }))).map((gw) => {
+              const isSelected = selectedGameweek === gw.round_name;
+              const isAutoActive = gameweekData.active_gameweek === gw.round_name;
 
-            return (
-              <button
-                key={gw.round_name}
-                onClick={() => handleGameweekSelect(gw.round_name)}
-                className={`px-3.5 py-2 rounded-2xl shrink-0 font-sport text-xs font-black transition-all flex items-center gap-1.5 border relative ${
-                  isSelected
-                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-purple-400 shadow-[0_0_15px_rgba(147,51,234,0.4)] scale-105 z-10'
-                    : gw.is_live
-                    ? 'bg-red-950/40 text-red-400 border-red-500/50 hover:bg-red-900/40'
-                    : gw.is_finished
-                    ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/30 hover:bg-slate-800'
-                    : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-white'
-                }`}
-              >
-                <span>{gw.round_name}</span>
-                {gw.is_live ? (
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
-                ) : gw.is_finished ? (
-                  <span className="text-[10px] text-emerald-400 font-normal">✓</span>
-                ) : isAutoActive ? (
-                  <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-cyan-950 text-cyan-400 border border-cyan-800 font-bold">جاری</span>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
+              return (
+                <button
+                  key={gw.round_name}
+                  onClick={() => handleGameweekSelect(gw.round_name)}
+                  className={`px-3.5 py-2 rounded-2xl shrink-0 font-sport text-xs font-black transition-all flex items-center gap-1.5 border relative ${
+                    isSelected
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-purple-400 shadow-[0_0_15px_rgba(147,51,234,0.4)] scale-105 z-10'
+                      : gw.is_live
+                      ? 'bg-red-950/40 text-red-400 border-red-500/50 hover:bg-red-900/40'
+                      : gw.is_finished
+                      ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/30 hover:bg-slate-800'
+                      : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-white'
+                  }`}
+                >
+                  <span>{gw.round_name}</span>
+                  {gw.is_live ? (
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                  ) : gw.is_finished ? (
+                    <span className="text-[10px] text-emerald-400 font-normal">✓</span>
+                  ) : isAutoActive ? (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-md bg-cyan-950 text-cyan-400 border border-cyan-800 font-bold">جاری</span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-700">
+            {cupStages.length === 0 ? (
+              <span className="text-xs text-slate-500 py-2">هیچ مرحله‌ای برای این جام حذفی تعریف نشده است.</span>
+            ) : (
+              cupStages.map((stg) => {
+                const isSelected = selectedCupStage === stg.name;
+                return (
+                  <button
+                    key={stg.name}
+                    onClick={() => handleCupStageSelect(stg.name)}
+                    className={`px-4 py-2.5 rounded-2xl shrink-0 font-sport text-xs font-black transition-all flex items-center gap-2 border relative cursor-pointer ${
+                      isSelected
+                        ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.4)] scale-105 z-10'
+                        : stg.live_matches > 0
+                        ? 'bg-red-950/40 text-red-400 border-red-500/50 hover:bg-red-900/40'
+                        : stg.is_finished
+                        ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/30 hover:bg-slate-800'
+                        : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    <span>{stg.name === 'فینال' ? '🏆 فینال' : stg.name}</span>
+                    <span className="text-[10.5px] opacity-80">
+                      {stg.is_finished ? '✓ پایان‌یافته' : `${stg.finished_matches}/${stg.total_matches}`}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        )}
 
         {/* Selected Gameweek Fixtures Ribbon */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
@@ -908,10 +1100,10 @@ export default function LiveBroadcastControl() {
                   <span className="text-[11px] text-slate-400">وضعیت فعلی: {selectedMatch.half_status}</span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className={`grid gap-2.5 ${selectedMatch.is_knockout ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
                   <button
                     onClick={() => handleControlAction('START_MATCH', { minute: 1 })}
-                    className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white p-3 rounded-2xl text-xs font-black transition-all shadow-md active:scale-95"
+                    className="flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white p-3 rounded-2xl text-xs font-black transition-all shadow-md active:scale-95 cursor-pointer"
                   >
                     <Play size={14} />
                     <span>شروع نیمه اول (1st Half)</span>
@@ -919,7 +1111,7 @@ export default function LiveBroadcastControl() {
 
                   <button
                     onClick={() => handleControlAction('TRIGGER_HALF_TIME')}
-                    className="flex items-center justify-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white p-3 rounded-2xl text-xs font-black transition-all shadow-md active:scale-95"
+                    className="flex items-center justify-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white p-3 rounded-2xl text-xs font-black transition-all shadow-md active:scale-95 cursor-pointer"
                   >
                     <Pause size={14} />
                     <span>پایان نیمه اول (Half-Time)</span>
@@ -927,20 +1119,104 @@ export default function LiveBroadcastControl() {
 
                   <button
                     onClick={() => handleControlAction('START_SECOND_HALF', { minute: 46 })}
-                    className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-2xl text-xs font-black transition-all shadow-md active:scale-95"
+                    className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-2xl text-xs font-black transition-all shadow-md active:scale-95 cursor-pointer"
                   >
                     <Play size={14} />
                     <span>شروع نیمه دوم (2nd Half)</span>
                   </button>
 
+                  {selectedMatch.is_knockout && (
+                    <>
+                      <button
+                        onClick={() => handleControlAction('START_EXTRA_TIME', { minute: 91 })}
+                        className="flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white p-3 rounded-2xl text-xs font-black transition-all shadow-md active:scale-95 cursor-pointer"
+                      >
+                        <Clock size={14} />
+                        <span>وقت اضافه (Extra Time)</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleControlAction('START_PENALTIES')}
+                        className="flex items-center justify-center gap-1.5 bg-orange-600 hover:bg-orange-500 text-white p-3 rounded-2xl text-xs font-black transition-all shadow-md active:scale-95 cursor-pointer"
+                      >
+                        <Trophy size={14} />
+                        <span>ضربات پنالتی (Penalties)</span>
+                      </button>
+                    </>
+                  )}
+
                   <button
                     onClick={() => handleControlAction('CONCLUDE_FULL_TIME')}
-                    className="flex items-center justify-center gap-1.5 bg-rose-700 hover:bg-rose-600 text-white p-3 rounded-2xl text-xs font-black transition-all shadow-md active:scale-95"
+                    className="flex items-center justify-center gap-1.5 bg-rose-700 hover:bg-rose-600 text-white p-3 rounded-2xl text-xs font-black transition-all shadow-md active:scale-95 cursor-pointer"
                   >
                     <Square size={14} />
                     <span>پایان مسابقه (Full-Time)</span>
                   </button>
                 </div>
+
+                {/* Knockout Penalty Shootout Arbiter Box */}
+                {selectedMatch.is_knockout && (
+                  <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/40 space-y-3">
+                    <div className="flex items-center justify-between border-b border-amber-500/20 pb-2">
+                      <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                        <span>🥅</span>
+                        <span>ثبت رسمی ضربات پنالتی مسابقه حذفی</span>
+                      </span>
+                      <span className="text-[10px] text-amber-400 font-sport">
+                        {selectedMatch.home_penalties !== null && selectedMatch.away_penalties !== null
+                          ? `نتیجه ذخیره‌شده: (${selectedMatch.home_penalties} - ${selectedMatch.away_penalties})`
+                          : 'هنوز پنالتی ثبت نشده'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-around gap-4">
+                      {/* Home Penalties */}
+                      <div className="flex flex-col items-center gap-1.5">
+                        <span className="text-xs font-bold text-white truncate max-w-[120px]">{selectedMatch.home_team_name}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setLivePenalties((prev) => ({ ...prev, home: Math.max(0, (prev.home || 0) - 1) }))}
+                            className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
+                          >-</button>
+                          <span className="font-mono text-base font-black text-amber-300 px-3 py-1 bg-slate-950 rounded-lg border border-amber-500/30">
+                            {livePenalties.home ?? 0}
+                          </span>
+                          <button
+                            onClick={() => setLivePenalties((prev) => ({ ...prev, home: (prev.home || 0) + 1 }))}
+                            className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
+                          >+</button>
+                        </div>
+                      </div>
+
+                      <span className="text-sm font-black text-amber-400 font-sport">VS</span>
+
+                      {/* Away Penalties */}
+                      <div className="flex flex-col items-center gap-1.5">
+                        <span className="text-xs font-bold text-white truncate max-w-[120px]">{selectedMatch.away_team_name}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setLivePenalties((prev) => ({ ...prev, away: Math.max(0, (prev.away || 0) - 1) }))}
+                            className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
+                          >-</button>
+                          <span className="font-mono text-base font-black text-amber-300 px-3 py-1 bg-slate-950 rounded-lg border border-amber-500/30">
+                            {livePenalties.away ?? 0}
+                          </span>
+                          <button
+                            onClick={() => setLivePenalties((prev) => ({ ...prev, away: (prev.away || 0) + 1 }))}
+                            className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs cursor-pointer"
+                          >+</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleSavePenalties}
+                      className="w-full py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-black rounded-xl shadow-md transition-all cursor-pointer"
+                    >
+                      💾 ثبت رسمی و ارسال نتیجه ضربات پنالتی به سرور
+                    </button>
+                  </div>
+                )}
 
                 {/* Stoppage Time Pills (+1..+5) */}
                 <div className="flex items-center gap-2 pt-2 flex-wrap">

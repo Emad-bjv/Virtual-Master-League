@@ -2242,7 +2242,7 @@ export default function AdminDashboard({
                     </div>
 
                     {/* Referee Master Buttons (Darkened/Disabled when already executed) */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className={`grid gap-2.5 ${selectedLiveMatch.is_knockout ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
                       {/* Button 1: Start 1st Half */}
                       <button
                         onClick={() => handleRefereeControlAction('START_MATCH', { minute: 1 })}
@@ -2289,14 +2289,46 @@ export default function AdminDashboard({
                         <span>{is2ndHalfStarted ? '✓ نیمه دوم آغاز شد (انجام‌شده)' : 'آغاز نیمه دوم (2nd Half)'}</span>
                       </button>
 
+                      {selectedLiveMatch.is_knockout && (
+                        <>
+                          {/* Extra Time */}
+                          <button
+                            onClick={() => handleRefereeControlAction('START_EXTRA_TIME', { minute: 91 })}
+                            disabled={halfStatus !== '2ND_HALF' && halfStatus !== 'EXTRA_TIME'}
+                            className={`p-3 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg ${
+                              halfStatus === 'EXTRA_TIME'
+                                ? 'bg-slate-900 border border-slate-800 text-indigo-400 opacity-80'
+                                : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 text-white cursor-pointer active:scale-95'
+                            }`}
+                          >
+                            <Clock size={16} />
+                            <span>وقت اضافه (Extra Time)</span>
+                          </button>
+
+                          {/* Penalties */}
+                          <button
+                            onClick={() => handleRefereeControlAction('START_PENALTIES')}
+                            disabled={halfStatus !== 'EXTRA_TIME' && halfStatus !== '2ND_HALF' && halfStatus !== 'PENALTIES'}
+                            className={`p-3 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg ${
+                              halfStatus === 'PENALTIES'
+                                ? 'bg-slate-900 border border-slate-800 text-orange-400 opacity-80'
+                                : 'bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 text-white cursor-pointer active:scale-95'
+                            }`}
+                          >
+                            <Trophy size={16} />
+                            <span>ضربات پنالتی (Penalties)</span>
+                          </button>
+                        </>
+                      )}
+
                       {/* Button 4: Conclude Full Time */}
                       <button
                         onClick={() => handleRefereeControlAction('CONCLUDE_FULL_TIME')}
-                        disabled={halfStatus !== '2ND_HALF' || isMatchFinished}
+                        disabled={!['2ND_HALF', 'EXTRA_TIME', 'PENALTIES'].includes(halfStatus) || isMatchFinished}
                         className={`p-3 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg ${
                           isMatchConcluded
                             ? 'bg-slate-900 border border-slate-800 text-slate-500 opacity-50 cursor-not-allowed'
-                            : halfStatus === '2ND_HALF'
+                            : ['2ND_HALF', 'EXTRA_TIME', 'PENALTIES'].includes(halfStatus)
                             ? 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 text-white cursor-pointer active:scale-95 animate-pulse'
                             : 'bg-slate-900 border border-slate-800 text-slate-500 opacity-40 cursor-not-allowed'
                         }`}

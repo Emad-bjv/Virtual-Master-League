@@ -209,6 +209,9 @@ export const adminApi = {
   advanceCupWinner: (matchId) => api.post(`/matches/admin/cups/${matchId}/advance/`),
   syncCupWithLeague: (data) => api.post('/matches/admin/sync-cup-league/', data),
   forfeitMatch: (matchId, data) => api.post(`/matches/${matchId}/forfeit/`, data),
+  recordCupPenaltyShootout: (matchId, data) => api.post(`/matches/${matchId}/control/`, { action: 'RECORD_PENALTY_SHOOTOUT', ...data }),
+  startExtraTime: (matchId, data = {}) => api.post(`/matches/${matchId}/control/`, { action: 'START_EXTRA_TIME', ...data }),
+  startPenalties: (matchId, data = {}) => api.post(`/matches/${matchId}/control/`, { action: 'START_PENALTIES', ...data }),
 
   // Standings Management & Penalty Points
   manualEditStanding: (data) => api.post('/matches/admin/standings/manual-edit/', data),

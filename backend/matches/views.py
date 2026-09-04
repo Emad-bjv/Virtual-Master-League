@@ -731,19 +731,43 @@ class AdminMatchListView(generics.ListAPIView):
     def get_queryset(self):
         status_filter = self.request.query_params.get('status')
         round_filter = self.request.query_params.get('round') or self.request.query_params.get('gameweek')
+        tournament_id = self.request.query_params.get('tournament_id')
+        tournament_type = self.request.query_params.get('tournament_type')
+        is_knockout = self.request.query_params.get('is_knockout')
+
         qs = Match.objects.all().select_related(
             'home_team__manager', 'away_team__manager',
             'home_team__gameplan', 'away_team__gameplan',
             'tournament'
         ).prefetch_related('gameplans').order_by('date', 'id')
+
+        if tournament_id:
+            qs = qs.filter(tournament_id=tournament_id)
+        elif tournament_type:
+            qs = qs.filter(tournament__tournament_type=tournament_type.upper())
+
+        if is_knockout is not None:
+            if str(is_knockout).lower() in ['true', '1']:
+                qs = qs.filter(is_knockout=True)
+            elif str(is_knockout).lower() in ['false', '0']:
+                qs = qs.filter(is_knockout=False)
+
         if status_filter:
             qs = qs.filter(status=status_filter)
+
         if round_filter:
             is_gw, r_num, exact_names = normalize_round_query(round_filter)
             if is_gw:
                 qs = qs.filter(round_name__in=exact_names)
             else:
-                qs = qs.filter(round_name__iexact=str(round_filter).strip())
+                rf_clean = str(round_filter).strip()
+                rf_space = rf_clean.replace('\u200c', ' ')
+                rf_zwnj = rf_clean.replace(' ', '\u200c')
+                qs = qs.filter(
+                    Q(round_name__iexact=rf_clean) |
+                    Q(round_name__icontains=rf_space) |
+                    Q(round_name__icontains=rf_zwnj)
+                )
         return qs
 
 
@@ -788,9 +812,37 @@ class AdminMatchUpdateView(APIView):
             match.half_status = request.data['half_status']
         if 'round_name' in request.data:
             match.round_name = request.data['round_name']
+        if 'date' in request.data:
+            match.date = request.data['date'] if request.data['date'] else None
+        if 'home_penalties' in request.data:
+            val = request.data['home_penalties']
+            match.home_penalties = int(val) if val is not None and str(val).strip() != '' else None
+        if 'away_penalties' in request.data:
+            val = request.data['away_penalties']
+            match.away_penalties = int(val) if val is not None and str(val).strip() != '' else None
+
+        if 'forfeit_winner' in request.data:
+            winner_side = request.data['forfeit_winner']
+            if winner_side == 'HOME':
+                match.home_score = 3
+                match.away_score = 0
+            elif winner_side == 'AWAY':
+                match.home_score = 0
+                match.away_score = 3
+            match.status = 'FINISHED'
+            match.half_status = 'FINISHED'
+
         match.save()
 
-        if match.tournament_id:
+        advance_result = None
+        if match.is_knockout and match.status == 'FINISHED':
+            from .cup_engine import advance_winner
+            try:
+                advance_result = advance_winner(match)
+            except Exception as e:
+                advance_result = {'success': False, 'error': str(e)}
+
+        if match.tournament_id and not match.is_knockout:
             try:
                 recalculate_tournament_standings(match.tournament_id)
             except Exception:
@@ -802,10 +854,25 @@ class AdminMatchUpdateView(APIView):
             'half_status': match.half_status,
             'status': match.status,
             'home_score': match.home_score,
-            'away_score': match.away_score
+            'away_score': match.away_score,
+            'home_penalties': match.home_penalties,
+            'away_penalties': match.away_penalties,
+            'advance_result': advance_result
         })
 
-        return Response(MatchSerializer(match).data, status=status.HTTP_200_OK)
+        match_data = MatchSerializer(match).data
+        return Response({
+            'success': True,
+            'match': match_data,
+            'advance_result': advance_result,
+            **match_data
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request, match_id):
+        return self.put(request, match_id)
+
+    def patch(self, request, match_id):
+        return self.put(request, match_id)
 
 
 class TeamScheduleView(generics.ListAPIView):
@@ -1164,7 +1231,7 @@ class AdminMatchControlRoomView(APIView):
         elif action == 'CONCLUDE_FULL_TIME':
             match.status = 'FINISHED'
             match.half_status = 'FINISHED'
-            match.current_minute = 90
+            match.current_minute = 90 if match.half_status in ['1ST_HALF', '2ND_HALF', 'HALF_TIME'] else (match.current_minute or 90)
             match.save()
 
             from teams.stamina_engine import apply_post_match_fatigue
@@ -1173,16 +1240,90 @@ class AdminMatchControlRoomView(APIView):
             except Exception:
                 pass
 
+            advance_result = None
+            if match.is_knockout:
+                from .cup_engine import advance_winner
+                try:
+                    advance_result = advance_winner(match)
+                except Exception as e:
+                    advance_result = {'success': False, 'error': str(e)}
+
             broadcast_match_event(match_id, {
                 'type': 'match_finished',
                 'status': 'FINISHED',
                 'half_status': 'FINISHED',
-                'current_minute': 90,
+                'current_minute': match.current_minute,
                 'home_score': match.home_score,
                 'away_score': match.away_score,
+                'home_penalties': match.home_penalties,
+                'away_penalties': match.away_penalties,
+                'advance_result': advance_result,
                 'message': f'مسابقه با نتیجه نهایی {match.home_score} - {match.away_score} به پایان رسید ⏹️'
             })
-            return Response({'status': 'FINISHED', 'half_status': 'FINISHED', 'match': MatchDetailSerializer(match).data})
+            return Response({
+                'status': 'FINISHED',
+                'half_status': 'FINISHED',
+                'match': MatchDetailSerializer(match).data,
+                'advance_result': advance_result
+            })
+
+        # 5b. START EXTRA TIME (ET)
+        elif action == 'START_EXTRA_TIME':
+            match.status = 'LIVE'
+            match.half_status = 'EXTRA_TIME'
+            match.current_minute = int(request.data.get('minute', 91))
+            match.stoppage_time = 0
+            match.save()
+
+            broadcast_match_event(match_id, {
+                'type': 'extra_time_started',
+                'status': 'LIVE',
+                'half_status': 'EXTRA_TIME',
+                'current_minute': match.current_minute,
+                'stoppage_time': 0,
+                'home_score': match.home_score,
+                'away_score': match.away_score,
+                'message': 'وقت اضافه مسابقه حذفی آغاز شد! ⏱️'
+            })
+            return Response({'status': 'LIVE', 'half_status': 'EXTRA_TIME', 'match': MatchDetailSerializer(match).data})
+
+        # 5c. START PENALTIES (PK)
+        elif action == 'START_PENALTIES':
+            match.status = 'LIVE'
+            match.half_status = 'PENALTIES'
+            match.current_minute = 120
+            match.stoppage_time = 0
+            match.save()
+
+            broadcast_match_event(match_id, {
+                'type': 'penalties_started',
+                'status': 'LIVE',
+                'half_status': 'PENALTIES',
+                'current_minute': 120,
+                'stoppage_time': 0,
+                'home_score': match.home_score,
+                'away_score': match.away_score,
+                'message': 'ضربات پنالتی حساس آغاز شد! 🥅'
+            })
+            return Response({'status': 'LIVE', 'half_status': 'PENALTIES', 'match': MatchDetailSerializer(match).data})
+
+        # 5d. RECORD PENALTY SHOOTOUT
+        elif action == 'RECORD_PENALTY_SHOOTOUT':
+            home_p = request.data.get('home_penalties')
+            away_p = request.data.get('away_penalties')
+            if home_p is not None:
+                match.home_penalties = int(home_p)
+            if away_p is not None:
+                match.away_penalties = int(away_p)
+            match.save(update_fields=['home_penalties', 'away_penalties'])
+
+            broadcast_match_event(match_id, {
+                'type': 'penalty_shootout_update',
+                'home_penalties': match.home_penalties,
+                'away_penalties': match.away_penalties,
+                'match': MatchDetailSerializer(match).data
+            })
+            return Response({'status': 'penalties_updated', 'match': MatchDetailSerializer(match).data})
 
         # 6. RECORD EVENT (FotMob-Style Rapid Event Logger)
         elif action == 'RECORD_EVENT':
