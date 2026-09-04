@@ -18,6 +18,7 @@ import CustomSelect from '../common/CustomSelect';
 import PostMatchComparisonCard from './PostMatchComparisonCard';
 import AdminTournamentHub from './AdminTournamentHub';
 import AdminPacksSeasonPassHub from './AdminPacksSeasonPassHub';
+import MatchLineupDetailModal from './MatchLineupDetailModal';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import { useTranslation } from 'react-i18next';
 
@@ -125,6 +126,20 @@ export default function AdminDashboard({
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [allTeams, setAllTeams] = useState([]);
 
+  // Cup Tournament & Match Management State inside live_admin
+  const [tournamentMode, setTournamentMode] = useState('league'); // 'league' | 'cup'
+  const [selectedCupStage, setSelectedCupStage] = useState('یک‌هشتم نهایی');
+  const [cupMatches, setCupMatches] = useState([]);
+  const [allCupTournaments, setAllCupTournaments] = useState([]);
+  const [selectedCupTournamentId, setSelectedCupTournamentId] = useState(null);
+  const [loadingCupMatches, setLoadingCupMatches] = useState(false);
+
+  // Lineup Detail Modal State
+  const [lineupModalMatch, setLineupModalMatch] = useState(null);
+  const [lineupModalDefaultSide, setLineupModalDefaultSide] = useState('home');
+
+  const CUP_STAGES = useMemo(() => ['یک‌شانزدهم نهایی', 'یک‌هشتم نهایی', 'یک‌چهارم نهایی', 'نیمه‌نهایی', 'فینال'], []);
+
   // Fetch initial system data
   const loadMatchesAndWeeks = async () => {
     setLoadingMatches(true);
@@ -158,16 +173,58 @@ export default function AdminDashboard({
     }
   };
 
+  // Fetch Cup Tournaments and Matches
+  const loadCupMatches = useCallback(async (targetCupId = null) => {
+    setLoadingCupMatches(true);
+    try {
+      const cupsRes = await adminApi.getCups();
+      const cupsList = cupsRes.data || [];
+      setAllCupTournaments(cupsList);
+
+      const activeCup = targetCupId
+        ? cupsList.find((c) => c.id === targetCupId)
+        : (cupsList.find((c) => c.is_active) || cupsList[0]);
+      const currentCupId = activeCup?.id || targetCupId || null;
+      if (currentCupId) setSelectedCupTournamentId(currentCupId);
+
+      const params = { is_knockout: true, tournament_type: 'CUP' };
+      if (currentCupId) params.tournament_id = currentCupId;
+      const res = await adminApi.getMatches(params);
+      const matchesData = res.data?.results || res.data || [];
+      setCupMatches(matchesData);
+    } catch (err) {
+      console.warn('Failed to load cup matches in dashboard:', err);
+    } finally {
+      setLoadingCupMatches(false);
+    }
+  }, []);
+
+  const handleCupForfeit = async (matchId, winnerSide) => {
+    if (!window.confirm(`آیا از ثبت باخت فنی ۳-۰ به نفع تیم ${winnerSide === 'HOME' ? 'میزبان' : 'میهمان'} اطمینان دارید؟`)) return;
+    try {
+      const res = await adminApi.forfeitMatch(matchId, { forfeit_winner: winnerSide });
+      showNotification(res.data?.message || 'باخت فنی ثبت و برنده صعود کرد.', 'success');
+      loadCupMatches(selectedCupTournamentId);
+      loadMatchesAndWeeks();
+    } catch (err) {
+      showNotification(err.response?.data?.error || 'خطا در ثبت باخت فنی', 'error');
+    }
+  };
+
   useEffect(() => {
     loadMatchesAndWeeks();
-    const handleSync = () => loadMatchesAndWeeks();
+    loadCupMatches();
+    const handleSync = () => {
+      loadMatchesAndWeeks();
+      loadCupMatches();
+    };
     window.addEventListener('vml_league_schedule_updated', handleSync);
     window.addEventListener('storage', handleSync);
     return () => {
       window.removeEventListener('vml_league_schedule_updated', handleSync);
       window.removeEventListener('storage', handleSync);
     };
-  }, []);
+  }, [loadCupMatches]);
 
   // -------------------------------------------------------------
   // R1: DIRECT MATCH CONTROL NAVIGATION
@@ -226,6 +283,20 @@ export default function AdminDashboard({
       return m.status === matchFilter;
     });
   }, [allMatches, selectedGameweek, matchFilter]);
+
+  // Cup stage filter memo (isolated per selected cup stage)
+  const stageFilteredCupMatches = useMemo(() => {
+    return (cupMatches || []).filter((m) => {
+      if (!m) return false;
+      const normStage = (m.round_name || '').replace(/\u200c/g, '').trim();
+      const normSelected = (selectedCupStage || '').replace(/\u200c/g, '').trim();
+      if (!normStage.includes(normSelected) && !normSelected.includes(normStage)) {
+        return false;
+      }
+      if (matchFilter === 'ALL') return true;
+      return m.status === matchFilter;
+    });
+  }, [cupMatches, selectedCupStage, matchFilter]);
 
   // -------------------------------------------------------------
   // 2. REFEREE CONTROL ROOM STATE & 4-MODULAR TABS (R5)
@@ -1787,210 +1858,590 @@ export default function AdminDashboard({
       {activeSub === 'live_admin' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           {!selectedLiveMatch ? (
-            /* --- MATCHES BROWSER & GAMEWEEK SELECTOR (R2) --- */
+            /* --- DUAL TOURNAMENT BROWSER (LEAGUE & HAZFI CUP) --- */
             <div className="space-y-4">
-              {/* Gameweek Selector Header */}
-              <div className="glass-panel p-4 rounded-3xl border border-cyan-500/40 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950/40 space-y-3">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-cyan-900/60 rounded-xl border border-cyan-400/40 text-cyan-300">
-                      <Tv size={20} />
-                    </div>
-                    <div>
-                      <h3 className="font-black text-white text-sm sm:text-base">برنامه و اتاق کنترل زنده مسابقات لیگ</h3>
-                      <p className="text-[11px] text-slate-400">یک مسابقه را برای ورود به اتاق داوری، پخش زنده و کنترل بازی انتخاب کنید</p>
-                    </div>
-                  </div>
-
-                  {/* Filter Pills */}
-                  <div className="flex bg-slate-950/80 p-1 rounded-2xl border border-slate-800 text-xs">
-                    {['ALL', 'LIVE', 'SCHEDULED', 'FINISHED'].map((fKey) => (
-                      <button
-                        key={fKey}
-                        onClick={() => setMatchFilter(fKey)}
-                        className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer ${
-                          matchFilter === fKey
-                            ? 'bg-cyan-600 text-white shadow-md'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {fKey === 'ALL' ? 'همه' : fKey === 'LIVE' ? '🔴 زنده' : fKey === 'SCHEDULED' ? 'برنامه‌ریزی' : 'پایان‌یافته'}
-                      </button>
-                    ))}
-                  </div>
+              {/* Dual Tournament Switcher Bar */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-950/90 p-2.5 rounded-2xl border border-slate-800 shadow-xl">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setTournamentMode('league')}
+                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                      tournamentMode === 'league'
+                        ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-950/50 border border-cyan-400/40 scale-[1.02]'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
+                    }`}
+                  >
+                    <span>⚽</span>
+                    <span>مسابقات لیگ برتر</span>
+                    <span className="text-[10px] opacity-75 font-sport">({(allMatches || []).length})</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTournamentMode('cup');
+                      loadCupMatches(selectedCupTournamentId);
+                    }}
+                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                      tournamentMode === 'cup'
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-slate-950 shadow-lg shadow-amber-950/50 border border-amber-400/40 scale-[1.02]'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
+                    }`}
+                  >
+                    <span>🏆</span>
+                    <span>مسابقات جام حذفی</span>
+                    <span className="text-[10px] opacity-75 font-sport">({(cupMatches || []).length})</span>
+                  </button>
                 </div>
 
-                {/* Horizontal Gameweek Selector Slider (Weeks 1 to 30) */}
-                <div className="pt-2 border-t border-slate-800/80">
-                  <span className="text-[10px] text-slate-400 block mb-1.5 font-bold">انتخاب هفته مسابقاتی (هفته‌های ۱ تا ۳۰):</span>
-                  <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
-                    {Array.from({ length: 30 }, (_, i) => i + 1).map((gwNumber) => {
-                      const gwLabel = `هفته ${gwNumber}`;
-                      const selectedGwNum = extractRoundNumber(selectedGameweek) || 1;
-                      const isSelected = selectedGwNum === gwNumber;
-                      const gwMatches = (allMatches || []).filter((m) => extractRoundNumber(m.round_name) === gwNumber);
-                      const hasLive = gwMatches.some((m) => m.status === 'LIVE');
-                      const allFin = gwMatches.length > 0 && gwMatches.every((m) => m.status === 'FINISHED');
-
-                      return (
-                        <button
-                          key={gwNumber}
-                          onClick={() => setSelectedGameweek(gwLabel)}
-                          className={`px-3.5 py-1.5 rounded-2xl text-xs font-sport font-black whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
-                            isSelected
-                              ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white border-2 border-cyan-400 shadow-lg shadow-cyan-950/50 scale-105'
-                              : 'bg-slate-900/90 text-slate-300 border border-slate-800 hover:border-slate-600'
-                          }`}
-                        >
-                          {hasLive && <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>}
-                          {allFin && <Check size={12} className="text-emerald-400" />}
-                          <span>{gwLabel}</span>
-                          <span className="text-[10px] opacity-60">({gwMatches.length})</span>
-                        </button>
-                      );
-                    })}
+                {tournamentMode === 'cup' && (allCupTournaments || []).length > 1 && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-slate-400">تورنمنت حذفی:</span>
+                    <select
+                      value={selectedCupTournamentId || ''}
+                      onChange={(e) => {
+                        const cid = Number(e.target.value);
+                        setSelectedCupTournamentId(cid);
+                        loadCupMatches(cid);
+                      }}
+                      className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-amber-300 font-bold focus:outline-none"
+                    >
+                      {allCupTournaments.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* Matches Grid (Strictly Filtered to Selected Week) */}
-              {loadingMatches ? (
-                <div className="p-16 text-center text-cyan-400 font-bold flex flex-col items-center justify-center gap-3">
-                  <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-xs">در حال بارگذاری مسابقات {selectedGameweek}...</span>
-                </div>
-              ) : gameweekMatches.length === 0 ? (
-                <div className="glass-panel p-12 text-center rounded-3xl border border-slate-800 space-y-2">
-                  <Info size={28} className="text-slate-500 mx-auto" />
-                  <p className="text-slate-400 text-xs">هیچ مسابقه‌ای برای {selectedGameweek} با فیلتر انتخابی یافت نشد.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  {gameweekMatches.map((m) => {
-                    const homeName = m.home_team_name || 'میزبان';
-                    const awayName = m.away_team_name || 'میهمان';
-                    const homeLogo = getTeamLogoUrl(m.home_team_logo || homeName);
-                    const awayLogo = getTeamLogoUrl(m.away_team_logo || awayName);
-                    const isLive = m.status === 'LIVE';
-                    const isFinished = m.status === 'FINISHED';
-
-                    let timeStr = '۱۸:۰۰';
-                    if (m.date) {
-                      try {
-                        const dt = new Date(m.date);
-                        timeStr = dt.toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', hour12: false });
-                      } catch (_e) {}
-                    }
-
-                    return (
-                      <div
-                        key={m.id}
-                        onClick={() => {
-                          setSelectedLiveMatch(m);
-                          setRefereeDeskTab('live_desk');
-                        }}
-                        className={`glass-panel p-4 rounded-3xl border transition-all cursor-pointer hover:-translate-y-1 shadow-xl relative overflow-hidden group ${
-                          isLive
-                            ? 'border-rose-500/70 bg-gradient-to-br from-rose-950/40 via-slate-900 to-slate-950 shadow-rose-950/40'
-                            : 'border-slate-800 hover:border-cyan-500/50 bg-slate-900/80'
-                        }`}
-                      >
-                        {/* Status Badge */}
-                        <div className="flex justify-between items-center mb-3">
-                          <span className="text-[10px] text-slate-400 font-sport bg-slate-950 px-2.5 py-0.5 rounded-lg border border-slate-800">
-                            بازی #{m.id} • {m.round_name}
-                          </span>
-                          <span
-                            className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border flex items-center gap-1 font-sport ${
-                              isLive
-                                ? 'bg-rose-950 text-rose-300 border-rose-500 animate-pulse'
-                                : isFinished
-                                ? 'bg-slate-950 text-slate-400 border-slate-700'
-                                : 'bg-cyan-950 text-cyan-300 border-cyan-500/40'
-                            }`}
-                          >
-                            {isLive && <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>}
-                            {isLive ? 'در حال برگزاری زنده (LIVE)' : isFinished ? 'پایان یافته' : `ساعت ${timeStr}`}
-                          </span>
+              {/* ============================================================== */}
+              {/* MODE 1: LEAGUE MATCHES BROWSER                                  */}
+              {/* ============================================================== */}
+              {tournamentMode === 'league' && (
+                <div className="space-y-4">
+                  {/* Gameweek Selector Header */}
+                  <div className="glass-panel p-4 rounded-3xl border border-cyan-500/40 bg-gradient-to-r from-slate-950 via-slate-900 to-cyan-950/40 space-y-3">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 bg-cyan-900/60 rounded-xl border border-cyan-400/40 text-cyan-300">
+                          <Tv size={20} />
                         </div>
-
-                        {/* Teams & Score Display */}
-                        <div className="flex items-center justify-between gap-3 my-2 px-2">
-                          {/* Home */}
-                          <div className="flex items-center gap-2.5 w-[42%] justify-start">
-                            <div className="w-10 h-10 rounded-2xl bg-slate-950 border border-slate-700 p-1.5 shrink-0 flex items-center justify-center shadow-md">
-                              {homeLogo ? (
-                                <img src={homeLogo} alt={homeName} className="w-full h-full object-contain" />
-                              ) : (
-                                <span className="font-bold text-xs">{homeName.slice(0, 2)}</span>
-                              )}
-                            </div>
-                            <span className="font-black text-xs sm:text-sm text-white truncate">{homeName}</span>
-                          </div>
-
-                          {/* Center Score / VS */}
-                          <div className="text-center shrink-0">
-                            {isLive || isFinished ? (
-                              <div className="px-3 py-1 bg-slate-950 rounded-xl border border-slate-700 font-sport font-black text-sm text-[#00ff87]">
-                                {m.home_score ?? 0} - {m.away_score ?? 0}
-                              </div>
-                            ) : (
-                              <span className="text-slate-500 font-sport font-bold text-xs">VS</span>
-                            )}
-                          </div>
-
-                          {/* Away */}
-                          <div className="flex items-center gap-2.5 w-[42%] justify-end text-left">
-                            <span className="font-black text-xs sm:text-sm text-white truncate text-right">{awayName}</span>
-                            <div className="w-10 h-10 rounded-2xl bg-slate-950 border border-slate-700 p-1.5 shrink-0 flex items-center justify-center shadow-md">
-                              {awayLogo ? (
-                                <img src={awayLogo} alt={awayName} className="w-full h-full object-contain" />
-                              ) : (
-                                <span className="font-bold text-xs">{awayName.slice(0, 2)}</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Lineup Readiness Summary */}
-                        <div className="flex flex-col gap-1 text-[10.5px] py-1 px-1 mt-1 border-t border-slate-800/50">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-slate-400">میزبان:</span>
-                              <span className={`font-bold flex items-center gap-0.5 ${m.home_lineup_ready ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                {m.home_lineup_ready ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
-                              </span>
-                              {m.home_preset_name && (
-                                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded text-[9px] font-black">
-                                  ⚡ {m.home_preset_name}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-slate-400">میهمان:</span>
-                              <span className={`font-bold flex items-center gap-0.5 ${m.away_lineup_ready ? 'text-emerald-400' : 'text-amber-400'}`}>
-                                {m.away_lineup_ready ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
-                              </span>
-                              {m.away_preset_name && (
-                                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded text-[9px] font-black">
-                                  ⚡ {m.away_preset_name}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Action CTA */}
-                        <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                          <span className="text-[11px] text-slate-400">سرمربیان: {m.home_team_name?.split(' ')[0]} vs {m.away_team_name?.split(' ')[0]}</span>
-                          <span className="text-cyan-400 group-hover:text-cyan-300 font-bold flex items-center gap-1">
-                            <span>ورود به میز داوری و کنترل مسابقه</span>
-                            <ChevronLeftIcon />
-                          </span>
+                        <div>
+                          <h3 className="font-black text-white text-sm sm:text-base">برنامه و اتاق کنترل زنده مسابقات لیگ</h3>
+                          <p className="text-[11px] text-slate-400">یک مسابقه را برای ورود به اتاق داوری، پخش زنده و کنترل بازی انتخاب کنید</p>
                         </div>
                       </div>
-                    );
-                  })}
+
+                      {/* Filter Pills */}
+                      <div className="flex bg-slate-950/80 p-1 rounded-2xl border border-slate-800 text-xs">
+                        {['ALL', 'LIVE', 'SCHEDULED', 'FINISHED'].map((fKey) => (
+                          <button
+                            key={fKey}
+                            onClick={() => setMatchFilter(fKey)}
+                            className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer ${
+                              matchFilter === fKey
+                                ? 'bg-cyan-600 text-white shadow-md'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            {fKey === 'ALL' ? 'همه' : fKey === 'LIVE' ? '🔴 زنده' : fKey === 'SCHEDULED' ? 'برنامه‌ریزی' : 'پایان‌یافته'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Horizontal Gameweek Selector Slider (Weeks 1 to 30) */}
+                    <div className="pt-2 border-t border-slate-800/80">
+                      <span className="text-[10px] text-slate-400 block mb-1.5 font-bold">انتخاب هفته مسابقاتی (هفته‌های ۱ تا ۳۰):</span>
+                      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                        {Array.from({ length: 30 }, (_, i) => i + 1).map((gwNumber) => {
+                          const gwLabel = `هفته ${gwNumber}`;
+                          const selectedGwNum = extractRoundNumber(selectedGameweek) || 1;
+                          const isSelected = selectedGwNum === gwNumber;
+                          const gwMatches = (allMatches || []).filter((m) => extractRoundNumber(m.round_name) === gwNumber);
+                          const hasLive = gwMatches.some((m) => m.status === 'LIVE');
+                          const allFin = gwMatches.length > 0 && gwMatches.every((m) => m.status === 'FINISHED');
+
+                          return (
+                            <button
+                              key={gwNumber}
+                              onClick={() => setSelectedGameweek(gwLabel)}
+                              className={`px-3.5 py-1.5 rounded-2xl text-xs font-sport font-black whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                                isSelected
+                                  ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white border-2 border-cyan-400 shadow-lg shadow-cyan-950/50 scale-105'
+                                  : 'bg-slate-900/90 text-slate-300 border border-slate-800 hover:border-slate-600'
+                              }`}
+                            >
+                              {hasLive && <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>}
+                              {allFin && <Check size={12} className="text-emerald-400" />}
+                              <span>{gwLabel}</span>
+                              <span className="text-[10px] opacity-60">({gwMatches.length})</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Matches Grid (Strictly Filtered to Selected Week) */}
+                  {loadingMatches ? (
+                    <div className="p-16 text-center text-cyan-400 font-bold flex flex-col items-center justify-center gap-3">
+                      <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-xs">در حال بارگذاری مسابقات {selectedGameweek}...</span>
+                    </div>
+                  ) : gameweekMatches.length === 0 ? (
+                    <div className="glass-panel p-12 text-center rounded-3xl border border-slate-800 space-y-2">
+                      <Info size={28} className="text-slate-500 mx-auto" />
+                      <p className="text-slate-400 text-xs">هیچ مسابقه‌ای برای {selectedGameweek} با فیلتر انتخابی یافت نشد.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      {gameweekMatches.map((m) => {
+                        const homeName = m.home_team_name || 'میزبان';
+                        const awayName = m.away_team_name || 'میهمان';
+                        const homeLogo = getTeamLogoUrl(m.home_team_logo || homeName);
+                        const awayLogo = getTeamLogoUrl(m.away_team_logo || awayName);
+                        const isLive = m.status === 'LIVE';
+                        const isFinished = m.status === 'FINISHED';
+
+                        let timeStr = '۱۸:۰۰';
+                        if (m.date) {
+                          try {
+                            const dt = new Date(m.date);
+                            timeStr = dt.toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', hour12: false });
+                          } catch (_e) {}
+                        }
+
+                        return (
+                          <div
+                            key={m.id}
+                            onClick={() => {
+                              setSelectedLiveMatch(m);
+                              setRefereeDeskTab('live_desk');
+                            }}
+                            className={`glass-panel p-4 rounded-3xl border transition-all cursor-pointer hover:-translate-y-1 shadow-xl relative overflow-hidden group ${
+                              isLive
+                                ? 'border-rose-500/70 bg-gradient-to-br from-rose-950/40 via-slate-900 to-slate-950 shadow-rose-950/40'
+                                : 'border-slate-800 hover:border-cyan-500/50 bg-slate-900/80'
+                            }`}
+                          >
+                            {/* Status Badge */}
+                            <div className="flex justify-between items-center mb-3">
+                              <span className="text-[10px] text-slate-400 font-sport bg-slate-950 px-2.5 py-0.5 rounded-lg border border-slate-800">
+                                بازی #{m.id} • {m.round_name}
+                              </span>
+                              <span
+                                className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border flex items-center gap-1 font-sport ${
+                                  isLive
+                                    ? 'bg-rose-950 text-rose-300 border-rose-500 animate-pulse'
+                                    : isFinished
+                                    ? 'bg-slate-950 text-slate-400 border-slate-700'
+                                    : 'bg-cyan-950 text-cyan-300 border-cyan-500/40'
+                                }`}
+                              >
+                                {isLive && <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>}
+                                {isLive ? 'در حال برگزاری زنده (LIVE)' : isFinished ? 'پایان یافته' : `ساعت ${timeStr}`}
+                              </span>
+                            </div>
+
+                            {/* Teams & Score Display */}
+                            <div className="flex items-center justify-between gap-3 my-2 px-2">
+                              {/* Home */}
+                              <div className="flex items-center gap-2.5 w-[42%] justify-start">
+                                <div className="w-10 h-10 rounded-2xl bg-slate-950 border border-slate-700 p-1.5 shrink-0 flex items-center justify-center shadow-md">
+                                  {homeLogo ? (
+                                    <img src={homeLogo} alt={homeName} className="w-full h-full object-contain" />
+                                  ) : (
+                                    <span className="font-bold text-xs">{homeName.slice(0, 2)}</span>
+                                  )}
+                                </div>
+                                <span className="font-black text-xs sm:text-sm text-white truncate">{homeName}</span>
+                              </div>
+
+                              {/* Center Score / VS */}
+                              <div className="text-center shrink-0">
+                                {isLive || isFinished ? (
+                                  <div className="px-3 py-1 bg-slate-950 rounded-xl border border-slate-700 font-sport font-black text-sm text-[#00ff87]">
+                                    {m.home_score ?? 0} - {m.away_score ?? 0}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-500 font-sport font-bold text-xs">VS</span>
+                                )}
+                              </div>
+
+                              {/* Away */}
+                              <div className="flex items-center gap-2.5 w-[42%] justify-end text-left">
+                                <span className="font-black text-xs sm:text-sm text-white truncate text-right">{awayName}</span>
+                                <div className="w-10 h-10 rounded-2xl bg-slate-950 border border-slate-700 p-1.5 shrink-0 flex items-center justify-center shadow-md">
+                                  {awayLogo ? (
+                                    <img src={awayLogo} alt={awayName} className="w-full h-full object-contain" />
+                                  ) : (
+                                    <span className="font-bold text-xs">{awayName.slice(0, 2)}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Lineup Readiness Summary & Inspection */}
+                            <div className="flex flex-col gap-1.5 text-[10.5px] py-1.5 px-1 mt-1 border-t border-slate-800/50">
+                              <div className="flex items-center justify-between">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLineupModalDefaultSide('home');
+                                    setLineupModalMatch(m);
+                                  }}
+                                  className="flex items-center gap-1.5 flex-wrap hover:opacity-85 cursor-pointer text-right"
+                                  title="مشاهده جزئیات ترکیب میزبان"
+                                >
+                                  <span className="text-slate-400">میزبان:</span>
+                                  <span className={`font-bold flex items-center gap-0.5 ${m.home_lineup_ready ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                    {m.home_lineup_ready ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
+                                  </span>
+                                  {m.home_preset_name && (
+                                    <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded text-[9px] font-black">
+                                      ⚡ {m.home_preset_name}
+                                    </span>
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLineupModalDefaultSide('away');
+                                    setLineupModalMatch(m);
+                                  }}
+                                  className="flex items-center gap-1.5 flex-wrap hover:opacity-85 cursor-pointer text-left"
+                                  title="مشاهده جزئیات ترکیب میهمان"
+                                >
+                                  <span className="text-slate-400">میهمان:</span>
+                                  <span className={`font-bold flex items-center gap-0.5 ${m.away_lineup_ready ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                    {m.away_lineup_ready ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
+                                  </span>
+                                  {m.away_preset_name && (
+                                    <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded text-[9px] font-black">
+                                      ⚡ {m.away_preset_name}
+                                    </span>
+                                  )}
+                                </button>
+                              </div>
+
+                              {/* Prominent Full Lineup Inspection Button */}
+                              <div className="pt-1 border-t border-slate-800/40 flex items-center justify-between">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLineupModalDefaultSide('home');
+                                    setLineupModalMatch(m);
+                                  }}
+                                  className="px-2.5 py-1 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 font-bold text-[10.5px] flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                                >
+                                  <Eye size={12} />
+                                  <span>مشاهده زمین چمن و تاکتیک مربیان</span>
+                                </button>
+                                <span className="text-[10px] text-slate-500">
+                                  {m.home_formation || '4-3-3'} vs {m.away_formation || '4-3-3'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Action CTA */}
+                            <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                              <span className="text-[11px] text-slate-400">سرمربیان: {m.home_team_name?.split(' ')[0]} vs {m.away_team_name?.split(' ')[0]}</span>
+                              <span className="text-cyan-400 group-hover:text-cyan-300 font-bold flex items-center gap-1">
+                                <span>ورود به میز داوری و کنترل مسابقه</span>
+                                <ChevronLeftIcon />
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ============================================================== */}
+              {/* MODE 2: HAZFI CUP MATCHES BROWSER                               */}
+              {/* ============================================================== */}
+              {tournamentMode === 'cup' && (
+                <div className="space-y-4">
+                  {/* Stage Selector Header */}
+                  <div className="glass-panel p-4 rounded-3xl border border-amber-500/40 bg-gradient-to-r from-slate-950 via-slate-900 to-amber-950/40 space-y-3">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 bg-amber-900/60 rounded-xl border border-amber-400/40 text-amber-300">
+                          <Trophy size={20} />
+                        </div>
+                        <div>
+                          <h3 className="font-black text-white text-sm sm:text-base">برنامه و اتاق کنترل زنده مسابقات جام حذفی</h3>
+                          <p className="text-[11px] text-slate-400">یک مسابقه حذفی را برای ورود به اتاق داوری، ثبت پنالتی، تعیین برنده و پخش زنده انتخاب کنید</p>
+                        </div>
+                      </div>
+
+                      {/* Filter Pills */}
+                      <div className="flex bg-slate-950/80 p-1 rounded-2xl border border-slate-800 text-xs">
+                        {['ALL', 'LIVE', 'SCHEDULED', 'FINISHED'].map((fKey) => (
+                          <button
+                            key={fKey}
+                            onClick={() => setMatchFilter(fKey)}
+                            className={`px-3 py-1 rounded-xl font-bold transition-all cursor-pointer ${
+                              matchFilter === fKey
+                                ? 'bg-amber-500 text-slate-950 shadow-md'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            {fKey === 'ALL' ? 'همه' : fKey === 'LIVE' ? '🔴 زنده' : fKey === 'SCHEDULED' ? 'برنامه‌ریزی' : 'پایان‌یافته'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Horizontal Stage Selector Ribbon */}
+                    <div className="pt-2 border-t border-slate-800/80">
+                      <span className="text-[10px] text-slate-400 block mb-1.5 font-bold">انتخاب مرحله حذفی مسابقات:</span>
+                      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+                        {CUP_STAGES.map((stageName) => {
+                          const isSelected = selectedCupStage === stageName;
+                          const normStage = stageName.replace(/\u200c/g, '').trim();
+                          const stageMatches = (cupMatches || []).filter((m) => {
+                            const mNorm = (m.round_name || '').replace(/\u200c/g, '').trim();
+                            return mNorm.includes(normStage) || normStage.includes(mNorm);
+                          });
+                          const hasLive = stageMatches.some((m) => m.status === 'LIVE');
+                          const allFin = stageMatches.length > 0 && stageMatches.every((m) => m.status === 'FINISHED');
+
+                          return (
+                            <button
+                              key={stageName}
+                              onClick={() => setSelectedCupStage(stageName)}
+                              className={`px-3.5 py-1.5 rounded-2xl text-xs font-sport font-black whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                                isSelected
+                                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 border-2 border-amber-300 shadow-lg shadow-amber-950/50 scale-105'
+                                  : 'bg-slate-900/90 text-slate-300 border border-slate-800 hover:border-slate-600'
+                              }`}
+                            >
+                              {hasLive && <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>}
+                              {allFin && <Check size={12} className="text-emerald-400" />}
+                              <span>{stageName}</span>
+                              <span className="text-[10px] opacity-75">({stageMatches.length})</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Matches Grid (Strictly Filtered to Selected Stage) */}
+                  {loadingCupMatches ? (
+                    <div className="p-16 text-center text-amber-400 font-bold flex flex-col items-center justify-center gap-3">
+                      <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-xs">در حال بارگذاری مسابقات مرحله {selectedCupStage}...</span>
+                    </div>
+                  ) : stageFilteredCupMatches.length === 0 ? (
+                    <div className="glass-panel p-12 text-center rounded-3xl border border-slate-800 space-y-2">
+                      <Trophy size={28} className="text-slate-500 mx-auto" />
+                      <p className="text-slate-300 text-xs font-bold">هیچ مسابقه‌ای برای مرحله {selectedCupStage} یافت نشد.</p>
+                      <p className="text-slate-500 text-[11px]">می‌توانید در بخش «مدیریت لیگ و جام حذفی»، جام جدید بسازید یا زمان‌بندی کنید.</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                      {stageFilteredCupMatches.map((m) => {
+                        const homeName = m.home_team_name || 'میزبان';
+                        const awayName = m.away_team_name || 'میهمان';
+                        const homeLogo = getTeamLogoUrl(m.home_team_logo || homeName);
+                        const awayLogo = getTeamLogoUrl(m.away_team_logo || awayName);
+                        const isLive = m.status === 'LIVE';
+                        const isFinished = m.status === 'FINISHED';
+                        const hasPenalties = m.home_penalties != null && m.away_penalties != null;
+
+                        let timeStr = '۱۸:۰۰';
+                        if (m.date) {
+                          try {
+                            const dt = new Date(m.date);
+                            timeStr = dt.toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', hour12: false });
+                          } catch (_e) {}
+                        }
+
+                        return (
+                          <div
+                            key={m.id}
+                            onClick={() => {
+                              setSelectedLiveMatch(m);
+                              setRefereeDeskTab('live_desk');
+                            }}
+                            className={`glass-panel p-4 rounded-3xl border transition-all cursor-pointer hover:-translate-y-1 shadow-xl relative overflow-hidden group ${
+                              isLive
+                                ? 'border-rose-500/70 bg-gradient-to-br from-rose-950/40 via-slate-900 to-slate-950 shadow-rose-950/40'
+                                : 'border-slate-800 hover:border-amber-500/50 bg-slate-900/80'
+                            }`}
+                          >
+                            {/* Status Badge & Stage */}
+                            <div className="flex justify-between items-center mb-3">
+                              <span className="text-[10px] text-amber-300 font-sport bg-amber-950/80 px-2.5 py-0.5 rounded-lg border border-amber-500/30 flex items-center gap-1">
+                                <Trophy size={11} className="text-amber-400" />
+                                <span>بازی #{m.id} • {m.round_name}</span>
+                              </span>
+                              <span
+                                className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border flex items-center gap-1 font-sport ${
+                                  isLive
+                                    ? 'bg-rose-950 text-rose-300 border-rose-500 animate-pulse'
+                                    : isFinished
+                                    ? 'bg-slate-950 text-slate-400 border-slate-700'
+                                    : 'bg-amber-950 text-amber-300 border-amber-500/40'
+                                }`}
+                              >
+                                {isLive && <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>}
+                                {isLive ? 'در حال برگزاری زنده (LIVE)' : isFinished ? 'پایان یافته' : `ساعت ${timeStr}`}
+                              </span>
+                            </div>
+
+                            {/* Teams & Score Display */}
+                            <div className="flex items-center justify-between gap-3 my-2 px-2">
+                              {/* Home */}
+                              <div className="flex items-center gap-2.5 w-[42%] justify-start">
+                                <div className="w-10 h-10 rounded-2xl bg-slate-950 border border-slate-700 p-1.5 shrink-0 flex items-center justify-center shadow-md">
+                                  {homeLogo ? (
+                                    <img src={homeLogo} alt={homeName} className="w-full h-full object-contain" />
+                                  ) : (
+                                    <span className="font-bold text-xs">{homeName.slice(0, 2)}</span>
+                                  )}
+                                </div>
+                                <span className="font-black text-xs sm:text-sm text-white truncate">{homeName}</span>
+                              </div>
+
+                              {/* Center Score / VS / Penalties */}
+                              <div className="text-center shrink-0 flex flex-col items-center">
+                                {isLive || isFinished ? (
+                                  <div className="space-y-0.5">
+                                    <div className="px-3 py-1 bg-slate-950 rounded-xl border border-slate-700 font-sport font-black text-sm text-[#00ff87]">
+                                      {m.home_score ?? 0} - {m.away_score ?? 0}
+                                    </div>
+                                    {hasPenalties && (
+                                      <span className="text-[10px] text-amber-300 font-sport font-bold block bg-amber-950/80 px-2 py-0.2 rounded border border-amber-500/30">
+                                        پنالتی: {m.home_penalties} - {m.away_penalties}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-500 font-sport font-bold text-xs">VS</span>
+                                )}
+                              </div>
+
+                              {/* Away */}
+                              <div className="flex items-center gap-2.5 w-[42%] justify-end text-left">
+                                <span className="font-black text-xs sm:text-sm text-white truncate text-right">{awayName}</span>
+                                <div className="w-10 h-10 rounded-2xl bg-slate-950 border border-slate-700 p-1.5 shrink-0 flex items-center justify-center shadow-md">
+                                  {awayLogo ? (
+                                    <img src={awayLogo} alt={awayName} className="w-full h-full object-contain" />
+                                  ) : (
+                                    <span className="font-bold text-xs">{awayName.slice(0, 2)}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Lineup Readiness Summary & Inspection */}
+                            <div className="flex flex-col gap-1.5 text-[10.5px] py-1.5 px-1 mt-1 border-t border-slate-800/50">
+                              <div className="flex items-center justify-between">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLineupModalDefaultSide('home');
+                                    setLineupModalMatch(m);
+                                  }}
+                                  className="flex items-center gap-1.5 flex-wrap hover:opacity-85 cursor-pointer text-right"
+                                  title="مشاهده جزئیات ترکیب میزبان"
+                                >
+                                  <span className="text-slate-400">میزبان:</span>
+                                  <span className={`font-bold flex items-center gap-0.5 ${m.home_lineup_ready ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                    {m.home_lineup_ready ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
+                                  </span>
+                                  {m.home_preset_name && (
+                                    <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded text-[9px] font-black">
+                                      ⚡ {m.home_preset_name}
+                                    </span>
+                                  )}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLineupModalDefaultSide('away');
+                                    setLineupModalMatch(m);
+                                  }}
+                                  className="flex items-center gap-1.5 flex-wrap hover:opacity-85 cursor-pointer text-left"
+                                  title="مشاهده جزئیات ترکیب میهمان"
+                                >
+                                  <span className="text-slate-400">میهمان:</span>
+                                  <span className={`font-bold flex items-center gap-0.5 ${m.away_lineup_ready ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                    {m.away_lineup_ready ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
+                                  </span>
+                                  {m.away_preset_name && (
+                                    <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded text-[9px] font-black">
+                                      ⚡ {m.away_preset_name}
+                                    </span>
+                                  )}
+                                </button>
+                              </div>
+
+                              {/* Prominent Full Lineup Inspection Button & Forfeits */}
+                              <div className="pt-1 border-t border-slate-800/40 flex items-center justify-between">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLineupModalDefaultSide('home');
+                                    setLineupModalMatch(m);
+                                  }}
+                                  className="px-2.5 py-1 rounded-xl bg-amber-950/80 hover:bg-amber-900 border border-amber-500/40 text-amber-300 font-bold text-[10.5px] flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                                >
+                                  <Eye size={12} />
+                                  <span>مشاهده زمین چمن و تاکتیک مربیان</span>
+                                </button>
+
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCupForfeit(m.id, 'HOME');
+                                    }}
+                                    className="px-2 py-0.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-500/30 text-rose-300 text-[9.5px] font-bold transition-all cursor-pointer"
+                                    title="ثبت باخت فنی ۳-۰ به نفع میزبان"
+                                  >
+                                    باخت فنی میهمان
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCupForfeit(m.id, 'AWAY');
+                                    }}
+                                    className="px-2 py-0.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-500/30 text-rose-300 text-[9.5px] font-bold transition-all cursor-pointer"
+                                    title="ثبت باخت فنی ۳-۰ به نفع میهمان"
+                                  >
+                                    باخت فنی میزبان
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Action CTA */}
+                            <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                              <span className="text-[11px] text-slate-400">سرمربیان: {m.home_team_name?.split(' ')[0]} vs {m.away_team_name?.split(' ')[0]}</span>
+                              <span className="text-amber-400 group-hover:text-amber-300 font-bold flex items-center gap-1">
+                                <span>ورود به میز داوری و کنترل مسابقه</span>
+                                <ChevronLeftIcon />
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -3859,6 +4310,14 @@ export default function AdminDashboard({
         </div>,
         document.body
       )}
+
+      {/* Coach Submitted Lineup & Tactics Inspection Modal */}
+      <MatchLineupDetailModal
+        isOpen={Boolean(lineupModalMatch)}
+        onClose={() => setLineupModalMatch(null)}
+        match={lineupModalMatch}
+        defaultSide={lineupModalDefaultSide}
+      />
     </div>
   );
 }
