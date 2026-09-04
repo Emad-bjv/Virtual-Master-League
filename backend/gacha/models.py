@@ -23,6 +23,9 @@ class Pack(models.Model):
     cover_image = models.ImageField(
         upload_to='packs/covers/', null=True, blank=True, verbose_name="تصویر کاور پک"
     )
+    custom_card_bg = models.ImageField(
+        upload_to='packs/card_bgs/', null=True, blank=True, verbose_name="پس‌زمینه اختصاصی کارت پک"
+    )
     description = models.TextField(blank=True, default='', verbose_name="توضیحات پک")
     ovr_range_text = models.CharField(
         max_length=50, blank=True, default='', verbose_name="محدوده اورال (نمایشی)",

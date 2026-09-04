@@ -322,9 +322,42 @@ class AdminPackPlayersBulkView(views.APIView):
 
 class AdminPackPlayerDetailView(views.APIView):
     """
-    Admin endpoint to delete/remove a player from a pack pool.
+    Admin endpoint to view, update or delete/remove a player from a pack pool.
     """
     permission_classes = [IsAdminRole]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get(self, request, pack_id, player_id):
+        try:
+            player = PackPlayer.objects.get(pk=player_id, pack_id=pack_id)
+            return Response(PackPlayerSerializer(player).data)
+        except PackPlayer.DoesNotExist:
+            return Response({'error': 'بازیکن یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+    def put(self, request, pack_id, player_id):
+        return self._handle_update(request, pack_id, player_id)
+
+    def patch(self, request, pack_id, player_id):
+        return self._handle_update(request, pack_id, player_id)
+
+    def post(self, request, pack_id, player_id):
+        return self._handle_update(request, pack_id, player_id)
+
+    def _handle_update(self, request, pack_id, player_id):
+        try:
+            player = PackPlayer.objects.get(pk=player_id, pack_id=pack_id)
+        except PackPlayer.DoesNotExist:
+            return Response({'error': 'بازیکن یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = PackPlayerSerializer(player, data=request.data, partial=True)
+        if serializer.is_valid():
+            updated_player = serializer.save()
+            return Response({
+                'success': True,
+                'message': f'اطلاعات بازیکن «{updated_player.name}» به‌روزرسانی شد.',
+                'player': PackPlayerSerializer(updated_player).data
+            })
+        return Response({'error': 'اطلاعات وارد شده معتبر نیست.', 'details': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pack_id, player_id):
         try:

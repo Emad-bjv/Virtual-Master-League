@@ -43,11 +43,12 @@ class PackSerializer(serializers.ModelSerializer):
     tier_display = serializers.CharField(source='get_tier_display', read_only=True)
     purchase_method_display = serializers.CharField(source='get_purchase_method_display', read_only=True)
     cover_image = serializers.ImageField(required=False, allow_null=True)
+    custom_card_bg = serializers.ImageField(required=False, allow_null=True)
 
     class Meta:
         model = Pack
         fields = [
-            'id', 'name', 'tier', 'tier_display', 'cover_image', 'description',
+            'id', 'name', 'tier', 'tier_display', 'cover_image', 'custom_card_bg', 'description',
             'ovr_range_text', 'cost_usd', 'cost_gems', 'cost_irr',
             'purchase_method', 'purchase_method_display', 'featured_team',
             'available_from', 'available_until', 'is_active', 'sort_order',
@@ -56,15 +57,16 @@ class PackSerializer(serializers.ModelSerializer):
         ]
 
     def to_internal_value(self, data):
-        # Handle string URL or empty string for cover_image gracefully
+        # Handle string URL or empty string for image fields gracefully
         if hasattr(data, '_mutable'):
             data = data.copy()
         elif isinstance(data, dict):
             data = dict(data)
 
-        cover = data.get('cover_image')
-        if isinstance(cover, str) or cover is None or cover == '':
-            data.pop('cover_image', None)
+        for img_field in ['cover_image', 'custom_card_bg']:
+            img_val = data.get(img_field)
+            if isinstance(img_val, str) or img_val is None or img_val == '':
+                data.pop(img_field, None)
 
         # Sanitize optional datetime fields
         for dt in ['available_from', 'available_until']:

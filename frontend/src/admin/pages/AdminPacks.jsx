@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { gachaApi } from '../../services/api';
+import AdminPackStudio from '../components/AdminPackStudio';
 
 const formatDateForInput = (iso) => {
   if (!iso) return '';
@@ -98,6 +99,10 @@ export default function AdminPacks() {
   const [loading, setLoading] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const [toastType, setToastType] = useState('success');
+
+  // FC 26 Studio State
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [studioPack, setStudioPack] = useState(null);
 
   // Filter state
   const [tierFilter, setTierFilter] = useState('ALL');
@@ -375,6 +380,22 @@ export default function AdminPacks() {
     return true;
   });
 
+  if (studioOpen) {
+    return (
+      <AdminPackStudio
+        pack={studioPack}
+        onClose={() => {
+          setStudioOpen(false);
+          setStudioPack(null);
+          fetchPacks();
+        }}
+        onPackSaved={() => {
+          fetchPacks();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6" style={{ fontFamily: 'Vazirmatn, Tahoma, sans-serif' }}>
       {/* Top Banner & Header */}
@@ -404,11 +425,22 @@ export default function AdminPacks() {
           </button>
 
           <button
-            onClick={() => handleOpenPackModal()}
-            className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs shadow-lg transition flex items-center gap-2 cursor-pointer"
+            onClick={() => {
+              setStudioPack(null);
+              setStudioOpen(true);
+            }}
+            className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black text-xs font-sport shadow-[0_0_20px_rgba(245,158,11,0.5)] transition flex items-center gap-2 cursor-pointer"
           >
-            <Plus size={16} />
-            <span>ساخت پک جدید</span>
+            <Sparkles size={16} className="text-slate-950" />
+            <span>🎙️ استودیوی ساخت پک (FC Studio)</span>
+          </button>
+
+          <button
+            onClick={() => handleOpenPackModal()}
+            className="px-4 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus size={15} />
+            <span>فرم سریع پک</span>
           </button>
         </div>
       </div>
@@ -565,25 +597,41 @@ export default function AdminPacks() {
                   </div>
 
                   {/* Actions */}
-                  <div className="pt-2 border-t border-white/10 flex items-center justify-between gap-2">
+                  <div className="pt-2 border-t border-white/10 flex items-center justify-between gap-2 flex-wrap">
                     <button
-                      onClick={() => handleOpenPoolModal(pack)}
-                      className="px-3.5 py-2 rounded-xl bg-purple-950/80 hover:bg-purple-900 text-purple-200 border border-purple-500/40 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer flex-1 justify-center"
+                      type="button"
+                      onClick={() => {
+                        setStudioPack(pack);
+                        setStudioOpen(true);
+                      }}
+                      className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/30 hover:to-yellow-500/30 text-amber-300 border border-amber-500/40 text-xs font-black transition flex items-center gap-1.5 cursor-pointer font-sport shadow-md flex-1 justify-center"
+                      title="طراحی و ویرایش این پک و کارت‌ها در استودیوی FC 26"
                     >
-                      <Users size={14} />
-                      <span>مدیریت استخر ({pack.total_players_count})</span>
+                      <Sparkles size={14} className="text-amber-400" />
+                      <span>طراحی در استودیو</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenPoolModal(pack)}
+                      className="px-3 py-2 rounded-xl bg-purple-950/80 hover:bg-purple-900 text-purple-200 border border-purple-500/40 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <Users size={13} />
+                      <span>استخر ({pack.total_players_count})</span>
                     </button>
 
                     <div className="flex items-center gap-1.5">
                       <button
+                        type="button"
                         onClick={() => handleOpenPackModal(pack)}
                         className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
-                        title="ویرایش پک"
+                        title="ویرایش سریع"
                       >
                         <Edit2 size={14} />
                       </button>
 
                       <button
+                        type="button"
                         onClick={() => handleDeletePack(pack.id, pack.name)}
                         className="p-2 rounded-xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 hover:text-rose-100 border border-rose-500/30 transition cursor-pointer"
                         title="حذف پک"
