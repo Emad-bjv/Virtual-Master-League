@@ -154,11 +154,15 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
                 'id': card.id,
                 'name': card.name,
                 'position': card.position,
+                'compatible_positions': card.compatible_positions,
                 'overall': card.overall,
                 'potential_ovr': card.potential_ovr,
                 'age': card.age,
                 'base_stamina': card.base_stamina,
                 'rarity': card.rarity,
+                'nationality': card.nationality,
+                'prime_club': card.prime_club,
+                'club_logo': card.club_logo.url if card.club_logo else None,
                 'wage': float(card.wage),
                 'market_value': float(card.market_value),
                 'card_image': card.card_image.url if card.card_image else None
@@ -240,6 +244,7 @@ def pick_card(session_id: int, pack_player_id: int, team_id: int) -> dict:
             team=team,
             name=picked_card.name,
             position=picked_card.position,
+            compatible_positions=picked_card.compatible_positions or '',
             overall=picked_card.overall,
             base_overall=picked_card.overall,
             potential_ovr=picked_card.potential_ovr or 99,
@@ -252,7 +257,8 @@ def pick_card(session_id: int, pack_player_id: int, team_id: int) -> dict:
             shirt_number=next_number,
             is_starting=False,
             x_coord=0.0,
-            y_coord=0.0
+            y_coord=0.0,
+            custom_photo=picked_card.card_image if picked_card.card_image else None
         )
 
         # Mark PackPlayer claimed

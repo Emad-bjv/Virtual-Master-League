@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Trophy, Star, Shield, Zap, CheckCircle2,
-  AlertCircle, X, Clock, Flame, ChevronRight, Gem, Coins, Award
+  AlertCircle, X, Clock, Flame, ChevronRight, Gem, Coins, Award, Globe
 } from 'lucide-react';
 import { gachaApi } from '../../services/api';
 import { useTeam } from '../../context/TeamContext';
@@ -508,10 +508,6 @@ export default function PackOpeningModal({
                                   {card.position}
                                 </span>
                               </div>
-
-                              <span className="text-[10px] font-bold px-2.5 py-1 rounded-xl bg-black/75 backdrop-blur-md border border-white/20 text-slate-200">
-                                سن: {card.age}
-                              </span>
                             </div>
 
                             {/* Center Player Cutout / Photo Area */}
@@ -538,15 +534,43 @@ export default function PackOpeningModal({
                               </div>
                             </div>
 
-                            {/* Card Footer Details */}
-                            <div className="relative z-10 grid grid-cols-2 gap-1.5 text-[10.5px] bg-black/75 backdrop-blur-md p-2 rounded-2xl border border-white/20 text-slate-200">
-                              <div className="text-center">
-                                <span className="text-slate-400 block text-[9px]">استقامت (STA)</span>
-                                <span className="font-black text-emerald-400 font-sport text-xs">{card.base_stamina}</span>
+                            {/* Card Footer: Prime Club & Nationality */}
+                            <div className="relative z-10 bg-black/85 backdrop-blur-md px-2.5 py-1.5 rounded-2xl border border-white/20 text-white shadow-xl flex items-center justify-between gap-1.5">
+                              {/* Prime Club */}
+                              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                <div className="w-6 h-6 rounded-lg bg-white/10 border border-white/15 p-0.5 flex items-center justify-center shrink-0 overflow-hidden">
+                                  {card.club_logo ? (
+                                    <img
+                                      src={card.club_logo}
+                                      alt={card.prime_club || 'لوگو'}
+                                      className="w-full h-full object-contain"
+                                    />
+                                  ) : (
+                                    <Shield size={14} className="text-amber-400" />
+                                  )}
+                                </div>
+                                <div className="min-w-0 text-right leading-tight">
+                                  <span className="text-[7.5px] text-slate-400 block font-medium">تیم دوران پرایم</span>
+                                  <span className="text-[10px] font-black text-white truncate block font-sport tracking-wide">
+                                    {card.prime_club || 'تیم پرایم'}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="text-center border-r border-white/10">
-                                <span className="text-slate-400 block text-[9px]">پتانسیل (POT)</span>
-                                <span className="font-black text-amber-300 font-sport text-xs">{card.potential_ovr}</span>
+
+                              {/* Divider */}
+                              <div className="h-5 w-px bg-white/20 shrink-0" />
+
+                              {/* Nationality */}
+                              <div className="flex items-center gap-1 min-w-0 flex-1 justify-end">
+                                <div className="min-w-0 text-left leading-tight">
+                                  <span className="text-[7.5px] text-slate-400 block font-medium text-right">ملیت</span>
+                                  <span className="text-[10px] font-black text-amber-300 truncate block font-sport tracking-wide text-right">
+                                    {card.nationality || 'ملیت'}
+                                  </span>
+                                </div>
+                                <div className="w-5 h-5 rounded-md bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
+                                  <Globe size={11} className="text-cyan-400" />
+                                </div>
                               </div>
                             </div>
                           </div>

@@ -94,12 +94,26 @@ class PackPlayer(models.Model):
     position = models.CharField(
         max_length=3, choices=Player.POSITIONS, verbose_name="پست"
     )
+    compatible_positions = models.CharField(
+        max_length=100, blank=True, default='',
+        verbose_name="پست‌های قابل بازی",
+        help_text="لیست سایر پست‌های قابل بازی بازیکن جدا شده با کاما. مثال: RWF,LWF,SS"
+    )
     overall = models.PositiveIntegerField(verbose_name="اورال (OVR)")
     potential_ovr = models.PositiveIntegerField(default=99, verbose_name="سقف پتانسیل")
     age = models.PositiveIntegerField(default=22, verbose_name="سن")
     base_stamina = models.PositiveIntegerField(default=80, verbose_name="استقامت پایه PES")
     card_image = models.ImageField(
         upload_to='packs/players/', null=True, blank=True, verbose_name="تصویر کارت بازیکن"
+    )
+    nationality = models.CharField(
+        max_length=100, blank=True, default='', verbose_name="ملیت بازیکن"
+    )
+    prime_club = models.CharField(
+        max_length=100, blank=True, default='', verbose_name="باشگاه دوران پرایم"
+    )
+    club_logo = models.ImageField(
+        upload_to='packs/clubs/', null=True, blank=True, verbose_name="لوگوی باشگاه دوران پرایم"
     )
     rarity = models.CharField(
         max_length=20, default='REGULAR', verbose_name="درجه کارت (Rarity)"

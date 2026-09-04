@@ -286,6 +286,9 @@ class AdminPackPlayersBulkView(views.APIView):
         for idx, p in enumerate(players_data):
             name = p.get('name')
             position = p.get('position', 'CF')
+            compatible_positions = p.get('compatible_positions', '')
+            nationality = p.get('nationality', '')
+            prime_club = p.get('prime_club', '')
             overall = p.get('overall') or p.get('ovr', 80)
             potential_ovr = p.get('potential_ovr', 99)
             age = p.get('age', 22)
@@ -302,6 +305,9 @@ class AdminPackPlayersBulkView(views.APIView):
                 pack=pack,
                 name=name,
                 position=position,
+                compatible_positions=compatible_positions,
+                nationality=nationality,
+                prime_club=prime_club,
                 overall=int(overall),
                 potential_ovr=int(potential_ovr),
                 age=int(age),

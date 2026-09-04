@@ -6,7 +6,7 @@ import {
   AlertCircle, X, Clock, Flame, ChevronRight, Gem, Coins,
   Plus, Edit2, Trash2, Upload, Search, RotateCcw,
   Sliders, Image as ImageIcon, ArrowLeft, Check, Users,
-  Layers, Palette, Eye, DollarSign, Calendar
+  Layers, Palette, Eye, DollarSign, Calendar, Globe
 } from 'lucide-react';
 import { gachaApi, playerApi } from '../../services/api';
 import rareCardBg from '../../assets/cards/rare_card_bg.jpg';
@@ -100,18 +100,47 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
   // Active Player Designer State (reflects in real-time on the 3D card)
   const [editingPlayerId, setEditingPlayerId] = useState(null);
   const [playerForm, setPlayerForm] = useState({
-    name: 'Cristiano Ronaldo',
-    position: 'CF',
-    overall: 94,
+    name: 'Marcelo',
+    position: 'LB',
+    compatible_positions: 'LMF,LWF,CMF',
+    overall: 95,
     potential_ovr: 96,
-    age: 39,
+    age: 34,
     base_stamina: 88,
+    nationality: 'برزیل',
+    prime_club: 'Real Madrid',
     rarity: 'LEGENDARY',
     wage: 250,
     market_value: 35000000,
   });
   const [playerPhotoFile, setPlayerPhotoFile] = useState(null);
   const [playerPhotoPreview, setPlayerPhotoPreview] = useState(null);
+  const [clubLogoFile, setClubLogoFile] = useState(null);
+  const [clubLogoPreview, setClubLogoPreview] = useState(null);
+
+  // Playable secondary positions parsed & toggle helper
+  const altPositions = (playerForm.compatible_positions || '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p && p !== playerForm.position);
+
+  const toggleCompatiblePosition = (pos) => {
+    const current = (playerForm.compatible_positions || '')
+      .split(',')
+      .map((p) => p.trim())
+      .filter((p) => p && p !== playerForm.position);
+
+    let updated;
+    if (current.includes(pos)) {
+      updated = current.filter((p) => p !== pos);
+    } else {
+      updated = [...current, pos];
+    }
+    setPlayerForm((prev) => ({
+      ...prev,
+      compatible_positions: updated.join(',')
+    }));
+  };
 
   // Live Photo Calibration Controls
   const [photoScale, setPhotoScale] = useState(1.0);
@@ -181,16 +210,21 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     setPlayerForm({
       name: player.name || '',
       position: player.position || 'CF',
+      compatible_positions: player.compatible_positions || '',
       overall: player.overall || 85,
       potential_ovr: player.potential_ovr || 90,
       age: player.age || 25,
       base_stamina: player.base_stamina || 80,
+      nationality: player.nationality || '',
+      prime_club: player.prime_club || '',
       rarity: player.rarity || 'REGULAR',
       wage: player.wage || 100,
       market_value: player.market_value || 1000000,
     });
     setPlayerPhotoFile(null);
     setPlayerPhotoPreview(player.card_image || player.photo || null);
+    setClubLogoFile(null);
+    setClubLogoPreview(player.club_logo || null);
     setStudioTab('designer');
   };
 
@@ -199,16 +233,21 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     setPlayerForm({
       name: '',
       position: 'CF',
+      compatible_positions: '',
       overall: 85,
       potential_ovr: 92,
       age: 24,
       base_stamina: 82,
+      nationality: '',
+      prime_club: '',
       rarity: 'REGULAR',
       wage: 150,
       market_value: 5000000,
     });
     setPlayerPhotoFile(null);
     setPlayerPhotoPreview(null);
+    setClubLogoFile(null);
+    setClubLogoPreview(null);
     setPhotoScale(1.0);
     setPhotoY(0);
     setPhotoX(0);
@@ -244,11 +283,14 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
       ...prev,
       name: dbPlayer.name || '',
       position: dbPlayer.position || prev.position,
+      compatible_positions: dbPlayer.compatible_positions || '',
       overall: dbPlayer.overall || prev.overall,
       age: dbPlayer.age || prev.age,
       base_stamina: dbPlayer.stamina || dbPlayer.base_stamina || prev.base_stamina,
       potential_ovr: Math.max(dbPlayer.overall || 85, 90),
       market_value: dbPlayer.market_value || prev.market_value,
+      nationality: dbPlayer.nationality || prev.nationality || '',
+      prime_club: dbPlayer.team_name || prev.prime_club || '',
     }));
     if (dbPlayer.photo) {
       setPlayerPhotoPreview(dbPlayer.photo);
@@ -350,6 +392,9 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     });
     if (playerPhotoFile) {
       formData.append('card_image', playerPhotoFile);
+    }
+    if (clubLogoFile) {
+      formData.append('club_logo', clubLogoFile);
     }
 
     try {
@@ -545,7 +590,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                   {/* CARD FACE: FRONT (LIVE ULTIMATE TEAM PLAYER CARD)             */}
                   {/* ============================================================= */}
                   <div
-                    className={`absolute inset-0 w-full h-full rounded-[2.2rem] overflow-hidden border-2 ${currentTheme.borderColor} ${currentTheme.neonGlow} flex flex-col justify-between p-3.5 [backface-visibility:hidden]`}
+                    className="absolute inset-0 w-full h-full rounded-[2.2rem] overflow-hidden shadow-2xl flex flex-col justify-between p-3.5 [backface-visibility:hidden]"
                     style={{
                       backgroundImage: `url(${activeCardBg})`,
                       backgroundSize: 'cover',
@@ -563,29 +608,43 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                     {/* Gradient Overlay for bottom readability */}
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-black/30 pointer-events-none" />
 
-                    {/* Card Top: OVR Badge & Position & Age */}
+                    {/* Card Top: OVR Badge & Position (Borderless, Age Removed) */}
                     <div className="relative z-10 flex items-start justify-between px-1 pt-1">
-                      {/* Left Badge: OVR + Position */}
-                      <div className="flex flex-col items-center bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-white/25 shadow-2xl">
+                      {/* Left Badge: OVR + Position + Secondary Positions */}
+                      <div className="flex flex-col items-center bg-black/75 backdrop-blur-md px-2.5 py-1.5 rounded-2xl border border-white/25 shadow-2xl min-w-[54px]">
                         <span className={`text-3xl sm:text-4xl font-black font-sport leading-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] ${currentTheme.ovrColor}`}>
                           {playerForm.overall}
                         </span>
                         <span className="text-xs font-black font-sport text-white tracking-widest mt-0.5 dir-ltr uppercase">
                           {playerForm.position}
                         </span>
-                      </div>
-
-                      {/* Right Badge: Age / Rarity Tag */}
-                      <div className="flex flex-col items-end gap-1">
-                        <span className="px-2.5 py-1 rounded-xl bg-black/70 backdrop-blur-md text-[10.5px] font-bold text-slate-200 border border-white/15 shadow-md">
-                          سن: {playerForm.age}
-                        </span>
-                        {packData.featured_team && (
-                          <span className="px-2 py-0.5 rounded-lg bg-amber-500/30 text-amber-200 text-[9.5px] font-bold border border-amber-500/40">
-                            {packData.featured_team}
-                          </span>
+                        {altPositions.length > 0 && (
+                          <div className="flex flex-wrap gap-0.5 mt-1 justify-center max-w-[56px] pt-1 border-t border-white/10">
+                            {altPositions.slice(0, 3).map((pos) => (
+                              <span
+                                key={pos}
+                                className="px-1 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-[7px] font-black font-sport text-cyan-300 uppercase leading-none"
+                              >
+                                {pos}
+                              </span>
+                            ))}
+                            {altPositions.length > 3 && (
+                              <span className="text-[7px] text-slate-400 font-sport font-bold leading-none">
+                                +{altPositions.length - 3}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
+
+                      {/* Right Tag: Featured Team Tag if provided */}
+                      {packData.featured_team ? (
+                        <div className="flex flex-col items-end">
+                          <span className="px-2.5 py-1 rounded-xl bg-black/70 backdrop-blur-md text-[9.5px] font-bold text-amber-300 border border-amber-500/40 shadow-md">
+                            {packData.featured_team}
+                          </span>
+                        </div>
+                      ) : <div />}
                     </div>
 
                     {/* Center: Player Photo / Silhouette Cutout */}
@@ -612,7 +671,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                     </div>
 
                     {/* Player Name Banner Plate */}
-                    <div className="relative z-10 text-center mb-1">
+                    <div className="relative z-10 text-center mb-1.5">
                       <div className="inline-block px-4 py-1.5 rounded-xl bg-black/85 backdrop-blur-md border border-white/20 shadow-xl max-w-[240px]">
                         <h3 className="text-xs sm:text-sm font-black text-white font-sport tracking-wide truncate m-0 drop-shadow-md uppercase">
                           {playerForm.name || 'نام بازیکن'}
@@ -620,19 +679,43 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                       </div>
                     </div>
 
-                    {/* Card Footer: Core VML Attributes Grid */}
-                    <div className="relative z-10 grid grid-cols-2 gap-1.5 bg-black/80 backdrop-blur-md p-2 rounded-2xl border border-white/20 text-slate-200 text-[10.5px]">
-                      <div className="text-center">
-                        <span className="text-slate-400 block text-[9px] font-bold">استقامت (STA)</span>
-                        <span className="font-black text-emerald-400 font-sport text-xs">
-                          {playerForm.base_stamina}
-                        </span>
+                    {/* Card Footer: Prime Club (with logo) & Nationality */}
+                    <div className="relative z-10 bg-black/85 backdrop-blur-md px-3 py-2 rounded-2xl border border-white/20 text-white shadow-2xl flex items-center justify-between gap-2">
+                      {/* Prime Club */}
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <div className="w-7 h-7 rounded-xl bg-white/10 border border-white/15 p-0.5 flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
+                          {clubLogoPreview ? (
+                            <img
+                              src={clubLogoPreview}
+                              alt={playerForm.prime_club || 'لوگوی باشگاه'}
+                              className="w-full h-full object-contain"
+                            />
+                          ) : (
+                            <Shield size={16} className="text-amber-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0 text-right leading-tight">
+                          <span className="text-[8px] text-slate-400 block font-medium">تیم دوران پرایم</span>
+                          <span className="text-[11px] font-black text-white truncate block font-sport tracking-wide">
+                            {playerForm.prime_club || 'تیم پرایم'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-center border-r border-white/10">
-                        <span className="text-slate-400 block text-[9px] font-bold">پتانسیل (POT)</span>
-                        <span className="font-black text-amber-300 font-sport text-xs">
-                          {playerForm.potential_ovr}
-                        </span>
+
+                      {/* Sleek Vertical Divider */}
+                      <div className="h-6 w-px bg-white/20 shrink-0" />
+
+                      {/* Nationality */}
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1 justify-end">
+                        <div className="min-w-0 text-left leading-tight">
+                          <span className="text-[8px] text-slate-400 block font-medium text-right">ملیت</span>
+                          <span className="text-[11px] font-black text-amber-300 truncate block font-sport tracking-wide text-right">
+                            {playerForm.nationality || 'ملیت بازیکن'}
+                          </span>
+                        </div>
+                        <div className="w-6 h-6 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
+                          <Globe size={13} className="text-cyan-400" />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -641,7 +724,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                   {/* CARD FACE: BACK (UNOPENED PACK COVER ARTWORK)                 */}
                   {/* ============================================================= */}
                   <div
-                    className={`absolute inset-0 w-full h-full rounded-[2.2rem] overflow-hidden border-2 ${currentTheme.borderColor} ${currentTheme.neonGlow} flex flex-col justify-between p-4 [backface-visibility:hidden] [transform:rotateY(180deg)]`}
+                    className="absolute inset-0 w-full h-full rounded-[2.2rem] overflow-hidden shadow-2xl flex flex-col justify-between p-4 [backface-visibility:hidden] [transform:rotateY(180deg)]"
                     style={{
                       backgroundImage: `url(${activeCardBg})`,
                       backgroundSize: 'cover',
@@ -973,6 +1056,127 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                   </div>
                 </div>
 
+                {/* Secondary / Playable Positions Selector */}
+                <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-300 font-bold text-xs flex items-center gap-1.5">
+                      <Sparkles size={14} className="text-cyan-400" />
+                      <span>پست‌های قابل بازی ثانویه (Playable Positions):</span>
+                    </label>
+                    <span className="text-[11px] text-cyan-300 font-sport font-bold">
+                      {altPositions.length > 0 ? `${altPositions.length} پست انتخاب شده` : 'بدون پست ثانویه'}
+                    </span>
+                  </div>
+
+                  <p className="text-[10.5px] text-slate-400 m-0 leading-relaxed">
+                    روی پست‌هایی که بازیکن علاوه بر پست اصلی توانایی بازی در آن‌ها را دارد کلیک کنید:
+                  </p>
+
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {POSITION_CHOICES.filter((pos) => pos !== playerForm.position).map((pos) => {
+                      const isSelected = altPositions.includes(pos);
+                      return (
+                        <button
+                          key={pos}
+                          type="button"
+                          onClick={() => toggleCompatiblePosition(pos)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-sport font-black transition cursor-pointer flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-[0_0_12px_rgba(6,182,212,0.4)] border border-cyan-400 scale-105'
+                              : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800 hover:text-white'
+                          }`}
+                        >
+                          {isSelected && <Check size={12} />}
+                          <span>{pos}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Prime Club & Nationality & Club Logo Section */}
+                <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-200 font-bold text-xs flex items-center gap-1.5">
+                      <Shield size={15} className="text-amber-400" />
+                      <span>مشخصات تیم دوران پرایم و ملیت بازیکن (نمایش در پایین کارت):</span>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-400 mb-1 text-[11px]">تیم دوران پرایم (Prime Club):</label>
+                      <input
+                        type="text"
+                        value={playerForm.prime_club}
+                        onChange={(e) => setPlayerForm({ ...playerForm, prime_club: e.target.value })}
+                        placeholder="مثلاً: Real Madrid, Barcelona, Man United..."
+                        className="w-full bg-slate-900 border border-slate-700/80 rounded-xl p-2.5 text-white outline-none focus:border-amber-400 text-xs font-sport"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-400 mb-1 text-[11px]">ملیت بازیکن (Nationality):</label>
+                      <input
+                        type="text"
+                        value={playerForm.nationality}
+                        onChange={(e) => setPlayerForm({ ...playerForm, nationality: e.target.value })}
+                        placeholder="مثلاً: برزیل، آرژانتین، فرانسه، ایران..."
+                        className="w-full bg-slate-900 border border-slate-700/80 rounded-xl p-2.5 text-white outline-none focus:border-cyan-400 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Club Logo Upload */}
+                  <div>
+                    <label className="block text-slate-400 mb-1 text-[11px]">لوگوی باشگاه دوران پرایم (Club Logo):</label>
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
+                        {clubLogoPreview ? (
+                          <img
+                            src={clubLogoPreview}
+                            alt="Club Logo"
+                            className="w-full h-full object-contain p-1"
+                          />
+                        ) : (
+                          <Shield size={22} className="text-slate-600" />
+                        )}
+                      </div>
+
+                      <label className="flex-1 flex items-center justify-center gap-2 p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 cursor-pointer transition text-xs font-bold">
+                        <Upload size={14} className="text-amber-400" />
+                        <span>{clubLogoPreview ? 'تغییر لوگوی باشگاه' : 'آپلود لوگوی باشگاه پرایم (PNG یا SVG با کیفیت)'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setClubLogoFile(file);
+                              setClubLogoPreview(URL.createObjectURL(file));
+                            }
+                          }}
+                        />
+                      </label>
+
+                      {clubLogoPreview && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setClubLogoFile(null);
+                            setClubLogoPreview(null);
+                          }}
+                          className="p-2.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/40 text-xs font-bold transition cursor-pointer"
+                          title="حذف لوگوی باشگاه"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-slate-400 mb-1">سن بازیکن:</label>
@@ -1119,10 +1323,10 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                     <tr>
                       <th className="p-3">کارت / عکس</th>
                       <th className="p-3">نام بازیکن</th>
+                      <th className="p-3">تیم دوران پرایم / لوگو</th>
+                      <th className="p-3">ملیت</th>
                       <th className="p-3">پست</th>
                       <th className="p-3">اورال</th>
-                      <th className="p-3">سن</th>
-                      <th className="p-3">استقامت</th>
                       <th className="p-3">وضعیت</th>
                       <th className="p-3">عملیات</th>
                     </tr>
@@ -1162,10 +1366,38 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                                 )}
                               </div>
                             </td>
-                            <td className="p-2.5 font-sport text-cyan-300 uppercase">{player.position}</td>
+                            <td className="p-2.5">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-lg bg-slate-900 border border-slate-700/80 p-0.5 flex items-center justify-center shrink-0 overflow-hidden">
+                                  {player.club_logo ? (
+                                    <img
+                                      src={player.club_logo}
+                                      alt={player.prime_club || 'لوگو'}
+                                      className="w-full h-full object-contain"
+                                    />
+                                  ) : (
+                                    <Shield size={14} className="text-amber-400/80" />
+                                  )}
+                                </div>
+                                <span className="font-bold text-white text-xs font-sport truncate max-w-[110px]">
+                                  {player.prime_club || 'ثبت نشده'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-2.5 text-slate-300 font-bold text-xs">{player.nationality || '—'}</td>
+                            <td className="p-2.5">
+                              <span className="font-sport text-cyan-300 uppercase font-black block">{player.position}</span>
+                              {player.compatible_positions && (
+                                <div className="flex flex-wrap gap-0.5 mt-0.5 max-w-[80px]">
+                                  {player.compatible_positions.split(',').map((p) => p.trim()).filter(Boolean).slice(0, 3).map((pos) => (
+                                    <span key={pos} className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-[8px] font-sport text-slate-300 font-bold">
+                                      {pos}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
                             <td className="p-2.5 font-sport font-black text-amber-300">{player.overall}</td>
-                            <td className="p-2.5 text-slate-400">{player.age}</td>
-                            <td className="p-2.5 text-emerald-400 font-sport">{player.base_stamina}</td>
                             <td className="p-2.5">
                               {player.is_claimed ? (
                                 <span className="px-2 py-0.5 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-600/40">

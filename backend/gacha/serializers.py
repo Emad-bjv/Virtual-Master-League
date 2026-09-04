@@ -5,27 +5,29 @@ from .models import Pack, PackPlayer, PackOpeningSession
 class PackPlayerSerializer(serializers.ModelSerializer):
     claimed_by_team_name = serializers.CharField(source='claimed_by_team.name', read_only=True)
     card_image = serializers.ImageField(required=False, allow_null=True)
+    club_logo = serializers.ImageField(required=False, allow_null=True)
 
     class Meta:
         model = PackPlayer
         fields = [
-            'id', 'pack', 'name', 'position', 'overall', 'potential_ovr',
-            'age', 'base_stamina', 'card_image', 'rarity', 'wage',
-            'market_value', 'is_claimed', 'claimed_by_team',
+            'id', 'pack', 'name', 'position', 'compatible_positions', 'overall', 'potential_ovr',
+            'age', 'base_stamina', 'card_image', 'nationality', 'prime_club', 'club_logo',
+            'rarity', 'wage', 'market_value', 'is_claimed', 'claimed_by_team',
             'claimed_by_team_name', 'claimed_at', 'created_at'
         ]
         read_only_fields = ['is_claimed', 'claimed_by_team', 'claimed_at', 'created_at']
 
     def to_internal_value(self, data):
-        # Handle string URL or empty string for card_image gracefully
+        # Handle string URL or empty string for image fields gracefully
         if hasattr(data, '_mutable'):
             data = data.copy()
         elif isinstance(data, dict):
             data = dict(data)
 
-        card = data.get('card_image')
-        if isinstance(card, str) or card is None or card == '':
-            data.pop('card_image', None)
+        for img_field in ['card_image', 'club_logo']:
+            img_val = data.get(img_field)
+            if isinstance(img_val, str) or img_val is None or img_val == '':
+                data.pop(img_field, None)
 
         for num in ['overall', 'potential_ovr', 'age', 'base_stamina', 'wage', 'market_value']:
             val = data.get(num)
