@@ -9,6 +9,7 @@ import {
   Layers, Palette, Eye, DollarSign, Calendar, Globe
 } from 'lucide-react';
 import { gachaApi, playerApi } from '../../services/api';
+import { getNationalityFlag } from '../../utils/nationalityFlags';
 import rareCardBg from '../../assets/cards/rare_card_bg.jpg';
 import epicCardBg from '../../assets/cards/epic_card_bg.jpg';
 import legendaryCardBg from '../../assets/cards/legendary_card_bg.jpg';
@@ -574,7 +575,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                 ref={cardRef}
                 onMouseMove={handleMouseMove}
                 onMouseLeave={handleMouseLeave}
-                className="w-[270px] sm:w-[300px] h-[400px] sm:h-[435px] cursor-pointer transition-transform duration-100 ease-out select-none"
+                className="w-[280px] sm:w-[310px] h-[415px] sm:h-[455px] cursor-pointer transition-transform duration-100 ease-out select-none"
                 style={{
                   transform: `rotateX(${cardTilt.rotateX}deg) rotateY(${cardTilt.rotateY}deg)`,
                   transformStyle: 'preserve-3d',
@@ -599,11 +600,10 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                   >
                     {/* Dynamic Holographic Sheen Layer */}
                     <div
-                      className="absolute inset-0 pointer-events-none mix-blend-overlay opacity-40 rounded-[2.2rem]"
-                      style={{
-                        background: `radial-gradient(circle at ${cardTilt.sheenX}% ${cardTilt.sheenY}%, rgba(255,255,255,0.85) 0%, transparent 60%)`,
-                      }}
-                    />
+                      className="absolute inset-0 pointer-events-none mix-blend-overlay opacity-35 rounded-[2.2rem] overflow-hidden z-20"
+                    >
+                      <div className="w-full h-[220%] bg-gradient-to-r from-transparent via-white/85 to-transparent animate-fc-sheen" />
+                    </div>
 
                     {/* Gradient Overlay for bottom readability */}
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-black/30 pointer-events-none" />
@@ -647,21 +647,32 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                       ) : <div />}
                     </div>
 
-                    {/* Center: Player Photo / Silhouette Cutout */}
-                    <div className="relative z-10 my-auto flex flex-col items-center justify-center overflow-hidden h-[180px] sm:h-[200px]">
+                    {/* Center: Oversized Player Photo / Cutout */}
+                    <div className="relative z-10 my-auto flex flex-col items-center justify-center h-[220px] sm:h-[250px] w-full overflow-visible">
+                      {/* Radial Backlight */}
+                      <div
+                        className="absolute inset-0 pointer-events-none rounded-full blur-2xl opacity-60"
+                        style={{
+                          background: packData.tier === 'LEGENDARY'
+                            ? 'radial-gradient(circle, rgba(251,191,36,0.55) 0%, transparent 70%)'
+                            : packData.tier === 'SILVER'
+                            ? 'radial-gradient(circle, rgba(192,132,252,0.5) 0%, transparent 70%)'
+                            : 'radial-gradient(circle, rgba(56,189,248,0.45) 0%, transparent 70%)'
+                        }}
+                      />
                       {playerPhotoPreview ? (
-                        <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                        <div className="w-full h-full flex items-center justify-center overflow-visible">
                           <img
                             src={playerPhotoPreview}
                             alt={playerForm.name}
-                            className="max-h-full max-w-full object-contain drop-shadow-[0_12px_24px_rgba(0,0,0,0.9)] transition-transform duration-75"
+                            className="relative z-10 max-h-full max-w-full object-contain object-bottom drop-shadow-[0_15px_30px_rgba(0,0,0,0.95)] transition-transform duration-75"
                             style={{
                               transform: `scale(${photoScale}) translate(${photoX}px, ${photoY}px)`,
                             }}
                           />
                         </div>
                       ) : (
-                        <div className="flex flex-col items-center justify-center text-center text-slate-400 space-y-2">
+                        <div className="relative z-10 flex flex-col items-center justify-center text-center text-slate-400 space-y-2">
                           <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-inner">
                             <Trophy size={42} className="text-amber-400/80 drop-shadow-lg" />
                           </div>
@@ -713,8 +724,8 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                             {playerForm.nationality || 'ملیت بازیکن'}
                           </span>
                         </div>
-                        <div className="w-6 h-6 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center shrink-0">
-                          <Globe size={13} className="text-cyan-400" />
+                        <div className="w-7 h-7 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center shrink-0 text-sm shadow-inner">
+                          {getNationalityFlag(playerForm.nationality)}
                         </div>
                       </div>
                     </div>

@@ -820,6 +820,10 @@ class AdminMatchUpdateView(APIView):
         if 'away_penalties' in request.data:
             val = request.data['away_penalties']
             match.away_penalties = int(val) if val is not None and str(val).strip() != '' else None
+        if 'home_team_id' in request.data:
+            match.home_team_id = request.data['home_team_id'] if request.data['home_team_id'] else None
+        if 'away_team_id' in request.data:
+            match.away_team_id = request.data['away_team_id'] if request.data['away_team_id'] else None
 
         if 'forfeit_winner' in request.data:
             winner_side = request.data['forfeit_winner']
@@ -2228,6 +2232,9 @@ class AdminCupTournamentView(APIView):
 
         time_slots = parse_time_slots(request.data.get('time_slots'))
         interval_gameweeks = int(request.data.get('interval_gameweeks', request.data.get('days_between_rounds', 6)))
+        shuffle_draw = request.data.get('shuffle_draw', True)
+        if isinstance(shuffle_draw, str):
+            shuffle_draw = shuffle_draw.lower() in ['true', '1']
 
         bracket_result = generate_cup_bracket(
             tournament=tournament,
@@ -2235,7 +2242,8 @@ class AdminCupTournamentView(APIView):
             start_date=start_date,
             time_slots=time_slots,
             days_between_rounds=days_between_rounds,
-            clear_existing=True
+            clear_existing=True,
+            shuffle_draw=shuffle_draw
         )
 
         # Automatically synchronize Cup dates with active League schedule (gap days)

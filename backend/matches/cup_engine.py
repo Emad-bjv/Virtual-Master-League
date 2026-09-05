@@ -32,7 +32,8 @@ def generate_cup_bracket(
     start_date=None,
     time_slots=None,
     days_between_rounds=2,
-    clear_existing=True
+    clear_existing=True,
+    shuffle_draw=True
 ) -> dict:
     """
     Generates a single-elimination bracket for the given teams.
@@ -54,9 +55,10 @@ def generate_cup_bracket(
 
     current_tz = timezone.get_current_timezone()
 
-    # Shuffle teams for random draw
+    # Shuffle teams for random draw if requested, otherwise maintain exact ordered manual pairings
     shuffled_teams = list(teams)
-    random.shuffle(shuffled_teams)
+    if shuffle_draw:
+        random.shuffle(shuffled_teams)
 
     # Dictionary to keep track of matches in each round
     # Key: round_size (e.g. 16, 8, 4, 2), Value: list of Matches
