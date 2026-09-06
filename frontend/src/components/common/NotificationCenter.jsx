@@ -11,6 +11,7 @@ const CATEGORY_STYLES = {
   TRANSFER: { color: 'border-amber-500/50 bg-amber-950/50 text-amber-200', icon: '💼', targetTab: 'market' },
   GACHA: { color: 'border-purple-500/50 bg-purple-950/50 text-purple-200', icon: '🎁', targetTab: 'store' },
   SYSTEM: { color: 'border-cyan-500/50 bg-cyan-950/50 text-cyan-200', icon: '⚡', targetTab: 'home' },
+  REWARD: { color: 'border-yellow-400/60 bg-yellow-950/60 text-yellow-200', icon: '🎉', targetTab: 'home' },
 };
 
 const formatRelativeTime = (iso) => {
@@ -31,6 +32,7 @@ const CATEGORY_TO_FILTER = {
   TRANSFER: 'market',
   GACHA: 'gacha',
   SYSTEM: 'system',
+  REWARD: 'reward',
 };
 
 const mapApiNotification = (n, isAdmin = false) => {
@@ -272,6 +274,16 @@ export default function NotificationCenter({ onNavigateTab }) {
                   }`}
                 >
                   🎁 استور و پک‌ها
+                </button>
+                <button
+                  onClick={() => setActiveFilter('reward')}
+                  className={`px-2.5 py-1 rounded-xl text-[10px] font-bold shrink-0 transition-all ${
+                    activeFilter === 'reward'
+                      ? 'bg-amber-900 text-amber-200 border border-amber-500/50 shadow-md'
+                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  }`}
+                >
+                  🎉 پاداش‌ها
                 </button>
                 <button
                   onClick={() => setActiveFilter('system')}

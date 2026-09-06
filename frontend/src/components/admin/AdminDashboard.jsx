@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, Eye, Flag, Trash2, Zap, Clock, Shield, Sparkles, Send,
   Plus, Minus, ArrowLeftRight, Bell, CheckCircle, BarChart2, Award, User, X,
   CreditCard, Gem, FileImage, UploadCloud, XCircle, Filter, Image, CheckCheck,
-  Edit2, Package, ToggleLeft, ToggleRight, Layers, Tag
+  Edit2, Package, ToggleLeft, ToggleRight, Layers, Tag, Gift, Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api, { adminApi, matchApi, teamApi, economyApi } from '../../services/api';
@@ -28,6 +28,7 @@ const DEFAULT_ADMIN_SUBNAV = [
   { id: 'overview', label: 'داشبورد ارشد' },
   { id: 'transactions', label: 'مدیریت واریزی‌ها و تراکنش‌ها' },
   { id: 'store_packages', label: 'مدیریت بسته‌های فروشگاه' },
+  { id: 'mass_reward', label: '🎁 پاداش و ایردراپ همگانی' },
   { id: 'live_admin', label: 'اتاق داوری و کنترل مسابقات' },
   { id: 'tournament_hub', label: 'مدیریت لیگ و جام حذفی' },
   { id: 'packs_season_pass', label: 'مدیریت پک‌ها و سیزن پس' },
@@ -1434,11 +1435,126 @@ export default function AdminDashboard({
     }
   };
 
+  // -------------------------------------------------------------
+  // MASS REWARD & UNIVERSAL AIRDROP STATE
+  // -------------------------------------------------------------
+  const [massRewards, setMassRewards] = useState([]);
+  const [loadingMassRewards, setLoadingMassRewards] = useState(false);
+  const [rewardTitle, setRewardTitle] = useState('🎁 پاداش و عیدی ویژه مدیریت لیگ');
+  const [rewardMessage, setRewardMessage] = useState('با آرزوی موفقیت برای کلیه تیم‌ها، این پاداش جهت تقویت باشگاه و ارتقای کادر فنی اعطا گردید.');
+  const [rewardGems, setRewardGems] = useState(100);
+  const [rewardBudget, setRewardBudget] = useState(1000000);
+  const [rewardTargetType, setRewardTargetType] = useState('ALL'); // 'ALL' | 'SELECTED'
+  const [selectedRewardTeamIds, setSelectedRewardTeamIds] = useState([]);
+  const [rewardTeamSearch, setRewardTeamSearch] = useState('');
+  const [isSubmittingMassReward, setIsSubmittingMassReward] = useState(false);
+  const [showMassRewardConfirmModal, setShowMassRewardConfirmModal] = useState(false);
+
+  const fetchMassRewards = useCallback(async () => {
+    setLoadingMassRewards(true);
+    try {
+      const res = await economyApi.getMassRewards();
+      setMassRewards(res.data?.grants || []);
+    } catch (err) {
+      console.warn('Failed to load mass rewards history', err);
+    } finally {
+      setLoadingMassRewards(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeSub === 'mass_reward') {
+      fetchMassRewards();
+    }
+  }, [activeSub, fetchMassRewards]);
+
+  // Sync selected teams default when allTeams loads
+  useEffect(() => {
+    if (allTeams.length > 0 && selectedRewardTeamIds.length === 0) {
+      setSelectedRewardTeamIds(allTeams.map((t) => t.id));
+    }
+  }, [allTeams, selectedRewardTeamIds.length]);
+
+  const OCCASION_PRESETS = [
+    {
+      title: '🎉 عیدی نوروز و سال نو',
+      message: 'فرارسیدن سال نو مبارک! پاداش ویژه نوروزی به همراه آرزوی قهرمانی برای باشگاه شما.',
+      gems: 150,
+      budget: 2000000,
+      badge: 'نوروز 🔥',
+    },
+    {
+      title: '🏆 پاداش پایان فصل و رتبه‌بندی',
+      message: 'پاداش رسمی هیئت مدیره لیگ به پاس رقابت جوانمردانه و تلاش‌های خستگی‌ناپذیر در طول فصل.',
+      gems: 250,
+      budget: 5000000,
+      badge: 'پایان فصل ⭐',
+    },
+    {
+      title: '⚡ هدیه آغاز نیم‌فصل مسابقات',
+      message: 'شروع نیم‌فصل جدید و تقویت ترکیب؛ پاداش نقدی و الماس جهت آمادگی برای رقابت‌های حساس.',
+      gems: 100,
+      budget: 1500000,
+      badge: 'نیم‌فصل 🚀',
+    },
+    {
+      title: '💎 پاداش اختلال موقت سرور و پایداری',
+      message: 'ضمن پوزش از مربیان گرامی بابت اختلال اخیر، پاداش جبرانی به موجودی کلیه تیم‌ها واریز شد.',
+      gems: 100,
+      budget: 1000000,
+      badge: 'جبران اختلال 🛡️',
+    },
+    {
+      title: '🌟 بسته حمایتی آخر هفته لیگ',
+      message: 'پاداش ویژه آخرهفته جهت شارژ ریکاوری، خرید در فروشگاه و تمرینات فشرده تیم.',
+      gems: 50,
+      budget: 500000,
+      badge: 'حمایتی 🎁',
+    },
+  ];
+
+  const handleExecuteMassReward = async () => {
+    const numGems = Math.max(0, parseInt(rewardGems, 10) || 0);
+    const numBudget = Math.max(0, parseFloat(rewardBudget) || 0);
+
+    if (numGems === 0 && numBudget === 0) {
+      showNotification('حداقل یکی از مقادیر جم یا بودجه باید بیشتر از صفر باشد.', 'error');
+      return;
+    }
+
+    if (rewardTargetType === 'SELECTED' && selectedRewardTeamIds.length === 0) {
+      showNotification('لطفاً حداقل یک تیم را برای دریافت پاداش انتخاب کنید.', 'error');
+      return;
+    }
+
+    setIsSubmittingMassReward(true);
+    try {
+      const payload = {
+        title: rewardTitle.trim() || '🎁 پاداش و ایردراپ همگانی',
+        message: rewardMessage.trim(),
+        gems_amount: numGems,
+        budget_amount: numBudget,
+        target_type: rewardTargetType,
+        team_ids: rewardTargetType === 'SELECTED' ? selectedRewardTeamIds : undefined,
+      };
+
+      const res = await economyApi.sendMassReward(payload);
+      showNotification(res.data?.message || 'پاداش با موفقیت به تیم‌ها اعطا شد.');
+      setShowMassRewardConfirmModal(false);
+      fetchMassRewards();
+    } catch (err) {
+      showNotification(err.response?.data?.error || 'خطا در واریز پاداش همگانی', 'error');
+    } finally {
+      setIsSubmittingMassReward(false);
+    }
+  };
+
   const adminSubnavItems = useMemo(() => {
     return [
       { id: 'overview', label: 'داشبورد ارشد' },
       { id: 'transactions', label: 'مدیریت واریزی‌ها و تراکنش‌ها', badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : null },
       { id: 'store_packages', label: 'مدیریت بسته‌های فروشگاه' },
+      { id: 'mass_reward', label: '🎁 پاداش و ایردراپ همگانی' },
       { id: 'live_admin', label: 'اتاق داوری و کنترل مسابقات' },
       { id: 'tournament_hub', label: 'مدیریت لیگ و جام حذفی' },
       { id: 'packs_season_pass', label: 'مدیریت پک‌ها و سیزن پس' },
@@ -2171,6 +2287,650 @@ export default function AdminDashboard({
                 </table>
               </div>
             </div>
+          )}
+        </motion.div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUBTAB: UNIVERSAL MASS REWARD & AIRDROP (GEMS & BUDGET)                   */}
+      {/* ========================================================================= */}
+      {activeSub === 'mass_reward' && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+          {/* Header Banner & Global Metrics */}
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-950 to-amber-950/40 border border-amber-500/30 p-6 shadow-2xl">
+            <div className="absolute -top-16 -left-16 w-56 h-56 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-16 -right-16 w-56 h-56 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-3 bg-gradient-to-tr from-amber-600 to-yellow-400 rounded-2xl text-slate-950 shadow-lg shadow-amber-500/30">
+                    <Gift size={26} className="stroke-[2.5]" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-black text-white tracking-wide">
+                      پاداش و ایردراپ همگانی (Mass Reward & Airdrop)
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-400">
+                      اعطای سریع الماس (جم 💎) و بودجه ($) به تیم‌ها با ثبت تراکنش، اعلان در اینباکس و نمایش پنجره جشن به مربی
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="px-4 py-2.5 rounded-2xl bg-slate-900/80 border border-slate-800 text-center">
+                  <span className="text-[10px] text-slate-400 block font-bold">تعداد تیم‌های فعال</span>
+                  <span className="text-sm font-black text-white">{Number(allTeams.length || 16).toLocaleString('fa-IR')} تیم</span>
+                </div>
+                <div className="px-4 py-2.5 rounded-2xl bg-slate-900/80 border border-slate-800 text-center">
+                  <span className="text-[10px] text-slate-400 block font-bold">کل دفعات اعطا</span>
+                  <span className="text-sm font-black text-amber-400">{Number(massRewards.length || 0).toLocaleString('fa-IR')} بار</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchMassRewards}
+                  disabled={loadingMassRewards}
+                  className="p-2.5 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-all cursor-pointer"
+                  title="بروزرسانی تاریخچه"
+                >
+                  <RefreshCw size={18} className={loadingMassRewards ? 'animate-spin text-amber-400' : ''} />
+                </button>
+              </div>
+            </div>
+
+            {/* Occasion Presets Selector */}
+            <div className="mt-5 pt-4 border-t border-slate-800/80">
+              <div className="flex items-center gap-2 mb-2 text-xs font-bold text-amber-400">
+                <Sparkles size={14} />
+                <span>قالب‌های آماده مناسبت‌ها (جهت پر کردن سریع فرم):</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(OCCASION_PRESETS || []).map((preset, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setRewardTitle(preset.title);
+                      setRewardMessage(preset.message);
+                      setRewardGems(preset.gems);
+                      setRewardBudget(preset.budget);
+                      showNotification(`قالب «${preset.title}» اعمال گردید.`);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-amber-950/50 border border-slate-800 hover:border-amber-500/50 text-xs font-bold text-slate-300 hover:text-white transition-all flex items-center gap-2 cursor-pointer group"
+                  >
+                    <span>{preset.title}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-300 group-hover:bg-amber-500/20">
+                      {preset.gems > 0 ? `+${preset.gems}💎` : ''} {preset.budget > 0 ? `+$${(preset.budget / 1000000).toFixed(1)}M` : ''}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Main Form & Preview Two-Column Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Form Column (7 cols) */}
+            <div className="lg:col-span-7 space-y-5">
+              <div className="bg-slate-950/90 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-5">
+                <h3 className="text-base font-black text-white flex items-center gap-2 border-b border-slate-800/80 pb-3">
+                  <Sliders size={18} className="text-amber-400" />
+                  <span>مشخصات پاداش و مقادیر اهدایی</span>
+                </h3>
+
+                {/* Title Input */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                    عنوان پاداش / مناسبت <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={rewardTitle}
+                    onChange={(e) => setRewardTitle(e.target.value)}
+                    placeholder="مثال: 🎉 عیدی نوروز و سال نو"
+                    className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-sm font-bold text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors"
+                  />
+                </div>
+
+                {/* Message Input */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                    متن اعلان به مربی (نمایش در پیام‌ها و پنجره پاپ‌آپ جشن)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={rewardMessage}
+                    onChange={(e) => setRewardMessage(e.target.value)}
+                    placeholder="پیام دلخواه خود را جهت قدردانی و تبریک به مربیان بنویسید..."
+                    className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-xs sm:text-sm font-medium text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-colors leading-relaxed"
+                  />
+                </div>
+
+                {/* Gems Input & Quick Pills */}
+                <div className="p-4 rounded-2xl bg-cyan-950/20 border border-cyan-500/20 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-cyan-300 flex items-center gap-1.5">
+                      <Gem size={15} />
+                      <span>مقدار الماس (جم 💎) به هر تیم:</span>
+                    </label>
+                    <span className="text-xs text-cyan-400 font-mono font-bold">
+                      {Number(rewardGems || 0).toLocaleString('fa-IR')} 💎
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={rewardGems}
+                    onChange={(e) => setRewardGems(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    className="w-full px-4 py-2 bg-slate-900 border border-cyan-500/30 rounded-xl text-sm font-black text-white focus:outline-none focus:border-cyan-400 font-mono"
+                  />
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <span className="text-[10px] text-slate-400 py-1 pl-1">افزودن سریع:</span>
+                    {[50, 100, 250, 500, 1000].map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setRewardGems((prev) => (Number(prev) || 0) + amt)}
+                        className="px-2.5 py-1 rounded-lg bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/30 text-[11px] font-bold text-cyan-200 hover:text-white transition-all cursor-pointer"
+                      >
+                        +{amt} 💎
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setRewardGems(0)}
+                      className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-bold text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
+                    >
+                      صفر
+                    </button>
+                  </div>
+                </div>
+
+                {/* Budget Input & Quick Pills */}
+                <div className="p-4 rounded-2xl bg-emerald-950/20 border border-emerald-500/20 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-black text-emerald-300 flex items-center gap-1.5">
+                      <DollarSign size={15} />
+                      <span>مقدار بودجه مجازی ($) به هر تیم:</span>
+                    </label>
+                    <span className="text-xs text-emerald-400 font-mono font-bold">
+                      ${Number(rewardBudget || 0).toLocaleString('en-US')}
+                    </span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="50000"
+                    value={rewardBudget}
+                    onChange={(e) => setRewardBudget(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-full px-4 py-2 bg-slate-900 border border-emerald-500/30 rounded-xl text-sm font-black text-white focus:outline-none focus:border-emerald-400 font-mono"
+                  />
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <span className="text-[10px] text-slate-400 py-1 pl-1">افزودن سریع:</span>
+                    {[
+                      { label: '+$500k', val: 500000 },
+                      { label: '+$1M', val: 1000000 },
+                      { label: '+$2.5M', val: 2500000 },
+                      { label: '+$5M', val: 5000000 },
+                    ].map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => setRewardBudget((prev) => (Number(prev) || 0) + item.val)}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-500/30 text-[11px] font-bold text-emerald-200 hover:text-white transition-all cursor-pointer"
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setRewardBudget(0)}
+                      className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-bold text-slate-400 hover:text-rose-400 transition-all cursor-pointer"
+                    >
+                      صفر
+                    </button>
+                  </div>
+                </div>
+
+                {/* Target Teams Selection Mode */}
+                <div className="space-y-3 pt-2">
+                  <label className="block text-xs font-bold text-slate-300">
+                    جامعه هدف پاداش:
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setRewardTargetType('ALL')}
+                      className={`p-3.5 rounded-2xl border text-right transition-all flex items-center justify-between cursor-pointer ${
+                        rewardTargetType === 'ALL'
+                          ? 'bg-amber-500/10 border-amber-500 text-white shadow-lg shadow-amber-500/10'
+                          : 'bg-slate-900/70 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      <div>
+                        <span className="text-xs font-black block">همه تیم‌های لیگ</span>
+                        <span className="text-[11px] text-slate-400">
+                          واریز همگانی به کلیه {Number(allTeams.length || 16).toLocaleString('fa-IR')} تیم فعال
+                        </span>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                        rewardTargetType === 'ALL' ? 'border-amber-400 bg-amber-500 text-slate-950' : 'border-slate-600'
+                      }`}>
+                        {rewardTargetType === 'ALL' && <Check size={12} className="stroke-[3]" />}
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setRewardTargetType('SELECTED')}
+                      className={`p-3.5 rounded-2xl border text-right transition-all flex items-center justify-between cursor-pointer ${
+                        rewardTargetType === 'SELECTED'
+                          ? 'bg-amber-500/10 border-amber-500 text-white shadow-lg shadow-amber-500/10'
+                          : 'bg-slate-900/70 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      <div>
+                        <span className="text-xs font-black block">انتخاب دستی تیم‌ها</span>
+                        <span className="text-[11px] text-slate-400">
+                          {selectedRewardTeamIds.length} تیم انتخاب شده
+                        </span>
+                      </div>
+                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                        rewardTargetType === 'SELECTED' ? 'border-amber-400 bg-amber-500 text-slate-950' : 'border-slate-600'
+                      }`}>
+                        {rewardTargetType === 'SELECTED' && <Check size={12} className="stroke-[3]" />}
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Selective Teams Checkbox Grid */}
+                  {rewardTargetType === 'SELECTED' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3"
+                    >
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                        <input
+                          type="text"
+                          value={rewardTeamSearch}
+                          onChange={(e) => setRewardTeamSearch(e.target.value)}
+                          placeholder="جستجوی تیم در لیست..."
+                          className="px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs font-medium text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRewardTeamIds(allTeams.map((t) => t.id))}
+                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-300 hover:text-white cursor-pointer"
+                          >
+                            انتخاب همه
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedRewardTeamIds([])}
+                            className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-bold text-slate-400 hover:text-rose-400 cursor-pointer"
+                          >
+                            لغو همه
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-56 overflow-y-auto custom-scrollbar p-1">
+                        {(allTeams || [])
+                          .filter((t) => !rewardTeamSearch || String(t.name || '').toLowerCase().includes(rewardTeamSearch.toLowerCase()))
+                          .map((team) => {
+                            const isSelected = selectedRewardTeamIds.includes(team.id);
+                            return (
+                              <button
+                                key={team.id}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedRewardTeamIds((prev) => prev.filter((id) => id !== team.id));
+                                  } else {
+                                    setSelectedRewardTeamIds((prev) => [...prev, team.id]);
+                                  }
+                                }}
+                                className={`p-2 rounded-xl border text-right transition-all flex items-center gap-2 cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-amber-500/15 border-amber-500/60 text-white'
+                                    : 'bg-slate-950/60 border-slate-800/80 text-slate-400 hover:border-slate-700'
+                                }`}
+                              >
+                                <div className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 ${
+                                  isSelected ? 'border-amber-400 bg-amber-500 text-slate-950' : 'border-slate-600'
+                                }`}>
+                                  {isSelected && <Check size={10} className="stroke-[3]" />}
+                                </div>
+                                <img
+                                  src={getTeamLogoUrl(team.name)}
+                                  alt={team.name}
+                                  className="w-5 h-5 object-contain shrink-0"
+                                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                />
+                                <span className="text-xs font-bold truncate">{team.name}</span>
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* Submit Trigger Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const numG = Number(rewardGems) || 0;
+                    const numB = Number(rewardBudget) || 0;
+                    if (numG <= 0 && numB <= 0) {
+                      showNotification('لطفاً حداقل یکی از مقادیر جم یا بودجه را مشخص کنید.', 'error');
+                      return;
+                    }
+                    if (rewardTargetType === 'SELECTED' && selectedRewardTeamIds.length === 0) {
+                      showNotification('لطفاً حداقل یک تیم را انتخاب کنید.', 'error');
+                      return;
+                    }
+                    setShowMassRewardConfirmModal(true);
+                  }}
+                  className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 hover:brightness-110 active:scale-[0.99] text-slate-950 font-black text-sm sm:text-base shadow-xl shadow-amber-500/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Send size={18} className="stroke-[2.5]" />
+                  <span>بررسی نهایی و واریز پاداش</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Live Preview & Summary Column (5 cols) */}
+            <div className="lg:col-span-5 space-y-5">
+              {/* Financial Disbursal Breakdown Card */}
+              <div className="bg-slate-950/90 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-4">
+                <h3 className="text-sm font-black text-white flex items-center gap-2 border-b border-slate-800/80 pb-3">
+                  <BarChart2 size={16} className="text-amber-400" />
+                  <span>محاسبه کل مبلغ واریزی لیگ</span>
+                </h3>
+
+                {(() => {
+                  const targetCount = rewardTargetType === 'ALL' ? (allTeams.length || 16) : selectedRewardTeamIds.length;
+                  const totalGems = targetCount * (Number(rewardGems) || 0);
+                  const totalBudget = targetCount * (Number(rewardBudget) || 0);
+
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs">
+                        <span className="text-slate-400 font-medium">تعداد تیم‌های دریافت‌کننده:</span>
+                        <span className="text-white font-black">{Number(targetCount).toLocaleString('fa-IR')} تیم</span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-cyan-950/25 border border-cyan-500/25 text-xs">
+                        <span className="text-cyan-300 font-medium">جمع کل جم‌های واریزی:</span>
+                        <span className="text-cyan-200 font-black font-mono">
+                          {Number(totalGems).toLocaleString('fa-IR')} 💎
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-950/25 border border-emerald-500/25 text-xs">
+                        <span className="text-emerald-300 font-medium">جمع کل دلارهای واریزی:</span>
+                        <span className="text-emerald-200 font-black font-mono">
+                          ${Number(totalBudget).toLocaleString('en-US')}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Live Preview of Coach Experience */}
+              <div className="bg-slate-950/90 border border-slate-800 rounded-3xl p-5 shadow-xl space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                  <h3 className="text-xs font-black text-slate-300 flex items-center gap-1.5">
+                    <Eye size={14} className="text-amber-400" />
+                    <span>پیش‌نمایش زنده پنجره اعلان مربی</span>
+                  </h3>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
+                    نمای زنده
+                  </span>
+                </div>
+
+                {/* Mockup Celebration Card */}
+                <div className="relative rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-amber-500/30 p-4 text-center shadow-inner overflow-hidden">
+                  <div className="w-12 h-12 mx-auto mb-2 rounded-xl bg-gradient-to-tr from-amber-600 to-yellow-400 flex items-center justify-center text-slate-950 shadow-md">
+                    <Gift size={22} />
+                  </div>
+                  <h4 className="text-sm font-black text-white mb-1">
+                    {String(rewardTitle || 'عنوان پاداش')}
+                  </h4>
+                  <p className="text-[11px] text-slate-300 line-clamp-2 leading-relaxed mb-3">
+                    {String(rewardMessage || 'متن پیام اعلان به مربی در این قسمت قرار می‌گیرد...')}
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 text-right">
+                    {Number(rewardGems) > 0 && (
+                      <div className="p-2 rounded-lg bg-cyan-950/40 border border-cyan-500/30">
+                        <span className="text-[10px] text-cyan-300/80 block">الماس</span>
+                        <span className="text-xs font-black text-white font-mono">
+                          +{Number(rewardGems).toLocaleString('fa-IR')} 💎
+                        </span>
+                      </div>
+                    )}
+                    {Number(rewardBudget) > 0 && (
+                      <div className={`p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/30 ${
+                        Number(rewardGems) <= 0 ? 'col-span-2' : ''
+                      }`}>
+                        <span className="text-[10px] text-emerald-300/80 block">بودجه باشگاه</span>
+                        <span className="text-xs font-black text-emerald-300 font-mono">
+                          +${Number(rewardBudget).toLocaleString('en-US')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Past Mass Rewards History Table */}
+          <div className="bg-slate-950/90 border border-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+              <h3 className="text-base font-black text-white flex items-center gap-2">
+                <Clock size={18} className="text-amber-400" />
+                <span>سوابق ایردراپ‌ها و پاداش‌های واریز شده</span>
+              </h3>
+              <span className="text-xs text-slate-400 font-bold">
+                مجموع: {Number(massRewards.length || 0).toLocaleString('fa-IR')} مورد
+              </span>
+            </div>
+
+            {loadingMassRewards ? (
+              <div className="py-12 text-center text-slate-400">
+                <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-amber-400" />
+                <span className="text-xs">در حال بارگذاری سوابق...</span>
+              </div>
+            ) : massRewards.length === 0 ? (
+              <div className="py-12 text-center text-slate-500 space-y-2">
+                <Gift size={32} className="mx-auto text-slate-600 opacity-50" />
+                <p className="text-xs">هنوز هیچ پاداش همگانی در سیستم ثبت نشده است.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-slate-400 font-bold">
+                      <th className="py-3 px-3">ردیف</th>
+                      <th className="py-3 px-3">عنوان و متن پاداش</th>
+                      <th className="py-3 px-3">پاداش هر تیم</th>
+                      <th className="py-3 px-3">جامعه هدف</th>
+                      <th className="py-3 px-3">کل ارز توزیع شده</th>
+                      <th className="py-3 px-3">ادمین</th>
+                      <th className="py-3 px-3">تاریخ اعطا</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-medium">
+                    {(massRewards || []).map((grant, idx) => {
+                      const totalGems = (grant.teams_count || 0) * (grant.gems_amount || 0);
+                      const totalBudget = (grant.teams_count || 0) * (Number(grant.budget_amount) || 0);
+
+                      return (
+                        <tr key={grant.id || idx} className="hover:bg-slate-900/60 transition-colors">
+                          <td className="py-3.5 px-3 text-slate-400 font-mono">
+                            {Number(idx + 1).toLocaleString('fa-IR')}
+                          </td>
+                          <td className="py-3.5 px-3">
+                            <div className="font-bold text-white mb-0.5">{grant.title}</div>
+                            {grant.message && (
+                              <div className="text-[11px] text-slate-400 line-clamp-1">
+                                {grant.message}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-3 whitespace-nowrap">
+                            <div className="flex flex-col gap-1">
+                              {grant.gems_amount > 0 && (
+                                <span className="text-cyan-300 font-bold font-mono">
+                                  +{Number(grant.gems_amount).toLocaleString('fa-IR')} 💎
+                                </span>
+                              )}
+                              {Number(grant.budget_amount) > 0 && (
+                                <span className="text-emerald-300 font-bold font-mono">
+                                  +${Number(grant.budget_amount).toLocaleString('en-US')}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-3 whitespace-nowrap">
+                            <span className="px-2.5 py-1 rounded-full bg-slate-900 border border-slate-700 text-white font-bold text-[11px]">
+                              {Number(grant.teams_count || 0).toLocaleString('fa-IR')} تیم ({grant.target_type === 'ALL' ? 'همه' : 'منتخب'})
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3 whitespace-nowrap">
+                            <div className="flex flex-col gap-1">
+                              {totalGems > 0 && (
+                                <span className="text-cyan-400 font-mono text-[11px]">
+                                  جمع: {Number(totalGems).toLocaleString('fa-IR')} 💎
+                                </span>
+                              )}
+                              {totalBudget > 0 && (
+                                <span className="text-emerald-400 font-mono text-[11px]">
+                                  جمع: ${Number(totalBudget).toLocaleString('en-US')}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-3 text-slate-300 whitespace-nowrap">
+                            {grant.admin_username || 'سیستم'}
+                          </td>
+                          <td className="py-3.5 px-3 text-slate-400 font-mono text-[11px] whitespace-nowrap">
+                            {grant.created_at ? new Date(grant.created_at).toLocaleDateString('fa-IR', {
+                              year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                            }) : '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Two-step Safety Confirmation Modal (Portal per project rule) */}
+          {typeof document !== 'undefined' && createPortal(
+            <AnimatePresence>
+              {showMassRewardConfirmModal && (
+                <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+                  <div className="fixed inset-0" onClick={() => !isSubmittingMassReward && setShowMassRewardConfirmModal(false)} />
+                  <motion.div
+                    initial={{ scale: 0.95, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.95, opacity: 0 }}
+                    className="relative z-10 bg-slate-950 border border-amber-500/40 rounded-3xl w-full max-w-lg my-auto p-6 shadow-2xl space-y-5 text-right"
+                    onClick={(e) => e.stopPropagation()}
+                    dir="rtl"
+                  >
+                    <div className="flex items-center gap-3 border-b border-slate-800 pb-3">
+                      <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                        <AlertTriangle size={22} />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-black text-white">
+                          تأیید نهایی واریز پاداش همگانی
+                        </h3>
+                        <p className="text-xs text-slate-400">
+                          لطفاً اطلاعات زیر را قبل از واریز بررسی فرمایید
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">عنوان پاداش:</span>
+                        <span className="text-white font-bold">{rewardTitle}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">جامعه هدف:</span>
+                        <span className="text-amber-400 font-bold">
+                          {Number(rewardTargetType === 'ALL' ? (allTeams.length || 16) : selectedRewardTeamIds.length).toLocaleString('fa-IR')} تیم
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-400">پاداش هر تیم:</span>
+                        <span className="text-cyan-300 font-bold">
+                          {Number(rewardGems) > 0 ? `+${Number(rewardGems).toLocaleString('fa-IR')} 💎 ` : ''}
+                          {Number(rewardBudget) > 0 ? `+${Number(rewardBudget).toLocaleString('en-US')} $` : ''}
+                        </span>
+                      </div>
+                      <div className="pt-2 border-t border-slate-800 flex justify-between text-sm font-black">
+                        <span className="text-slate-300">کل جم‌های توزیعی:</span>
+                        <span className="text-cyan-300 font-mono">
+                          {Number((rewardTargetType === 'ALL' ? (allTeams.length || 16) : selectedRewardTeamIds.length) * (Number(rewardGems) || 0)).toLocaleString('fa-IR')} 💎
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm font-black">
+                        <span className="text-slate-300">کل دلارهای توزیعی:</span>
+                        <span className="text-emerald-300 font-mono">
+                          ${Number((rewardTargetType === 'ALL' ? (allTeams.length || 16) : selectedRewardTeamIds.length) * (Number(rewardBudget) || 0)).toLocaleString('en-US')}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-amber-300/90 bg-amber-500/10 p-3 rounded-xl border border-amber-500/20 leading-relaxed">
+                      ⚠️ با تأیید این عملیات، بلافاصله موجودی کیف پول تمامی تیم‌های فوق شارژ شده، اسناد تراکنش ایجاد گشته و اعلان رسمی به مربیان ارسال می‌شود.
+                    </p>
+
+                    <div className="flex items-center gap-3 pt-2">
+                      <button
+                        type="button"
+                        disabled={isSubmittingMassReward}
+                        onClick={handleExecuteMassReward}
+                        className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:brightness-110 active:scale-[0.98] text-slate-950 font-black text-sm shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        {isSubmittingMassReward ? (
+                          <>
+                            <RefreshCw size={16} className="animate-spin" />
+                            <span>در حال واریز به حساب تیم‌ها...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={16} />
+                            <span>تأیید و اجرای واریز همگانی</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSubmittingMassReward}
+                        onClick={() => setShowMassRewardConfirmModal(false)}
+                        className="py-3 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold text-xs cursor-pointer transition-all"
+                      >
+                        انصراف
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>,
+            document.body
           )}
         </motion.div>
       )}

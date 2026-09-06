@@ -12,6 +12,7 @@ from .views import (
     AdminStorePackageListCreateView,
     AdminStorePackageDetailView,
     AdminStorePackageToggleView,
+    AdminMassRewardView,
 )
 
 urlpatterns = [
@@ -25,6 +26,7 @@ urlpatterns = [
     path('admin/packages/', AdminStorePackageListCreateView.as_view(), name='admin-store-packages'),
     path('admin/packages/<int:pk>/', AdminStorePackageDetailView.as_view(), name='admin-store-package-detail'),
     path('admin/packages/<int:pk>/toggle/', AdminStorePackageToggleView.as_view(), name='admin-store-package-toggle'),
+    path('admin/mass-reward/', AdminMassRewardView.as_view(), name='admin-mass-reward'),
     path('transactions/history/', TransactionHistoryView.as_view(), name='transaction-history'),
     path('teams/<int:team_id>/revenue-breakdown/', TeamRevenueBreakdownView.as_view(), name='team-revenue-breakdown'),
 ]

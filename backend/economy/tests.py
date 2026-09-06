@@ -129,3 +129,116 @@ class EconomyServicesTestCase(TestCase):
         self.assertEqual(underdog_res['underdog_gems'], 15)
         self.assertEqual(underdog_res['total_gems'], 25)
         self.assertTrue(underdog_res['is_underdog'])
+
+
+class MassRewardGrantTestCase(TestCase):
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        self.admin = User.objects.create_superuser(username='admin_test', password='password123', email='admin@test.com')
+        self.coach = User.objects.create_user(username='coach_test', password='password123', email='coach@test.com')
+
+        self.team1 = Team.objects.create(name="Team Alpha", budget=Decimal('1000000.00'), gems=50)
+        self.team2 = Team.objects.create(name="Team Beta", budget=Decimal('2000000.00'), gems=20)
+
+    def test_mass_reward_admin_permission(self):
+        from rest_framework.test import APIClient
+        client = APIClient()
+
+        # Anonymous gets 401
+        res = client.get('/api/economy/admin/mass-reward/')
+        self.assertIn(res.status_code, [401, 403])
+
+        # Regular coach gets 403
+        client.force_authenticate(user=self.coach)
+        res = client.get('/api/economy/admin/mass-reward/')
+        self.assertEqual(res.status_code, 403)
+
+        # Admin gets 200
+        client.force_authenticate(user=self.admin)
+        res = client.get('/api/economy/admin/mass-reward/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['grants'], [])
+
+    def test_mass_reward_all_teams_success(self):
+        from rest_framework.test import APIClient
+        from notifications.models import Notification
+        from economy.models import MassRewardGrant
+
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+
+        payload = {
+            'title': '🎉 عیدی نوروز',
+            'message': 'تبریک سال نو به کلیه مربیان',
+            'gems_amount': 100,
+            'budget_amount': 500000,
+            'target_type': 'ALL'
+        }
+
+        res = client.post('/api/economy/admin/mass-reward/', payload, format='json')
+        self.assertEqual(res.status_code, 201)
+
+        # Verify teams balances
+        self.team1.refresh_from_db()
+        self.team2.refresh_from_db()
+        self.assertEqual(self.team1.gems, 150) # 50 + 100
+        self.assertEqual(self.team1.budget, Decimal('1500000.00')) # 1M + 500k
+        self.assertEqual(self.team2.gems, 120) # 20 + 100
+        self.assertEqual(self.team2.budget, Decimal('2500000.00')) # 2M + 500k
+
+        # Verify Transactions
+        gem_txs = Transaction.objects.filter(transaction_type='AIRDROP_REWARD', currency='GEMS')
+        self.assertEqual(gem_txs.count(), 2)
+        self.assertEqual(gem_txs.first().amount, Decimal('100.00'))
+
+        budget_txs = Transaction.objects.filter(transaction_type='AIRDROP_REWARD', currency='BUDGET')
+        self.assertEqual(budget_txs.count(), 2)
+        self.assertEqual(budget_txs.first().amount, Decimal('500000.00'))
+
+        # Verify Notifications
+        notifs = Notification.objects.filter(category='REWARD')
+        self.assertEqual(notifs.count(), 2)
+        self.assertTrue(notifs.first().action_url.startswith('/dashboard?reward_gems=100'))
+
+        # Verify MassRewardGrant
+        self.assertEqual(MassRewardGrant.objects.count(), 1)
+        grant = MassRewardGrant.objects.first()
+        self.assertEqual(grant.teams_count, 2)
+        self.assertEqual(grant.gems_amount, 100)
+
+    def test_mass_reward_selected_team(self):
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+
+        payload = {
+            'title': 'پاداش تکی',
+            'gems_amount': 50,
+            'budget_amount': 0,
+            'target_type': 'SELECTED',
+            'team_ids': [self.team1.id]
+        }
+
+        res = client.post('/api/economy/admin/mass-reward/', payload, format='json')
+        self.assertEqual(res.status_code, 201)
+
+        self.team1.refresh_from_db()
+        self.team2.refresh_from_db()
+        self.assertEqual(self.team1.gems, 100) # 50 + 50
+        self.assertEqual(self.team2.gems, 20)  # Unchanged
+
+    def test_mass_reward_validation_zero_amount(self):
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(user=self.admin)
+
+        payload = {
+            'title': 'پاداش خالی',
+            'gems_amount': 0,
+            'budget_amount': 0,
+            'target_type': 'ALL'
+        }
+
+        res = client.post('/api/economy/admin/mass-reward/', payload, format='json')
+        self.assertEqual(res.status_code, 400)

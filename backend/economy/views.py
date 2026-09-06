@@ -5,12 +5,14 @@ from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.utils import timezone
 from django.db import transaction as db_transaction
-from .models import StorePackage, Transaction, PaymentRequest, CardToCardSettings
+from .models import StorePackage, Transaction, PaymentRequest, CardToCardSettings, MassRewardGrant
 from .serializers import (
     StorePackageSerializer, TransactionSerializer,
     PaymentRequestSerializer, CardToCardSettingsSerializer,
-    PaymentReceiptUploadSerializer
+    PaymentReceiptUploadSerializer, MassRewardGrantSerializer
 )
+from teams.models import Team
+from notifications.models import Notification
 
 
 class StorePackageListView(generics.ListAPIView):
@@ -540,4 +542,134 @@ class AdminStorePackageToggleView(views.APIView):
             },
             status=status.HTTP_200_OK
         )
+
+
+class AdminMassRewardView(views.APIView):
+    """
+    Admin API to grant mass rewards (Gems, Budget) to all or selected teams,
+    creating atomic transaction logs, notifications, and grant history.
+    """
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        grants = MassRewardGrant.objects.all().select_related('admin').order_by('-created_at')[:50]
+        serializer = MassRewardGrantSerializer(grants, many=True)
+        return Response({
+            'grants': serializer.data,
+            'total_count': MassRewardGrant.objects.count()
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        data = request.data
+        title = (data.get('title') or '').strip()
+        message = (data.get('message') or '').strip()
+        target_type = data.get('target_type', 'ALL')
+        team_ids = data.get('team_ids', [])
+
+        try:
+            gems_amount = int(data.get('gems_amount', 0) or 0)
+            if gems_amount < 0:
+                raise ValueError()
+        except (ValueError, TypeError):
+            return Response({'error': 'مقدار جم باید عدد صحیح نامنفی باشد.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            budget_val = data.get('budget_amount', 0) or 0
+            budget_amount = Decimal(str(budget_val))
+            if budget_amount < Decimal('0'):
+                raise ValueError()
+        except (ValueError, TypeError):
+            return Response({'error': 'مقدار بودجه باید عدد نامنفی باشد.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if gems_amount == 0 and budget_amount == Decimal('0'):
+            return Response(
+                {'error': 'حداقل یکی از مقادیر جم یا بودجه باید بزرگتر از صفر باشد.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not title:
+            title = 'پاداش و ایردراپ همگانی'
+
+        # Select target teams
+        if target_type == 'SELECTED':
+            if not team_ids or not isinstance(team_ids, list):
+                return Response({'error': 'حداقل یک تیم باید برای اعطای پاداش انتخاب شود.'}, status=status.HTTP_400_BAD_REQUEST)
+            teams = list(Team.objects.filter(id__in=team_ids))
+            if not teams:
+                return Response({'error': 'هیچ تیمی با شناسه‌های ارسالی یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            target_type = 'ALL'
+            teams = list(Team.objects.all())
+            if not teams:
+                return Response({'error': 'هیچ تیمی در سیستم وجود ندارد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        with db_transaction.atomic():
+            transactions_to_create = []
+            notifications_to_create = []
+
+            for team in teams:
+                if gems_amount > 0:
+                    team.gems = (team.gems or 0) + gems_amount
+                    transactions_to_create.append(
+                        Transaction(
+                            team=team,
+                            currency='GEMS',
+                            amount=Decimal(gems_amount),
+                            amount_irr=0,
+                            transaction_type='AIRDROP_REWARD',
+                            status='SUCCESS',
+                            description=f"{title}: {message}" if message else title
+                        )
+                    )
+
+                if budget_amount > Decimal('0'):
+                    team.budget = (team.budget or Decimal('0')) + budget_amount
+                    transactions_to_create.append(
+                        Transaction(
+                            team=team,
+                            currency='BUDGET',
+                            amount=budget_amount,
+                            amount_irr=0,
+                            transaction_type='AIRDROP_REWARD',
+                            status='SUCCESS',
+                            description=f"{title}: {message}" if message else title
+                        )
+                    )
+
+                team.save()
+
+                action_url = f"/dashboard?reward_gems={gems_amount}&reward_budget={budget_amount}"
+                notifications_to_create.append(
+                    Notification(
+                        team=team,
+                        target_role='COACH',
+                        category='REWARD',
+                        title=title,
+                        message=message or f"شما پاداش دریافت کردید: {gems_amount} جم و ${budget_amount:,.0f} دلار",
+                        action_url=action_url,
+                        is_read=False
+                    )
+                )
+
+            if transactions_to_create:
+                Transaction.objects.bulk_create(transactions_to_create)
+            if notifications_to_create:
+                Notification.objects.bulk_create(notifications_to_create)
+
+            admin_user = request.user if request.user.is_authenticated else None
+            grant = MassRewardGrant.objects.create(
+                admin=admin_user,
+                title=title,
+                message=message,
+                gems_amount=gems_amount,
+                budget_amount=budget_amount,
+                teams_count=len(teams),
+                target_type=target_type
+            )
+
+        return Response({
+            'message': f'پاداش با موفقیت به {len(teams)} تیم اختصاص داده شد.',
+            'grant': MassRewardGrantSerializer(grant).data,
+            'teams_count': len(teams)
+        }, status=status.HTTP_201_CREATED)
 

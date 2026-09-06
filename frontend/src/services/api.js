@@ -164,6 +164,8 @@ export const economyApi = {
   adminUpdatePackage: (id, data) => api.patch(`/economy/admin/packages/${id}/`, data),
   adminDeletePackage: (id) => api.delete(`/economy/admin/packages/${id}/`),
   adminTogglePackage: (id) => api.post(`/economy/admin/packages/${id}/toggle/`),
+  getMassRewards: () => api.get('/economy/admin/mass-reward/'),
+  sendMassReward: (payload) => api.post('/economy/admin/mass-reward/', payload),
 };
 
 export const gachaApi = {

@@ -6,6 +6,7 @@ import FCBackground from '../components/common/FCBackground';
 import ErrorBoundary from '../components/common/ErrorBoundary';
 import HomeTab from '../components/home/HomeTab';
 import AuthModal from '../components/auth/AuthModal';
+import RewardCelebrationModal from '../components/common/RewardCelebrationModal';
 import { teamApi, matchApi, notificationApi, coreApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useTeam } from '../context/TeamContext';
@@ -213,6 +214,65 @@ export default function MainDashboard() {
       setLoading(false);
     }
   }, [user, hydrateTeamData, authLoading]);
+
+  // Mass Reward Celebration Modal State
+  const [rewardCelebrationData, setRewardCelebrationData] = useState(null);
+
+  // Check for unread mass reward notifications on dashboard load
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let isMounted = true;
+    const checkRewardNotifications = async () => {
+      try {
+        const res = await notificationApi.getInbox({ category: 'REWARD', is_read: false });
+        const items = res.data?.results || res.data || [];
+        const unreadReward = (items || []).find((n) => n && !n.is_read && n.category === 'REWARD');
+
+        if (unreadReward && isMounted) {
+          const sessionKey = `vml_celebrated_reward_${unreadReward.id}`;
+          if (!sessionStorage.getItem(sessionKey)) {
+            let gems = 0;
+            let budget = 0;
+            if (unreadReward.action_url) {
+              try {
+                const params = new URLSearchParams(unreadReward.action_url.split('?')[1] || '');
+                gems = parseInt(params.get('reward_gems') || 0, 10);
+                budget = parseFloat(params.get('reward_budget') || 0);
+              } catch (_e) {}
+            }
+
+            setRewardCelebrationData({
+              id: unreadReward.id,
+              title: unreadReward.title || '🎉 پاداش ویژه باشگاه',
+              message: unreadReward.message || '',
+              gems,
+              budget,
+            });
+
+            notificationSoundService.playMatchAlertChime(true);
+          }
+        }
+      } catch (_err) {
+        // Quiet fallback
+      }
+    };
+
+    checkRewardNotifications();
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated, user?.id, teamData?.id]);
+
+  const handleCloseRewardCelebration = useCallback(() => {
+    if (rewardCelebrationData?.id) {
+      sessionStorage.setItem(`vml_celebrated_reward_${rewardCelebrationData.id}`, 'true');
+      notificationApi.markAsRead(rewardCelebrationData.id).catch(() => {});
+      // Refresh team balances so header updates in real-time
+      fetchTeamData();
+    }
+    setRewardCelebrationData(null);
+  }, [rewardCelebrationData, fetchTeamData]);
 
   // Automatically route admin users to admin tab
   useEffect(() => {
@@ -534,6 +594,16 @@ export default function MainDashboard() {
                 isRequired={false}
               />
             )}
+
+            {/* Mass Reward Celebration Modal */}
+            <RewardCelebrationModal
+              isOpen={Boolean(rewardCelebrationData)}
+              onClose={handleCloseRewardCelebration}
+              title={rewardCelebrationData?.title}
+              message={rewardCelebrationData?.message}
+              gems={rewardCelebrationData?.gems}
+              budget={rewardCelebrationData?.budget}
+            />
           </div>
 
           {/* Bottom Navigation Dock */}

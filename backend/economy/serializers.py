@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import StorePackage, Transaction, PaymentRequest, CardToCardSettings
+from .models import StorePackage, Transaction, PaymentRequest, CardToCardSettings, MassRewardGrant
 
 
 class StorePackageSerializer(serializers.ModelSerializer):
@@ -52,3 +52,17 @@ class PaymentRequestSerializer(serializers.ModelSerializer):
 
 class PaymentReceiptUploadSerializer(serializers.Serializer):
     receipt_image = serializers.ImageField()
+
+
+class MassRewardGrantSerializer(serializers.ModelSerializer):
+    admin_username = serializers.CharField(source='admin.username', read_only=True)
+
+    class Meta:
+        model = MassRewardGrant
+        fields = [
+            'id', 'admin', 'admin_username', 'title', 'message',
+            'gems_amount', 'budget_amount', 'teams_count',
+            'target_type', 'created_at'
+        ]
+        read_only_fields = ['id', 'admin', 'admin_username', 'teams_count', 'created_at']
+

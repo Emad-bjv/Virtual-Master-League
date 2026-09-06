@@ -15,6 +15,7 @@ class Notification(models.Model):
         ('TRANSFER', 'نقل و انتقالات'),
         ('GACHA', 'گاشا'),
         ('SYSTEM', 'سیستم'),
+        ('REWARD', 'پاداش و جایزه'),
     ]
 
     TARGET_ROLE_CHOICES = [

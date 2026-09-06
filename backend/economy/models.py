@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from teams.models import Team
@@ -124,6 +125,7 @@ class Transaction(models.Model):
         ('STAMINA_RECOVERY', 'ریکاوری استقامت بازیکن'),
         ('INJURY_HEAL', 'درمان فوری مصدومیت'),
         ('UNDERDOG_BONUS', 'پاداش شگفتی‌سازی مسابقه'),
+        ('AIRDROP_REWARD', 'پاداش و ایردراپ همگانی'),
     ]
 
     STATUS_CHOICES = [
@@ -262,3 +264,34 @@ class PaymentRequest(models.Model):
 
     def __str__(self):
         return f"[{self.get_status_display()}] {self.team.name} - {self.amount_irr} تومان"
+
+
+class MassRewardGrant(models.Model):
+    admin = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='mass_rewards',
+        verbose_name="ادمین واریزکننده"
+    )
+    title = models.CharField(max_length=255, verbose_name="عنوان پاداش")
+    message = models.TextField(blank=True, default='', verbose_name="پیام و متن اعلان")
+    gems_amount = models.PositiveIntegerField(default=0, verbose_name="تعداد جم اهدایی به هر تیم")
+    budget_amount = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0.00,
+        verbose_name="مبلغ دلار اهدایی به هر تیم"
+    )
+    teams_count = models.PositiveIntegerField(default=0, verbose_name="تعداد تیم‌های دریافت‌کننده")
+    target_type = models.CharField(
+        max_length=20, default='ALL',
+        choices=[('ALL', 'همه تیم‌ها'), ('SELECTED', 'تیم‌های منتخب')],
+        verbose_name="نوع جامعه هدف"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="زمان اعطا")
+
+    class Meta:
+        verbose_name = "ایردراپ و پاداش همگانی"
+        verbose_name_plural = "ایردراپ‌ها و پاداش‌های همگانی"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.title} (+{self.gems_amount}💎, +${self.budget_amount}) به {self.teams_count} تیم"
+
