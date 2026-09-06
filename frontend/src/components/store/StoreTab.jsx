@@ -508,7 +508,13 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                     btn: 'from-amber-500 via-yellow-400 to-amber-600 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black shadow-[0_0_20px_rgba(245,158,11,0.6)]',
                     label: 'پک اساطیر (Legendary)',
                   }
-                }[pack.tier || 'BRONZE'];
+                }[String(pack.tier || 'BRONZE').toUpperCase()] || {
+                  defaultBg: rareCardBg,
+                  dropGlow: 'drop-shadow-[0_0_25px_rgba(37,99,235,0.55)]',
+                  badge: 'bg-blue-950/90 text-blue-300 border-blue-500/40 shadow-md',
+                  btn: 'from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold',
+                  label: 'پک کمیاب (Rare)',
+                };
 
                 const now = Date.now();
                 const isTimeExpired = pack.available_until && now > new Date(pack.available_until).getTime();

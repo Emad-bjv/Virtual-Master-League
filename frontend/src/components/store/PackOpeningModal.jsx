@@ -117,7 +117,7 @@ export default function PackOpeningModal({
   if (!isOpen || !pack) return null;
 
   // Tier Theme Config with FUT Card Template Artworks & Color Grading
-  const tierConfig = {
+  const tierConfig = ({
     BRONZE: {
       cardBg: rareCardBg,
       border: 'border-blue-500/50',
@@ -157,7 +157,19 @@ export default function PackOpeningModal({
       neonPill: 'border-amber-400 bg-amber-950/80 text-amber-300 shadow-[0_0_30px_rgba(245,158,11,0.6)]',
       laserColor: 'from-amber-500/40 via-yellow-500/20 to-transparent'
     }
-  }[pack.tier || 'BRONZE'];
+  }[String(pack.tier || 'BRONZE').toUpperCase()] || {
+    cardBg: rareCardBg,
+    border: 'border-blue-500/50',
+    glow: 'shadow-[0_0_40px_rgba(37,99,235,0.4)]',
+    dropGlow: 'drop-shadow-[0_0_25px_rgba(37,99,235,0.55)]',
+    badgeBg: 'bg-blue-950 text-blue-300 border-blue-500/40',
+    accent: 'text-cyan-300',
+    ovrColor: 'text-cyan-300',
+    label: 'پک کمیاب (Rare)',
+    backlightRadial: 'radial-gradient(circle, rgba(56,189,248,0.45) 0%, transparent 70%)',
+    neonPill: 'border-cyan-400 bg-cyan-950/80 text-cyan-300 shadow-[0_0_25px_rgba(6,182,212,0.5)]',
+    laserColor: 'from-cyan-500/40 via-blue-500/20 to-transparent'
+  });
 
   const handleOpenPack = async () => {
     setIsOpening(true);
@@ -309,7 +321,9 @@ export default function PackOpeningModal({
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  return typeof document !== 'undefined' && createPortal(
+  return (
+    <>
+      {typeof document !== 'undefined' && createPortal(
     <div
       className="fixed inset-0 z-[999999] flex items-center justify-center p-3 sm:p-5 bg-black/90 backdrop-blur-md overflow-y-auto"
       style={{ fontFamily: 'Vazirmatn, Tahoma, sans-serif' }}
@@ -1236,5 +1250,7 @@ export default function PackOpeningModal({
       )}
     </AnimatePresence>,
     document.body
+      )}
+    </>
   );
 }
