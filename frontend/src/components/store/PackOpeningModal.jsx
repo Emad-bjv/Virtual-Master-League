@@ -14,6 +14,7 @@ import { getNationalityFlag } from '../../utils/nationalityFlags';
 import rareCardBg from '../../assets/cards/rare_card_bg.png';
 import epicCardBg from '../../assets/cards/epic_card_bg.png';
 import legendaryCardBg from '../../assets/cards/legendary_card_bg.png';
+import PackCardFXOverlay from '../common/PackCardFXOverlay';
 
 export default function PackOpeningModal({
   pack,
@@ -396,6 +397,9 @@ export default function PackOpeningModal({
                     backgroundPosition: 'center',
                   }}
                 >
+                  {/* Dynamic Stars, Sparks & Sheen FX */}
+                  <PackCardFXOverlay tier={pack.tier} intensity="high" />
+
                   {/* Top Tier Tag */}
                   <div className="relative z-10 flex justify-between items-center">
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider ${tierConfig.badgeBg}`}>
@@ -797,6 +801,9 @@ export default function PackOpeningModal({
                         backgroundPosition: 'center'
                       }}
                     >
+                      {/* Dynamic Rotating Stars, Sparks & Sheen FX */}
+                      <PackCardFXOverlay tier={topCard.rarity || pack.tier} intensity="high" />
+
                       {/* Top Telemetry Badge */}
                       <div className="absolute top-2 inset-x-2 z-30 flex items-start justify-between pointer-events-none">
                         <div className="flex flex-col items-center bg-black/75 backdrop-blur-md px-2 py-1 rounded-xl border border-white/20 shadow-xl min-w-[48px] pointer-events-auto">
@@ -995,6 +1002,9 @@ export default function PackOpeningModal({
                               backgroundPosition: 'center'
                             }}
                           >
+                            {/* Dynamic Rotating Stars, Sparks & Sheen FX */}
+                            <PackCardFXOverlay tier={card.rarity || pack.tier} intensity="normal" />
+
                             {/* Top Telemetry Badge */}
                             <div className="absolute top-1.5 inset-x-1.5 z-30 flex justify-between items-start pointer-events-none">
                               <div className="flex flex-col items-center bg-black/75 backdrop-blur-md px-2 py-0.5 rounded-xl border border-white/15 shadow-md min-w-[42px] pointer-events-auto">
@@ -1129,6 +1139,9 @@ export default function PackOpeningModal({
                   backgroundPosition: 'center'
                 }}
               >
+                {/* Dynamic Rotating Stars, Sparks & Sheen FX */}
+                <PackCardFXOverlay tier={pickedPlayer.rarity || pack.tier} intensity="high" />
+
                 {/* Top Stat Badge */}
                 <div className="absolute top-2 inset-x-2 z-30 flex justify-between items-start pointer-events-none">
                   <div className="flex flex-col items-center bg-black/75 backdrop-blur-md px-2 py-0.5 rounded-xl border border-white/15 shadow-md min-w-[46px] pointer-events-auto">

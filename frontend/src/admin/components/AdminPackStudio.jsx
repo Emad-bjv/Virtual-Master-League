@@ -14,6 +14,7 @@ import { getNationalityFlag } from '../../utils/nationalityFlags';
 import rareCardBg from '../../assets/cards/rare_card_bg.png';
 import epicCardBg from '../../assets/cards/epic_card_bg.png';
 import legendaryCardBg from '../../assets/cards/legendary_card_bg.png';
+import PackCardFXOverlay from '../../components/common/PackCardFXOverlay';
 
 const POSITION_CHOICES = [
   'GK', 'CB', 'LB', 'RB', 'DMF', 'CMF', 'LMF', 'RMF', 'AMF', 'LWF', 'RWF', 'SS', 'CF'
@@ -683,6 +684,9 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                       backgroundPosition: 'center',
                     }}
                   >
+                    {/* Dynamic Rotating Stars, Sparks & Sheen FX */}
+                    <PackCardFXOverlay tier={playerForm.rarity || packData.tier} intensity="high" />
+
                     {/* Top: OVR Badge & Position */}
                     <div className="absolute top-2 inset-x-2 z-30 flex items-start justify-between pointer-events-none">
                       {/* Left Badge: OVR + Position + Secondary Positions */}

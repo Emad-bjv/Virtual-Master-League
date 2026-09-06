@@ -14,6 +14,7 @@ import { useTeam } from '../../context/TeamContext';
 import Toast from '../common/Toast';
 import ConfirmModal from '../common/ConfirmModal';
 import PackOpeningModal from './PackOpeningModal';
+import PackCardFXOverlay from '../common/PackCardFXOverlay';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 
 import rareCardBg from '../../assets/cards/rare_card_bg.png';
@@ -534,6 +535,9 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                       backgroundPosition: 'center',
                     }}
                   >
+                    {/* Dynamic Rotating Stars, Sparks & Sheen FX */}
+                    <PackCardFXOverlay tier={pack.tier} intensity="normal" />
+
                     {/* Top Row: Floating Tier Badge & Remaining Pool */}
                     <div className="relative z-10 flex justify-between items-center px-0.5">
                       <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-black border uppercase tracking-wider ${tierStyles.badge}`}>
