@@ -19,6 +19,7 @@ const TransferNewsroom = lazy(() => import('./admin/pages/TransferNewsroom'));
 const DynamicCrud = lazy(() => import('./admin/pages/DynamicCrud'));
 const AdminPacks = lazy(() => import('./admin/pages/AdminPacks'));
 const AdminSquadTransfers = lazy(() => import('./admin/pages/AdminSquadTransfers'));
+const AdminPESSkills = lazy(() => import('./admin/pages/AdminPESSkills'));
 
 // Sleek Neon Suspense Loading Fallback
 const PageLoadingFallback = () => (
@@ -51,6 +52,7 @@ function App() {
             <Route index element={<DashboardOverview />} />
             <Route path="squad-transfers" element={<AdminSquadTransfers />} />
             <Route path="packs" element={<AdminPacks />} />
+            <Route path="pes-skills" element={<AdminPESSkills />} />
             <Route path="transfer-reports" element={<TransferNewsroom />} />
             <Route path="live-control" element={<LiveBroadcastControl />} />
             <Route path="users" element={<UserManagement />} />

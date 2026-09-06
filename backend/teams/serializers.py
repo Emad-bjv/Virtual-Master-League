@@ -58,6 +58,7 @@ class PlayerSerializer(serializers.ModelSerializer):
     next_level_gem_cost = serializers.SerializerMethodField()
     next_level_target_ovr = serializers.SerializerMethodField()
     records_by_tab = serializers.SerializerMethodField()
+    skills_breakdown = serializers.SerializerMethodField()
 
     class Meta:
         model = Player
@@ -161,6 +162,12 @@ class PlayerSerializer(serializers.ModelSerializer):
         from .level_engine import calculate_gem_boost_ovr
         base = obj.base_overall or obj.overall
         return calculate_gem_boost_ovr(base, obj.level + 1)
+
+    def get_skills_breakdown(self, obj):
+        try:
+            return obj.get_skills_breakdown()
+        except Exception:
+            return []
 
     def _compute_stats_for_filter(self, obj, match_q=None):
         from matches.models import PlayerMatchStat, MatchEvent

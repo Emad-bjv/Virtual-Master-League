@@ -200,6 +200,13 @@ class Player(models.Model):
         help_text="مجموع کل XP کسب‌شده از ابتدا (برای آمار و رتبه‌بندی)."
     )
 
+    # --- PES Skills Upgrade System ---
+    skills_data = models.JSONField(
+        default=dict, blank=True,
+        verbose_name="داده‌های تقویت مهارت‌های PES",
+        help_text="اطلاعات لول‌ها و مقادیر PES مهارت‌های تخصصی بازیکن"
+    )
+
     class Meta:
         verbose_name = "بازیکن"
         verbose_name_plural = "بازیکنان"
@@ -259,6 +266,150 @@ class Player(models.Model):
         if self.position in ['CF']:
             return 'CF'
         return 'CMF'
+
+    def get_pes_skill_spec(self, role: str = None) -> list:
+        """
+        Returns the standard list of PES skills for this player's position.
+        Handles CMF technical vs physical role resolution.
+        """
+        pos = self.position.upper()
+        if pos in ['CF', 'SS']:
+            category = 'CF_SS'
+        elif pos in ['LWF', 'RWF', 'LMF', 'RMF']:
+            category = 'WING'
+        elif pos == 'AMF':
+            category = 'CMF_AMF_TECHNICAL'
+        elif pos == 'DMF':
+            category = 'CMF_DMF_PHYSICAL'
+        elif pos == 'CB':
+            category = 'CB'
+        elif pos in ['LB', 'RB']:
+            category = 'FB'
+        elif pos == 'GK':
+            category = 'GK'
+        elif pos == 'CMF':
+            if role == 'PHYSICAL':
+                category = 'CMF_DMF_PHYSICAL'
+            elif role == 'TECHNICAL':
+                category = 'CMF_AMF_TECHNICAL'
+            else:
+                comp = (self.compatible_positions or '').upper()
+                if 'DMF' in comp:
+                    category = 'CMF_DMF_PHYSICAL'
+                elif 'AMF' in comp:
+                    category = 'CMF_AMF_TECHNICAL'
+                else:
+                    category = 'CMF_AMF_TECHNICAL'
+        else:
+            category = 'CMF_AMF_TECHNICAL'
+
+        return PES_SKILLS_BY_POSITION.get(category, [])
+
+    def get_skills_breakdown(self, role: str = None) -> list:
+        """
+        Builds a comprehensive breakdown of all skills for this player,
+        including current level, base PES, current PES, pes_applied status, and next upgrade cost.
+        """
+        spec = self.get_pes_skill_spec(role=role)
+        data = self.skills_data or {}
+        breakdown = []
+        base_ovr = self.base_overall or self.overall or 75
+
+        for item in spec:
+            k = item['key']
+            stored = data.get(k, {})
+            current_lvl = stored.get('level', 0)
+            
+            # Default base PES attribute derived around player overall
+            default_base = max(50, min(95, base_ovr - 2))
+            base_pes = stored.get('base_pes', default_base)
+            
+            # Every 2 levels = +1 in PES (max +10 at level 20)
+            pes_bonus = current_lvl // 2
+            current_pes = min(99, base_pes + pes_bonus)
+            pes_applied = stored.get('pes_applied', True) if current_lvl > 0 else True
+            
+            # Gem cost for next level
+            if current_lvl < 5:
+                next_cost = 10
+            elif current_lvl < 10:
+                next_cost = 20
+            elif current_lvl < 15:
+                next_cost = 35
+            elif current_lvl < 20:
+                next_cost = 50
+            else:
+                next_cost = 0  # Maxed
+
+            breakdown.append({
+                'key': k,
+                'name': item['name'],
+                'icon': item['icon'],
+                'level': current_lvl,
+                'max_level': 20,
+                'base_pes': base_pes,
+                'current_pes': current_pes,
+                'pes_bonus': pes_bonus,
+                'pes_applied': pes_applied,
+                'next_gem_cost': next_cost,
+                'is_maxed': current_lvl >= 20,
+            })
+        return breakdown
+
+
+PES_SKILLS_BY_POSITION = {
+    "CF_SS": [
+        {"key": "offensive_awareness", "name": "مهارت در حمله", "icon": "Target"},
+        {"key": "finishing", "name": "تمام‌کنندگی", "icon": "Flame"},
+        {"key": "kicking_power", "name": "قدرت ضربه", "icon": "Zap"},
+        {"key": "speed_acceleration", "name": "شتاب و سرعت", "icon": "FastForward"},
+        {"key": "heading", "name": "سرزنی", "icon": "ArrowUpCircle"},
+        {"key": "ball_control", "name": "کنترل توپ", "icon": "Dices"},
+    ],
+    "WING": [
+        {"key": "ball_control", "name": "کنترل توپ", "icon": "Dices"},
+        {"key": "dribbling", "name": "دریبل", "icon": "Sparkles"},
+        {"key": "speed", "name": "سرعت", "icon": "Zap"},
+        {"key": "acceleration", "name": "شتاب", "icon": "FastForward"},
+        {"key": "curl", "name": "کات دادن به توپ", "icon": "Repeat"},
+        {"key": "lofted_pass", "name": "پاس بلند (ارسال سانتر)", "icon": "Send"},
+    ],
+    "CMF_AMF_TECHNICAL": [
+        {"key": "ball_control", "name": "کنترل توپ", "icon": "Dices"},
+        {"key": "tight_possession", "name": "حفظ توپ", "icon": "Shield"},
+        {"key": "low_pass", "name": "پاس کوتاه", "icon": "Send"},
+        {"key": "lofted_pass", "name": "پاس بلند", "icon": "Share2"},
+        {"key": "offensive_awareness", "name": "مهارت در حمله", "icon": "Target"},
+    ],
+    "CMF_DMF_PHYSICAL": [
+        {"key": "ball_winning", "name": "توپ‌گیری", "icon": "ShieldAlert"},
+        {"key": "aggression", "name": "جنگندگی", "icon": "Flame"},
+        {"key": "defensive_awareness", "name": "مهارت در دفاع", "icon": "ShieldCheck"},
+        {"key": "physical_contact", "name": "نبرد فیزیکی", "icon": "Activity"},
+        {"key": "stamina", "name": "استقامت", "icon": "HeartPulse"},
+    ],
+    "CB": [
+        {"key": "defensive_awareness", "name": "مهارت در دفاع", "icon": "ShieldCheck"},
+        {"key": "ball_winning", "name": "توپ‌گیری", "icon": "ShieldAlert"},
+        {"key": "physical_contact", "name": "نبرد فیزیکی", "icon": "Activity"},
+        {"key": "jump", "name": "پرش", "icon": "ArrowUpCircle"},
+        {"key": "aggression", "name": "جنگندگی", "icon": "Flame"},
+    ],
+    "FB": [
+        {"key": "speed", "name": "سرعت", "icon": "Zap"},
+        {"key": "stamina", "name": "استقامت", "icon": "HeartPulse"},
+        {"key": "ball_winning", "name": "توپ‌گیری", "icon": "ShieldAlert"},
+        {"key": "lofted_pass", "name": "پاس بلند (ارسال‌ها)", "icon": "Send"},
+        {"key": "defensive_awareness", "name": "مهارت در دفاع", "icon": "ShieldCheck"},
+    ],
+    "GK": [
+        {"key": "gk_awareness", "name": "دروازه‌بانی", "icon": "Shield"},
+        {"key": "gk_catching", "name": "دروازه‌بان: توپ‌گیری", "icon": "Hand"},
+        {"key": "gk_clearing", "name": "دروازه‌بان: رد کردن توپ", "icon": "LogOut"},
+        {"key": "gk_reflexes", "name": "دروازه‌بان: واکنش", "icon": "Zap"},
+        {"key": "gk_reach", "name": "دروازه‌بان: پوشش دروازه", "icon": "Maximize2"},
+    ],
+}
 
 
 class PlayerGrowthLog(models.Model):

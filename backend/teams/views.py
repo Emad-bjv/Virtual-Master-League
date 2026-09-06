@@ -682,6 +682,93 @@ class PlayerViewSet(viewsets.ModelViewSet):
             'player': PlayerSerializer(player).data
         })
 
+    @action(detail=True, methods=['get'])
+    def skills(self, request, pk=None):
+        player = self.get_object()
+        role = request.query_params.get('role')
+        breakdown = player.get_skills_breakdown(role=role)
+        return Response({
+            'player_id': player.id,
+            'player_name': player.name,
+            'position': player.position,
+            'overall': player.overall,
+            'skills': breakdown,
+            'remaining_gems': player.team.gems if player.team else 0
+        })
+
+    @action(detail=True, methods=['post'])
+    def upgrade_skill(self, request, pk=None):
+        player = self.get_object()
+        if not player.team:
+            return Response({'error': 'بازیکن در تیمی عضو نیست.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not request.user.is_staff and player.team.manager != request.user:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("شما دسترسی برای مدیریت این بازیکن را ندارید.")
+
+        skill_key = request.data.get('skill_key')
+        role = request.data.get('role')
+        if not skill_key:
+            return Response({'error': 'شناسه مهارت (skill_key) الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from .level_engine import upgrade_player_pes_skill
+        success, message, breakdown = upgrade_player_pes_skill(player, skill_key, role=role)
+
+        if not success:
+            return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        player.team.refresh_from_db(fields=['gems'])
+
+        return Response({
+            'status': message,
+            'remaining_gems': player.team.gems,
+            'skills': breakdown,
+            'player': PlayerSerializer(player).data
+        })
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminOrDebug])
+    def pes_skills_overview(self, request):
+        from .level_engine import admin_get_pes_skills_overview
+        team_id = request.query_params.get('team_id')
+        data = admin_get_pes_skills_overview(team_id=int(team_id) if team_id else None)
+        return Response(data)
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrDebug])
+    def mark_pes_skill_applied(self, request):
+        from .level_engine import admin_mark_pes_skill_applied
+        player_id = request.data.get('player_id')
+        skill_key = request.data.get('skill_key')
+        all_skills = request.data.get('all_skills', False)
+
+        if not player_id:
+            return Response({'error': 'شناسه بازیکن (player_id) الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        success, message = admin_mark_pes_skill_applied(player_id, skill_key=skill_key, all_skills=all_skills)
+        if not success:
+            return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'success': True, 'message': message})
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrDebug])
+    def update_player_ovr(self, request):
+        from .level_engine import admin_update_player_ovr
+        player_id = request.data.get('player_id')
+        new_ovr = request.data.get('overall')
+
+        if not player_id or new_ovr is None:
+            return Response({'error': 'شناسه بازیکن (player_id) و اورال جدید (overall) الزامی هستند.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            new_ovr = int(new_ovr)
+        except (ValueError, TypeError):
+            return Response({'error': 'اورال باید یک عدد صحیح باشد.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        success, message = admin_update_player_ovr(player_id, new_ovr)
+        if not success:
+            return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'success': True, 'message': message, 'overall': new_ovr})
+
     @action(detail=True, methods=['patch', 'post'])
     def update_market_value(self, request, pk=None):
         player = self.get_object()

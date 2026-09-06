@@ -5,7 +5,7 @@ import api from '../services/api';
 import { ToastProvider } from './components/Toast';
 import { 
   LayoutDashboard, Radio, Users, Shield, DollarSign, Settings, 
-  FileText, Database, LogOut, ExternalLink, ArrowRight, Newspaper, Gift, ArrowRightLeft 
+  FileText, Database, LogOut, ExternalLink, ArrowRight, Newspaper, Gift, ArrowRightLeft, Sparkles 
 } from 'lucide-react';
 
 const AdminLayoutContent = () => {
@@ -73,6 +73,11 @@ const AdminLayoutContent = () => {
           <Link to="/admin/packs" className={`admin-nav-link ${isActive('/admin/packs')}`}>
             <Gift size={17} className="text-amber-400" />
             <span>مدیریت پک‌ها و کارت‌ها</span>
+          </Link>
+
+          <Link to="/admin/pes-skills" className={`admin-nav-link ${isActive('/admin/pes-skills')}`}>
+            <Sparkles size={17} className="text-purple-400" />
+            <span>تقویت مهارت‌های PES</span>
           </Link>
 
           <Link to="/admin/transfer-reports" className={`admin-nav-link ${isActive('/admin/transfer-reports')}`}>

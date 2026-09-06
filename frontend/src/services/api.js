@@ -121,6 +121,11 @@ export const playerApi = {
   mergeDuplicates: (data) => api.post('/players/merge_duplicates/', data),
   deleteDuplicate: (playerId) => api.post('/players/delete_duplicate/', { player_id: playerId }),
   initializeBaseTeams: () => api.post('/players/initialize_base_teams/'),
+  getSkills: (id, role) => api.get(`/players/${id}/skills/`, { params: { role } }),
+  upgradeSkill: (id, skillKey, role) => api.post(`/players/${id}/upgrade_skill/`, { skill_key: skillKey, role }),
+  getPESSkillsOverview: (teamId) => api.get('/players/pes_skills_overview/', { params: { team_id: teamId } }),
+  markPESSkillApplied: (playerId, skillKey, allSkills = false) => api.post('/players/mark_pes_skill_applied/', { player_id: playerId, skill_key: skillKey, all_skills: allSkills }),
+  updatePlayerOVR: (playerId, overall) => api.post('/players/update_player_ovr/', { player_id: playerId, overall }),
 };
 
 export const transferApi = {

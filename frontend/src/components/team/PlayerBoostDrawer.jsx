@@ -3,10 +3,12 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Zap, Sparkles, Gem, HeartPulse, X, Search, Filter, 
-  ChevronLeft, Award, User, ArrowUpRight, Check, AlertTriangle 
+  ChevronLeft, Award, User, ArrowUpRight, Check, AlertTriangle,
+  ChevronDown, ChevronUp, Layers, Flame, Target, ShieldCheck, Clock
 } from 'lucide-react';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import { getGemBoostCost, getGemBoostTargetOvr } from './EFootballGamePlan';
+import { playerApi } from '../../services/api';
 import ConfirmModal from '../common/ConfirmModal';
 
 const POSITION_COLORS = {
@@ -39,6 +41,66 @@ export default function PlayerBoostDrawer({
   const [posFilter, setPosFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState('OVR_DESC'); // 'OVR_DESC' | 'LVL_ASC' | 'STAMINA_ASC'
   const [confirmBoostPlayer, setConfirmBoostPlayer] = useState(null);
+  const [expandedSkillsPlayerId, setExpandedSkillsPlayerId] = useState(null);
+  const [cmfRoleMap, setCmfRoleMap] = useState({});
+  const [skillsMap, setSkillsMap] = useState({});
+  const [skillLoadingKey, setSkillLoadingKey] = useState(null);
+  const [skillFeedback, setSkillFeedback] = useState(null);
+
+  const handleToggleSkills = async (player) => {
+    if (expandedSkillsPlayerId === player.id) {
+      setExpandedSkillsPlayerId(null);
+      return;
+    }
+    setExpandedSkillsPlayerId(player.id);
+    // If not loaded yet or need refresh
+    const role = cmfRoleMap[player.id] || null;
+    try {
+      const res = await playerApi.getSkills(player.id, role);
+      if (res.data?.skills) {
+        setSkillsMap((prev) => ({ ...prev, [player.id]: res.data.skills }));
+      }
+    } catch (e) {
+      // Fallback to player.skills_breakdown if available
+      if (player.skills_breakdown) {
+        setSkillsMap((prev) => ({ ...prev, [player.id]: player.skills_breakdown }));
+      }
+    }
+  };
+
+  const handleRoleChange = async (player, role) => {
+    setCmfRoleMap((prev) => ({ ...prev, [player.id]: role }));
+    try {
+      const res = await playerApi.getSkills(player.id, role);
+      if (res.data?.skills) {
+        setSkillsMap((prev) => ({ ...prev, [player.id]: res.data.skills }));
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const handleSkillUpgradeClick = async (player, skillKey) => {
+    const loadingKey = `${player.id}-${skillKey}`;
+    setSkillLoadingKey(loadingKey);
+    const role = cmfRoleMap[player.id] || null;
+    try {
+      const res = await playerApi.upgradeSkill(player.id, skillKey, role);
+      if (res.data?.skills) {
+        setSkillsMap((prev) => ({ ...prev, [player.id]: res.data.skills }));
+      }
+      setSkillFeedback({ playerId: player.id, message: res.data.status || 'ارتقا انجام شد!' });
+      // If parent gave us onGemBoost or onRefresh, let's trigger
+      if (onGemBoost && res.data.remaining_gems !== undefined) {
+        // Trigger parent state update if available
+      }
+    } catch (err) {
+      setSkillFeedback({ playerId: player.id, message: err.response?.data?.error || 'خطا در ارتقای مهارت', isError: true });
+    } finally {
+      setSkillLoadingKey(null);
+      setTimeout(() => setSkillFeedback(null), 3500);
+    }
+  };
 
   const filteredPlayers = useMemo(() => {
     return (players || [])
@@ -307,6 +369,145 @@ export default function PlayerBoostDrawer({
                             </span>
                           )}
                         </div>
+                      </div>
+
+                      {/* PES Position-Specific Skills Accordion */}
+                      <div className="pt-2 border-t border-white/5 space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSkills(player)}
+                          className={`w-full py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-between transition-all cursor-pointer shadow-sm ${
+                            expandedSkillsPlayerId === player.id
+                              ? 'bg-purple-950/70 border-purple-500/50 text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.2)]'
+                              : 'bg-slate-900/90 hover:bg-slate-800 border-slate-750 text-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Zap size={14} className="text-amber-400" />
+                            <span>تقویت مهارت‌های تخصصی PES (۲۰ لول)</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[11px] text-purple-400">
+                            <span>{expandedSkillsPlayerId === player.id ? 'بستن منو' : 'مشاهده و ارتقا'}</span>
+                            {expandedSkillsPlayerId === player.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                          </div>
+                        </button>
+
+                        {/* Expanded Skills View */}
+                        {expandedSkillsPlayerId === player.id && (
+                          <div className="p-3 rounded-xl bg-[#070b14] border border-purple-500/30 space-y-3">
+                            {/* CMF Role Toggle if applicable */}
+                            {natPos === 'CMF' && (
+                              <div className="flex items-center justify-between gap-2 p-1.5 rounded-lg bg-slate-950 border border-slate-800 text-[11px]">
+                                <span className="text-slate-400 font-bold">سبک هافبک:</span>
+                                <div className="flex gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRoleChange(player, 'TECHNICAL')}
+                                    className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                                      (cmfRoleMap[player.id] || 'TECHNICAL') === 'TECHNICAL'
+                                        ? 'bg-purple-600 text-white shadow'
+                                        : 'text-slate-400 hover:text-white'
+                                    }`}
+                                  >
+                                    طراح و تکنیکی
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRoleChange(player, 'PHYSICAL')}
+                                    className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
+                                      cmfRoleMap[player.id] === 'PHYSICAL'
+                                        ? 'bg-emerald-600 text-white shadow'
+                                        : 'text-slate-400 hover:text-white'
+                                    }`}
+                                  >
+                                    دفاعی و تخریبی
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Temporary feedback alert */}
+                            {skillFeedback && skillFeedback.playerId === player.id && (
+                              <div className={`p-2 rounded-lg text-xs font-bold text-center ${skillFeedback.isError ? 'bg-rose-950/80 text-rose-300 border border-rose-500/40' : 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'}`}>
+                                {skillFeedback.message}
+                              </div>
+                            )}
+
+                            {/* Skills List */}
+                            <div className="space-y-2">
+                              {((skillsMap[player.id] || player.skills_breakdown || [])).map((skill) => {
+                                const isSkillMaxed = skill.level >= 20;
+                                const isUpgrading = skillLoadingKey === `${player.id}-${skill.key}`;
+                                const canAfford = currentGems >= skill.next_gem_cost;
+
+                                return (
+                                  <div
+                                    key={skill.key}
+                                    className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800 space-y-1.5"
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-1.5">
+                                        <Sparkles size={12} className="text-amber-400" />
+                                        <span className="text-xs font-black text-white">{skill.name}</span>
+                                      </div>
+                                      <span className="text-[10px] font-sport font-black text-purple-300 bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-500/30">
+                                        لول {skill.level} / ۲۰
+                                      </span>
+                                    </div>
+
+                                    {/* Level 20 Progress Bar */}
+                                    <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden border border-white/5">
+                                      <div
+                                        className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full transition-all"
+                                        style={{ width: `${(skill.level / 20) * 100}%` }}
+                                      />
+                                    </div>
+
+                                    {/* PES Stat Impact + Upgrade Button */}
+                                    <div className="flex items-center justify-between gap-2 pt-1">
+                                      <div className="text-[10.5px] text-slate-400 flex items-center gap-1 flex-wrap">
+                                        <span>پایه: <strong className="text-slate-300">{skill.base_pes}</strong></span>
+                                        <span>➔</span>
+                                        <span className="text-[#00ff87] font-black">
+                                          در بازی: {skill.current_pes}
+                                        </span>
+                                        {skill.pes_bonus > 0 && (
+                                          <span className="text-[9px] text-emerald-400 font-black bg-emerald-950 px-1 rounded border border-emerald-500/30">
+                                            +{skill.pes_bonus}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {isSkillMaxed ? (
+                                        <span className="text-[10px] text-amber-300 font-bold flex items-center gap-1">
+                                          <Check size={11} />
+                                          <span>مکس شد</span>
+                                        </span>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSkillUpgradeClick(player, skill.key)}
+                                          disabled={isUpgrading || !canAfford}
+                                          className={`px-2.5 py-1 rounded-lg text-[10.5px] font-black flex items-center gap-1.5 transition-all cursor-pointer shadow ${
+                                            canAfford
+                                              ? 'bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white'
+                                              : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                                          }`}
+                                        >
+                                          <span>{isUpgrading ? '...' : 'ارتقا'}</span>
+                                          <span className="flex items-center gap-0.5 text-amber-300">
+                                            {skill.next_gem_cost}
+                                            <Gem size={10} className="fill-amber-300" />
+                                          </span>
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Main Action: Gem Boost Upgrade Button */}

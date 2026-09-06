@@ -188,3 +188,78 @@ class PlayerAndFacilityActionsTestCase(APITestCase):
         self.player.refresh_from_db()
         self.assertEqual(self.player.overall, 89) # Capped at potential_ovr!
 
+
+class PESSkillsUpgradeTestCase(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="test_madrid_coach", password="password123", role="admin")
+        self.team = Team.objects.create(name="Real Madrid", manager=self.user, budget=1000, gems=500)
+        self.player = Player.objects.create(
+            team=self.team,
+            name="Vinicius Jr",
+            age=24,
+            position="LWF",
+            overall=88,
+            base_overall=88,
+            base_stamina=90
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def test_get_skills_breakdown(self):
+        url = f"/api/players/{self.player.id}/skills/"
+        res = self.client.get(url)
+        self.assertEqual(res.status_code, 200)
+        skills = res.data['skills']
+        # LWF has 6 skills: ball_control, dribbling, speed, acceleration, curl, lofted_pass
+        self.assertEqual(len(skills), 6)
+        keys = [s['key'] for s in skills]
+        self.assertIn('dribbling', keys)
+        self.assertIn('speed', keys)
+        self.assertIn('curl', keys)
+
+    def test_upgrade_skill_success(self):
+        url = f"/api/players/{self.player.id}/upgrade_skill/"
+        # First upgrade: level 0 -> 1 (costs 10 gems)
+        res = self.client.post(url, {'skill_key': 'dribbling'}, content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+        self.team.refresh_from_db()
+        self.player.refresh_from_db()
+
+        self.assertEqual(self.team.gems, 490) # 500 - 10
+        skill_data = self.player.skills_data.get('dribbling')
+        self.assertEqual(skill_data['level'], 1)
+        self.assertFalse(skill_data['pes_applied'])
+
+        # Second upgrade: level 1 -> 2 (costs 10 gems) -> PES stat should increase by +1
+        res = self.client.post(url, {'skill_key': 'dribbling'}, content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+        self.player.refresh_from_db()
+        skill_data = self.player.skills_data.get('dribbling')
+        self.assertEqual(skill_data['level'], 2)
+        self.assertEqual(skill_data['pes_bonus'], 1) # 2 // 2 = +1
+
+    def test_admin_pes_skills_overview_and_actions(self):
+        # Upgrade a skill first so there's a pending change
+        from teams.level_engine import upgrade_player_pes_skill, admin_mark_pes_skill_applied, admin_update_player_ovr
+        upgrade_player_pes_skill(self.player, 'speed')
+
+        # Admin overview
+        overview_url = "/api/players/pes_skills_overview/"
+        res = self.client.get(overview_url)
+        self.assertEqual(res.status_code, 200)
+        self.assertGreaterEqual(res.data['total_pending'], 1)
+
+        # Mark applied
+        mark_url = "/api/players/mark_pes_skill_applied/"
+        res = self.client.post(mark_url, {'player_id': self.player.id, 'all_skills': True}, content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+        self.player.refresh_from_db()
+        self.assertTrue(self.player.skills_data['speed']['pes_applied'])
+
+        # Update OVR
+        ovr_url = "/api/players/update_player_ovr/"
+        res = self.client.post(ovr_url, {'player_id': self.player.id, 'overall': 90}, content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+        self.player.refresh_from_db()
+        self.assertEqual(self.player.overall, 90)
+
+
