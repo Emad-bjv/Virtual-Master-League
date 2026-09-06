@@ -91,9 +91,9 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     available_until: formatDateForInput(pack?.available_until),
     is_active: pack?.is_active ?? true,
     sort_order: pack?.sort_order ?? 0,
-    weight_top_tier: pack?.weight_top_tier ?? 1,
-    weight_mid_tier: pack?.weight_mid_tier ?? 4,
-    weight_base_tier: pack?.weight_base_tier ?? 10,
+    weight_top_tier: pack?.weight_top_tier ?? 3,
+    weight_mid_tier: pack?.weight_mid_tier ?? 5,
+    weight_base_tier: pack?.weight_base_tier ?? 8,
     guarantee_min_ovr: pack?.guarantee_min_ovr ?? 90,
   });
 
@@ -1789,7 +1789,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-amber-300 font-sport font-black text-center text-sm outline-none focus:border-amber-400"
                       />
                       <span className="text-[9.5px] text-slate-400 block mt-1 text-center">
-                        پیش‌فرض: ۱ (کمترین شانس)
+                        پیش‌فرض: ۳ (فوق ستاره)
                       </span>
                     </div>
 
@@ -1804,7 +1804,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-purple-300 font-sport font-black text-center text-sm outline-none focus:border-purple-400"
                       />
                       <span className="text-[9.5px] text-slate-400 block mt-1 text-center">
-                        پیش‌فرض: ۴ (شانس متوسط)
+                        پیش‌فرض: ۵ (ستاره)
                       </span>
                     </div>
 
@@ -1819,7 +1819,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-cyan-300 font-sport font-black text-center text-sm outline-none focus:border-cyan-400"
                       />
                       <span className="text-[9.5px] text-slate-400 block mt-1 text-center">
-                        پیش‌فرض: ۱۰ (بیشترین شانس)
+                        پیش‌فرض: ۸ (معمولی)
                       </span>
                     </div>
                   </div>

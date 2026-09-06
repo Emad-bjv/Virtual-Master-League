@@ -55,16 +55,16 @@ class Pack(models.Model):
     is_active = models.BooleanField(default=True, verbose_name="فعال است؟")
     sort_order = models.PositiveIntegerField(default=0, verbose_name="ترتیب نمایش")
     weight_top_tier = models.PositiveIntegerField(
-        default=1, verbose_name="ضریب شانس کارت‌های ۹۴+ (Top Tier)",
-        help_text="ضریب شانس ظاهر شدن فوق‌ستاره‌های اورال ۹۴ به بالا (پیش‌فرض: ۱)"
+        default=3, verbose_name="ضریب شانس کارت‌های ۹۴+ (Top Tier)",
+        help_text="ضریب شانس ظاهر شدن فوق‌ستاره‌های اورال ۹۴ به بالا (پیش‌فرض: ۳)"
     )
     weight_mid_tier = models.PositiveIntegerField(
-        default=4, verbose_name="ضریب شانس کارت‌های ۹۰-۹۳ (Mid Tier)",
-        help_text="ضریب شانس ظاهر شدن اسطوره‌های اورال ۹۰ تا ۹۳ (پیش‌فرض: ۴)"
+        default=5, verbose_name="ضریب شانس کارت‌های ۹۰-۹۳ (Mid Tier)",
+        help_text="ضریب شانس ظاهر شدن اسطوره‌های اورال ۹۰ تا ۹۳ (پیش‌فرض: ۵)"
     )
     weight_base_tier = models.PositiveIntegerField(
-        default=10, verbose_name="ضریب شانس کارت‌های زیر ۹۰ (Base Tier)",
-        help_text="ضریب شانس ظاهر شدن بازیکنان اورال زیر ۹۰ (پیش‌فرض: ۱۰)"
+        default=8, verbose_name="ضریب شانس کارت‌های زیر ۹۰ (Base Tier)",
+        help_text="ضریب شانس ظاهر شدن بازیکنان اورال زیر ۹۰ (پیش‌فرض: ۸)"
     )
     guarantee_min_ovr = models.PositiveIntegerField(
         default=90, verbose_name="حداقل اورال اسلات تضمینی",

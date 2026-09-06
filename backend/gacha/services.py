@@ -81,7 +81,18 @@ def weighted_sample_pack_cards(pack: Pack, unclaimed_list: list) -> list:
     guaranteed_candidates = [p for p in pool if p.overall >= min_ovr] if min_ovr > 0 else []
 
     if guaranteed_candidates:
-        g_weights = [p.get_effective_weight() for p in guaranteed_candidates]
+        # In the guaranteed slot, top-tier (94+) stars should have competitive drop odds
+        # rather than being suppressed by mid-tier (90-93) cards!
+        mid_w = getattr(pack, 'weight_mid_tier', 5) or 5
+        g_weights = []
+        for p in guaranteed_candidates:
+            w = p.get_effective_weight()
+            if p.overall >= 94:
+                # Guarantee slot boosts 94+ to at least equal footing with mid-tier
+                g_weights.append(max(w, mid_w))
+            else:
+                g_weights.append(w)
+
         chosen_g = random.choices(guaranteed_candidates, weights=g_weights, k=1)[0]
         selected.append(chosen_g)
         pool.remove(chosen_g)
