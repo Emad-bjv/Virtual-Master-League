@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import SubNav from '../common/SubNav';
 import { History, User, Sparkles, UserPlus, FileText, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +10,7 @@ import PlayerProfileModal from './PlayerProfileModal';
 import MakeOfferModal from './MakeOfferModal';
 import TransferInbox from './TransferInbox';
 import ConfirmModal from '../common/ConfirmModal';
+import Pagination from '../common/Pagination';
 
 const MARKET_SUBNAV = [
   { id: 'scout', label: 'استعدادیابی و بررسی رقبا' },
@@ -26,6 +27,15 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
   const [freeAgentSearch, setFreeAgentSearch] = useState('');
   const [actionMessage, setActionMessage] = useState('');
 
+  // Pagination states
+  const [freeAgentPage, setFreeAgentPage] = useState(1);
+  const [releasePage, setReleasePage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+
+  const FREE_AGENTS_PER_PAGE = 12;
+  const RELEASE_PLAYERS_PER_PAGE = 12;
+  const HISTORY_PER_PAGE = 10;
+
   const [selectedPlayer, setSelectedPlayer] = useState(null);
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
@@ -37,16 +47,20 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
   useEffect(() => {
     if (activeSub === 'history') {
       transferApi.getHistory()
-        .then(res => setTransferHistory(res.data))
+        .then(res => setTransferHistory(res.data?.results || res.data || []))
         .catch(err => console.error(err));
     } else if (activeSub === 'sell') {
       loadFreeAgents();
     }
   }, [activeSub]);
 
+  useEffect(() => {
+    setFreeAgentPage(1);
+  }, [freeAgentSearch, freeAgentTab]);
+
   const loadFreeAgents = () => {
     transferApi.getFreeAgents()
-      .then(res => setFreeAgents(res.data || []))
+      .then(res => setFreeAgents(res.data?.results || res.data || []))
       .catch(err => {
         console.error(err);
         setFreeAgents([]);
@@ -111,9 +125,31 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
     }
   };
 
-  const filteredFreeAgents = freeAgents.filter(p => 
-    !freeAgentSearch || p.name.toLowerCase().includes(freeAgentSearch.toLowerCase()) || p.position.toLowerCase().includes(freeAgentSearch.toLowerCase())
+  const filteredFreeAgents = (freeAgents || []).filter(p => 
+    !freeAgentSearch || String(p.name || '').toLowerCase().includes(freeAgentSearch.toLowerCase()) || String(p.position || '').toLowerCase().includes(freeAgentSearch.toLowerCase())
   );
+
+  const paginatedFreeAgents = useMemo(() => {
+    const start = (freeAgentPage - 1) * FREE_AGENTS_PER_PAGE;
+    return filteredFreeAgents.slice(start, start + FREE_AGENTS_PER_PAGE);
+  }, [filteredFreeAgents, freeAgentPage]);
+
+  const freeAgentTotalPages = Math.ceil(filteredFreeAgents.length / FREE_AGENTS_PER_PAGE) || 1;
+
+  const paginatedReleasePlayers = useMemo(() => {
+    const list = teamData?.players || [];
+    const start = (releasePage - 1) * RELEASE_PLAYERS_PER_PAGE;
+    return list.slice(start, start + RELEASE_PLAYERS_PER_PAGE);
+  }, [teamData?.players, releasePage]);
+
+  const releaseTotalPages = Math.ceil((teamData?.players?.length || 0) / RELEASE_PLAYERS_PER_PAGE) || 1;
+
+  const paginatedHistory = useMemo(() => {
+    const start = (historyPage - 1) * HISTORY_PER_PAGE;
+    return (transferHistory || []).slice(start, start + HISTORY_PER_PAGE);
+  }, [transferHistory, historyPage]);
+
+  const historyTotalPages = Math.ceil((transferHistory || []).length / HISTORY_PER_PAGE) || 1;
 
   return (
     <div className="space-y-4 pb-20">
@@ -195,77 +231,87 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
                   <p className="text-[10.5px] text-slate-500">با آزادسازی بازیکنان توسط باشگاه‌ها، بازیکنان جدید در این بخش ظاهر می‌شوند.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {filteredFreeAgents.map((p) => {
-                    const estValue = Number(p.market_value || (p.wage ? p.wage * 50 : 1000000));
-                    return (
-                      <div
-                        key={p.id}
-                        className="flex flex-col justify-between p-3 rounded-2xl border border-slate-700/60 bg-gradient-to-b from-[#080c14] via-[#0d162a] to-[#05080e] hover:border-cyan-400/60 transition-all shadow-md gap-3"
-                      >
-                        {/* Top: Photo, Details, Badges */}
-                        <div className="flex items-center gap-3">
-                          {/* Portrait Photo */}
-                          <div className="w-13 h-15 rounded-2xl overflow-hidden border border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e] shrink-0 flex items-center justify-center relative shadow-inner">
-                            {getPlayerPhotoUrl(p) ? (
-                              <img
-                                src={getPlayerPhotoUrl(p)}
-                                alt={p.name}
-                                className="w-full h-full object-cover object-top"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <User size={22} className="text-slate-400 opacity-75" />
-                            )}
-                          </div>
-
-                          {/* Info */}
-                          <div className="space-y-0.5 truncate flex-1 font-sport">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[10px] font-black text-emerald-300 bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-500/40">
-                                {p.position}
-                              </span>
-                              <span className="text-[10px] font-black text-amber-300 bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-500/40">
-                                OVR {p.overall}
-                              </span>
-                              {p.potential_ovr && p.potential_ovr > p.overall && (
-                                <span className="text-[9.5px] font-black text-cyan-300 bg-cyan-950/80 px-1.5 py-0.2 rounded border border-cyan-500/40">
-                                  POT {p.potential_ovr}
-                                </span>
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {paginatedFreeAgents.map((p) => {
+                      const estValue = Number(p.market_value || (p.wage ? p.wage * 50 : 1000000));
+                      return (
+                        <div
+                          key={p.id}
+                          className="flex flex-col justify-between p-3 rounded-2xl border border-slate-700/60 bg-gradient-to-b from-[#080c14] via-[#0d162a] to-[#05080e] hover:border-cyan-400/60 transition-all shadow-md gap-3"
+                        >
+                          {/* Top: Photo, Details, Badges */}
+                          <div className="flex items-center gap-3">
+                            {/* Portrait Photo */}
+                            <div className="w-13 h-15 rounded-2xl overflow-hidden border border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e] shrink-0 flex items-center justify-center relative shadow-inner">
+                              {getPlayerPhotoUrl(p) ? (
+                                <img
+                                  src={getPlayerPhotoUrl(p)}
+                                  alt={p.name}
+                                  className="w-full h-full object-cover object-top"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              ) : (
+                                <User size={22} className="text-slate-400 opacity-75" />
                               )}
                             </div>
-                            <h4 className="text-xs sm:text-sm font-black text-white truncate font-sans">
-                              {p.name}
-                            </h4>
-                            <div className="text-[10px] text-slate-400">
-                              سن: <strong className="text-slate-200">{p.age || 25} سال</strong>
+
+                            {/* Info */}
+                            <div className="space-y-0.5 truncate flex-1 font-sport">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-black text-emerald-300 bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-500/40">
+                                  {p.position}
+                                </span>
+                                <span className="text-[10px] font-black text-amber-300 bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-500/40">
+                                  OVR {p.overall}
+                                </span>
+                                {p.potential_ovr && p.potential_ovr > p.overall && (
+                                  <span className="text-[9.5px] font-black text-cyan-300 bg-cyan-950/80 px-1.5 py-0.2 rounded border border-cyan-500/40">
+                                    POT {p.potential_ovr}
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="text-xs sm:text-sm font-black text-white truncate font-sans">
+                                {p.name}
+                              </h4>
+                              <div className="text-[10px] text-slate-400">
+                                سن: <strong className="text-slate-200">{p.age || 25} سال</strong>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Bottom Action */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2 font-sport">
-                          <div>
-                            <span className="text-[9.5px] text-slate-400 block leading-tight">هزینه جذب</span>
-                            <span className="text-xs font-black text-[#00ff87] dir-ltr block">
-                              €{estValue.toLocaleString()}
-                            </span>
+                          {/* Bottom Action */}
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2 font-sport">
+                            <div>
+                              <span className="text-[9.5px] text-slate-400 block leading-tight">هزینه جذب</span>
+                              <span className="text-xs font-black text-[#00ff87] dir-ltr block">
+                                €{estValue.toLocaleString()}
+                              </span>
+                            </div>
+
+                            <button
+                              onClick={() => setPlayerToSign(p)}
+                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer"
+                            >
+                              <UserPlus size={13} className="text-slate-950" />
+                              <span>جذب بازیکن ⚡</span>
+                            </button>
                           </div>
-
-                          <button
-                            onClick={() => setPlayerToSign(p)}
-                            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer"
-                          >
-                            <UserPlus size={13} className="text-slate-950" />
-                            <span>جذب بازیکن ⚡</span>
-                          </button>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+
+                  <Pagination
+                    currentPage={freeAgentPage}
+                    totalPages={freeAgentTotalPages}
+                    totalItems={filteredFreeAgents.length}
+                    pageSize={FREE_AGENTS_PER_PAGE}
+                    onPageChange={setFreeAgentPage}
+                  />
+                </>
               )}
             </div>
           )}
@@ -282,7 +328,7 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
               </p>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {(teamData?.players || []).map((p) => {
+                {paginatedReleasePlayers.map((p) => {
                   const estValue = Number(p.market_value || (p.wage ? p.wage * 50 : 1000000));
                   return (
                     <div
@@ -348,6 +394,14 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
                   );
                 })}
               </div>
+
+              <Pagination
+                currentPage={releasePage}
+                totalPages={releaseTotalPages}
+                totalItems={teamData?.players?.length || 0}
+                pageSize={RELEASE_PLAYERS_PER_PAGE}
+                onPageChange={setReleasePage}
+              />
             </div>
           )}
         </motion.div>
@@ -360,17 +414,31 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
             <span className="font-black text-white text-sm">تاریخچه رسمی نقل و انتقالات لیگ</span>
           </div>
           <div className="space-y-2 pt-1 font-sport">
-            {transferHistory.slice(0, 10).map((item, idx) => (
-              <div key={item.id || idx} className="flex justify-between items-center p-3 rounded-2xl bg-[#05080e]/60 border border-slate-700/50">
-                <span className="font-bold text-white text-xs font-sans">
-                  {item.player_name} — <strong className="text-cyan-300">{item.seller_team_name}</strong> ➔ <strong className="text-[#00ff87]">{item.buyer_team_name}</strong>
-                </span>
-                <span className="text-amber-300 font-black dir-ltr text-xs">
-                  ${Number(item.price_usd || 0).toLocaleString()}
-                </span>
+            {paginatedHistory.length === 0 ? (
+              <div className="p-6 text-center text-slate-400">
+                هیچ انتقالی در تاریخچه ثبت نشده است.
               </div>
-            ))}
+            ) : (
+              paginatedHistory.map((item, idx) => (
+                <div key={item.id || idx} className="flex justify-between items-center p-3 rounded-2xl bg-[#05080e]/60 border border-slate-700/50">
+                  <span className="font-bold text-white text-xs font-sans">
+                    {item.player_name} — <strong className="text-cyan-300">{item.seller_team_name}</strong> ➔ <strong className="text-[#00ff87]">{item.buyer_team_name}</strong>
+                  </span>
+                  <span className="text-amber-300 font-black dir-ltr text-xs">
+                    ${Number(item.price_usd || 0).toLocaleString()}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
+
+          <Pagination
+            currentPage={historyPage}
+            totalPages={historyTotalPages}
+            totalItems={(transferHistory || []).length}
+            pageSize={HISTORY_PER_PAGE}
+            onPageChange={setHistoryPage}
+          />
         </motion.div>
       )}
 

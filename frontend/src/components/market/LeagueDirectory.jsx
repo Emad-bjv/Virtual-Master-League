@@ -9,6 +9,7 @@ import { transferApi } from '../../services/api';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import StarRating from '../common/StarRating';
+import Pagination from '../common/Pagination';
 
 // Position Categorization & Colors
 const POSITION_CATEGORIES = {
@@ -118,6 +119,21 @@ export default function LeagueDirectory({ currentTeamId, onPlayerSelect }) {
       return 0;
     });
   }, [selectedTeam, positionFilter, playerSearchQuery, sortBy]);
+
+  // Squad Players Pagination
+  const [playerPage, setPlayerPage] = useState(1);
+  const PLAYERS_PER_PAGE = 12;
+
+  useEffect(() => {
+    setPlayerPage(1);
+  }, [selectedTeam?.id, positionFilter, playerSearchQuery, sortBy]);
+
+  const paginatedPlayers = useMemo(() => {
+    const start = (playerPage - 1) * PLAYERS_PER_PAGE;
+    return filteredPlayers.slice(start, start + PLAYERS_PER_PAGE);
+  }, [filteredPlayers, playerPage]);
+
+  const playerTotalPages = Math.ceil(filteredPlayers.length / PLAYERS_PER_PAGE) || 1;
 
   // Squad Summary Stats
   const teamStats = useMemo(() => {
@@ -474,7 +490,7 @@ export default function LeagueDirectory({ currentTeamId, onPlayerSelect }) {
 
             {/* Compact Player Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-3">
-              {filteredPlayers.map((player) => {
+              {paginatedPlayers.map((player) => {
                 const ovrColor = getOverallBadgeColor(player.overall);
                 const posStyle = POSITION_BADGE_STYLES[player.position] || 'bg-slate-800 text-slate-200 border-slate-700';
                 const estValue = Number(player.market_value || (player.wage || 100) * 50);
@@ -580,6 +596,16 @@ export default function LeagueDirectory({ currentTeamId, onPlayerSelect }) {
                 );
               })}
             </div>
+
+            {filteredPlayers.length > 0 && (
+              <Pagination
+                currentPage={playerPage}
+                totalPages={playerTotalPages}
+                totalItems={filteredPlayers.length}
+                pageSize={PLAYERS_PER_PAGE}
+                onPageChange={setPlayerPage}
+              />
+            )}
 
             {filteredPlayers.length === 0 && (
               <div className="fc-card p-10 text-center text-slate-400 rounded-3xl border border-slate-800 space-y-2">

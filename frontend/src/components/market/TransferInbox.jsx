@@ -9,11 +9,20 @@ import { transferApi } from '../../services/api';
 import CounterOfferModal from './CounterOfferModal';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import ConfirmModal from '../common/ConfirmModal';
+import Pagination from '../common/Pagination';
 
 export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam }) {
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('incoming'); // 'incoming', 'outgoing', 'negotiations', 'archive'
+  const [currentPage, setCurrentPage] = useState(1);
+  const OFFERS_PER_PAGE = 8;
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+  };
+
   const [selectedOfferForCounter, setSelectedOfferForCounter] = useState(null);
   const [actionInProgressId, setActionInProgressId] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({
@@ -98,6 +107,28 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
     };
   }, [offers, myTeamId]);
 
+  const currentTabOffers = useMemo(() => {
+    switch (activeTab) {
+      case 'incoming':
+        return incomingDirect;
+      case 'outgoing':
+        return outgoingDirect;
+      case 'negotiations':
+        return activeNegotiations;
+      case 'archive':
+        return historyArchive;
+      default:
+        return [];
+    }
+  }, [activeTab, incomingDirect, outgoingDirect, activeNegotiations, historyArchive]);
+
+  const totalPages = Math.ceil((currentTabOffers || []).length / OFFERS_PER_PAGE) || 1;
+
+  const paginatedOffers = useMemo(() => {
+    const startIndex = (currentPage - 1) * OFFERS_PER_PAGE;
+    return (currentTabOffers || []).slice(startIndex, startIndex + OFFERS_PER_PAGE);
+  }, [currentTabOffers, currentPage]);
+
   if (loading) {
     return (
       <div className="p-12 text-center text-cyan-400 font-bold flex flex-col items-center justify-center gap-3">
@@ -146,7 +177,7 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
         {/* Tab 1: Incoming */}
         <button
           type="button"
-          onClick={() => setActiveTab('incoming')}
+          onClick={() => handleTabChange('incoming')}
           className={`p-3 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${
             activeTab === 'incoming'
               ? 'bg-cyan-950/80 border-cyan-400 text-white shadow-[0_0_15px_rgba(0,243,255,0.2)] font-black'
@@ -167,7 +198,7 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
         {/* Tab 2: Outgoing */}
         <button
           type="button"
-          onClick={() => setActiveTab('outgoing')}
+          onClick={() => handleTabChange('outgoing')}
           className={`p-3 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${
             activeTab === 'outgoing'
               ? 'bg-purple-950/80 border-purple-400 text-white shadow-[0_0_15px_rgba(168,85,247,0.2)] font-black'
@@ -188,7 +219,7 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
         {/* Tab 3: Negotiations */}
         <button
           type="button"
-          onClick={() => setActiveTab('negotiations')}
+          onClick={() => handleTabChange('negotiations')}
           className={`p-3 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${
             activeTab === 'negotiations'
               ? 'bg-amber-950/80 border-amber-400 text-white shadow-[0_0_15px_rgba(245,158,11,0.2)] font-black'
@@ -209,7 +240,7 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
         {/* Tab 4: Archive */}
         <button
           type="button"
-          onClick={() => setActiveTab('archive')}
+          onClick={() => handleTabChange('archive')}
           className={`p-3 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${
             activeTab === 'archive'
               ? 'bg-slate-800 border-slate-400 text-white shadow font-black'
@@ -238,7 +269,7 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
               <p className="text-[11px] text-slate-500">پیشنهادات خریدی که مربیان دیگر ارسال کنند در این بخش نمایش داده می‌شوند.</p>
             </div>
           ) : (
-            incomingDirect.map(offer => renderOfferCard(offer, 'INCOMING'))
+            paginatedOffers.map(offer => renderOfferCard(offer, 'INCOMING'))
           )}
         </div>
       )}
@@ -255,7 +286,7 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
               <p className="text-[11px] text-slate-500">از تب «بررسی رقبا» بازیکنان مدنظر خود را انتخاب و پیشنهاد رسمی ارسال فرمایید.</p>
             </div>
           ) : (
-            outgoingDirect.map(offer => renderOfferCard(offer, 'OUTGOING'))
+            paginatedOffers.map(offer => renderOfferCard(offer, 'OUTGOING'))
           )}
         </div>
       )}
@@ -272,7 +303,7 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
               <p className="text-[11px] text-slate-500">هنگامی که شما یا مربی حریف پیشنهاد متقابل ارسال کنید، روند مذاکره در اینجا پیگیری می‌شود.</p>
             </div>
           ) : (
-            activeNegotiations.map(offer => renderOfferCard(offer, 'NEGOTIATION'))
+            paginatedOffers.map(offer => renderOfferCard(offer, 'NEGOTIATION'))
           )}
         </div>
       )}
@@ -287,8 +318,21 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
               موردی در بایگانی موجود نیست.
             </div>
           ) : (
-            historyArchive.map(offer => renderOfferCard(offer, 'ARCHIVE'))
+            paginatedOffers.map(offer => renderOfferCard(offer, 'ARCHIVE'))
           )}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {currentTabOffers.length > OFFERS_PER_PAGE && (
+        <div className="pt-2">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            pageSize={OFFERS_PER_PAGE}
+            totalItems={currentTabOffers.length}
+          />
         </div>
       )}
 
