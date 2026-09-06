@@ -421,34 +421,6 @@ REAL_PLAYERS_DATA = [
 ]
 
 
-def copy_player_image(base_dir, folder_name, player_slug):
-    """Finds image in folder, copies it to media/packs/players/, returns relative path."""
-    source_folder = os.path.join(base_dir, folder_name)
-    if not os.path.exists(source_folder):
-        # Fallback search case-insensitively
-        for d in os.listdir(base_dir):
-            if d.lower() == folder_name.lower():
-                source_folder = os.path.join(base_dir, d)
-                break
-
-    if not os.path.exists(source_folder):
-        print(f"[WARN] Folder not found: {source_folder}")
-        return ""
-
-    files = [f for f in os.listdir(source_folder) if os.path.isfile(os.path.join(source_folder, f))]
-    if not files:
-        print(f"[WARN] No files in folder: {source_folder}")
-        return ""
-
-    src_file = files[0]
-    ext = os.path.splitext(src_file)[1].lower()
-    dest_filename = f"{player_slug}{ext}"
-    dest_full_path = os.path.join(PACKS_PLAYERS_DIR, dest_filename)
-
-    shutil.copy2(os.path.join(source_folder, src_file), dest_full_path)
-    return f"packs/players/{dest_filename}"
-
-
 def seed_packs():
     print("--- Starting Seed for Barcelona and Real Madrid Legend Packs ---")
 
