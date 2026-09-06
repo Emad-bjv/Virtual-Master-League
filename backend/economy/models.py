@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from teams.models import Team
 
 
@@ -47,6 +48,18 @@ class StorePackage(models.Model):
         max_length=50, blank=True, default='', choices=BADGE_CHOICES,
         verbose_name="برچسب رنگی بسته"
     )
+    custom_tag_text = models.CharField(
+        max_length=60, blank=True, default='', verbose_name="متن تگ اختصاصی"
+    )
+    custom_tag_color = models.CharField(
+        max_length=30, blank=True, default='', verbose_name="پالت رنگ تگ اختصاصی"
+    )
+    discount_price_irr = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="قیمت با تخفیف به تومان"
+    )
+    discount_until = models.DateTimeField(
+        null=True, blank=True, verbose_name="مهلت پایان تخفیف ساعتی"
+    )
     bonus_amount = models.DecimalField(
         max_digits=15, decimal_places=2, default=0.00,
         verbose_name="مقدار بونوس هدیه"
@@ -55,6 +68,26 @@ class StorePackage(models.Model):
         default=0, verbose_name="ترتیب نمایش"
     )
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def is_discount_active(self):
+        if self.discount_until and self.discount_price_irr is not None:
+            if self.discount_until > timezone.now() and self.discount_price_irr < self.price_irr:
+                return True
+        return False
+
+    @property
+    def effective_price_irr(self):
+        if self.is_discount_active:
+            return self.discount_price_irr
+        return self.price_irr
+
+    @property
+    def discount_pct(self):
+        if self.is_discount_active and self.price_irr > 0:
+            diff = self.price_irr - self.discount_price_irr
+            return round((diff / self.price_irr) * 100)
+        return 0
 
     class Meta:
         verbose_name = "بسته فروشگاه"

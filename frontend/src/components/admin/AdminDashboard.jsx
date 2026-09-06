@@ -21,7 +21,7 @@ import AdminPacksSeasonPassHub from './AdminPacksSeasonPassHub';
 import MatchLineupDetailModal from './MatchLineupDetailModal';
 import PenaltyShootoutModal from './PenaltyShootoutModal';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
-import { PACKAGE_TAGS } from '../../utils/storePackageTags';
+import { PACKAGE_TAGS, CUSTOM_TAG_PALETTES, resolveItemTag } from '../../utils/storePackageTags';
 import { useTranslation } from 'react-i18next';
 
 const DEFAULT_ADMIN_SUBNAV = [
@@ -1382,12 +1382,19 @@ export default function AdminDashboard({
 
     setIsSavingPackage(true);
     try {
+      const hasDiscount = Boolean(editingPackage.has_discount);
+      const isCustomTag = editingPackage.tag_mode === 'custom';
+
       const payload = {
         name: editingPackage.name.trim(),
         currency_type: editingPackage.currency_type || 'GEMS',
         reward_amount: Number(editingPackage.reward_amount),
         bonus_amount: Number(editingPackage.bonus_amount || 0),
-        badge_tag: editingPackage.badge_tag || '',
+        badge_tag: isCustomTag ? '' : (editingPackage.badge_tag || ''),
+        custom_tag_text: isCustomTag ? (editingPackage.custom_tag_text?.trim() || '') : '',
+        custom_tag_color: isCustomTag ? (editingPackage.custom_tag_color || 'ROSE_FIRE') : '',
+        discount_price_irr: hasDiscount && editingPackage.discount_price_irr ? Number(editingPackage.discount_price_irr) : null,
+        discount_until: hasDiscount && editingPackage.discount_until ? editingPackage.discount_until : null,
         price_irr: Number(editingPackage.price_irr),
         description: editingPackage.description?.trim() || '',
         icon_code: editingPackage.icon_code?.trim() || '',
@@ -1844,6 +1851,12 @@ export default function AdminDashboard({
                       reward_amount: 100,
                       bonus_amount: 0,
                       badge_tag: '',
+                      tag_mode: 'preset',
+                      custom_tag_text: '',
+                      custom_tag_color: 'ROSE_FIRE',
+                      has_discount: false,
+                      discount_price_irr: '',
+                      discount_until: '',
                       price_irr: 49000,
                       is_active: true,
                       description: '',
@@ -1938,6 +1951,12 @@ export default function AdminDashboard({
                     reward_amount: 100,
                     bonus_amount: 0,
                     badge_tag: '',
+                    tag_mode: 'preset',
+                    custom_tag_text: '',
+                    custom_tag_color: 'ROSE_FIRE',
+                    has_discount: false,
+                    discount_price_irr: '',
+                    discount_until: '',
                     price_irr: 49000,
                     is_active: true,
                     description: '',
@@ -2013,11 +2032,15 @@ export default function AdminDashboard({
                                     <strong className="text-white font-bold text-xs block">
                                       {String(pkg.name || 'بدون عنوان')}
                                     </strong>
-                                    {pkg.badge_tag && PACKAGE_TAGS[pkg.badge_tag] && (
-                                      <span className={`text-[9.5px] px-2 py-0.5 rounded-full font-black ${PACKAGE_TAGS[pkg.badge_tag].badgeClass}`}>
-                                        {PACKAGE_TAGS[pkg.badge_tag].shortLabel}
-                                      </span>
-                                    )}
+                                    {(() => {
+                                      const tagObj = resolveItemTag(pkg);
+                                      if (!tagObj) return null;
+                                      return (
+                                        <span className={`text-[9.5px] px-2 py-0.5 rounded-full font-black ${tagObj.badgeClass}`}>
+                                          {tagObj.label}
+                                        </span>
+                                      );
+                                    })()}
                                   </div>
                                   {pkg.description ? (
                                     <span className="text-[10px] text-slate-400 line-clamp-1 block">
@@ -2063,11 +2086,32 @@ export default function AdminDashboard({
                               )}
                             </td>
 
-                            {/* Price (Toman) */}
+                            {/* Price (Toman) with Discount support */}
                             <td className="p-3.5">
-                              <strong className="text-amber-400 font-bold text-xs font-sport dir-ltr inline-block">
-                                {Number(pkg.price_irr || 0).toLocaleString('fa-IR')} تومان
-                              </strong>
+                              {pkg.is_discount_active && pkg.discount_price_irr ? (
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <strong className="text-emerald-400 font-bold text-xs font-sport dir-ltr inline-block">
+                                      {Number(pkg.discount_price_irr).toLocaleString('fa-IR')} تومان
+                                    </strong>
+                                    <span className="text-[9.5px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/40 px-1.5 py-0.2 rounded font-sport dir-ltr">
+                                      %{pkg.discount_pct || Math.round((1 - (pkg.discount_price_irr / pkg.price_irr)) * 100)}
+                                    </span>
+                                  </div>
+                                  <span className="text-slate-500 line-through text-[10px] font-sport dir-ltr block">
+                                    {Number(pkg.price_irr || 0).toLocaleString('fa-IR')} تومان
+                                  </span>
+                                  {pkg.discount_until && (
+                                    <span className="text-[9.5px] text-amber-400 flex items-center gap-1 font-sport dir-ltr">
+                                      <Clock size={10} /> {new Date(pkg.discount_until).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <strong className="text-amber-400 font-bold text-xs font-sport dir-ltr inline-block">
+                                  {Number(pkg.price_irr || 0).toLocaleString('fa-IR')} تومان
+                                </strong>
+                              )}
                             </td>
 
                             {/* Is Active Toggle */}
@@ -2092,7 +2136,20 @@ export default function AdminDashboard({
                             <td className="p-3.5 text-center">
                               <div className="flex items-center justify-center gap-1.5">
                                 <button
-                                  onClick={() => setEditingPackage({ ...pkg })}
+                                  onClick={() => {
+                                    const hasDiscount = Boolean(pkg.discount_until && new Date(pkg.discount_until) > new Date());
+                                    const isCustom = Boolean(pkg.custom_tag_text);
+                                    setEditingPackage({
+                                      ...pkg,
+                                      tag_mode: isCustom ? 'custom' : 'preset',
+                                      custom_tag_text: pkg.custom_tag_text || '',
+                                      custom_tag_color: pkg.custom_tag_color || 'ROSE_FIRE',
+                                      has_discount: hasDiscount,
+                                      discount_price_irr: pkg.discount_price_irr || '',
+                                      discount_until: pkg.discount_until ? pkg.discount_until.slice(0, 16) : '',
+                                      discount_duration_hours: '',
+                                    });
+                                  }}
                                   className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 hover:border-cyan-500/40 transition-all cursor-pointer"
                                   title="ویرایش بسته"
                                 >
@@ -5117,45 +5174,238 @@ export default function AdminDashboard({
                 </div>
               </div>
 
-              {/* Badge Tag Selector (Neon Colors & Gaming Style) */}
-              <div className="space-y-1.5">
+              {/* Badge Tag Builder (Preset or Custom) */}
+              <div className="space-y-2 p-3 rounded-2xl bg-slate-950/80 border border-slate-800">
                 <div className="flex items-center justify-between">
-                  <label className="text-slate-300 font-bold block text-[11px] flex items-center gap-1.5">
+                  <label className="text-slate-300 font-bold block text-[11.5px] flex items-center gap-1.5">
                     <Tag size={13} className="text-indigo-400" />
-                    <span>برچسب رنگی و نئونی بسته (تگ ویژه):</span>
+                    <span>برچسب یا تگ بسته (آماده یا اختصاصی):</span>
                   </label>
-                  <span className="text-[10px] text-slate-400">اختیاری</span>
+                  <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setEditingPackage({ ...editingPackage, tag_mode: 'preset' })}
+                      className={`px-2.5 py-1 rounded-md text-[10.5px] font-bold transition-all cursor-pointer ${
+                        editingPackage.tag_mode !== 'custom'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      تگ‌های آماده
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPackage({ ...editingPackage, tag_mode: 'custom', custom_tag_color: editingPackage.custom_tag_color || 'ROSE_FIRE' })}
+                      className={`px-2.5 py-1 rounded-md text-[10.5px] font-bold transition-all cursor-pointer ${
+                        editingPackage.tag_mode === 'custom'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      ✨ تگ اختصاصی
+                    </button>
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditingPackage({ ...editingPackage, badge_tag: '' })}
-                    className={`p-2 rounded-xl border text-center text-xs transition-all cursor-pointer ${
-                      !editingPackage.badge_tag
-                        ? 'bg-slate-800 border-indigo-400 text-white font-bold ring-1 ring-indigo-400/50'
-                        : 'bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300'
-                    }`}
-                  >
-                    بدون برچسب
-                  </button>
-                  {Object.entries(PACKAGE_TAGS).map(([tagKey, tagData]) => {
-                    const isSelected = editingPackage.badge_tag === tagKey;
-                    return (
-                      <button
-                        key={tagKey}
-                        type="button"
-                        onClick={() => setEditingPackage({ ...editingPackage, badge_tag: tagKey })}
-                        className={`p-2 rounded-xl border text-center text-[11px] font-black transition-all cursor-pointer ${
-                          isSelected
-                            ? `${tagData.badgeClass} ring-2 ring-white/60 scale-[1.02]`
-                            : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
-                        }`}
-                      >
-                        {tagData.shortLabel}
-                      </button>
-                    );
-                  })}
+
+                {editingPackage.tag_mode === 'custom' ? (
+                  <div className="space-y-2.5 pt-1">
+                    <div>
+                      <label className="text-slate-400 text-[10.5px] block mb-1 font-bold">
+                        متن تگ اختصاصی (مثال: تخفیف ویژه شب عید، بسته شگفت‌انگیز، فرصت طلایی):
+                      </label>
+                      <input
+                        type="text"
+                        value={editingPackage.custom_tag_text || ''}
+                        onChange={(e) => setEditingPackage({ ...editingPackage, custom_tag_text: e.target.value })}
+                        placeholder="عنوان دلخواه برای تگ..."
+                        className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white text-xs focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-400 text-[10.5px] block mb-1 font-bold">
+                        انتخاب پالت رنگی نئونی:
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {Object.entries(CUSTOM_TAG_PALETTES).map(([key, pal]) => {
+                          const isSel = (editingPackage.custom_tag_color || 'ROSE_FIRE') === key;
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => setEditingPackage({ ...editingPackage, custom_tag_color: key })}
+                              className={`p-2 rounded-xl border text-center text-xs font-black transition-all cursor-pointer ${
+                                isSel
+                                  ? `${pal.badgeClass} ring-2 ring-white/60 scale-[1.02]`
+                                  : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                              }`}
+                            >
+                              {pal.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setEditingPackage({ ...editingPackage, badge_tag: '' })}
+                      className={`p-2 rounded-xl border text-center text-xs transition-all cursor-pointer ${
+                        !editingPackage.badge_tag
+                          ? 'bg-slate-800 border-indigo-400 text-white font-bold ring-1 ring-indigo-400/50'
+                          : 'bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      بدون برچسب
+                    </button>
+                    {Object.entries(PACKAGE_TAGS).map(([tagKey, tagData]) => {
+                      const isSelected = editingPackage.badge_tag === tagKey;
+                      return (
+                        <button
+                          key={tagKey}
+                          type="button"
+                          onClick={() => setEditingPackage({ ...editingPackage, badge_tag: tagKey })}
+                          className={`p-2 rounded-xl border text-center text-[11px] font-black transition-all cursor-pointer ${
+                            isSelected
+                              ? `${tagData.badgeClass} ring-2 ring-white/60 scale-[1.02]`
+                              : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                          }`}
+                        >
+                          {tagData.shortLabel}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Hourly Discount Section (Flash Sale Timer) */}
+              <div className="p-3 rounded-2xl bg-slate-950/80 border border-amber-500/30 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editingPackage.has_discount)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        const defaultHours = 3;
+                        const untilDate = checked
+                          ? new Date(Date.now() + defaultHours * 3600 * 1000).toISOString().slice(0, 16)
+                          : '';
+                        const defaultDiscountPrice = checked && editingPackage.price_irr
+                          ? Math.round(Number(editingPackage.price_irr) * 0.8)
+                          : '';
+                        setEditingPackage({
+                          ...editingPackage,
+                          has_discount: checked,
+                          discount_until: untilDate,
+                          discount_price_irr: defaultDiscountPrice,
+                        });
+                      }}
+                      className="w-4 h-4 rounded border-slate-700 text-amber-500 focus:ring-0 cursor-pointer"
+                    />
+                    <span className="text-amber-300 font-bold text-xs flex items-center gap-1.5">
+                      <Clock size={14} />
+                      <span>فعال‌سازی تخفیف ساعتی (شمارش معکوس)</span>
+                    </span>
+                  </label>
+                  {editingPackage.has_discount && (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-black animate-pulse">
+                      ⚡ تخفیف فعال
+                    </span>
+                  )}
                 </div>
+
+                {editingPackage.has_discount && (
+                  <div className="space-y-2.5 pt-1">
+                    {/* Quick duration buttons */}
+                    <div>
+                      <label className="text-slate-400 text-[10.5px] block mb-1 font-bold">
+                        مدت زمان تخفیف ساعتی (دکمه‌های سریع):
+                      </label>
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {[
+                          { label: '۱ ساعت', hours: 1 },
+                          { label: '۳ ساعت', hours: 3 },
+                          { label: '۶ ساعت', hours: 6 },
+                          { label: '۱۲ ساعت', hours: 12 },
+                          { label: '۲۴ ساعت', hours: 24 },
+                        ].map((btn) => (
+                          <button
+                            key={btn.hours}
+                            type="button"
+                            onClick={() => {
+                              const until = new Date(Date.now() + btn.hours * 3600 * 1000).toISOString().slice(0, 16);
+                              setEditingPackage({ ...editingPackage, discount_until: until });
+                            }}
+                            className="px-2 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:border-amber-400/50 text-slate-200 text-[10.5px] font-bold transition-all cursor-pointer text-center"
+                          >
+                            {btn.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Inputs: Discount Price & Exact End Time */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div className="space-y-1">
+                        <label className="text-slate-300 font-bold block text-[10.5px]">
+                          قیمت با تخفیف (تومان)*:
+                        </label>
+                        <input
+                          type="number"
+                          min="1000"
+                          step="1000"
+                          value={editingPackage.discount_price_irr || ''}
+                          onChange={(e) => setEditingPackage({ ...editingPackage, discount_price_irr: e.target.value })}
+                          placeholder="مثال: ۳۹۰۰۰"
+                          className="w-full p-2 rounded-xl bg-slate-900 border border-slate-700 text-emerald-400 font-sport font-bold text-xs focus:border-emerald-500 focus:outline-none dir-ltr"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-slate-300 font-bold block text-[10.5px]">
+                          درصد تخفیف محاسباتی:
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min="1"
+                            max="99"
+                            placeholder="مثال: ۲۰"
+                            value={
+                              editingPackage.price_irr && editingPackage.discount_price_irr
+                                ? Math.round(((Number(editingPackage.price_irr) - Number(editingPackage.discount_price_irr)) / Number(editingPackage.price_irr)) * 100)
+                                : ''
+                            }
+                            onChange={(e) => {
+                              const pct = Number(e.target.value);
+                              if (pct >= 0 && pct <= 99 && editingPackage.price_irr) {
+                                const newPrice = Math.round(Number(editingPackage.price_irr) * (1 - pct / 100));
+                                setEditingPackage({ ...editingPackage, discount_price_irr: newPrice });
+                              }
+                            }}
+                            className="w-full p-2 rounded-xl bg-slate-900 border border-slate-700 text-rose-300 font-sport font-bold text-xs focus:border-rose-500 focus:outline-none dir-ltr"
+                          />
+                          <span className="text-rose-400 font-bold text-xs shrink-0">٪</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-slate-300 font-bold block text-[10.5px]">
+                          مهلت پایان تخفیف:
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={editingPackage.discount_until || ''}
+                          onChange={(e) => setEditingPackage({ ...editingPackage, discount_until: e.target.value })}
+                          className="w-full p-2 rounded-xl bg-slate-900 border border-slate-700 text-amber-300 font-sport text-[11px] focus:border-amber-500 focus:outline-none dir-ltr"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Numeric Inputs Grid */}
@@ -5196,7 +5446,7 @@ export default function AdminDashboard({
 
                 <div className="space-y-1">
                   <label className="text-slate-300 font-bold block text-[11px]">
-                    قیمت (تومان)*:
+                    قیمت اصلی (تومان)*:
                   </label>
                   <input
                     type="number"
@@ -5205,10 +5455,10 @@ export default function AdminDashboard({
                     required
                     value={editingPackage.price_irr}
                     onChange={(e) => setEditingPackage({ ...editingPackage, price_irr: e.target.value })}
-                    className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-emerald-400 font-sport font-bold text-xs focus:border-indigo-500 focus:outline-none dir-ltr"
+                    className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-amber-400 font-sport font-bold text-xs focus:border-indigo-500 focus:outline-none dir-ltr"
                   />
                   <span className="text-[9.5px] text-slate-500 block">
-                    مبلغ پرداختی خریدار
+                    قیمت عادی بدون تخفیف
                   </span>
                 </div>
               </div>
@@ -5261,7 +5511,8 @@ export default function AdminDashboard({
                 const baseAmt = Number(editingPackage.reward_amount || 0);
                 const bonusAmt = Number(editingPackage.bonus_amount || 0);
                 const totalAmt = baseAmt + bonusAmt;
-                const activeTag = editingPackage.badge_tag && PACKAGE_TAGS[editingPackage.badge_tag];
+                const activeTag = resolveItemTag(editingPackage);
+                const isDisc = Boolean(editingPackage.has_discount && editingPackage.discount_price_irr);
 
                 return (
                   <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 border border-indigo-500/40 space-y-2.5 relative overflow-hidden">
@@ -5276,6 +5527,18 @@ export default function AdminDashboard({
                         </span>
                       )}
                     </div>
+
+                    {isDisc && (
+                      <div className="bg-amber-950/50 border border-amber-500/30 px-2.5 py-1 rounded-xl text-[10.5px] text-amber-300 font-bold flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <Clock size={12} className="text-amber-400 animate-spin" />
+                          <span>تخفیف ساعتی ویژه</span>
+                        </span>
+                        <span className="text-[10px] font-sport dir-ltr font-black text-amber-200">
+                          ⏳ شمارش معکوس فعال
+                        </span>
+                      </div>
+                    )}
 
                     <div className="flex justify-between items-center bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
                       <div className="flex items-center gap-3">
@@ -5306,9 +5569,20 @@ export default function AdminDashboard({
                         </div>
                       </div>
                       <div className="text-left shrink-0">
-                        <span className="text-amber-400 font-black text-xs font-sport dir-ltr block bg-amber-500/10 px-2.5 py-1.5 rounded-xl border border-amber-500/30">
-                          {Number(editingPackage.price_irr || 0).toLocaleString('fa-IR')} تومان
-                        </span>
+                        {isDisc ? (
+                          <div className="space-y-0.5">
+                            <span className="text-slate-500 line-through text-[10px] font-sport dir-ltr block">
+                              {Number(editingPackage.price_irr || 0).toLocaleString('fa-IR')} تومان
+                            </span>
+                            <span className="text-emerald-400 font-black text-xs font-sport dir-ltr block bg-emerald-500/10 px-2 py-1 rounded-xl border border-emerald-500/30">
+                              {Number(editingPackage.discount_price_irr || 0).toLocaleString('fa-IR')} تومان
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-amber-400 font-black text-xs font-sport dir-ltr block bg-amber-500/10 px-2.5 py-1.5 rounded-xl border border-amber-500/30">
+                            {Number(editingPackage.price_irr || 0).toLocaleString('fa-IR')} تومان
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -3,14 +3,21 @@ from .models import StorePackage, Transaction, PaymentRequest, CardToCardSetting
 
 
 class StorePackageSerializer(serializers.ModelSerializer):
+    is_discount_active = serializers.BooleanField(read_only=True)
+    effective_price_irr = serializers.IntegerField(read_only=True)
+    discount_pct = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = StorePackage
         fields = [
             'id', 'name', 'currency_type', 'reward_amount', 'usd_amount',
             'price_irr', 'is_active', 'description', 'icon_code',
-            'badge_tag', 'bonus_amount', 'sort_order', 'created_at'
+            'badge_tag', 'custom_tag_text', 'custom_tag_color',
+            'discount_price_irr', 'discount_until', 'is_discount_active',
+            'effective_price_irr', 'discount_pct',
+            'bonus_amount', 'sort_order', 'created_at'
         ]
-        read_only_fields = ['created_at']
+        read_only_fields = ['created_at', 'is_discount_active', 'effective_price_irr', 'discount_pct']
 
 
 class TransactionSerializer(serializers.ModelSerializer):

@@ -15,6 +15,7 @@ import rareCardBg from '../../assets/cards/rare_card_bg.png';
 import epicCardBg from '../../assets/cards/epic_card_bg.png';
 import legendaryCardBg from '../../assets/cards/legendary_card_bg.png';
 import PackCardFXOverlay from '../common/PackCardFXOverlay';
+import { resolveItemTag } from '../../utils/storePackageTags';
 
 export default function PackOpeningModal({
   pack,
@@ -400,11 +401,22 @@ export default function PackOpeningModal({
                   {/* Dynamic Stars, Sparks & Sheen FX */}
                   <PackCardFXOverlay tier={pack.tier} intensity="high" />
 
-                  {/* Top Tier Tag */}
-                  <div className="relative z-10 flex justify-between items-center">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider ${tierConfig.badgeBg}`}>
-                      {tierConfig.label}
-                    </span>
+                  {/* Top Tier Tag & Custom Tag */}
+                  <div className="relative z-10 flex justify-between items-center flex-wrap gap-1">
+                    <div className="flex items-center gap-1">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider ${tierConfig.badgeBg}`}>
+                        {tierConfig.label}
+                      </span>
+                      {(() => {
+                        const tagObj = resolveItemTag(pack);
+                        if (!tagObj) return null;
+                        return (
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black shadow-md ${tagObj.badgeClass}`}>
+                            {tagObj.label}
+                          </span>
+                        );
+                      })()}
+                    </div>
                     <Sparkles size={15} className={tierConfig.accent} />
                   </div>
 
@@ -519,6 +531,24 @@ export default function PackOpeningModal({
                   </div>
                 )}
 
+                {/* Flash Sale Banner if discount is active */}
+                {pack.is_discount_active && (
+                  <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-950/60 via-rose-950/40 to-slate-900 border border-amber-500/40 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <Clock size={16} className="text-amber-400 animate-spin" style={{ animationDuration: '8s' }} />
+                      <div>
+                        <strong className="text-amber-300 block">⚡ تخفیف ساعتی ویژه فعال است!</strong>
+                        <span className="text-[10px] text-slate-400">قیمت این پک به مدت محدود کاهش یافته است.</span>
+                      </div>
+                    </div>
+                    {pack.discount_until && (
+                      <span className="text-[10.5px] font-black text-amber-200 bg-amber-500/20 px-2.5 py-1 rounded-xl border border-amber-500/40 dir-ltr font-sport">
+                        تا {new Date(pack.discount_until).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {/* Payment Method Selector */}
                 {pack.purchase_method === 'BOTH' && (
                   <div className="space-y-2">
@@ -537,7 +567,14 @@ export default function PackOpeningModal({
                           <Gem size={18} className="text-cyan-400" />
                           <span className="text-xs font-bold">پرداخت با جم</span>
                         </div>
-                        <span className="text-xs font-black font-sport">{pack.cost_gems} 💎</span>
+                        {pack.is_discount_active && pack.effective_cost_gems !== undefined && Number(pack.effective_cost_gems) < Number(pack.cost_gems) ? (
+                          <div className="flex items-center gap-1.5 font-sport text-xs font-black">
+                            <span className="line-through text-slate-500 text-[10.5px]">{pack.cost_gems}</span>
+                            <span className="text-cyan-300">{pack.effective_cost_gems} 💎</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs font-black font-sport">{pack.cost_gems} 💎</span>
+                        )}
                       </button>
 
                       <button
@@ -553,7 +590,14 @@ export default function PackOpeningModal({
                           <Coins size={18} className="text-amber-400" />
                           <span className="text-xs font-bold">دلار مجازی</span>
                         </div>
-                        <span className="text-xs font-black font-sport">${pack.cost_usd}</span>
+                        {pack.is_discount_active && pack.effective_cost_usd !== undefined && Number(pack.effective_cost_usd) < Number(pack.cost_usd) ? (
+                          <div className="flex items-center gap-1.5 font-sport text-xs font-black">
+                            <span className="line-through text-slate-500 text-[10.5px]">${pack.cost_usd}</span>
+                            <span className="text-amber-300">${pack.effective_cost_usd}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs font-black font-sport">${pack.cost_usd}</span>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -574,8 +618,8 @@ export default function PackOpeningModal({
                         <span>
                           باز کردن پک (
                           {paymentMethod === 'GEMS'
-                            ? `${pack.cost_gems} جم`
-                            : `$${pack.cost_usd} دلار`}
+                            ? `${pack.is_discount_active && pack.effective_cost_gems !== undefined ? pack.effective_cost_gems : pack.cost_gems} جم`
+                            : `$${pack.is_discount_active && pack.effective_cost_usd !== undefined ? pack.effective_cost_usd : pack.cost_usd} دلار`}
                           )
                         </span>
                       </>

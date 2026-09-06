@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { seasonPassApi, gachaApi } from '../../services/api';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
+import { resolveItemTag } from '../../utils/storePackageTags';
 import ConfirmModal from '../common/ConfirmModal';
 import AdminPackStudio from '../../admin/components/AdminPackStudio';
 
@@ -711,9 +712,20 @@ export default function AdminPacksSeasonPassHub() {
                       <Gift size={20} />
                     </div>
                     <div>
-                      <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-purple-950 text-purple-300 border border-purple-600/40">
-                        {pack.tier_display || pack.tier}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-purple-950 text-purple-300 border border-purple-600/40">
+                          {pack.tier_display || pack.tier}
+                        </span>
+                        {(() => {
+                          const tagObj = resolveItemTag(pack);
+                          if (!tagObj) return null;
+                          return (
+                            <span className={`text-[9.5px] px-2 py-0.5 rounded-full font-black ${tagObj.badgeClass}`}>
+                              {tagObj.label}
+                            </span>
+                          );
+                        })()}
+                      </div>
                       <h4 className="font-black text-white text-sm mt-1">{pack.name}</h4>
                     </div>
                   </div>
@@ -731,16 +743,46 @@ export default function AdminPacksSeasonPassHub() {
                   </div>
                 )}
 
-                {/* Price Matrix */}
-                <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1 text-[11px] font-sport">
-                  <div className="flex justify-between">
+                {/* Price Matrix with Discount Support */}
+                <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-1.5 text-[11px] font-sport">
+                  {pack.is_discount_active && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-lg text-[10px] font-sans text-amber-300 font-bold flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <Clock size={11} className="text-amber-400" />
+                        <span>تخفیف ساعتی فعال</span>
+                      </span>
+                      {pack.discount_until && (
+                        <span className="dir-ltr text-[9.5px]">
+                          تا {new Date(pack.discount_until).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-center">
                     <span className="text-slate-400 font-sans">قیمت به جم:</span>
-                    <span className="text-cyan-300 font-bold">{pack.cost_gems || 0} 💎</span>
+                    {pack.is_discount_active && pack.discount_cost_gems !== null ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-500 line-through text-[10px]">{pack.cost_gems || 0}</span>
+                        <span className="text-cyan-300 font-black">{pack.discount_cost_gems} 💎</span>
+                      </div>
+                    ) : (
+                      <span className="text-cyan-300 font-bold">{pack.cost_gems || 0} 💎</span>
+                    )}
                   </div>
-                  <div className="flex justify-between">
+
+                  <div className="flex justify-between items-center">
                     <span className="text-slate-400 font-sans">قیمت به دلار مجازی:</span>
-                    <span className="text-[#00ff87] font-bold">${Number(pack.cost_usd || 0).toLocaleString()} USD</span>
+                    {pack.is_discount_active && pack.discount_cost_usd !== null ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-500 line-through text-[10px]">${Number(pack.cost_usd || 0).toLocaleString()}</span>
+                        <span className="text-[#00ff87] font-black">${Number(pack.discount_cost_usd).toLocaleString()} USD</span>
+                      </div>
+                    ) : (
+                      <span className="text-[#00ff87] font-bold">${Number(pack.cost_usd || 0).toLocaleString()} USD</span>
+                    )}
                   </div>
+
                   <div className="flex justify-between">
                     <span className="text-slate-400 font-sans">موجودی استخر:</span>
                     <span className="text-amber-400 font-bold font-sans">

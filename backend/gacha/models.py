@@ -46,6 +46,35 @@ class Pack(models.Model):
         max_length=100, blank=True, default='', verbose_name="تیم منتخب (پک لجندری/تیمی)",
         help_text="مثلاً: اسطوره‌های میلان یا آرسنال کلاسیک"
     )
+    BADGE_CHOICES = [
+        ('', 'بدون برچسب'),
+        ('HOT_DEAL', 'پیشنهاد شگفت‌انگیز 🔥'),
+        ('BEST_SELLER', 'پرفروش‌ترین ⭐'),
+        ('SPECIAL', 'ویژه 💎'),
+        ('BEST_VALUE', 'ارزش خرید بالا ⚡'),
+        ('LIMITED', 'تخفیف محدود ⏳'),
+        ('POPULAR', 'محبوب مربیان 🚀'),
+    ]
+    badge_tag = models.CharField(
+        max_length=50, blank=True, default='', choices=BADGE_CHOICES,
+        verbose_name="برچسب رنگی پک"
+    )
+    custom_tag_text = models.CharField(
+        max_length=60, blank=True, default='', verbose_name="متن تگ اختصاصی"
+    )
+    custom_tag_color = models.CharField(
+        max_length=30, blank=True, default='', verbose_name="پالت رنگ تگ اختصاصی"
+    )
+    discount_cost_gems = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="قیمت تخفیف به جم"
+    )
+    discount_cost_usd = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        verbose_name="قیمت تخفیف به دلار"
+    )
+    discount_until = models.DateTimeField(
+        null=True, blank=True, verbose_name="مهلت پایان تخفیف ساعتی"
+    )
     available_from = models.DateTimeField(
         null=True, blank=True, verbose_name="شروع در دسترس بودن"
     )
@@ -54,6 +83,26 @@ class Pack(models.Model):
     )
     is_active = models.BooleanField(default=True, verbose_name="فعال است؟")
     sort_order = models.PositiveIntegerField(default=0, verbose_name="ترتیب نمایش")
+
+    @property
+    def is_discount_active(self):
+        if self.discount_until and self.discount_until > timezone.now():
+            if (self.discount_cost_gems is not None and self.discount_cost_gems < self.cost_gems) or \
+               (self.discount_cost_usd is not None and self.discount_cost_usd < self.cost_usd):
+                return True
+        return False
+
+    @property
+    def effective_cost_gems(self):
+        if self.is_discount_active and self.discount_cost_gems is not None:
+            return self.discount_cost_gems
+        return self.cost_gems
+
+    @property
+    def effective_cost_usd(self):
+        if self.is_discount_active and self.discount_cost_usd is not None:
+            return self.discount_cost_usd
+        return self.cost_usd
     weight_top_tier = models.PositiveIntegerField(
         default=3, verbose_name="ضریب شانس کارت‌های ۹۴+ (Top Tier)",
         help_text="ضریب شانس ظاهر شدن فوق‌ستاره‌های اورال ۹۴ به بالا (پیش‌فرض: ۳)"

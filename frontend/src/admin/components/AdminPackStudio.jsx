@@ -7,9 +7,10 @@ import {
   Plus, Edit2, Trash2, Upload, Search, RotateCcw,
   Sliders, Image as ImageIcon, ArrowLeft, Check, Users,
   Layers, Palette, Eye, DollarSign, Calendar, Globe,
-  Dices, Percent, Rocket
+  Dices, Percent, Rocket, Tag
 } from 'lucide-react';
 import { gachaApi, playerApi } from '../../services/api';
+import { PACKAGE_TAGS, CUSTOM_TAG_PALETTES, resolveItemTag } from '../../utils/storePackageTags';
 import { getNationalityFlag } from '../../utils/nationalityFlags';
 import rareCardBg from '../../assets/cards/rare_card_bg.png';
 import epicCardBg from '../../assets/cards/epic_card_bg.png';
@@ -96,6 +97,16 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     weight_base_tier: pack?.weight_base_tier ?? 8,
     guarantee_min_ovr: pack?.guarantee_min_ovr ?? 90,
     early_bird_boost_pct: pack?.early_bird_boost_pct ?? 50,
+    // Tag & Discount fields
+    badge_tag: pack?.badge_tag || '',
+    custom_tag_text: pack?.custom_tag_text || '',
+    custom_tag_color: pack?.custom_tag_color || 'ROSE_FIRE',
+    tag_mode: pack?.custom_tag_text ? 'custom' : 'preset',
+    has_discount: Boolean(pack?.discount_until && new Date(pack?.discount_until) > new Date()),
+    discount_cost_gems: pack?.discount_cost_gems ?? '',
+    discount_cost_usd: pack?.discount_cost_usd ?? '',
+    discount_until: formatDateForInput(pack?.discount_until),
+    discount_duration_hours: '',
   });
 
   const [packCoverFile, setPackCoverFile] = useState(null);
@@ -351,10 +362,25 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     }
 
     setSavingPack(true);
+    const isCustomTag = packData.tag_mode === 'custom';
+    const hasDiscount = Boolean(packData.has_discount);
+
+    const payload = {
+      ...packData,
+      badge_tag: isCustomTag ? '' : (packData.badge_tag || ''),
+      custom_tag_text: isCustomTag ? (packData.custom_tag_text || '') : '',
+      custom_tag_color: isCustomTag ? (packData.custom_tag_color || 'ROSE_FIRE') : '',
+      discount_cost_gems: hasDiscount && packData.discount_cost_gems !== '' ? packData.discount_cost_gems : '',
+      discount_cost_usd: hasDiscount && packData.discount_cost_usd !== '' ? packData.discount_cost_usd : '',
+      discount_until: hasDiscount && packData.discount_until ? packData.discount_until : '',
+    };
+
     const formData = new FormData();
-    Object.keys(packData).forEach((key) => {
-      if (key === 'id') return; // Do not append id to FormData
-      const val = packData[key];
+    const skipKeys = ['id', 'tag_mode', 'has_discount', 'discount_duration_hours'];
+
+    Object.keys(payload).forEach((key) => {
+      if (skipKeys.includes(key)) return;
+      const val = payload[key];
       if ((key === 'available_from' || key === 'available_until') && (!val || val === '')) {
         return;
       }
@@ -712,14 +738,28 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                         )}
                       </div>
 
-                      {/* Right Tag: Featured Team Tag if provided */}
-                      {packData.featured_team && (
-                        <div className="flex flex-col items-end pointer-events-auto">
+                      {/* Right Tag: Featured Team Tag, Custom Tag & Flash Sale */}
+                      <div className="flex flex-col items-end gap-1 pointer-events-auto">
+                        {packData.featured_team && (
                           <span className="px-2 py-0.5 rounded-lg bg-black/75 backdrop-blur-md text-[9px] font-bold text-amber-300 border border-amber-500/40 shadow-md">
                             {packData.featured_team}
                           </span>
-                        </div>
-                      )}
+                        )}
+                        {(() => {
+                          const tagObj = resolveItemTag(packData);
+                          if (!tagObj) return null;
+                          return (
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black shadow-lg ${tagObj.badgeClass}`}>
+                              {tagObj.label}
+                            </span>
+                          );
+                        })()}
+                        {packData.has_discount && packData.discount_until && (
+                          <span className="px-2 py-0.5 rounded-lg bg-rose-950/90 text-rose-300 border border-rose-500/50 text-[8.5px] font-black flex items-center gap-1 shadow-lg animate-pulse">
+                            <Clock size={10} /> تخفیف ساعتی
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Center: Heroic Player Photo (Layered behind name and footer) */}
@@ -1762,6 +1802,266 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                       <option value="DIRECT">فقط پرداخت مستقیم / دلار مجازی</option>
                     </select>
                   </div>
+                </div>
+
+                {/* 1. Tag & Badge Selector (Preset vs Custom Neon) */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 border border-indigo-500/30 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Tag size={15} className="text-indigo-400" />
+                      <span className="font-bold text-white text-xs">تگ و نشان اختصاصی پک (Badge Tag)</span>
+                    </div>
+                    {/* Switcher: Preset vs Custom */}
+                    <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setPackData({ ...packData, tag_mode: 'preset' })}
+                        className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer ${
+                          packData.tag_mode !== 'custom'
+                            ? 'bg-indigo-600 text-white shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        تگ‌های آماده
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPackData({ ...packData, tag_mode: 'custom' })}
+                        className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer ${
+                          packData.tag_mode === 'custom'
+                            ? 'bg-gradient-to-r from-pink-600 to-rose-600 text-white shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        ✨ تگ اختصاصی
+                      </button>
+                    </div>
+                  </div>
+
+                  {packData.tag_mode !== 'custom' ? (
+                    /* Preset Tags */
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPackData({ ...packData, badge_tag: '' })}
+                          className={`p-2 rounded-xl text-[11px] font-bold border transition-all cursor-pointer text-center ${
+                            !packData.badge_tag
+                              ? 'bg-slate-800 text-white border-indigo-500/50 shadow-sm'
+                              : 'bg-slate-950/60 text-slate-500 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          بدون تگ
+                        </button>
+                        {Object.entries(PACKAGE_TAGS).map(([key, tag]) => {
+                          const isSelected = packData.badge_tag === key;
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              onClick={() => setPackData({ ...packData, badge_tag: key })}
+                              className={`p-2 rounded-xl text-[11px] font-black border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                                isSelected
+                                  ? `${tag.badgeClass} ring-2 ring-white/30 scale-[1.02] shadow-lg`
+                                  : 'bg-slate-950/80 text-slate-300 border-slate-800 hover:border-slate-700'
+                              }`}
+                            >
+                              <span>{tag.label}</span>
+                              {isSelected && <Check size={12} className="shrink-0" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    /* Custom Tag Builder */
+                    <div className="space-y-3 bg-slate-950/80 p-3.5 rounded-2xl border border-pink-500/30">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-slate-300 font-bold block text-[11px]">
+                            متن تگ دلخواه (حداکثر ۱۸ نویسه):
+                          </label>
+                          <input
+                            type="text"
+                            maxLength={18}
+                            value={packData.custom_tag_text || ''}
+                            onChange={(e) => setPackData({ ...packData, custom_tag_text: e.target.value })}
+                            placeholder="مثال: پک منتخب هفته، بلک فرایدی..."
+                            className="w-full p-2 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold text-xs focus:border-pink-500 focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-slate-300 font-bold block text-[11px]">
+                            رنگ و استایل نئونی:
+                          </label>
+                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                            {Object.entries(CUSTOM_TAG_PALETTES).map(([pKey, palette]) => {
+                              const isSelected = (packData.custom_tag_color || 'ROSE_FIRE') === pKey;
+                              return (
+                                <button
+                                  key={pKey}
+                                  type="button"
+                                  onClick={() => setPackData({ ...packData, custom_tag_color: pKey })}
+                                  className={`p-1.5 rounded-xl border text-[9.5px] font-bold flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                                    isSelected
+                                      ? 'border-white ring-2 ring-pink-500/60 bg-slate-800'
+                                      : 'border-slate-800 bg-slate-900/90 hover:border-slate-700'
+                                  }`}
+                                  title={palette.label}
+                                >
+                                  <span className={`w-3.5 h-3.5 rounded-full ${palette.swatch}`} />
+                                  <span className="text-[9px] text-slate-300 truncate max-w-full">{palette.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Live Badge Preview */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                        <span className="text-slate-400 text-[10.5px]">پیش‌نمایش تگ سفارشی:</span>
+                        {(() => {
+                          const tagObj = resolveItemTag(packData);
+                          if (!tagObj) return <span className="text-slate-600 text-[10.5px]">هنوز متنی وارد نشده</span>;
+                          return (
+                            <span className={`px-3 py-1 rounded-full text-xs font-black tracking-wide ${tagObj.badgeClass}`}>
+                              {tagObj.label}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Hourly Flash Sale Discount (جم / دلار) */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/20 via-slate-950 to-rose-950/20 border border-amber-500/30 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Clock size={15} className="text-amber-400" />
+                      <span className="font-bold text-white text-xs">تخفیف ساعتی ویژه (Flash Sale)</span>
+                    </div>
+
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(packData.has_discount)}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          if (checked) {
+                            const d = new Date(Date.now() + 3 * 3600 * 1000);
+                            const tzOffset = d.getTimezoneOffset() * 60000;
+                            const defaultUntil = new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+                            const discGems = packData.cost_gems ? Math.round(Number(packData.cost_gems) * 0.75) : '';
+                            const discUsd = packData.cost_usd ? Math.round(Number(packData.cost_usd) * 0.75) : '';
+                            setPackData({
+                              ...packData,
+                              has_discount: true,
+                              discount_cost_gems: discGems,
+                              discount_cost_usd: discUsd,
+                              discount_until: defaultUntil,
+                            });
+                          } else {
+                            setPackData({
+                              ...packData,
+                              has_discount: false,
+                              discount_cost_gems: '',
+                              discount_cost_usd: '',
+                              discount_until: '',
+                            });
+                          }
+                        }}
+                        className="w-4 h-4 rounded text-amber-500 cursor-pointer"
+                      />
+                      <span className="text-[11px] font-bold text-amber-300">فعال‌سازی تخفیف ساعتی</span>
+                    </label>
+                  </div>
+
+                  {packData.has_discount && (
+                    <div className="space-y-3 bg-slate-950/90 p-3.5 rounded-2xl border border-amber-500/30">
+                      {/* Quick Duration Preset Buttons */}
+                      <div className="space-y-1.5">
+                        <span className="text-slate-400 text-[10.5px] block font-bold">
+                          ⏱️ تنظیم سریع مدت تخفیف (از هم‌اکنون):
+                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {[
+                            { label: '۱ ساعت', hours: 1 },
+                            { label: '۳ ساعت', hours: 3 },
+                            { label: '۶ ساعت', hours: 6 },
+                            { label: '۱۲ ساعت', hours: 12 },
+                            { label: '۲۴ ساعت', hours: 24 },
+                          ].map((dur) => (
+                            <button
+                              key={dur.hours}
+                              type="button"
+                              onClick={() => {
+                                const d = new Date(Date.now() + dur.hours * 3600 * 1000);
+                                const tzOffset = d.getTimezoneOffset() * 60000;
+                                setPackData({
+                                  ...packData,
+                                  discount_duration_hours: dur.hours,
+                                  discount_until: new Date(d.getTime() - tzOffset).toISOString().slice(0, 16),
+                                });
+                              }}
+                              className="px-2.5 py-1 rounded-lg text-[10.5px] font-bold bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-500/30 cursor-pointer transition-all active:scale-95"
+                            >
+                              +{dur.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                        <div className="space-y-1">
+                          <label className="text-slate-300 font-bold block text-[10.5px]">
+                            قیمت تخفیف با جم (💎):
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={packData.discount_cost_gems}
+                            onChange={(e) => setPackData({ ...packData, discount_cost_gems: e.target.value })}
+                            placeholder="مثال: ۳۵"
+                            className="w-full p-2 rounded-xl bg-slate-900 border border-slate-700 text-cyan-300 font-sport font-bold text-xs focus:border-cyan-500 focus:outline-none dir-ltr"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-slate-300 font-bold block text-[10.5px]">
+                            قیمت تخفیف با دلار ($):
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={packData.discount_cost_usd}
+                            onChange={(e) => setPackData({ ...packData, discount_cost_usd: e.target.value })}
+                            placeholder="مثال: ۷.۵"
+                            className="w-full p-2 rounded-xl bg-slate-900 border border-slate-700 text-amber-300 font-sport font-bold text-xs focus:border-amber-500 focus:outline-none dir-ltr"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-slate-300 font-bold block text-[10.5px]">
+                            مهلت پایان تخفیف:
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={packData.discount_until || ''}
+                            onChange={(e) => setPackData({ ...packData, discount_until: e.target.value })}
+                            className="w-full p-2 rounded-xl bg-slate-900 border border-slate-700 text-amber-300 font-sport text-[11px] focus:border-amber-500 focus:outline-none dir-ltr"
+                          />
+                        </div>
+                      </div>
+
+                      <p className="text-[10px] text-amber-400/90 leading-relaxed pt-1 border-t border-slate-800">
+                        ⚡ با اتمام زمان مهلت، تخفیف به صورت ۱۰۰٪ خودکار منقضی شده و قیمت پک به حالت عادی بازمی‌گردد.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Pack Drop Odds & Guarantee Slot Configuration */}

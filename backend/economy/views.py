@@ -124,7 +124,7 @@ class CreatePaymentRequestView(views.APIView):
         payment_req = PaymentRequest.objects.create(
             team=request.user.team,
             package=package,
-            amount_irr=package.price_irr,
+            amount_irr=package.effective_price_irr,
             currency_type=package.currency_type,
             reward_amount=reward_amt,
             bonus_amount=bonus_amt,

@@ -20,7 +20,7 @@ import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import rareCardBg from '../../assets/cards/rare_card_bg.png';
 import epicCardBg from '../../assets/cards/epic_card_bg.png';
 import legendaryCardBg from '../../assets/cards/legendary_card_bg.png';
-import { PACKAGE_TAGS } from '../../utils/storePackageTags';
+import { PACKAGE_TAGS, resolveItemTag } from '../../utils/storePackageTags';
 
 const STORE_SUBNAV = [
   { id: 'gems', label: 'الماس (جم 💎)' },
@@ -96,6 +96,59 @@ function StorePackCountdownBadge({ available_from, available_until }) {
       <Clock size={13} className={!isExpired ? 'animate-spin' : ''} style={{ animationDuration: '6s' }} />
       <span>{statusText}:</span>
       <span className="font-mono tracking-wider font-black dir-ltr">{timeLeft}</span>
+    </div>
+  );
+}
+
+function FlashSaleCountdownTimer({ discount_until, onExpire }) {
+  const [timeLeft, setTimeLeft] = useState('');
+  const [isExpired, setIsExpired] = useState(false);
+
+  useEffect(() => {
+    if (!discount_until) {
+      setTimeLeft('');
+      return;
+    }
+
+    const calc = () => {
+      const now = new Date().getTime();
+      const end = new Date(discount_until).getTime();
+      const diff = end - now;
+
+      if (diff <= 0) {
+        setIsExpired(true);
+        setTimeLeft('پایان یافته');
+        if (onExpire) onExpire();
+        return;
+      }
+
+      const totalSec = Math.floor(diff / 1000);
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      const s = totalSec % 60;
+
+      const d = Math.floor(h / 24);
+      const remH = h % 24;
+
+      if (d > 0) {
+        setTimeLeft(`${d} روز و ${String(remH).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+      } else {
+        setTimeLeft(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+      }
+    };
+
+    calc();
+    const interval = setInterval(calc, 1000);
+    return () => clearInterval(interval);
+  }, [discount_until, onExpire]);
+
+  if (!discount_until || isExpired || !timeLeft) return null;
+
+  return (
+    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-xl text-[10px] font-black bg-gradient-to-r from-amber-500/20 via-rose-500/20 to-amber-500/20 text-amber-300 border border-amber-500/50 backdrop-blur-md shadow-[0_0_12px_rgba(245,158,11,0.2)] animate-pulse">
+      <Clock size={11} className="text-amber-400 shrink-0" />
+      <span className="text-amber-200">تخفیف ساعتی:</span>
+      <span className="font-sport font-black dir-ltr text-amber-300">{timeLeft}</span>
     </div>
   );
 }
@@ -390,7 +443,8 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                 const baseAmount = Number(pkg.reward_amount || pkg.usd_amount || 0);
                 const bonusAmount = Number(pkg.bonus_amount || 0);
                 const totalAmount = baseAmount + bonusAmount;
-                const tagData = pkg.badge_tag && PACKAGE_TAGS[pkg.badge_tag];
+                const tagData = resolveItemTag(pkg);
+                const isDiscount = Boolean(pkg.is_discount_active && pkg.discount_price_irr);
 
                 return (
                   <div
@@ -436,6 +490,13 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                         </div>
                       )}
 
+                      {/* Flash Sale Live Timer */}
+                      {isDiscount && (
+                        <div className="pt-1 flex justify-center">
+                          <FlashSaleCountdownTimer discount_until={pkg.discount_until} />
+                        </div>
+                      )}
+
                       {pkg.description && (
                         <p className="text-[10px] text-slate-400 line-clamp-1">{pkg.description}</p>
                       )}
@@ -446,7 +507,21 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                       onClick={() => handleStartPayment(pkg)}
                       className="fc-btn-cyan text-slate-950 px-3 py-2 rounded-2xl font-black w-full transition-all shadow-md font-sport cursor-pointer"
                     >
-                      {(pkg.price_irr || 0).toLocaleString('fa-IR')} تومان
+                      {isDiscount ? (
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          <span className="line-through text-[10.5px] text-slate-600 font-bold">
+                            {Number(pkg.price_irr || 0).toLocaleString('fa-IR')}
+                          </span>
+                          <span className="text-xs font-black">
+                            {Number(pkg.discount_price_irr).toLocaleString('fa-IR')} تومان
+                          </span>
+                          <span className="text-[9px] bg-rose-600 text-white px-1.5 py-0.2 rounded font-black dir-ltr">
+                            %{pkg.discount_pct || Math.round((1 - (pkg.discount_price_irr / pkg.price_irr)) * 100)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span>{(pkg.price_irr || 0).toLocaleString('fa-IR')} تومان</span>
+                      )}
                     </button>
                   </div>
                 );
@@ -485,7 +560,8 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                 const baseAmount = Number(pkg.reward_amount || pkg.usd_amount || 0);
                 const bonusAmount = Number(pkg.bonus_amount || 0);
                 const totalAmount = baseAmount + bonusAmount;
-                const tagData = pkg.badge_tag && PACKAGE_TAGS[pkg.badge_tag];
+                const tagData = resolveItemTag(pkg);
+                const isDiscount = Boolean(pkg.is_discount_active && pkg.discount_price_irr);
 
                 return (
                   <div
@@ -531,6 +607,13 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                         </div>
                       )}
 
+                      {/* Flash Sale Live Timer */}
+                      {isDiscount && (
+                        <div className="pt-1 flex justify-center">
+                          <FlashSaleCountdownTimer discount_until={pkg.discount_until} />
+                        </div>
+                      )}
+
                       {pkg.description && (
                         <p className="text-[10px] text-slate-400 line-clamp-1">{pkg.description}</p>
                       )}
@@ -541,7 +624,21 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                       onClick={() => handleStartPayment(pkg)}
                       className="fc-btn-gold text-slate-950 px-3 py-2 rounded-2xl font-black w-full transition-all shadow-md font-sport cursor-pointer"
                     >
-                      {(pkg.price_irr || 0).toLocaleString('fa-IR')} تومان
+                      {isDiscount ? (
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                          <span className="line-through text-[10.5px] text-slate-600 font-bold">
+                            {Number(pkg.price_irr || 0).toLocaleString('fa-IR')}
+                          </span>
+                          <span className="text-xs font-black">
+                            {Number(pkg.discount_price_irr).toLocaleString('fa-IR')} تومان
+                          </span>
+                          <span className="text-[9px] bg-rose-600 text-white px-1.5 py-0.2 rounded font-black dir-ltr">
+                            %{pkg.discount_pct || Math.round((1 - (pkg.discount_price_irr / pkg.price_irr)) * 100)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span>{(pkg.price_irr || 0).toLocaleString('fa-IR')} تومان</span>
+                      )}
                     </button>
                   </div>
                 );
@@ -612,6 +709,7 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                 const isTimeExpired = pack.available_until && now > new Date(pack.available_until).getTime();
                 const isNotStarted = pack.available_from && now < new Date(pack.available_from).getTime();
                 const isButtonDisabled = pack.is_sold_out || isTimeExpired || isNotStarted;
+                const tagData = resolveItemTag(pack);
 
                 return (
                   <motion.div
@@ -629,11 +727,18 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                     {/* Dynamic Rotating Stars, Sparks & Sheen FX */}
                     <PackCardFXOverlay tier={pack.tier} intensity="normal" />
 
-                    {/* Top Row: Floating Tier Badge & Remaining Pool */}
+                    {/* Top Row: Floating Tier Badge, Custom Tag & Remaining Pool */}
                     <div className="relative z-10 flex justify-between items-center px-0.5">
-                      <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-black border uppercase tracking-wider ${tierStyles.badge}`}>
-                        {pack.tier_display || tierStyles.label}
-                      </span>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-black border uppercase tracking-wider ${tierStyles.badge}`}>
+                          {pack.tier_display || tierStyles.label}
+                        </span>
+                        {tagData && (
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black shadow-md ${tagData.badgeClass}`}>
+                            {tagData.label}
+                          </span>
+                        )}
+                      </div>
 
                       {pack.is_sold_out ? (
                         <span className="px-2 py-0.5 rounded-lg bg-rose-900/90 text-rose-200 font-bold text-[9px] border border-rose-500 shadow-md">
@@ -666,6 +771,11 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                         />
                       )}
 
+                      {/* Flash Sale Live Timer */}
+                      {pack.is_discount_active && pack.discount_until && (
+                        <FlashSaleCountdownTimer discount_until={pack.discount_until} />
+                      )}
+
                       {/* Early Bird Anti-Snipe Boost Badge */}
                       {pack.odds?.is_early_bird_active && (
                         <div className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-orange-500/30 to-amber-500/30 border border-orange-400/50 text-orange-300 text-[9px] font-black flex items-center gap-1 shadow-[0_0_15px_rgba(249,115,22,0.4)] animate-pulse">
@@ -691,12 +801,28 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                         <div className="flex items-center gap-2 font-sport text-xs font-black">
                           {pack.cost_gems > 0 && (
                             <span className="text-cyan-300 flex items-center gap-0.5">
-                              <Gem size={13} /> {pack.cost_gems}
+                              <Gem size={13} />
+                              {pack.is_discount_active && pack.effective_cost_gems !== undefined && Number(pack.effective_cost_gems) < Number(pack.cost_gems) ? (
+                                <span className="flex items-center gap-1">
+                                  <span className="line-through text-slate-400 text-[10px]">{pack.cost_gems}</span>
+                                  <span className="text-cyan-200 font-black">{pack.effective_cost_gems}</span>
+                                </span>
+                              ) : (
+                                pack.cost_gems
+                              )}
                             </span>
                           )}
                           {pack.cost_usd > 0 && (
                             <span className="text-amber-300 flex items-center gap-0.5">
-                              <Coins size={13} /> ${pack.cost_usd}
+                              <Coins size={13} />
+                              {pack.is_discount_active && pack.effective_cost_usd !== undefined && Number(pack.effective_cost_usd) < Number(pack.cost_usd) ? (
+                                <span className="flex items-center gap-1">
+                                  <span className="line-through text-slate-400 text-[10px]">${pack.cost_usd}</span>
+                                  <span className="text-amber-200 font-black">${pack.effective_cost_usd}</span>
+                                </span>
+                              ) : (
+                                `$${pack.cost_usd}`
+                              )}
                             </span>
                           )}
                         </div>
@@ -1367,54 +1493,77 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                 </div>
 
                 {/* Selected Package Summary */}
-                <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-cyan-500/30 flex justify-between items-center gap-2">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-slate-400 text-[10.5px] block">بسته انتخابی:</span>
-                      {selectedCoinPkg.badge_tag && PACKAGE_TAGS[selectedCoinPkg.badge_tag] && (
-                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-black ${PACKAGE_TAGS[selectedCoinPkg.badge_tag].badgeClass}`}>
-                          {PACKAGE_TAGS[selectedCoinPkg.badge_tag].shortLabel}
-                        </span>
-                      )}
+                {(() => {
+                  const tagData = resolveItemTag(selectedCoinPkg);
+                  const isDiscount = Boolean(selectedCoinPkg.is_discount_active && selectedCoinPkg.discount_price_irr);
+                  const finalPrice = isDiscount ? selectedCoinPkg.discount_price_irr : (selectedCoinPkg.price_irr || 19000);
+
+                  return (
+                    <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-cyan-500/30 flex justify-between items-center gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-slate-400 text-[10.5px] block">بسته انتخابی:</span>
+                          {tagData && (
+                            <span className={`text-[9px] px-2 py-0.5 rounded-full font-black ${tagData.badgeClass}`}>
+                              {tagData.label}
+                            </span>
+                          )}
+                          {isDiscount && (
+                            <span className="text-[9px] bg-rose-600/90 text-white px-1.5 py-0.2 rounded font-black font-sport dir-ltr">
+                              %{selectedCoinPkg.discount_pct || Math.round((1 - (selectedCoinPkg.discount_price_irr / selectedCoinPkg.price_irr)) * 100)} تخفیف ویژه
+                            </span>
+                          )}
+                        </div>
+                        <strong className="text-white font-bold text-sm block mt-0.5">{selectedCoinPkg.name}</strong>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                          <span className="text-cyan-300 font-bold text-xs dir-ltr font-sport">
+                            {selectedCoinPkg.currency_type === 'GEMS'
+                              ? `+${Number(selectedCoinPkg.reward_amount || selectedCoinPkg.usd_amount || 0).toLocaleString('fa-IR')} 💎 الماس`
+                              : `+$${Number(selectedCoinPkg.reward_amount || selectedCoinPkg.usd_amount || 0).toLocaleString('fa-IR')} USD`}
+                          </span>
+                          {Number(selectedCoinPkg.bonus_amount || 0) > 0 && (
+                            <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-lg font-black font-sport dir-ltr animate-pulse">
+                              +{Number(selectedCoinPkg.bonus_amount).toLocaleString('fa-IR')} هدیه 🎁
+                            </span>
+                          )}
+                        </div>
+                        {Number(selectedCoinPkg.bonus_amount || 0) > 0 && (
+                          <span className="text-[10px] text-emerald-400 font-bold block mt-1">
+                            مجموع شارژ تیم شما: {selectedCoinPkg.currency_type === 'GEMS'
+                              ? `${(Number(selectedCoinPkg.reward_amount || selectedCoinPkg.usd_amount || 0) + Number(selectedCoinPkg.bonus_amount || 0)).toLocaleString('fa-IR')} جم 💎`
+                              : `$${(Number(selectedCoinPkg.reward_amount || selectedCoinPkg.usd_amount || 0) + Number(selectedCoinPkg.bonus_amount || 0)).toLocaleString('fa-IR')} USD`}
+                          </span>
+                        )}
+                        {isDiscount && selectedCoinPkg.discount_until && (
+                          <div className="pt-1.5">
+                            <FlashSaleCountdownTimer discount_until={selectedCoinPkg.discount_until} />
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-left space-y-1 shrink-0">
+                        <span className="text-slate-400 text-[10.5px] block">مبلغ واریزی (تومان):</span>
+                        {isDiscount && (
+                          <span className="text-slate-500 line-through text-[10.5px] font-sport dir-ltr block text-left">
+                            {Number(selectedCoinPkg.price_irr || 0).toLocaleString('fa-IR')} تومان
+                          </span>
+                        )}
+                        <div className="flex items-center gap-1.5 justify-end">
+                          <strong className="text-emerald-400 font-black text-sm dir-ltr font-sport">
+                            {Number(finalPrice).toLocaleString('fa-IR')} تومان
+                          </strong>
+                          <button
+                            onClick={() => handleCopyAmount(finalPrice)}
+                            className="px-2 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold text-[10px] flex items-center gap-1 transition-all border border-emerald-500/40 cursor-pointer"
+                            title="کپی مبلغ"
+                          >
+                            {isCopiedAmount ? <Check size={11} /> : <Copy size={11} />}
+                            <span>{isCopiedAmount ? 'کپی شد' : 'کپی'}</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <strong className="text-white font-bold text-sm block mt-0.5">{selectedCoinPkg.name}</strong>
-                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                      <span className="text-cyan-300 font-bold text-xs dir-ltr font-sport">
-                        {selectedCoinPkg.currency_type === 'GEMS'
-                          ? `+${Number(selectedCoinPkg.reward_amount || selectedCoinPkg.usd_amount || 0).toLocaleString('fa-IR')} 💎 الماس`
-                          : `+$${Number(selectedCoinPkg.reward_amount || selectedCoinPkg.usd_amount || 0).toLocaleString('fa-IR')} USD`}
-                      </span>
-                      {Number(selectedCoinPkg.bonus_amount || 0) > 0 && (
-                        <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-lg font-black font-sport dir-ltr animate-pulse">
-                          +{Number(selectedCoinPkg.bonus_amount).toLocaleString('fa-IR')} هدیه 🎁
-                        </span>
-                      )}
-                    </div>
-                    {Number(selectedCoinPkg.bonus_amount || 0) > 0 && (
-                      <span className="text-[10px] text-emerald-400 font-bold block mt-1">
-                        مجموع شارژ تیم شما: {selectedCoinPkg.currency_type === 'GEMS'
-                          ? `${(Number(selectedCoinPkg.reward_amount || selectedCoinPkg.usd_amount || 0) + Number(selectedCoinPkg.bonus_amount || 0)).toLocaleString('fa-IR')} جم 💎`
-                          : `$${(Number(selectedCoinPkg.reward_amount || selectedCoinPkg.usd_amount || 0) + Number(selectedCoinPkg.bonus_amount || 0)).toLocaleString('fa-IR')} USD`}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-left space-y-1 shrink-0">
-                    <span className="text-slate-400 text-[10.5px] block">مبلغ واریزی (تومان):</span>
-                    <div className="flex items-center gap-1.5 justify-end">
-                      <strong className="text-amber-400 font-bold text-sm dir-ltr font-sport">
-                        {(selectedCoinPkg.price_irr || 19000).toLocaleString('fa-IR')} تومان
-                      </strong>
-                      <button
-                        onClick={() => handleCopyAmount(selectedCoinPkg.price_irr || 19000)}
-                        className="px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-[10px] flex items-center gap-1 transition-all border border-amber-500/40 cursor-pointer"
-                        title="کپی مبلغ"
-                      >
-                        {isCopiedAmount ? <Check size={11} /> : <Copy size={11} />}
-                        <span>{isCopiedAmount ? 'کپی شد' : 'کپی'}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Bank Card Info Card */}
                 <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-950/80 via-slate-900 to-cyan-950/80 border border-indigo-500/40 space-y-2 shadow-lg relative overflow-hidden">

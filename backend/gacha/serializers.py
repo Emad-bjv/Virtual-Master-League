@@ -53,6 +53,9 @@ class PackSerializer(serializers.ModelSerializer):
     unclaimed_players_count = serializers.IntegerField(read_only=True)
     is_sold_out = serializers.BooleanField(read_only=True)
     is_time_valid = serializers.BooleanField(read_only=True)
+    is_discount_active = serializers.BooleanField(read_only=True)
+    effective_cost_gems = serializers.IntegerField(read_only=True)
+    effective_cost_usd = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     tier_display = serializers.CharField(source='get_tier_display', read_only=True)
     purchase_method_display = serializers.CharField(source='get_purchase_method_display', read_only=True)
     cover_image = serializers.ImageField(required=False, allow_null=True)
@@ -64,6 +67,9 @@ class PackSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'tier', 'tier_display', 'cover_image', 'custom_card_bg', 'description',
             'ovr_range_text', 'cost_usd', 'cost_gems', 'cost_irr',
+            'badge_tag', 'custom_tag_text', 'custom_tag_color',
+            'discount_cost_gems', 'discount_cost_usd', 'discount_until',
+            'is_discount_active', 'effective_cost_gems', 'effective_cost_usd',
             'purchase_method', 'purchase_method_display', 'featured_team',
             'available_from', 'available_until', 'is_active', 'sort_order',
             'weight_top_tier', 'weight_mid_tier', 'weight_base_tier', 'guarantee_min_ovr',

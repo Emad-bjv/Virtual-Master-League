@@ -171,26 +171,26 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
 
         # Wallet deduction
         if payment_method == 'GEMS':
-            cost = pack.cost_gems
+            cost = pack.effective_cost_gems
             if cost > 0:
                 wallet_res = process_atomic_wallet_update(
                     team_id=team.id,
                     amount=-cost,
                     currency='GEMS',
                     transaction_type='GACHA_OPEN',
-                    description=f"باز کردن پک {pack.name} با جم"
+                    description=f"باز کردن پک {pack.name} با جم" + (" (با تخفیف ساعتی)" if pack.is_discount_active else "")
                 )
                 if not wallet_res['success']:
                     return {'success': False, 'error': wallet_res.get('error', 'جم کافی نیست.')}
         else:
-            cost = pack.cost_usd if pack.cost_usd > 0 else Decimal('0.00')
+            cost = pack.effective_cost_usd if pack.effective_cost_usd > 0 else Decimal('0.00')
             if cost > 0:
                 wallet_res = process_atomic_wallet_update(
                     team_id=team.id,
                     amount=-cost,
                     currency='BUDGET',
                     transaction_type='GACHA_OPEN',
-                    description=f"باز کردن پک {pack.name} با دلار مجازی"
+                    description=f"باز کردن پک {pack.name} با دلار مجازی" + (" (با تخفیف ساعتی)" if pack.is_discount_active else "")
                 )
                 if not wallet_res['success']:
                     return {'success': False, 'error': wallet_res.get('error', 'موجودی دلار کافی نیست.')}
