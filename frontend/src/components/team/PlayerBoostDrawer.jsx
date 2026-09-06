@@ -7,9 +7,7 @@ import {
   ChevronDown, ChevronUp, Layers, Flame, Target, ShieldCheck, Clock
 } from 'lucide-react';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
-import { getGemBoostCost, getGemBoostTargetOvr } from './EFootballGamePlan';
 import { playerApi } from '../../services/api';
-import ConfirmModal from '../common/ConfirmModal';
 
 const POSITION_COLORS = {
   GK: 'bg-amber-500 text-slate-950',
@@ -40,7 +38,6 @@ export default function PlayerBoostDrawer({
   const [searchTerm, setSearchTerm] = useState('');
   const [posFilter, setPosFilter] = useState('ALL');
   const [sortBy, setSortBy] = useState('OVR_DESC'); // 'OVR_DESC' | 'LVL_ASC' | 'STAMINA_ASC'
-  const [confirmBoostPlayer, setConfirmBoostPlayer] = useState(null);
   const [expandedSkillsPlayerId, setExpandedSkillsPlayerId] = useState(null);
   const [cmfRoleMap, setCmfRoleMap] = useState({});
   const [skillsMap, setSkillsMap] = useState({});
@@ -253,10 +250,6 @@ export default function PlayerBoostDrawer({
                 </div>
               ) : (
                 filteredPlayers.map((player) => {
-                  const currentLvl = Number(player.level) || 1;
-                  const isMaxLevel = currentLvl >= 20;
-                  const targetOvr = getGemBoostTargetOvr(player);
-                  const boostCost = getGemBoostCost(currentLvl);
                   const stamina = Math.round(Number(player.virtual_stamina || player.stamina || 90));
                   const isInjured = Boolean(player.is_injured || player.isInjured);
                   const isSuspended = Boolean((player.suspension_matches > 0) || player.is_suspended);
@@ -304,37 +297,16 @@ export default function PlayerBoostDrawer({
                                 </span>
                               )}
                             </div>
-
-                            {/* Level Progress Indicator */}
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <span className="text-[10px] text-purple-300 font-bold">
-                                لول {currentLvl}/۲۰
-                              </span>
-                              <div className="w-24 sm:w-28 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-white/10 p-0.2">
-                                <div
-                                  className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full transition-all"
-                                  style={{ width: `${(currentLvl / 20) * 100}%` }}
-                                />
-                              </div>
-                            </div>
                           </div>
                         </div>
 
-                        {/* OVR Upgrade Badge */}
+                        {/* OVR Badge */}
                         <div className="text-left font-sport shrink-0">
                           <div className="text-[10px] text-slate-400">قدرت کلی:</div>
                           <div className="flex items-center gap-1 text-sm font-black">
-                            <span className="text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded-lg border border-amber-500/40">
+                            <span className="text-amber-300 bg-amber-950/80 px-2.5 py-0.5 rounded-lg border border-amber-500/40">
                               {player.overall}
                             </span>
-                            {!isMaxLevel && (
-                              <>
-                                <span className="text-purple-400 font-black">➔</span>
-                                <span className="text-[#00ff87] bg-emerald-950/90 px-2 py-0.5 rounded-lg border border-emerald-400/50 shadow-[0_0_10px_rgba(0,255,135,0.3)]">
-                                  {targetOvr}
-                                </span>
-                              </>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -463,17 +435,16 @@ export default function PlayerBoostDrawer({
                                       />
                                     </div>
 
-                                    {/* PES Stat Impact + Upgrade Button */}
+                                    {/* Upgrade Status + Upgrade Button */}
                                     <div className="flex items-center justify-between gap-2 pt-1">
-                                      <div className="text-[10.5px] text-slate-400 flex items-center gap-1 flex-wrap">
-                                        <span>پایه: <strong className="text-slate-300">{skill.base_pes}</strong></span>
-                                        <span>➔</span>
-                                        <span className="text-[#00ff87] font-black">
-                                          در بازی: {skill.current_pes}
-                                        </span>
-                                        {skill.pes_bonus > 0 && (
-                                          <span className="text-[9px] text-emerald-400 font-black bg-emerald-950 px-1 rounded border border-emerald-500/30">
-                                            +{skill.pes_bonus}
+                                      <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                                        {skill.level > 0 ? (
+                                          <span className="text-purple-300 font-bold">
+                                            سطح {skill.level} از ۲۰ تقویت شده
+                                          </span>
+                                        ) : (
+                                          <span className="text-slate-500">
+                                            سطح ۰ (ارتقا نیافته)
                                           </span>
                                         )}
                                       </div>
@@ -481,7 +452,7 @@ export default function PlayerBoostDrawer({
                                       {isSkillMaxed ? (
                                         <span className="text-[10px] text-amber-300 font-bold flex items-center gap-1">
                                           <Check size={11} />
-                                          <span>مکس شد</span>
+                                          <span>مکس شد (سطح ۲۰)</span>
                                         </span>
                                       ) : (
                                         <button
@@ -509,37 +480,6 @@ export default function PlayerBoostDrawer({
                           </div>
                         )}
                       </div>
-
-                      {/* Main Action: Gem Boost Upgrade Button */}
-                      <div>
-                        {isMaxLevel ? (
-                          <div className="w-full py-2 px-3 rounded-xl bg-purple-950/50 border border-purple-500/30 text-purple-300 text-center text-xs font-black font-sport flex items-center justify-center gap-1.5">
-                            <Award size={15} className="text-amber-300" />
-                            <span>حداکثر لول ارتقا یافته (MAX 99 ⭐)</span>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setConfirmBoostPlayer(player)}
-                            disabled={isLoading || currentGems < boostCost}
-                            className={`w-full py-2 px-3 rounded-xl text-xs font-black flex items-center justify-between gap-2 font-sport transition-all cursor-pointer shadow-lg active:scale-98 ${
-                              currentGems < boostCost
-                                ? 'bg-slate-800 text-slate-400 border border-slate-700 opacity-75'
-                                : 'bg-gradient-to-r from-purple-600 via-indigo-600 to-cyan-500 hover:from-purple-500 hover:to-cyan-400 text-white border border-purple-400/40 shadow-[0_0_20px_rgba(168,85,247,0.4)]'
-                            }`}
-                          >
-                            <div className="flex items-center gap-1.5 font-sans">
-                              <Sparkles size={14} className="text-amber-300 animate-pulse" />
-                              <span>ارتقای لول به سطح {currentLvl + 1} (افزایش OVR)</span>
-                            </div>
-
-                            <div className="flex items-center gap-1 bg-black/40 px-2.5 py-1 rounded-lg text-amber-300 border border-amber-500/30 font-black">
-                              <span>{boostCost}</span>
-                              <Gem size={12} className="text-cyan-300 fill-cyan-300" />
-                            </div>
-                          </button>
-                        )}
-                      </div>
                     </div>
                   );
                 })
@@ -562,47 +502,6 @@ export default function PlayerBoostDrawer({
             </div>
           </motion.div>
         </div>
-      )}
-
-      {/* Confirmation Modal for Level Up */}
-      {confirmBoostPlayer && (
-        <ConfirmModal
-          isOpen={!!confirmBoostPlayer}
-          title="ارتقای بازیکن با الماس (Gem Boost)"
-          message={`آیا از ارتقای سطح و افزایش مستقیم قدرت «${confirmBoostPlayer.name}» اطمینان دارید؟`}
-          details={
-            <div className="space-y-2 font-sport text-xs">
-              <div className="flex justify-between text-slate-300">
-                <span>لول فعلی ➔ لول جدید:</span>
-                <span className="text-cyan-300 font-bold dir-ltr">
-                  سطح {confirmBoostPlayer.level || 1} ➔ سطح {(confirmBoostPlayer.level || 1) + 1}
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-300">
-                <span>قدرت کلی (OVR):</span>
-                <span className="text-[#00ff87] font-black dir-ltr">
-                  {confirmBoostPlayer.overall} ➔ {getGemBoostTargetOvr(confirmBoostPlayer)}
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-300 border-t border-slate-700/80 pt-1.5">
-                <span className="text-amber-400 font-bold">هزینه ارتقا:</span>
-                <span className="text-amber-300 font-black text-sm">
-                  {getGemBoostCost(Number(confirmBoostPlayer.level) || 1)} 💎
-                </span>
-              </div>
-            </div>
-          }
-          confirmText="بله، ارتقای لول ✨"
-          cancelText="خیر، انصراف"
-          onConfirm={() => {
-            if (onGemBoost) {
-              onGemBoost(confirmBoostPlayer.id, confirmBoostPlayer.name, confirmBoostPlayer.level || 1);
-            }
-            setConfirmBoostPlayer(null);
-          }}
-          onCancel={() => setConfirmBoostPlayer(null)}
-          loading={Boolean(actionLoading)}
-        />
       )}
     </AnimatePresence>,
     document.body
