@@ -222,11 +222,98 @@ export default function AdminPacksSeasonPassHub() {
   // ─────────────────────────────────────────────────────────────────────────
   // HANDLERS: GACHA PACKS
   // ─────────────────────────────────────────────────────────────────────────
+  const handleOpenNewPackModal = () => {
+    setEditingPack({
+      id: null,
+      name: '',
+      tier: 'BRONZE',
+      cost_gems: 50,
+      cost_usd: 5,
+      cost_irr: 0,
+      has_discount: false,
+      discount_cost_gems: '',
+      discount_cost_usd: '',
+      discount_until: '',
+      rate_rare: 70,
+      rate_epic: 25,
+      rate_legendary: 5,
+      is_active: true,
+    });
+    setShowPackModal(true);
+  };
+
+  const handleEditPackModal = (pack) => {
+    setEditingPack({
+      ...pack,
+      has_discount: Boolean(pack.is_discount_active || (pack.discount_until && new Date(pack.discount_until) > new Date())),
+      discount_cost_gems: pack.discount_cost_gems ?? '',
+      discount_cost_usd: pack.discount_cost_usd ?? '',
+      discount_until: pack.discount_until ? pack.discount_until.slice(0, 16) : '',
+    });
+    setShowPackModal(true);
+  };
+
+  const handleQuickFlashDiscount = async (pack, hours = 3, discountPct = 25) => {
+    setActionLoading(true);
+    try {
+      const until = new Date(Date.now() + hours * 3600 * 1000).toISOString();
+      const discGems = pack.cost_gems ? Math.max(1, Math.round(Number(pack.cost_gems) * (1 - discountPct / 100))) : null;
+      const discUsd = pack.cost_usd ? Math.max(0.5, Number((Number(pack.cost_usd) * (1 - discountPct / 100)).toFixed(2))) : null;
+      const payload = {
+        id: pack.id,
+        discount_cost_gems: discGems,
+        discount_cost_usd: discUsd,
+        discount_until: until,
+      };
+      await gachaApi.adminSavePack(payload);
+      notify(`⚡ تخفیف ساعتی ${hours} ساعته با ${discountPct}٪ تخفیف برای پک «${pack.name}» فعال شد.`, 'success');
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.error || 'خطا در اعمال تخفیف سریع', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancelDiscount = async (pack) => {
+    setActionLoading(true);
+    try {
+      const payload = {
+        id: pack.id,
+        discount_cost_gems: null,
+        discount_cost_usd: null,
+        discount_until: null,
+      };
+      await gachaApi.adminSavePack(payload);
+      notify(`تخفیف ساعتی پک «${pack.name}» لغو شد.`, 'info');
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.error || 'خطا در لغو تخفیف', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleSavePack = async (e) => {
     e.preventDefault();
     setActionLoading(true);
     try {
-      const res = await gachaApi.adminSavePack(editingPack);
+      const payload = {
+        ...editingPack,
+        cost_gems: parseInt(editingPack.cost_gems, 10) || 0,
+        cost_usd: parseFloat(editingPack.cost_usd) || 0,
+        cost_irr: parseInt(editingPack.cost_irr, 10) || 0,
+        discount_cost_gems: editingPack.has_discount && editingPack.discount_cost_gems !== ''
+          ? parseInt(editingPack.discount_cost_gems, 10)
+          : null,
+        discount_cost_usd: editingPack.has_discount && editingPack.discount_cost_usd !== ''
+          ? parseFloat(editingPack.discount_cost_usd)
+          : null,
+        discount_until: editingPack.has_discount && editingPack.discount_until
+          ? new Date(editingPack.discount_until).toISOString()
+          : null,
+      };
+      const res = await gachaApi.adminSavePack(payload);
       notify(res.data.message || 'پک با موفقیت ذخیره شد.', 'success');
       setShowPackModal(false);
       setEditingPack(null);
@@ -679,7 +766,15 @@ export default function AdminPacksSeasonPassHub() {
                 پک‌های برنز، نقره و لجندری با استخر بازیکنان مستقل و قابلیت انتخاب ۱ از ۳ کارت
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleOpenNewPackModal}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs flex items-center gap-1.5 shadow-lg cursor-pointer hover:scale-105 transition"
+              >
+                <Plus size={16} />
+                <span>➕ ساخت سریع پک جدید</span>
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -791,26 +886,61 @@ export default function AdminPacksSeasonPassHub() {
                   </div>
                 </div>
 
-                <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStudioPack(pack);
-                      setStudioOpen(true);
-                    }}
-                    className="text-cyan-400 hover:text-cyan-300 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>استودیو ۳ بعدی و استخر</span>
-                    <ChevronRight size={14} className="rotate-180" />
-                  </button>
+                {/* Hourly Discount Controls & Card Actions */}
+                <div className="pt-2 border-t border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleEditPackModal(pack)}
+                      className="flex-1 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-sm"
+                      title="ویرایش قیمت و تنظیمات تخفیف ساعتی"
+                    >
+                      <Clock size={13} className="text-amber-400" />
+                      <span>{pack.is_discount_active ? '✏️ ویرایش تخفیف ساعتی' : '⚡ افزودن تخفیف ساعتی'}</span>
+                    </button>
 
-                  <button
-                    onClick={() => handleDeletePack(pack)}
-                    className="p-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900 text-rose-400 hover:text-rose-200 cursor-pointer"
-                    title="حذف پک"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                    {pack.is_discount_active ? (
+                      <button
+                        type="button"
+                        onClick={() => handleCancelDiscount(pack)}
+                        className="px-2.5 py-1.5 rounded-xl bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-xs font-bold transition cursor-pointer"
+                        title="لغو فوری تخفیف ساعتی"
+                      >
+                        لغو تخفیف
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickFlashDiscount(pack, 3, 25)}
+                        className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-[11px] font-bold transition cursor-pointer"
+                        title="فعال‌سازی سریع ۳ ساعت تخفیف ۲۵٪"
+                      >
+                        ⚡ تخفیف ۳ ساعته
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-white/5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStudioPack(pack);
+                        setStudioOpen(true);
+                      }}
+                      className="text-cyan-400 hover:text-cyan-300 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>استودیو ۳ بعدی و استخر</span>
+                      <ChevronRight size={14} className="rotate-180" />
+                    </button>
+
+                    <button
+                      onClick={() => handleDeletePack(pack)}
+                      className="p-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900 text-rose-400 hover:text-rose-200 cursor-pointer"
+                      title="حذف پک"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -1185,6 +1315,142 @@ export default function AdminPacksSeasonPassHub() {
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-white outline-none focus:border-amber-500 font-sport"
                   />
                 </div>
+              </div>
+
+              {/* Hourly Discount Section (Flash Sale Timer) */}
+              <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-amber-500/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(editingPack.has_discount)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        if (checked) {
+                          const defaultUntil = new Date(Date.now() + 3 * 3600 * 1000).toISOString().slice(0, 16);
+                          const defaultDiscGems = editingPack.cost_gems ? Math.round(Number(editingPack.cost_gems) * 0.75) : '';
+                          const defaultDiscUsd = editingPack.cost_usd ? Math.round(Number(editingPack.cost_usd) * 0.75) : '';
+                          setEditingPack({
+                            ...editingPack,
+                            has_discount: true,
+                            discount_cost_gems: defaultDiscGems,
+                            discount_cost_usd: defaultDiscUsd,
+                            discount_until: defaultUntil,
+                          });
+                        } else {
+                          setEditingPack({
+                            ...editingPack,
+                            has_discount: false,
+                            discount_cost_gems: '',
+                            discount_cost_usd: '',
+                            discount_until: '',
+                          });
+                        }
+                      }}
+                      className="w-4 h-4 rounded text-amber-500 accent-amber-500 cursor-pointer"
+                    />
+                    <span className="text-amber-300 font-bold text-xs flex items-center gap-1.5">
+                      <Clock size={15} />
+                      <span>فعال‌سازی تخفیف ساعتی برای این بسته (Flash Sale)</span>
+                    </span>
+                  </label>
+
+                  {editingPack.has_discount && (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-black animate-pulse">
+                      ⚡ تخفیف ساعتی فعال
+                    </span>
+                  )}
+                </div>
+
+                {editingPack.has_discount && (
+                  <div className="space-y-3 pt-1 border-t border-slate-800/80">
+                    {/* Quick duration preset buttons */}
+                    <div className="space-y-1">
+                      <label className="text-slate-400 text-[10.5px] block font-bold">
+                        ⏱️ تنظیم سریع مدت تخفیف (از هم‌اکنون):
+                      </label>
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {[
+                          { label: '۱ ساعت', hours: 1 },
+                          { label: '۳ ساعت', hours: 3 },
+                          { label: '۶ ساعت', hours: 6 },
+                          { label: '۱۲ ساعت', hours: 12 },
+                          { label: '۲۴ ساعت', hours: 24 },
+                        ].map((btn) => (
+                          <button
+                            key={btn.hours}
+                            type="button"
+                            onClick={() => {
+                              const until = new Date(Date.now() + btn.hours * 3600 * 1000).toISOString().slice(0, 16);
+                              setEditingPack({ ...editingPack, discount_until: until });
+                            }}
+                            className="px-2 py-1.5 rounded-xl bg-slate-950 hover:bg-slate-800 border border-amber-500/20 hover:border-amber-400/50 text-amber-300 text-[10.5px] font-bold transition-all cursor-pointer text-center"
+                          >
+                            +{btn.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Discount Inputs: Gems, USD, and Exact Deadline */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div className="space-y-1">
+                        <label className="text-slate-300 font-bold block text-[10.5px]">
+                          قیمت تخفیف با جم (💎):
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={editingPack.discount_cost_gems}
+                          onChange={(e) => setEditingPack({ ...editingPack, discount_cost_gems: e.target.value })}
+                          placeholder="مثال: ۳۵"
+                          className="w-full p-2 rounded-xl bg-slate-950 border border-slate-700 text-cyan-300 font-sport font-bold text-xs focus:border-cyan-500 focus:outline-none dir-ltr"
+                        />
+                        {editingPack.cost_gems && editingPack.discount_cost_gems && (
+                          <span className="text-[10px] text-cyan-400 block dir-rtl">
+                            {Math.round(((Number(editingPack.cost_gems) - Number(editingPack.discount_cost_gems)) / Number(editingPack.cost_gems)) * 100)}٪ تخفیف
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-slate-300 font-bold block text-[10.5px]">
+                          قیمت تخفیف با دلار ($):
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editingPack.discount_cost_usd}
+                          onChange={(e) => setEditingPack({ ...editingPack, discount_cost_usd: e.target.value })}
+                          placeholder="مثال: ۴"
+                          className="w-full p-2 rounded-xl bg-slate-950 border border-slate-700 text-emerald-300 font-sport font-bold text-xs focus:border-emerald-500 focus:outline-none dir-ltr"
+                        />
+                        {editingPack.cost_usd && editingPack.discount_cost_usd && (
+                          <span className="text-[10px] text-emerald-400 block dir-rtl">
+                            {Math.round(((Number(editingPack.cost_usd) - Number(editingPack.discount_cost_usd)) / Number(editingPack.cost_usd)) * 100)}٪ تخفیف
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-slate-300 font-bold block text-[10.5px]">
+                          مهلت پایان تخفیف ساعتی:
+                        </label>
+                        <input
+                          type="datetime-local"
+                          value={editingPack.discount_until || ''}
+                          onChange={(e) => setEditingPack({ ...editingPack, discount_until: e.target.value })}
+                          className="w-full p-2 rounded-xl bg-slate-950 border border-slate-700 text-amber-300 font-sport text-[11px] focus:border-amber-500 focus:outline-none dir-ltr"
+                        />
+                      </div>
+                    </div>
+
+                    <p className="text-[10px] text-amber-400/90 leading-relaxed pt-1 border-t border-slate-800">
+                      ⚡ پس از سپری شدن این زمان، تخفیف به صورت کاملاً خودکار غیرفعال شده و بسته با قیمت اصلی در فروشگاه عرضه خواهد شد.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">

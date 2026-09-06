@@ -94,11 +94,18 @@ class PackSerializer(serializers.ModelSerializer):
                 data.pop(img_field, None)
 
         # Sanitize optional datetime fields
-        for dt in ['available_from', 'available_until']:
+        for dt in ['available_from', 'available_until', 'discount_until']:
             if dt in data:
                 val = data.get(dt)
                 if val in ('', 'null', 'undefined', 'None', None) or str(val).strip() == '':
                     data[dt] = None
+
+        # Sanitize optional discount numbers
+        for opt_num in ['discount_cost_gems', 'discount_cost_usd']:
+            if opt_num in data:
+                val = data.get(opt_num)
+                if val in ('', 'null', 'undefined', 'None', None) or str(val).strip() == '':
+                    data[opt_num] = None
 
         # Sanitize numbers
         for num in ['cost_usd', 'cost_irr', 'cost_gems', 'sort_order', 'weight_top_tier', 'weight_mid_tier', 'weight_base_tier', 'guarantee_min_ovr', 'early_bird_boost_pct']:

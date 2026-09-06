@@ -19,6 +19,24 @@ class StorePackageSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at', 'is_discount_active', 'effective_price_irr', 'discount_pct']
 
+    def to_internal_value(self, data):
+        if hasattr(data, '_mutable'):
+            data = data.copy()
+        elif isinstance(data, dict):
+            data = dict(data)
+
+        if 'discount_until' in data:
+            val = data.get('discount_until')
+            if val in ('', 'null', 'undefined', 'None', None) or str(val).strip() == '':
+                data['discount_until'] = None
+
+        if 'discount_price_irr' in data:
+            val = data.get('discount_price_irr')
+            if val in ('', 'null', 'undefined', 'None', None) or str(val).strip() == '':
+                data['discount_price_irr'] = None
+
+        return super().to_internal_value(data)
+
 
 class TransactionSerializer(serializers.ModelSerializer):
     team_name = serializers.CharField(source='team.name', read_only=True)
