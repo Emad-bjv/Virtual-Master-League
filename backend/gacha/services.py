@@ -60,13 +60,52 @@ def generate_random_player(rarity: str, team: Team = None) -> Player:
     return player
 
 
+def weighted_sample_pack_cards(pack: Pack, unclaimed_list: list) -> list:
+    """
+    Samples 3 unique cards using admin-configured weights and guaranteed OVR slot.
+    - Slot 1: If pack.guarantee_min_ovr > 0 and cards with overall >= guarantee_min_ovr exist,
+              sample 1 card from them weighted by their effective weights.
+    - Slots 2 & 3: Sample without replacement from the remaining cards weighted by effective weights.
+    - Shuffles the 3 selected cards so the guaranteed card isn't always in slot 1.
+    """
+    if len(unclaimed_list) <= 3:
+        cards = list(unclaimed_list)
+        random.shuffle(cards)
+        return cards
+
+    pool = list(unclaimed_list)
+    selected = []
+
+    # 1. Smart Guaranteed Slot (if configured and eligible cards exist)
+    min_ovr = getattr(pack, 'guarantee_min_ovr', 90) or 0
+    guaranteed_candidates = [p for p in pool if p.overall >= min_ovr] if min_ovr > 0 else []
+
+    if guaranteed_candidates:
+        g_weights = [p.get_effective_weight() for p in guaranteed_candidates]
+        chosen_g = random.choices(guaranteed_candidates, weights=g_weights, k=1)[0]
+        selected.append(chosen_g)
+        pool.remove(chosen_g)
+
+    # 2. Pick remaining slots up to 3 cards using weighted sampling without replacement
+    while len(selected) < 3 and pool:
+        weights = [p.get_effective_weight() for p in pool]
+        chosen = random.choices(pool, weights=weights, k=1)[0]
+        selected.append(chosen)
+        pool.remove(chosen)
+
+    # 3. Shuffle so guaranteed card isn't always in the first position
+    random.shuffle(selected)
+    return selected
+
+
 def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
     """
-    Phase 1: Open Pack
-    1. Validates squad capacity, pack availability, pool size (at least 3 unclaimed players).
-    2. Atomically deducts price (GEMS or BUDGET).
-    3. Randomly samples 3 unclaimed players from the pack pool.
-    4. Creates a PackOpeningSession with 5-minute expiry.
+    Opens a pack for a team:
+    - Verifies team squad capacity
+    - Checks wallet balance and deducts cost atomically
+    - Samples 3 weighted unique cards using smart guarantee and admin weights
+    - Creates PackOpeningSession with 5-minute expiry
+    - Emits real-time notification
     """
     if payment_method not in ['GEMS', 'DIRECT']:
         return {'success': False, 'error': 'روش پرداخت نامعتبر است.'}
@@ -133,8 +172,8 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
                 if not wallet_res['success']:
                     return {'success': False, 'error': wallet_res.get('error', 'موجودی دلار کافی نیست.')}
 
-        # Sample 3 random cards
-        selected_cards = random.sample(unclaimed_list, 3)
+        # Sample 3 weighted cards using admin weights and smart guarantee slot
+        selected_cards = weighted_sample_pack_cards(pack, unclaimed_list)
 
         # Create opening session (expires in 5 minutes)
         session = PackOpeningSession.objects.create(
@@ -317,10 +356,16 @@ def pick_card(session_id: int, pack_player_id: int, team_id: int) -> dict:
         }
 
 
-def expire_session(session: PackOpeningSession) -> bool:
+def expire_session(session) -> bool:
     """
-    Refunds payment and marks session EXPIRED.
+    Refunds payment and marks session EXPIRED. Accepts PackOpeningSession instance or integer session_id.
     """
+    if isinstance(session, int):
+        try:
+            session = PackOpeningSession.objects.get(id=session)
+        except PackOpeningSession.DoesNotExist:
+            return False
+
     if session.status != 'PENDING':
         return False
 

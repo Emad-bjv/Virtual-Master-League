@@ -458,6 +458,55 @@ export default function PackOpeningModal({
                   )}
                 </div>
 
+                {/* EA FC Probability Odds Transparency Card */}
+                {pack.odds && (
+                  <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-amber-500/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+                        <Dices size={14} className="text-amber-400" />
+                        <span>احتمال و شانس دریافت کارت‌ها (Pack Odds):</span>
+                      </span>
+                      {pack.guarantee_min_ovr > 0 && (
+                        <span className="px-2 py-0.5 rounded-md text-[9.5px] font-black bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                          ⭐ اسلات تضمینی اورال {pack.guarantee_min_ovr}+
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                      <div className="p-2 rounded-xl bg-slate-950/80 border border-amber-500/20">
+                        <span className="text-[10px] text-slate-400 block">اورال ۹۴+</span>
+                        <span className="text-xs sm:text-sm font-black text-amber-400 font-sport block">
+                          {pack.odds.top_tier?.pct ?? 0}%
+                        </span>
+                        <span className="text-[9px] text-slate-500 block">
+                          ({pack.odds.top_tier?.count ?? 0} بازیکن)
+                        </span>
+                      </div>
+
+                      <div className="p-2 rounded-xl bg-slate-950/80 border border-purple-500/20">
+                        <span className="text-[10px] text-slate-400 block">اورال ۹۰ - ۹۳</span>
+                        <span className="text-xs sm:text-sm font-black text-purple-300 font-sport block">
+                          {pack.odds.mid_tier?.pct ?? 0}%
+                        </span>
+                        <span className="text-[9px] text-slate-500 block">
+                          ({pack.odds.mid_tier?.count ?? 0} بازیکن)
+                        </span>
+                      </div>
+
+                      <div className="p-2 rounded-xl bg-slate-950/80 border border-blue-500/20">
+                        <span className="text-[10px] text-slate-400 block">زیر ۹۰</span>
+                        <span className="text-xs sm:text-sm font-black text-cyan-300 font-sport block">
+                          {pack.odds.base_tier?.pct ?? 0}%
+                        </span>
+                        <span className="text-[9px] text-slate-500 block">
+                          ({pack.odds.base_tier?.count ?? 0} بازیکن)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Payment Method Selector */}
                 {pack.purchase_method === 'BOTH' && (
                   <div className="space-y-2">

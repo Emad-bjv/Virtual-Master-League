@@ -141,3 +141,28 @@ class PackSystemTestCase(TestCase):
 
         # 5. Verify pack has all 5 players available again
         self.assertEqual(self.pack.players.filter(is_claimed=False).count(), 5)
+
+    def test_weighted_sampling_and_guarantee_slot(self):
+        # Add 95 and 91 players so eligible guaranteed candidates exist
+        PackPlayer.objects.create(
+            pack=self.pack, name="Top Star 95", position="CF", overall=95, potential_ovr=99, age=25
+        )
+        PackPlayer.objects.create(
+            pack=self.pack, name="Star 91", position="AMF", overall=91, potential_ovr=95, age=26
+        )
+
+        # Verify odds breakdown method
+        odds = self.pack.get_odds_breakdown()
+        self.assertIn('top_tier_pct', odds)
+        self.assertIn('mid_tier_pct', odds)
+        self.assertIn('base_tier_pct', odds)
+        self.assertEqual(odds['guarantee_min_ovr'], 90)
+
+        # In multiple openings with guarantee_min_ovr=90, every opening must contain at least 1 card with OVR >= 90
+        for _ in range(10):
+            res = open_pack(self.team.id, self.pack.id, payment_method='GEMS')
+            self.assertTrue(res['success'])
+            card_ovrs = [c['overall'] for c in res['cards']]
+            self.assertTrue(any(ovr >= 90 for ovr in card_ovrs), f"Expected at least one card >= 90 in {card_ovrs}")
+            # Expire session so gems are refunded and cards remain available for next test iteration
+            expire_session(res['session_id'])

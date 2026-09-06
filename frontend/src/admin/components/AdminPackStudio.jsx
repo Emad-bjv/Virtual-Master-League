@@ -6,7 +6,8 @@ import {
   AlertCircle, X, Clock, Flame, ChevronRight, Gem, Coins,
   Plus, Edit2, Trash2, Upload, Search, RotateCcw,
   Sliders, Image as ImageIcon, ArrowLeft, Check, Users,
-  Layers, Palette, Eye, DollarSign, Calendar, Globe
+  Layers, Palette, Eye, DollarSign, Calendar, Globe,
+  Dices, Percent
 } from 'lucide-react';
 import { gachaApi, playerApi } from '../../services/api';
 import { getNationalityFlag } from '../../utils/nationalityFlags';
@@ -89,6 +90,10 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     available_until: formatDateForInput(pack?.available_until),
     is_active: pack?.is_active ?? true,
     sort_order: pack?.sort_order ?? 0,
+    weight_top_tier: pack?.weight_top_tier ?? 1,
+    weight_mid_tier: pack?.weight_mid_tier ?? 4,
+    weight_base_tier: pack?.weight_base_tier ?? 10,
+    guarantee_min_ovr: pack?.guarantee_min_ovr ?? 90,
   });
 
   const [packCoverFile, setPackCoverFile] = useState(null);
@@ -99,6 +104,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
   // Roster Pool State
   const [roster, setRoster] = useState([]);
   const [rosterStats, setRosterStats] = useState({ total: 0, unclaimed: 0, claimed: 0 });
+  const [liveOdds, setLiveOdds] = useState(pack?.odds || null);
   const [loadingRoster, setLoadingRoster] = useState(false);
 
   // Active Player Designer State (reflects in real-time on the 3D card)
@@ -116,6 +122,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     rarity: 'LEGENDARY',
     wage: 250,
     market_value: 35000000,
+    drop_weight: 0,
   });
   const [playerPhotoFile, setPlayerPhotoFile] = useState(null);
   const [playerPhotoPreview, setPlayerPhotoPreview] = useState(null);
@@ -190,6 +197,9 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
         unclaimed: res.data?.unclaimed_count || players.filter(p => !p.is_claimed).length,
         claimed: res.data?.claimed_count || players.filter(p => p.is_claimed).length,
       });
+      if (res.data?.pack?.odds) {
+        setLiveOdds(res.data.pack.odds);
+      }
 
       // If first load and players exist, select the top player for live preview
       if (players.length > 0 && !editingPlayerId) {
@@ -225,6 +235,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
       rarity: player.rarity || 'REGULAR',
       wage: player.wage || 100,
       market_value: player.market_value || 1000000,
+      drop_weight: player.drop_weight ?? 0,
     });
     setPlayerPhotoFile(null);
     setPlayerPhotoPreview(player.card_image || player.photo || null);
@@ -248,6 +259,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
       rarity: 'REGULAR',
       wage: 150,
       market_value: 5000000,
+      drop_weight: 0,
     });
     setPlayerPhotoFile(null);
     setPlayerPhotoPreview(null);
@@ -372,7 +384,11 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
           fetchPackPlayers(newPack.id);
         }
       }
-      if (onPackSaved) onPackSaved(res.data?.pack || res.data);
+      const savedPack = res.data?.pack || res.data;
+      if (savedPack?.odds) {
+        setLiveOdds(savedPack.odds);
+      }
+      if (onPackSaved) onPackSaved(savedPack);
     } catch (err) {
       const errData = err.response?.data;
       let msg = errData?.error || 'خطا در ذخیره‌سازی پک.';
@@ -1306,6 +1322,35 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                   </div>
                 </div>
 
+                {/* Individual Drop Weight Override */}
+                <div className="p-3 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-slate-300 font-bold text-xs flex items-center gap-1.5">
+                      <Dices size={14} className="text-amber-400" />
+                      <span>ضریب شانس اختصاصی این کارت (Drop Weight Override):</span>
+                    </label>
+                    <span className="text-[11px] font-sport text-amber-300 font-bold">
+                      {playerForm.drop_weight > 0
+                        ? `ضریب دستی: ${playerForm.drop_weight}x`
+                        : `پیروی خودکار از رده اورال (${playerForm.overall >= 94 ? packData.weight_top_tier : playerForm.overall >= 90 ? packData.weight_mid_tier : packData.weight_base_tier}x)`}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                    <input
+                      type="number"
+                      min="0"
+                      max="1000"
+                      value={playerForm.drop_weight}
+                      onChange={(e) => setPlayerForm({ ...playerForm, drop_weight: parseInt(e.target.value) || 0 })}
+                      placeholder="0 = پیروی خودکار از رده اورال"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-amber-300 font-sport font-black text-xs outline-none focus:border-amber-400"
+                    />
+                    <p className="text-[10.5px] text-slate-400 m-0 leading-relaxed">
+                      عدد <strong className="text-white">۰</strong> به معنی محاسبه خودکار بر اساس اورال بازیکن است. اگر می‌خواهید این بازیکن شانس افتادن کمتر یا بیشتری نسبت به هم‌رده‌های خود داشته باشد، عدد دلخواه وارد کنید.
+                    </p>
+                  </div>
+                </div>
+
                 {/* Save Player Action */}
                 <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-3">
                   <span className="text-[11px] text-slate-400">
@@ -1357,6 +1402,29 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                     <span>موجود: <strong className="text-emerald-400">{rosterStats.unclaimed}</strong></span>
                     <span>جذب‌شده: <strong className="text-amber-400">{rosterStats.claimed}</strong></span>
                   </div>
+
+                  {liveOdds && (
+                    <div className="flex items-center gap-2 text-[10.5px] mt-2.5 flex-wrap">
+                      <span className="text-amber-400 font-bold flex items-center gap-1">
+                        <Dices size={13} />
+                        احتمال دریافت زنده:
+                      </span>
+                      <span className="px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                        اورال ۹۴+: <strong>{liveOdds.top_tier?.pct ?? 0}%</strong> ({liveOdds.top_tier?.count ?? 0} نفر)
+                      </span>
+                      <span className="px-2 py-0.5 rounded-lg bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                        اورال ۹۰-۹۳: <strong>{liveOdds.mid_tier?.pct ?? 0}%</strong> ({liveOdds.mid_tier?.count ?? 0} نفر)
+                      </span>
+                      <span className="px-2 py-0.5 rounded-lg bg-blue-500/15 text-cyan-300 border border-blue-500/30">
+                        زیر ۹۰: <strong>{liveOdds.base_tier?.pct ?? 0}%</strong> ({liveOdds.base_tier?.count ?? 0} نفر)
+                      </span>
+                      {(packData.guarantee_min_ovr ?? pack?.guarantee_min_ovr) > 0 && (
+                        <span className="px-2 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                          ⭐ تضمین ۱ کارت {packData.guarantee_min_ovr ?? pack?.guarantee_min_ovr}+
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1407,6 +1475,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                       <th className="p-3">ملیت</th>
                       <th className="p-3">پست</th>
                       <th className="p-3">اورال</th>
+                      <th className="p-3">ضریب شانس</th>
                       <th className="p-3">وضعیت</th>
                       <th className="p-3">عملیات</th>
                     </tr>
@@ -1479,6 +1548,20 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                             </td>
                             <td className="p-2.5 font-sport font-black text-amber-300">{player.overall}</td>
                             <td className="p-2.5">
+                              <div className="flex flex-col items-start gap-0.5">
+                                <span className="font-sport font-black text-amber-300 text-xs">
+                                  {player.effective_weight ?? (player.overall >= 94 ? packData.weight_top_tier : player.overall >= 90 ? packData.weight_mid_tier : packData.weight_base_tier)}x
+                                </span>
+                                {player.drop_weight > 0 ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[8.5px] bg-cyan-950 text-cyan-300 border border-cyan-500/40">
+                                    سفارشی ({player.drop_weight})
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] text-slate-500">خودکار</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-2.5">
                               {player.is_claimed ? (
                                 <div className="flex flex-col gap-1 items-start">
                                   <span className="px-2 py-0.5 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-600/40">
@@ -1538,7 +1621,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                       })
                     ) : (
                       <tr>
-                        <td colSpan="8" className="p-8 text-center text-slate-500">
+                        <td colSpan="9" className="p-8 text-center text-slate-500">
                           {loadingRoster ? 'در حال بارگذاری بازیکنان...' : 'هنوز هیچ بازیکنی در استخر این پک ثبت نشده است.'}
                         </td>
                       </tr>
@@ -1673,6 +1756,88 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                       <option value="GEMS">فقط پرداخت با جم</option>
                       <option value="DIRECT">فقط پرداخت مستقیم / دلار مجازی</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* Pack Drop Odds & Guarantee Slot Configuration */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/20 via-slate-950 to-purple-950/20 border border-amber-500/40 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-amber-300 flex items-center gap-1.5">
+                      <Dices size={16} className="text-amber-400" />
+                      <span>تنظیم ضرایب شانس و قرعه‌کشی پک (EA FC Smart Odds)</span>
+                    </span>
+                    <span className="text-[10px] text-amber-400/90 font-mono">الگوریتم وزنی EA FC</span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 m-0 leading-relaxed">
+                    با تنظیم ضرایب زیر، بازیکنان برتر و با اورال بالا شانس کمتری برای افتادن خواهند داشت تا تعادل اقتصادی لیگ حفظ شود. همچنین می‌توانید یک حداقل اورال تضمینی برای ۱ کارت از ۳ کارت تعیین کنید.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                    <div className="p-2.5 rounded-xl bg-slate-900 border border-amber-500/30">
+                      <label className="block text-amber-300 font-bold mb-1 text-[11px]">ضریب اورال ۹۴+ (فوق ستاره):</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="1000"
+                        value={packData.weight_top_tier}
+                        onChange={(e) => setPackData({ ...packData, weight_top_tier: parseInt(e.target.value) || 1 })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-amber-300 font-sport font-black text-center text-sm outline-none focus:border-amber-400"
+                      />
+                      <span className="text-[9.5px] text-slate-400 block mt-1 text-center">
+                        پیش‌فرض: ۱ (کمترین شانس)
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-slate-900 border border-purple-500/30">
+                      <label className="block text-purple-300 font-bold mb-1 text-[11px]">ضریب اورال ۹۰ تا ۹۳ (ستاره):</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="1000"
+                        value={packData.weight_mid_tier}
+                        onChange={(e) => setPackData({ ...packData, weight_mid_tier: parseInt(e.target.value) || 1 })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-purple-300 font-sport font-black text-center text-sm outline-none focus:border-purple-400"
+                      />
+                      <span className="text-[9.5px] text-slate-400 block mt-1 text-center">
+                        پیش‌فرض: ۴ (شانس متوسط)
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-slate-900 border border-blue-500/30">
+                      <label className="block text-cyan-300 font-bold mb-1 text-[11px]">ضریب اورال زیر ۹۰ (معمولی):</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="1000"
+                        value={packData.weight_base_tier}
+                        onChange={(e) => setPackData({ ...packData, weight_base_tier: parseInt(e.target.value) || 1 })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2 text-cyan-300 font-sport font-black text-center text-sm outline-none focus:border-cyan-400"
+                      />
+                      <span className="text-[9.5px] text-slate-400 block mt-1 text-center">
+                        پیش‌فرض: ۱۰ (بیشترین شانس)
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1 text-[11px]">
+                      کارت تضمینی اسلات اول (Guaranteed Slot Min OVR):
+                    </label>
+                    <select
+                      value={packData.guarantee_min_ovr}
+                      onChange={(e) => setPackData({ ...packData, guarantee_min_ovr: parseInt(e.target.value) || 0 })}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-white font-bold outline-none focus:border-amber-400"
+                    >
+                      <option value={90}>تضمین حداقل ۱ کارت با اورال ۹۰+ (استاندارد)</option>
+                      <option value={92}>تضمین حداقل ۱ کارت با اورال ۹۲+ (ویژه)</option>
+                      <option value={94}>تضمین حداقل ۱ کارت با اورال ۹۴+ (سوپر لجندری)</option>
+                      <option value={88}>تضمین حداقل ۱ کارت با اورال ۸۸+</option>
+                      <option value={0}>بدون کارت تضمینی (قرعه‌کشی کاملاً تصادفی بر اساس ضریب)</option>
+                    </select>
+                    <span className="text-[10px] text-slate-400 block mt-1">
+                      در هر بازگشایی پک، از میان ۳ کارت پیشنهادی حداقل یک کارت دارای اورال انتخابی بالا خواهد بود (تا زمانی که در استخر موجود باشد).
+                    </span>
                   </div>
                 </div>
 
