@@ -618,7 +618,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                   {/* CARD FACE: FRONT (LIVE ULTIMATE TEAM PLAYER CARD)             */}
                   {/* ============================================================= */}
                   <div
-                    className="absolute inset-0 w-full h-full overflow-visible flex flex-col justify-between p-2.5 [backface-visibility:hidden] border-0 bg-transparent"
+                    className="absolute inset-0 w-full h-full overflow-visible [backface-visibility:hidden] border-0 bg-transparent"
                     style={{
                       backgroundImage: `url(${activeCardBg})`,
                       backgroundSize: '100% 100%',
@@ -626,28 +626,18 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                       backgroundPosition: 'center',
                     }}
                   >
-                    {/* Dynamic Holographic Sheen Layer */}
-                    <div
-                      className="absolute inset-0 pointer-events-none mix-blend-overlay opacity-35 rounded-[2.2rem] overflow-hidden z-20"
-                    >
-                      <div className="w-full h-[220%] bg-gradient-to-r from-transparent via-white/85 to-transparent animate-fc-sheen" />
-                    </div>
-
-                    {/* Gradient Overlay for bottom readability */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-black/30 pointer-events-none" />
-
-                    {/* Card Top: OVR Badge & Position (Borderless, Age Removed) */}
-                    <div className="relative z-10 flex items-start justify-between px-1 pt-1">
+                    {/* Top: OVR Badge & Position */}
+                    <div className="absolute top-2 inset-x-2 z-30 flex items-start justify-between pointer-events-none">
                       {/* Left Badge: OVR + Position + Secondary Positions */}
-                      <div className="flex flex-col items-center bg-black/75 backdrop-blur-md px-2.5 py-1.5 rounded-2xl border border-white/25 shadow-2xl min-w-[54px]">
-                        <span className={`text-3xl sm:text-4xl font-black font-sport leading-none drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] ${currentTheme.ovrColor}`}>
+                      <div className="flex flex-col items-center bg-black/75 backdrop-blur-md px-2 py-1 rounded-xl border border-white/20 shadow-xl min-w-[46px] pointer-events-auto">
+                        <span className={`text-2xl sm:text-3xl font-black font-sport leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] ${currentTheme.ovrColor}`}>
                           {playerForm.overall}
                         </span>
-                        <span className="text-xs font-black font-sport text-white tracking-widest mt-0.5 dir-ltr uppercase">
+                        <span className="text-[10px] font-black font-sport text-white tracking-wider mt-0.5 dir-ltr uppercase">
                           {playerForm.position}
                         </span>
                         {altPositions.length > 0 && (
-                          <div className="flex flex-wrap gap-0.5 mt-1 justify-center max-w-[56px] pt-1 border-t border-white/10">
+                          <div className="flex flex-wrap gap-0.5 mt-0.5 justify-center max-w-[50px] pt-0.5 border-t border-white/10">
                             {altPositions.slice(0, 3).map((pos) => (
                               <span
                                 key={pos}
@@ -656,30 +646,25 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                                 {pos}
                               </span>
                             ))}
-                            {altPositions.length > 3 && (
-                              <span className="text-[7px] text-slate-400 font-sport font-bold leading-none">
-                                +{altPositions.length - 3}
-                              </span>
-                            )}
                           </div>
                         )}
                       </div>
 
                       {/* Right Tag: Featured Team Tag if provided */}
-                      {packData.featured_team ? (
-                        <div className="flex flex-col items-end">
-                          <span className="px-2.5 py-1 rounded-xl bg-black/70 backdrop-blur-md text-[9.5px] font-bold text-amber-300 border border-amber-500/40 shadow-md">
+                      {packData.featured_team && (
+                        <div className="flex flex-col items-end pointer-events-auto">
+                          <span className="px-2 py-0.5 rounded-lg bg-black/75 backdrop-blur-md text-[9px] font-bold text-amber-300 border border-amber-500/40 shadow-md">
                             {packData.featured_team}
                           </span>
                         </div>
-                      ) : <div />}
+                      )}
                     </div>
 
-                    {/* Center: Oversized Player Photo / Cutout */}
-                    <div className="relative z-10 my-auto flex flex-col items-center justify-center h-[220px] sm:h-[250px] w-full overflow-visible">
+                    {/* Center: Heroic Player Photo (Layered behind name and footer) */}
+                    <div className="absolute inset-x-0 top-8 bottom-12 z-20 flex items-center justify-center overflow-visible pointer-events-none">
                       {/* Radial Backlight */}
                       <div
-                        className="absolute inset-0 pointer-events-none rounded-full blur-2xl opacity-60"
+                        className="absolute inset-0 pointer-events-none rounded-full blur-xl opacity-50"
                         style={{
                           background: packData.tier === 'LEGENDARY'
                             ? 'radial-gradient(circle, rgba(251,191,36,0.55) 0%, transparent 70%)'
@@ -693,36 +678,36 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                           <img
                             src={playerPhotoPreview}
                             alt={playerForm.name}
-                            className="relative z-10 max-h-full max-w-full object-contain object-bottom drop-shadow-[0_15px_30px_rgba(0,0,0,0.95)] transition-transform duration-75"
+                            className="max-h-full w-auto object-contain object-bottom drop-shadow-[0_12px_24px_rgba(0,0,0,0.95)] transition-transform duration-75"
                             style={{
                               transform: `scale(${photoScale}) translate(${photoX}px, ${photoY}px)`,
                             }}
                           />
                         </div>
                       ) : (
-                        <div className="relative z-10 flex flex-col items-center justify-center text-center text-slate-400 space-y-2">
-                          <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-inner">
-                            <Trophy size={42} className="text-amber-400/80 drop-shadow-lg" />
+                        <div className="relative z-10 flex flex-col items-center justify-center text-center text-slate-400 space-y-1">
+                          <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shadow-inner">
+                            <Trophy size={32} className="text-amber-400/80 drop-shadow-lg" />
                           </div>
-                          <span className="text-[11px] font-bold text-slate-300">عکس بازیکن آپلود نشده</span>
+                          <span className="text-[10px] font-bold text-slate-300">عکس بازیکن آپلود نشده</span>
                         </div>
                       )}
                     </div>
 
-                    {/* Player Name Banner Plate */}
-                    <div className="relative z-10 text-center mb-1.5">
-                      <div className="inline-block px-4 py-1.5 rounded-xl bg-black/85 backdrop-blur-md border border-white/20 shadow-xl max-w-[240px]">
-                        <h3 className="text-xs sm:text-sm font-black text-white font-sport tracking-wide truncate m-0 drop-shadow-md uppercase">
+                    {/* Lower-Third: Nameplate Banner (Positioned IN FRONT of player photo) */}
+                    <div className="absolute bottom-11 inset-x-2 text-center z-30 pointer-events-auto">
+                      <div className="inline-block px-3 py-0.5 rounded-lg bg-black/85 backdrop-blur-md border border-white/20 shadow-xl max-w-[190px]">
+                        <h3 className="text-[11px] sm:text-xs font-black text-white font-sport tracking-wide truncate m-0 drop-shadow uppercase">
                           {playerForm.name || 'نام بازیکن'}
                         </h3>
                       </div>
                     </div>
 
-                    {/* Card Footer: Prime Club (with logo) & Nationality */}
-                    <div className="relative z-10 bg-black/85 backdrop-blur-md px-3 py-2 rounded-2xl border border-white/20 text-white shadow-2xl flex items-center justify-between gap-2">
+                    {/* Pinned Card Footer: Prime Club & Nationality (Always IN FRONT of player photo) */}
+                    <div className="absolute bottom-2 inset-x-2 z-30 bg-black/85 backdrop-blur-md px-2 py-1 rounded-xl border border-white/20 text-white shadow-2xl flex items-center justify-between gap-1.5 text-[9px] pointer-events-auto">
                       {/* Prime Club */}
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <div className="w-7 h-7 rounded-xl bg-white/10 border border-white/15 p-0.5 flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
+                      <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                        <div className="w-5 h-5 rounded-md bg-white/10 border border-white/15 p-0.5 flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
                           {clubLogoPreview ? (
                             <img
                               src={clubLogoPreview}
@@ -730,29 +715,29 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                               className="w-full h-full object-contain"
                             />
                           ) : (
-                            <Shield size={16} className="text-amber-400" />
+                            <Shield size={12} className="text-amber-400" />
                           )}
                         </div>
                         <div className="min-w-0 text-right leading-tight">
-                          <span className="text-[8px] text-slate-400 block font-medium">تیم دوران پرایم</span>
-                          <span className="text-[11px] font-black text-white truncate block font-sport tracking-wide">
+                          <span className="text-[7.5px] text-slate-400 block font-medium">تیم دوران پرایم</span>
+                          <span className="text-[9.5px] font-black text-white truncate block font-sport tracking-wide">
                             {playerForm.prime_club || 'تیم پرایم'}
                           </span>
                         </div>
                       </div>
 
                       {/* Sleek Vertical Divider */}
-                      <div className="h-6 w-px bg-white/20 shrink-0" />
+                      <div className="h-4 w-px bg-white/20 shrink-0" />
 
                       {/* Nationality */}
-                      <div className="flex items-center gap-1.5 min-w-0 flex-1 justify-end">
+                      <div className="flex items-center gap-1 min-w-0 flex-1 justify-end">
                         <div className="min-w-0 text-left leading-tight">
-                          <span className="text-[8px] text-slate-400 block font-medium text-right">ملیت</span>
-                          <span className="text-[11px] font-black text-amber-300 truncate block font-sport tracking-wide text-right">
+                          <span className="text-[7.5px] text-slate-400 block font-medium text-right">ملیت</span>
+                          <span className="text-[9.5px] font-black text-amber-300 truncate block font-sport tracking-wide text-right">
                             {playerForm.nationality || 'ملیت بازیکن'}
                           </span>
                         </div>
-                        <div className="w-7 h-7 rounded-lg bg-white/10 border border-white/15 flex items-center justify-center shrink-0 text-sm shadow-inner">
+                        <div className="w-5 h-5 rounded-md bg-white/10 border border-white/15 flex items-center justify-center shrink-0 text-xs shadow-inner">
                           {getNationalityFlag(playerForm.nationality)}
                         </div>
                       </div>
@@ -771,40 +756,41 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                       backgroundPosition: 'center',
                     }}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-black/30 to-transparent pointer-events-none" />
-
-                    <div className="relative z-10 flex items-center justify-between text-[11px] font-bold text-white">
+                    <div className="relative z-10 flex items-center justify-between text-[10px] font-bold text-white">
                       <span className="px-2 py-0.5 rounded-full bg-black/60 border border-white/15">
                         {currentTheme.label}
                       </span>
-                      <Sparkles size={15} className="text-yellow-400 animate-pulse" />
+                      <Sparkles size={14} className="text-yellow-400 animate-pulse" />
                     </div>
 
-                    <div className="relative z-10 my-auto flex flex-col items-center justify-center text-center space-y-3">
+                    <div className="relative z-10 my-auto flex flex-col items-center justify-center text-center space-y-2">
                       <motion.div
                         animate={{ scale: [1, 1.05, 1] }}
                         transition={{ duration: 2.2, repeat: Infinity }}
-                        className="w-24 h-24 rounded-3xl bg-black/60 backdrop-blur-md border border-white/30 flex flex-col items-center justify-center shadow-2xl"
+                        className="w-20 h-20 rounded-2xl bg-black/50 backdrop-blur-md border border-white/20 flex flex-col items-center justify-center shadow-xl"
                       >
-                        <Trophy size={36} className="text-yellow-400" />
-                        <span className="text-xs font-black text-amber-200 mt-1 uppercase font-sport tracking-widest">
+                        <Trophy size={30} className="text-yellow-400" />
+                        <span className="text-[10px] font-black text-amber-200 mt-0.5 uppercase font-sport tracking-widest">
                           VML 26
                         </span>
                       </motion.div>
 
                       <div className="space-y-0.5">
-                        <h4 className="text-sm font-black text-white font-sport">
+                        <h4 className="text-xs sm:text-sm font-black text-white font-sport">
                           {packData.name || 'پک اختصاصی لیگ'}
                         </h4>
-                        <span className="text-[11px] text-amber-300 font-bold block">
+                        <span className="text-[10px] text-amber-300 font-bold block">
                           {packData.ovr_range_text || 'شامل بهترین بازیکنان'}
                         </span>
                       </div>
                     </div>
 
-                    <div className="relative z-10 text-center pb-2">
-                      <span className="text-[11px] font-bold text-slate-300 block">
-                        آماده برای باز شدن در فروشگاه
+                    <div className="relative z-10 text-center pb-1">
+                      <span className="text-[10.5px] font-black text-white block drop-shadow-md">
+                        طراحی و کانفیگ اختصاصی
+                      </span>
+                      <span className="text-[9px] text-amber-300 font-bold">
+                        {packData.tier} EDITION
                       </span>
                     </div>
                   </div>

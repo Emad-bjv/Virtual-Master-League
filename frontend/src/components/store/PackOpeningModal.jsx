@@ -331,15 +331,14 @@ export default function PackOpeningModal({
               {/* Left Column: Pack Artwork & Cover */}
               <div className="md:col-span-5 flex flex-col items-center justify-center text-center">
                 <div
-                  className={`relative group w-44 h-64 sm:w-50 sm:h-74 rounded-2xl overflow-hidden ${tierConfig.dropGlow} flex flex-col justify-between p-3.5 border-0 bg-transparent`}
+                  className={`relative group w-44 h-[280px] sm:w-52 sm:h-[330px] overflow-visible ${tierConfig.dropGlow} flex flex-col justify-between p-3 border-0 bg-transparent`}
+                  style={{
+                    backgroundImage: `url(${pack.cover_image || tierConfig.cardBg})`,
+                    backgroundSize: '100% 100%',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'center',
+                  }}
                 >
-                  <img
-                    src={pack.cover_image || tierConfig.cardBg}
-                    alt={pack.name}
-                    className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-black/30 pointer-events-none" />
-
                   {/* Top Tier Tag */}
                   <div className="relative z-10 flex justify-between items-center">
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider ${tierConfig.badgeBg}`}>
@@ -684,7 +683,7 @@ export default function PackOpeningModal({
 
                     {/* The Oversized Ultimate Team Card */}
                     <div
-                      className={`relative w-60 h-[345px] sm:w-68 sm:h-[385px] overflow-visible ${tierConfig.dropGlow} flex flex-col justify-between p-2 border-0 bg-transparent`}
+                      className={`relative w-60 h-[345px] sm:w-68 sm:h-[385px] overflow-visible ${tierConfig.dropGlow} border-0 bg-transparent`}
                       style={{
                         backgroundImage: `url(${tierConfig.cardBg})`,
                         backgroundSize: '100% 100%',
@@ -692,17 +691,9 @@ export default function PackOpeningModal({
                         backgroundPosition: 'center'
                       }}
                     >
-                      {/* Holographic Sheen Layer */}
-                      <div className="absolute inset-0 pointer-events-none mix-blend-overlay opacity-30 overflow-hidden z-20">
-                        <div className="w-full h-[220%] bg-gradient-to-r from-transparent via-white/85 to-transparent animate-fc-sheen" />
-                      </div>
-
-                      {/* Vignette Overlay for Bottom Stats */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/25 pointer-events-none z-10" />
-
                       {/* Top Telemetry Badge */}
-                      <div className="relative z-30 flex items-start justify-between px-1 pt-1">
-                        <div className="flex flex-col items-center bg-black/65 backdrop-blur-md px-2 py-1 rounded-xl border border-white/20 shadow-xl min-w-[48px]">
+                      <div className="absolute top-2 inset-x-2 z-30 flex items-start justify-between pointer-events-none">
+                        <div className="flex flex-col items-center bg-black/75 backdrop-blur-md px-2 py-1 rounded-xl border border-white/20 shadow-xl min-w-[48px] pointer-events-auto">
                           <span className={`text-2xl sm:text-3xl font-black font-sport leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] ${tierConfig.ovrColor}`}>
                             {topCard.overall}
                           </span>
@@ -715,7 +706,7 @@ export default function PackOpeningModal({
                         </div>
 
                         {/* Rarity / Tier Pill */}
-                        <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-black/65 backdrop-blur-md border border-white/20">
+                        <div className="flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-black/75 backdrop-blur-md border border-white/20 pointer-events-auto">
                           <Sparkles size={12} className={tierConfig.accent} />
                           <span className="text-[9px] font-black font-sport text-white uppercase">
                             {topCard.rarity || pack.tier}
@@ -724,7 +715,7 @@ export default function PackOpeningModal({
                       </div>
 
                       {/* Center: Oversized 3D Pop-out Player Cutout */}
-                      <div className="relative z-20 my-auto flex flex-col items-center justify-center h-[205px] sm:h-[235px] w-full overflow-visible">
+                      <div className="absolute inset-x-0 top-8 bottom-12 z-20 flex items-center justify-center overflow-visible pointer-events-none">
                         {/* Radial Tier Backlight */}
                         <div
                           className="absolute inset-0 pointer-events-none rounded-full blur-2xl opacity-60"
@@ -735,26 +726,26 @@ export default function PackOpeningModal({
                           <img
                             src={topCard.card_image || topCard.photo}
                             alt={topCard.name}
-                            className="relative z-20 max-h-full w-auto scale-115 sm:scale-125 object-contain object-bottom drop-shadow-[0_15px_30px_rgba(0,0,0,0.95)] transition-transform duration-300"
+                            className="max-h-full w-auto scale-115 sm:scale-125 object-contain object-bottom drop-shadow-[0_15px_30px_rgba(0,0,0,0.95)] transition-transform duration-300"
                           />
                         ) : (
-                          <div className="relative z-20 flex flex-col items-center justify-center text-amber-300/90 drop-shadow-[0_0_20px_rgba(245,158,11,0.6)]">
+                          <div className="flex flex-col items-center justify-center text-amber-300/90 drop-shadow-[0_0_20px_rgba(245,158,11,0.6)]">
                             <Trophy size={52} className="text-yellow-400 drop-shadow-md" />
                           </div>
                         )}
                       </div>
 
-                      {/* Lower-Third: Nameplate Banner */}
-                      <div className="relative z-30 text-center mb-0.5">
-                        <div className="inline-block px-3.5 py-1 rounded-lg bg-black/80 backdrop-blur-md border border-white/20 shadow-xl max-w-[200px]">
+                      {/* Lower-Third: Nameplate Banner (In front of photo) */}
+                      <div className="absolute bottom-11 inset-x-2 text-center z-30">
+                        <div className="inline-block px-3.5 py-1 rounded-lg bg-black/85 backdrop-blur-md border border-white/20 shadow-xl max-w-[200px]">
                           <h4 className="text-xs sm:text-sm font-black text-white font-sport tracking-wider uppercase truncate drop-shadow-md">
                             {topCard.name}
                           </h4>
                         </div>
                       </div>
 
-                      {/* Card Footer: Prime Club & Country */}
-                      <div className="relative z-30 bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-xl border border-white/20 text-white shadow-xl flex items-center justify-between gap-1 text-[9.5px]">
+                      {/* Card Footer: Prime Club & Country (In front of photo) */}
+                      <div className="absolute bottom-2 inset-x-2 z-30 bg-black/85 backdrop-blur-md px-2.5 py-1 rounded-xl border border-white/20 text-white shadow-xl flex items-center justify-between gap-1 text-[9.5px]">
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
                           <div className="w-5 h-5 rounded-md bg-white/10 border border-white/15 p-0.5 flex items-center justify-center shrink-0 overflow-hidden">
                             {topCard.club_logo ? (
@@ -890,7 +881,7 @@ export default function PackOpeningModal({
 
                           {/* ================= CARD FRONT (Face Up with Heroic Player Cutout) ================= */}
                           <div
-                            className="absolute inset-0 w-full h-full [backface-visibility:hidden] [transform:rotateY(180deg)] overflow-visible flex flex-col justify-between p-2 border-0 bg-transparent"
+                            className="absolute inset-0 w-full h-full [backface-visibility:hidden] [transform:rotateY(180deg)] overflow-visible border-0 bg-transparent"
                             style={{
                               backgroundImage: `url(${tierConfig.cardBg})`,
                               backgroundSize: '100% 100%',
@@ -898,14 +889,9 @@ export default function PackOpeningModal({
                               backgroundPosition: 'center'
                             }}
                           >
-                            {/* Holographic Sheen Layer */}
-                            <div className="absolute inset-0 pointer-events-none mix-blend-overlay opacity-25 overflow-hidden z-20">
-                              <div className="w-full h-[220%] bg-gradient-to-r from-transparent via-white/80 to-transparent animate-fc-sheen" />
-                            </div>
-
                             {/* Top Telemetry Badge */}
-                            <div className="relative z-30 flex justify-between items-start pt-0.5 px-0.5">
-                              <div className="flex flex-col items-center bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-xl border border-white/15 shadow-md min-w-[42px]">
+                            <div className="absolute top-1.5 inset-x-1.5 z-30 flex justify-between items-start pointer-events-none">
+                              <div className="flex flex-col items-center bg-black/75 backdrop-blur-md px-2 py-0.5 rounded-xl border border-white/15 shadow-md min-w-[42px] pointer-events-auto">
                                 <span className={`text-xl sm:text-2xl font-black font-sport leading-none drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)] ${tierConfig.ovrColor}`}>
                                   {card.overall}
                                 </span>
@@ -914,13 +900,13 @@ export default function PackOpeningModal({
                                 </span>
                               </div>
 
-                              <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded-lg border border-white/15">
+                              <div className="flex items-center gap-1 bg-black/75 backdrop-blur-md px-1.5 py-0.5 rounded-lg border border-white/15 pointer-events-auto">
                                 <span className="text-xs">{getNationalityFlag(card.nationality)}</span>
                               </div>
                             </div>
 
                             {/* Center: Heroic Player Cutout (Fills the Card) */}
-                            <div className="relative z-20 my-auto flex flex-col items-center justify-center h-[165px] sm:h-[185px] w-full overflow-visible">
+                            <div className="absolute inset-x-0 top-6 bottom-11 z-20 flex items-center justify-center overflow-visible pointer-events-none">
                               {/* Radial Backlight */}
                               <div
                                 className="absolute inset-0 pointer-events-none rounded-full blur-xl opacity-50"
@@ -931,26 +917,26 @@ export default function PackOpeningModal({
                                 <img
                                   src={card.card_image || card.photo}
                                   alt={card.name}
-                                  className="relative z-20 max-h-full w-auto scale-115 sm:scale-125 object-contain object-bottom drop-shadow-[0_12px_24px_rgba(0,0,0,0.95)] transition-transform duration-300 group-hover:scale-130"
+                                  className="max-h-full w-auto scale-115 sm:scale-125 object-contain object-bottom drop-shadow-[0_12px_24px_rgba(0,0,0,0.95)] transition-transform duration-300 group-hover:scale-130"
                                 />
                               ) : (
-                                <div className="relative z-20 flex flex-col items-center justify-center text-amber-300/80 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]">
+                                <div className="flex flex-col items-center justify-center text-amber-300/80 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]">
                                   <Trophy size={40} className="text-yellow-400/90 drop-shadow-md" />
                                 </div>
                               )}
                             </div>
 
-                            {/* Nameplate Banner */}
-                            <div className="relative z-30 text-center mb-0.5">
-                              <div className="inline-block px-3 py-0.5 rounded-lg bg-black/75 backdrop-blur-md border border-white/15 shadow-md max-w-[170px]">
+                            {/* Nameplate Banner (In front of photo) */}
+                            <div className="absolute bottom-10 inset-x-1 text-center z-30">
+                              <div className="inline-block px-3 py-0.5 rounded-lg bg-black/85 backdrop-blur-md border border-white/15 shadow-md max-w-[170px]">
                                 <h4 className="text-[11px] sm:text-xs font-black text-white font-sport uppercase tracking-wider truncate drop-shadow">
                                   {card.name}
                                 </h4>
                               </div>
                             </div>
 
-                            {/* Footer: Prime Club & Country */}
-                            <div className="relative z-30 bg-black/75 backdrop-blur-md px-2 py-1 rounded-xl border border-white/15 text-white shadow-md flex items-center justify-between gap-1 text-[9px]">
+                            {/* Footer: Prime Club & Country (In front of photo) */}
+                            <div className="absolute bottom-1.5 inset-x-1.5 z-30 bg-black/85 backdrop-blur-md px-2 py-1 rounded-xl border border-white/15 text-white shadow-md flex items-center justify-between gap-1 text-[9px]">
                               <div className="flex items-center gap-1 min-w-0 flex-1">
                                 <div className="w-4 h-4 rounded bg-white/10 p-0.5 flex items-center justify-center shrink-0 overflow-hidden">
                                   {card.club_logo ? (
@@ -1029,7 +1015,7 @@ export default function PackOpeningModal({
 
               {/* Showcase Borderless Oversized FUT Card */}
               <div
-                className={`relative w-56 h-[325px] sm:w-64 sm:h-[365px] overflow-visible ${tierConfig.dropGlow} flex flex-col justify-between p-2 my-2 border-0 bg-transparent`}
+                className={`relative w-56 h-[325px] sm:w-64 sm:h-[365px] overflow-visible ${tierConfig.dropGlow} border-0 bg-transparent my-2`}
                 style={{
                   backgroundImage: `url(${tierConfig.cardBg})`,
                   backgroundSize: '100% 100%',
@@ -1037,16 +1023,9 @@ export default function PackOpeningModal({
                   backgroundPosition: 'center'
                 }}
               >
-                {/* Holographic Sheen */}
-                <div className="absolute inset-0 pointer-events-none mix-blend-overlay opacity-30 overflow-hidden z-20">
-                  <div className="w-full h-[220%] bg-gradient-to-r from-transparent via-white/80 to-transparent animate-fc-sheen" />
-                </div>
-
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/25 pointer-events-none z-10" />
-
                 {/* Top Stat Badge */}
-                <div className="relative z-30 flex justify-between items-start pt-0.5 px-0.5">
-                  <div className="flex flex-col items-center bg-black/65 backdrop-blur-md px-2 py-0.5 rounded-xl border border-white/15 shadow-md min-w-[46px]">
+                <div className="absolute top-2 inset-x-2 z-30 flex justify-between items-start pointer-events-none">
+                  <div className="flex flex-col items-center bg-black/75 backdrop-blur-md px-2 py-0.5 rounded-xl border border-white/15 shadow-md min-w-[46px] pointer-events-auto">
                     <span className={`text-xl sm:text-2xl font-black font-sport leading-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] ${tierConfig.ovrColor}`}>
                       {pickedPlayer.overall}
                     </span>
@@ -1055,13 +1034,13 @@ export default function PackOpeningModal({
                     </span>
                   </div>
 
-                  <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-lg bg-black/65 backdrop-blur-md border border-white/15 text-slate-200">
+                  <span className="text-[9.5px] font-bold px-2 py-0.5 rounded-lg bg-black/75 backdrop-blur-md border border-white/15 text-slate-200 pointer-events-auto">
                     سن: {pickedPlayer.age}
                   </span>
                 </div>
 
                 {/* Center Cutout */}
-                <div className="relative z-20 my-auto flex flex-col items-center justify-center h-[180px] sm:h-[210px] w-full overflow-visible">
+                <div className="absolute inset-x-0 top-7 bottom-12 z-20 flex items-center justify-center overflow-visible pointer-events-none">
                   <div
                     className="absolute inset-0 pointer-events-none rounded-full blur-xl opacity-50"
                     style={{ background: tierConfig.backlightRadial }}
@@ -1071,26 +1050,26 @@ export default function PackOpeningModal({
                     <img
                       src={pickedPlayer.card_image || pickedPlayer.photo}
                       alt={pickedPlayer.name}
-                      className="relative z-20 max-h-full w-auto scale-115 sm:scale-125 object-contain object-bottom drop-shadow-[0_12px_24px_rgba(0,0,0,0.95)]"
+                      className="max-h-full w-auto scale-115 sm:scale-125 object-contain object-bottom drop-shadow-[0_12px_24px_rgba(0,0,0,0.95)]"
                     />
                   ) : (
-                    <div className="relative z-20 flex flex-col items-center justify-center text-amber-300/80 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]">
+                    <div className="flex flex-col items-center justify-center text-amber-300/80 drop-shadow-[0_0_15px_rgba(245,158,11,0.5)]">
                       <Trophy size={42} className="text-yellow-400/90 drop-shadow-md" />
                     </div>
                   )}
                 </div>
 
-                {/* Nameplate */}
-                <div className="relative z-30 text-center mb-0.5">
-                  <div className="inline-block px-3 py-0.5 rounded-lg bg-black/80 backdrop-blur-md border border-white/15 shadow-md max-w-[180px]">
+                {/* Nameplate (In front of photo) */}
+                <div className="absolute bottom-11 inset-x-2 text-center z-30">
+                  <div className="inline-block px-3 py-0.5 rounded-lg bg-black/85 backdrop-blur-md border border-white/15 shadow-md max-w-[180px]">
                     <h4 className="text-[11px] sm:text-xs font-black text-white font-sport uppercase tracking-wider truncate drop-shadow-md">
                       {pickedPlayer.name}
                     </h4>
                   </div>
                 </div>
 
-                {/* Card Footer Details */}
-                <div className="relative z-30 grid grid-cols-2 gap-1 text-[9.5px] bg-black/80 backdrop-blur-md p-1.5 rounded-xl border border-white/15 text-slate-200">
+                {/* Card Footer Details (In front of photo) */}
+                <div className="absolute bottom-2 inset-x-2 z-30 grid grid-cols-2 gap-1 text-[9.5px] bg-black/85 backdrop-blur-md p-1.5 rounded-xl border border-white/15 text-slate-200">
                   <div className="text-center">
                     <span className="text-slate-400 block text-[8px]">استقامت (STA)</span>
                     <span className="font-black text-emerald-400 font-sport text-xs">{pickedPlayer.base_stamina}</span>

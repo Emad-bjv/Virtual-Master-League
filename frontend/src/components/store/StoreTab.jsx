@@ -483,78 +483,77 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="flex flex-wrap gap-6 items-start justify-center sm:justify-start">
             {gachaPacks.length > 0 ? (
               gachaPacks.map((pack) => {
                 const tierStyles = {
                   BRONZE: {
                     defaultBg: rareCardBg,
-                    border: 'border-blue-500/60',
-                    badge: 'bg-blue-950 text-blue-300 border-blue-500/40 shadow-md',
-                    glow: 'hover:shadow-[0_0_35px_rgba(37,99,235,0.5)]',
+                    dropGlow: 'drop-shadow-[0_0_25px_rgba(37,99,235,0.55)]',
+                    badge: 'bg-blue-950/90 text-blue-300 border-blue-500/40 shadow-md',
                     btn: 'from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold',
                     label: 'پک آبی کمیاب (Rare)',
                   },
                   SILVER: {
                     defaultBg: epicCardBg,
-                    border: 'border-purple-500/60',
-                    badge: 'bg-purple-950 text-purple-300 border-purple-500/40 shadow-md',
-                    glow: 'hover:shadow-[0_0_35px_rgba(168,85,247,0.5)]',
+                    dropGlow: 'drop-shadow-[0_0_25px_rgba(168,85,247,0.55)]',
+                    badge: 'bg-purple-950/90 text-purple-300 border-purple-500/40 shadow-md',
                     btn: 'from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white font-bold',
                     label: 'پک حماسی (Epic)',
                   },
                   LEGENDARY: {
                     defaultBg: legendaryCardBg,
-                    border: 'border-amber-500/60',
+                    dropGlow: 'drop-shadow-[0_0_30px_rgba(245,158,11,0.65)]',
                     badge: 'bg-gradient-to-r from-yellow-500 to-amber-600 text-slate-950 font-black border-yellow-300 shadow-lg',
-                    glow: 'hover:shadow-[0_0_45px_rgba(245,158,11,0.6)]',
                     btn: 'from-amber-500 via-yellow-400 to-amber-600 hover:from-amber-400 hover:to-yellow-300 text-slate-950 font-black shadow-[0_0_20px_rgba(245,158,11,0.6)]',
                     label: 'پک اساطیر (Legendary)',
                   }
                 }[pack.tier || 'BRONZE'];
 
+                const now = Date.now();
+                const isTimeExpired = pack.available_until && now > new Date(pack.available_until).getTime();
+                const isNotStarted = pack.available_from && now < new Date(pack.available_from).getTime();
+                const isButtonDisabled = pack.is_sold_out || isTimeExpired || isNotStarted;
+
                 return (
                   <motion.div
                     key={pack.id}
-                    whileHover={{ y: -4, scale: 1.015 }}
+                    whileHover={{ y: -6, scale: 1.03 }}
                     transition={{ duration: 0.25 }}
-                    className="group rounded-2xl border border-slate-800/80 hover:border-slate-700 relative overflow-hidden flex flex-col justify-between min-h-[350px] p-4 shadow-xl transition-all duration-300"
+                    className={`group relative w-[215px] sm:w-[235px] h-[340px] sm:h-[370px] overflow-visible flex flex-col justify-between p-3 border-0 bg-transparent select-none transition-all duration-300 ${tierStyles.dropGlow}`}
+                    style={{
+                      backgroundImage: `url(${pack.cover_image || tierStyles.defaultBg})`,
+                      backgroundSize: '100% 100%',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'center',
+                    }}
                   >
-                    {/* Immersive Borderless Card Background */}
-                    <img
-                      src={pack.cover_image || tierStyles.defaultBg}
-                      alt={pack.name}
-                      className="absolute inset-0 w-full h-full object-cover object-center pointer-events-none group-hover:scale-105 transition-transform duration-700 ease-out"
-                    />
-                    {/* Subtle Vignette for Crisp Typography Contrast */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-transparent to-black/30 pointer-events-none" />
-
                     {/* Top Row: Floating Tier Badge & Remaining Pool */}
-                    <div className="relative z-10 flex justify-between items-center">
-                      <span className={`px-3 py-1 rounded-full text-xs font-black border uppercase tracking-wider ${tierStyles.badge}`}>
+                    <div className="relative z-10 flex justify-between items-center px-0.5">
+                      <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-black border uppercase tracking-wider ${tierStyles.badge}`}>
                         {pack.tier_display || tierStyles.label}
                       </span>
 
                       {pack.is_sold_out ? (
-                        <span className="px-2.5 py-1 rounded-xl bg-rose-900/90 text-rose-200 font-bold text-[11px] border border-rose-500 backdrop-blur-md shadow-md">
-                          تکمیل ظرفیت
+                        <span className="px-2 py-0.5 rounded-lg bg-rose-900/90 text-rose-200 font-bold text-[9px] border border-rose-500 shadow-md">
+                          تکمیل
                         </span>
                       ) : (
-                        <span className="px-2.5 py-1 rounded-xl bg-black/60 text-slate-300 font-sport text-xs border border-white/10 backdrop-blur-md">
-                          موجودی: <strong className="text-cyan-300 font-bold">{pack.unclaimed_players_count ?? pack.total_players_count}</strong> نفر
+                        <span className="px-2 py-0.5 rounded-lg bg-black/70 text-slate-300 font-sport text-[9px] border border-white/15 backdrop-blur-md">
+                          موجودی: <strong className="text-cyan-300 font-bold">{pack.unclaimed_players_count ?? pack.total_players_count}</strong>
                         </span>
                       )}
                     </div>
 
                     {/* Center Spotlight: OVR Range Floating Badge & Live Countdown Timer */}
-                    <div className="relative z-10 my-auto py-4 flex flex-col items-center justify-center text-center space-y-2">
+                    <div className="relative z-10 my-auto py-2 flex flex-col items-center justify-center text-center space-y-1.5">
                       {pack.ovr_range_text ? (
-                        <div className="px-4 py-1.5 rounded-2xl bg-black/75 backdrop-blur-md border border-white/20 shadow-[0_0_20px_rgba(0,0,0,0.8)] text-sm font-black text-amber-300 tracking-wider font-sport">
+                        <div className="px-3 py-1 rounded-xl bg-black/80 backdrop-blur-md border border-white/20 shadow-lg text-xs font-black text-amber-300 tracking-wider font-sport">
                           {pack.ovr_range_text}
                         </div>
                       ) : (
-                        <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-center shadow-inner">
-                          <Trophy size={28} className="text-amber-400" />
+                        <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-center shadow-inner">
+                          <Trophy size={24} className="text-amber-400" />
                         </div>
                       )}
 
@@ -568,65 +567,47 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                     </div>
 
                     {/* Bottom Content Area */}
-                    <div className="relative z-10 space-y-3 pt-3">
+                    <div className="relative z-10 space-y-1.5 pt-1 text-center">
                       <div>
-                        <h4 className="text-lg font-black text-white drop-shadow-md">{pack.name}</h4>
-                        {pack.description && (
-                          <p className="text-xs text-slate-300 mt-1 line-clamp-2 leading-relaxed drop-shadow">
-                            {pack.description}
-                          </p>
-                        )}
+                        <h4 className="text-xs sm:text-sm font-black text-white drop-shadow truncate">{pack.name}</h4>
                         {pack.featured_team && (
-                          <div className="mt-2 inline-flex items-center gap-1.5 text-xs text-amber-300 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-xl border border-amber-500/30 font-bold">
-                            <Flame size={14} className="text-amber-400 shrink-0" />
-                            <span>تیم منتخب: {pack.featured_team}</span>
+                          <div className="text-[8.5px] text-amber-300 font-bold truncate mt-0.5">
+                            تیم منتخب: {pack.featured_team}
                           </div>
                         )}
                       </div>
 
                       {/* Price & Open Button Footer */}
-                      <div className="pt-3 border-t border-white/15 flex items-center justify-between gap-3">
-                        <div className="flex flex-col">
-                          <span className="text-[10.5px] text-slate-400">قیمت پک:</span>
-                          <div className="flex items-center gap-2 font-sport text-sm font-black">
-                            {pack.cost_gems > 0 && (
-                              <span className="text-cyan-300 flex items-center gap-1">
-                                <Gem size={14} /> {pack.cost_gems}
-                              </span>
-                            )}
-                            {pack.cost_usd > 0 && (
-                              <span className="text-amber-300 flex items-center gap-1">
-                                <Coins size={14} /> ${pack.cost_usd}
-                              </span>
-                            )}
-                          </div>
+                      <div className="pt-1.5 border-t border-white/15 flex flex-col items-center gap-1.5">
+                        <div className="flex items-center gap-2 font-sport text-xs font-black">
+                          {pack.cost_gems > 0 && (
+                            <span className="text-cyan-300 flex items-center gap-0.5">
+                              <Gem size={13} /> {pack.cost_gems}
+                            </span>
+                          )}
+                          {pack.cost_usd > 0 && (
+                            <span className="text-amber-300 flex items-center gap-0.5">
+                              <Coins size={13} /> ${pack.cost_usd}
+                            </span>
+                          )}
                         </div>
 
-                        {(() => {
-                          const now = Date.now();
-                          const isTimeExpired = pack.available_until && now > new Date(pack.available_until).getTime();
-                          const isNotStarted = pack.available_from && now < new Date(pack.available_from).getTime();
-                          const isButtonDisabled = pack.is_sold_out || isTimeExpired || isNotStarted;
-
-                          return (
-                            <button
-                              disabled={isButtonDisabled}
-                              onClick={() => setSelectedPackForModal(pack)}
-                              className={`px-4 py-2.5 rounded-2xl bg-gradient-to-r ${tierStyles.btn} font-black text-xs shadow-xl transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 hover:scale-105 active:scale-95`}
-                            >
-                              <Sparkles size={15} />
-                              <span>
-                                {pack.is_sold_out
-                                  ? 'تکمیل ظرفیت'
-                                  : isTimeExpired
-                                  ? 'مهلت پایان یافته'
-                                  : isNotStarted
-                                  ? 'به زودی'
-                                  : 'مشاهده و باز کردن'}
-                              </span>
-                            </button>
-                          );
-                        })()}
+                        <button
+                          disabled={isButtonDisabled}
+                          onClick={() => setSelectedPackForModal(pack)}
+                          className={`w-full py-2 rounded-xl bg-gradient-to-r ${tierStyles.btn} font-black text-xs shadow-lg transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 hover:scale-105 active:scale-95`}
+                        >
+                          <Sparkles size={14} />
+                          <span>
+                            {pack.is_sold_out
+                              ? 'تکمیل ظرفیت'
+                              : isTimeExpired
+                              ? 'مهلت پایان یافته'
+                              : isNotStarted
+                              ? 'به زودی'
+                              : 'مشاهده و باز کردن'}
+                          </span>
+                        </button>
                       </div>
                     </div>
                   </motion.div>
