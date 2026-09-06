@@ -108,7 +108,19 @@ export default function AdminDashboard({
   initialGameweek,
 }) {
   const { t } = useTranslation();
-  const [activeSub, setActiveSub] = useState('live_admin');
+  const [activeSub, setActiveSub] = useState(() => {
+    try {
+      return sessionStorage.getItem('vml_admin_active_sub') || 'live_admin';
+    } catch {
+      return 'live_admin';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('vml_admin_active_sub', activeSub);
+    } catch (_e) {}
+  }, [activeSub]);
   const [adminMessage, setAdminMessage] = useState('');
   const [adminMessageType, setAdminMessageType] = useState('success');
 
@@ -550,8 +562,39 @@ export default function AdminDashboard({
   // -------------------------------------------------------------
   // 2. REFEREE CONTROL ROOM STATE & 4-MODULAR TABS (R5)
   // -------------------------------------------------------------
-  const [selectedLiveMatch, setSelectedLiveMatch] = useState(null);
-  const [refereeDeskTab, setRefereeDeskTab] = useState('live_desk'); // 'live_desk' | 'in_game_changes' | 'team_stats' | 'player_ratings'
+  const [selectedLiveMatch, setSelectedLiveMatch] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('vml_admin_selected_live_match');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (selectedLiveMatch) {
+        sessionStorage.setItem('vml_admin_selected_live_match', JSON.stringify(selectedLiveMatch));
+      } else {
+        sessionStorage.removeItem('vml_admin_selected_live_match');
+      }
+    } catch (_e) {}
+  }, [selectedLiveMatch]);
+
+  const [refereeDeskTab, setRefereeDeskTab] = useState(() => {
+    try {
+      return sessionStorage.getItem('vml_admin_referee_desk_tab') || 'live_desk';
+    } catch {
+      return 'live_desk';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('vml_admin_referee_desk_tab', refereeDeskTab);
+    } catch (_e) {}
+  }, [refereeDeskTab]);
+
   const [liveMatchDetails, setLiveMatchDetails] = useState(null);
   const [selectedLiveTeamSwitch, setSelectedLiveTeamSwitch] = useState('home'); // 'home' | 'away'
   const [streamInput, setStreamInput] = useState(liveStreamUrl || 'https://www.aparat.com/embed/live/VML.Emad');
@@ -559,6 +602,10 @@ export default function AdminDashboard({
   const [stoppageInput, setStoppageInput] = useState(0);
   const [adminTacticTab, setAdminTacticTab] = useState('attack'); // 'attack' | 'defense' | 'advanced'
   const [showPostMatchCardView, setShowPostMatchCardView] = useState(false);
+
+  // Rapid event logger modal and lineup sync state
+  const [rapidEventModal, setRapidEventModal] = useState(null);
+  const [isSyncingLineup, setIsSyncingLineup] = useState(false);
 
   // -------------------------------------------------------------
   // R4: IN-GAME CHANGES DESK (Pending Requests Queue & History)
@@ -569,26 +616,60 @@ export default function AdminDashboard({
   const [submittingChangeId, setSubmittingChangeId] = useState(null);
 
   // Home and Away Tactical & GamePlan Data
-  const [teamGameplanData, setTeamGameplanData] = useState({
-    home: {
-      gameplan: null,
-      tactics: {},
-      formation: '4-3-3',
-      starters: [],
-      subs: [],
-      reserves: [],
-      players: [],
-    },
-    away: {
-      gameplan: null,
-      tactics: {},
-      formation: '4-3-3',
-      starters: [],
-      subs: [],
-      reserves: [],
-      players: [],
-    },
+  const [teamGameplanData, setTeamGameplanData] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('vml_admin_team_gameplan_data');
+      return saved ? JSON.parse(saved) : {
+        home: {
+          gameplan: null,
+          tactics: {},
+          formation: '4-3-3',
+          starters: [],
+          subs: [],
+          reserves: [],
+          players: [],
+        },
+        away: {
+          gameplan: null,
+          tactics: {},
+          formation: '4-3-3',
+          starters: [],
+          subs: [],
+          reserves: [],
+          players: [],
+        },
+      };
+    } catch {
+      return {
+        home: {
+          gameplan: null,
+          tactics: {},
+          formation: '4-3-3',
+          starters: [],
+          subs: [],
+          reserves: [],
+          players: [],
+        },
+        away: {
+          gameplan: null,
+          tactics: {},
+          formation: '4-3-3',
+          starters: [],
+          subs: [],
+          reserves: [],
+          players: [],
+        },
+      };
+    }
   });
+
+  useEffect(() => {
+    try {
+      if (teamGameplanData?.home?.starters?.length || teamGameplanData?.away?.starters?.length) {
+        sessionStorage.setItem('vml_admin_team_gameplan_data', JSON.stringify(teamGameplanData));
+      }
+    } catch (_e) {}
+  }, [teamGameplanData]);
 
   // -------------------------------------------------------------
   // R5: MATCH TEAM STATS DESK (Home & Away Side-by-Side)
@@ -707,8 +788,8 @@ export default function AdminDashboard({
       let starters = formattedPlayers.filter((p) => p.is_starting);
       let nonStarting = formattedPlayers.filter((p) => !p.is_starting);
 
-      if (starters.length < 11 && nonStarting.length > 0 && formattedPlayers.length >= 11) {
-        const needed = 11 - starters.length;
+      if (starters.length < 11 && nonStarting.length > 0) {
+        const needed = Math.min(11 - starters.length, nonStarting.length);
         const promoted = nonStarting.slice(0, needed);
         starters = [...starters, ...promoted.map((p) => ({ ...p, is_starting: true }))];
         nonStarting = nonStarting.slice(needed);
@@ -877,7 +958,7 @@ export default function AdminDashboard({
     return () => {
       if (ws) ws.close();
     };
-  }, [selectedLiveMatch?.id, eventMinute]);
+  }, [selectedLiveMatch?.id]);
 
   // -------------------------------------------------------------
   // AUTHORITATIVE REFEREE MASTER ACTIONS
@@ -1084,6 +1165,93 @@ export default function AdminDashboard({
   };
 
   // -------------------------------------------------------------
+  // MANUAL GAMEPLAN SYNC WITH SERVER
+  // -------------------------------------------------------------
+  const handleManualSyncLineup = async () => {
+    if (!selectedLiveMatch?.id) return;
+    setIsSyncingLineup(true);
+    try {
+      await reloadTeamGameplans();
+      await fetchLiveMatchState(selectedLiveMatch.id);
+      showNotification('ترکیب و تاکتیک‌های هر دو تیم با سرور همگام‌سازی شد 🔄');
+    } catch {
+      showNotification('خطا در همگام‌سازی ترکیب با سرور', 'error');
+    } finally {
+      setIsSyncingLineup(false);
+    }
+  };
+
+  // -------------------------------------------------------------
+  // RAPID EVENT ACTIONS & MODAL HANDLERS
+  // -------------------------------------------------------------
+  const handleOpenRapidAction = (eventType, title) => {
+    const activeData = selectedLiveTeamSwitch === 'home' ? teamGameplanData.home : teamGameplanData.away;
+    const defaultPlayer = activeData.starters?.[0]?.id || activeData.players?.[0]?.id || '';
+    const defaultPlayerOut = activeData.starters?.[0]?.id || '';
+    const defaultPlayerIn = activeData.subs?.[0]?.id || activeData.reserves?.[0]?.id || '';
+
+    setRapidEventModal({
+      eventType,
+      title,
+      minute: eventMinute || 1,
+      playerId: defaultPlayer,
+      assistPlayerId: '',
+      playerOutId: defaultPlayerOut,
+      playerInId: defaultPlayerIn,
+      detail: '',
+    });
+  };
+
+  const handleExecuteRapidAction = async () => {
+    if (!rapidEventModal || !selectedLiveMatch?.id) return;
+    const { eventType, minute, playerId, assistPlayerId, playerOutId, playerInId, detail } = rapidEventModal;
+    const activeData = selectedLiveTeamSwitch === 'home' ? teamGameplanData.home : teamGameplanData.away;
+
+    if (eventType === 'SUB') {
+      const pOut = activeData.starters?.find((p) => String(p.id) === String(playerOutId)) || { name: 'بازیکن خروجی' };
+      const pIn = [...(activeData.subs || []), ...(activeData.reserves || [])].find((p) => String(p.id) === String(playerInId)) || { name: 'بازیکن ورودی' };
+      await handleOnPushPitchEvent({
+        type: 'SUB',
+        event_type: 'SUB',
+        player_out_id: playerOutId,
+        player_in_id: playerInId,
+        minute: minute,
+        text: `تعویض: ${pIn.name} به جای ${pOut.name}`,
+      });
+      setRapidEventModal(null);
+      return;
+    }
+
+    const allTeamPlayers = [...(activeData.starters || []), ...(activeData.subs || []), ...(activeData.reserves || []), ...(activeData.players || [])];
+    const playerObj = allTeamPlayers.find((p) => String(p.id) === String(playerId));
+    const assistObj = assistPlayerId ? allTeamPlayers.find((p) => String(p.id) === String(assistPlayerId)) : null;
+
+    let defaultText = '';
+    if (eventType === 'GOAL') defaultText = `گل توسط ${playerObj?.name || 'بازیکن'}${assistObj ? ` (پاس گل: ${assistObj.name})` : ''}`;
+    else if (eventType === 'ASSIST') defaultText = `پاس گل توسط ${playerObj?.name || 'بازیکن'}`;
+    else if (eventType === 'YELLOW') defaultText = `کارت زرد برای ${playerObj?.name || 'بازیکن'}`;
+    else if (eventType === 'SECOND_YELLOW') defaultText = `کارت زرد دوم و اخراج برای ${playerObj?.name || 'بازیکن'}`;
+    else if (eventType === 'RED') defaultText = `کارت قرمز مستقیم برای ${playerObj?.name || 'بازیکن'}`;
+    else if (eventType === 'PENALTY_SCORED') defaultText = `گل پنالتی توسط ${playerObj?.name || 'بازیکن'}`;
+    else if (eventType === 'PENALTY_MISSED') defaultText = `پنالتی از دست رفته توسط ${playerObj?.name || 'بازیکن'}`;
+    else if (eventType === 'OWN_GOAL') defaultText = `گل به خودی توسط ${playerObj?.name || 'بازیکن'}`;
+    else if (eventType === 'INJURY') defaultText = `مصدومیت ${playerObj?.name || 'بازیکن'}`;
+    else if (eventType === 'VAR') defaultText = `بررسی صحنه توسط داور ویدئویی (VAR)`;
+
+    await handleOnPushPitchEvent({
+      type: eventType,
+      event_type: eventType,
+      player_id: playerId || null,
+      player: playerId || null,
+      assist_player_id: assistPlayerId || null,
+      minute: minute,
+      text: detail ? `${defaultText} - ${detail}` : defaultText,
+    });
+
+    setRapidEventModal(null);
+  };
+
+  // -------------------------------------------------------------
   // ON-PITCH EVENT REGISTRATION CALLBACK
   // -------------------------------------------------------------
   const handleOnPushPitchEvent = async (eventObj) => {
@@ -1118,8 +1286,25 @@ export default function AdminDashboard({
         return;
       }
 
-      const eventType = rawEventType === 'ASSIST' || rawEventType === 'RATING' ? 'INFO' : rawEventType;
+      const eventType = rawEventType === 'RATING' ? 'INFO' : rawEventType;
       const playerId = eventObj.player_id || eventObj.player || eventObj.player_obj?.id;
+      const assistPlayerId = eventObj.assist_player_id || eventObj.assist_player || null;
+
+      // Optimistic Score Bump
+      const isHomeTeam = activeTeamId === (selectedLiveMatch.home_team || selectedLiveMatch.homeId);
+      if (eventType === 'GOAL' || eventType === 'PENALTY_SCORED') {
+        const curHome = Number(selectedLiveMatch.home_score) || 0;
+        const curAway = Number(selectedLiveMatch.away_score) || 0;
+        const nextHome = isHomeTeam ? curHome + 1 : curHome;
+        const nextAway = !isHomeTeam ? curAway + 1 : curAway;
+        setSelectedLiveMatch((prev) => ({ ...prev, home_score: nextHome, away_score: nextAway }));
+      } else if (eventType === 'OWN_GOAL') {
+        const curHome = Number(selectedLiveMatch.home_score) || 0;
+        const curAway = Number(selectedLiveMatch.away_score) || 0;
+        const nextHome = !isHomeTeam ? curHome + 1 : curHome;
+        const nextAway = isHomeTeam ? curAway + 1 : curAway;
+        setSelectedLiveMatch((prev) => ({ ...prev, home_score: nextHome, away_score: nextAway }));
+      }
 
       const res = await matchApi.recordEvent(selectedLiveMatch.id, {
         event_type: eventType,
@@ -1127,6 +1312,7 @@ export default function AdminDashboard({
         team_id: activeTeamId,
         player_id: playerId,
         player: playerId,
+        assist_player_id: assistPlayerId,
         detail: eventObj.text || eventObj.detail || 'رویداد زمین مسابقه',
       });
 
@@ -4616,38 +4802,49 @@ export default function AdminDashboard({
                         </p>
                       </div>
 
-                      {/* Home / Away Team Toggle with Lineup Status */}
-                      <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800 text-xs">
+                      {/* Home / Away Team Toggle with Lineup Status and Manual Sync Button */}
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
-                          onClick={() => setSelectedLiveTeamSwitch('home')}
-                          className={`px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                            selectedLiveTeamSwitch === 'home'
-                              ? 'bg-cyan-600 text-white shadow-md'
-                              : 'text-slate-400 hover:text-white'
-                          }`}
+                          onClick={handleManualSyncLineup}
+                          disabled={isSyncingLineup}
+                          className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-cyan-300 font-bold border border-slate-700 transition-all flex items-center gap-1.5 text-xs cursor-pointer shadow-sm disabled:opacity-50"
+                          title="دریافت مجدد آخرین ترکیب و تاکتیک ارسالی مربیان از سرور"
                         >
-                          <span>{selectedLiveMatch.home_team_name || selectedLiveMatch.home} (میزبان)</span>
-                          <span className={`w-2 h-2 rounded-full ${
-                            (selectedLiveMatch.home_lineup_ready || teamGameplanData.home.gameplan?.is_submitted)
-                              ? 'bg-[#00ff87] shadow-[0_0_8px_#00ff87]'
-                              : 'bg-amber-400'
-                          }`} title={(selectedLiveMatch.home_lineup_ready || teamGameplanData.home.gameplan?.is_submitted) ? 'ترکیب اختصاصی ارسال شده' : 'ترکیب پیش‌فرض'}></span>
+                          <RefreshCw size={13} className={isSyncingLineup ? 'animate-spin text-cyan-400' : ''} />
+                          <span>همگام‌سازی ترکیب با سرور</span>
                         </button>
-                        <button
-                          onClick={() => setSelectedLiveTeamSwitch('away')}
-                          className={`px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                            selectedLiveTeamSwitch === 'away'
-                              ? 'bg-rose-600 text-white shadow-md'
-                              : 'text-slate-400 hover:text-white'
-                          }`}
-                        >
-                          <span>{selectedLiveMatch.away_team_name || selectedLiveMatch.away} (میهمان)</span>
-                          <span className={`w-2 h-2 rounded-full ${
-                            (selectedLiveMatch.away_lineup_ready || teamGameplanData.away.gameplan?.is_submitted)
-                              ? 'bg-[#00ff87] shadow-[0_0_8px_#00ff87]'
-                              : 'bg-amber-400'
-                          }`} title={(selectedLiveMatch.away_lineup_ready || teamGameplanData.away.gameplan?.is_submitted) ? 'ترکیب اختصاصی ارسال شده' : 'ترکیب پیش‌فرض'}></span>
-                        </button>
+                        <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-800 text-xs">
+                          <button
+                            onClick={() => setSelectedLiveTeamSwitch('home')}
+                            className={`px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                              selectedLiveTeamSwitch === 'home'
+                                ? 'bg-cyan-600 text-white shadow-md'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <span>{selectedLiveMatch.home_team_name || selectedLiveMatch.home} (میزبان)</span>
+                            <span className={`w-2 h-2 rounded-full ${
+                              (selectedLiveMatch.home_lineup_ready || teamGameplanData.home.gameplan?.is_submitted)
+                                ? 'bg-[#00ff87] shadow-[0_0_8px_#00ff87]'
+                                : 'bg-amber-400'
+                            }`} title={(selectedLiveMatch.home_lineup_ready || teamGameplanData.home.gameplan?.is_submitted) ? 'ترکیب اختصاصی ارسال شده' : 'ترکیب پیش‌فرض'}></span>
+                          </button>
+                          <button
+                            onClick={() => setSelectedLiveTeamSwitch('away')}
+                            className={`px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                              selectedLiveTeamSwitch === 'away'
+                                ? 'bg-rose-600 text-white shadow-md'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <span>{selectedLiveMatch.away_team_name || selectedLiveMatch.away} (میهمان)</span>
+                            <span className={`w-2 h-2 rounded-full ${
+                              (selectedLiveMatch.away_lineup_ready || teamGameplanData.away.gameplan?.is_submitted)
+                                ? 'bg-[#00ff87] shadow-[0_0_8px_#00ff87]'
+                                : 'bg-amber-400'
+                            }`} title={(selectedLiveMatch.away_lineup_ready || teamGameplanData.away.gameplan?.is_submitted) ? 'ترکیب اختصاصی ارسال شده' : 'ترکیب پیش‌فرض'}></span>
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -4720,6 +4917,109 @@ export default function AdminDashboard({
                         </div>
                       );
                     })()}
+
+                    {/* Sleek Rapid Action Bar (نوار ثبت سریع وقایع داوری) */}
+                    <div className="glass-panel p-3 rounded-2xl border border-slate-800/80 bg-slate-950/80 shadow-md flex flex-col gap-2">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
+                          <Zap size={14} className="text-amber-400 animate-pulse" />
+                          <span>ثبت سریع رویدادها برای تیم {activeTeamName} (دقیقه '{eventMinute}):</span>
+                        </span>
+                        <span className="text-[10px] text-slate-500 hidden sm:inline">
+                          ثبت مستقیم رویداد با یک کلیک (همراه با پاس گل)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                        <button
+                          onClick={() => handleOpenRapidAction('GOAL', 'ثبت گل')}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 font-bold text-xs flex items-center gap-1 shrink-0 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                          title="ثبت گل به همراه پاس گل اختیاری"
+                        >
+                          <span>⚽</span>
+                          <span>گل</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenRapidAction('ASSIST', 'ثبت پاس گل')}
+                          className="px-3 py-1.5 rounded-xl bg-cyan-950/70 hover:bg-cyan-900 border border-cyan-500/50 text-cyan-300 font-bold text-xs flex items-center gap-1 shrink-0 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                          title="ثبت مستقیم پاس گل"
+                        >
+                          <span>🅰️</span>
+                          <span>پاس گل</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenRapidAction('YELLOW', 'کارت زرد')}
+                          className="px-3 py-1.5 rounded-xl bg-amber-950/70 hover:bg-amber-900 border border-amber-500/50 text-amber-300 font-bold text-xs flex items-center gap-1 shrink-0 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                          title="ثبت اخطار"
+                        >
+                          <span>🟨</span>
+                          <span>کارت زرد</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenRapidAction('SECOND_YELLOW', 'کارت زرد دوم (اخراج)')}
+                          className="px-3 py-1.5 rounded-xl bg-orange-950/70 hover:bg-orange-900 border border-orange-500/50 text-orange-300 font-bold text-xs flex items-center gap-1 shrink-0 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                          title="کارت زرد دوم منجر به اخراج"
+                        >
+                          <span>🟨🟥</span>
+                          <span>زرد دوم</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenRapidAction('RED', 'کارت قرمز مستقیم')}
+                          className="px-3 py-1.5 rounded-xl bg-rose-950/70 hover:bg-rose-900 border border-rose-500/50 text-rose-300 font-bold text-xs flex items-center gap-1 shrink-0 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                          title="اخراج مستقیم"
+                        >
+                          <span>🟥</span>
+                          <span>کارت قرمز</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenRapidAction('PENALTY_SCORED', 'گل از روی نقطه پنالتی')}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 font-bold text-xs flex items-center gap-1 shrink-0 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                          title="گل پنالتی"
+                        >
+                          <span>🎯</span>
+                          <span>پنالتی گل</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenRapidAction('PENALTY_MISSED', 'پنالتی از دست رفته')}
+                          className="px-3 py-1.5 rounded-xl bg-rose-950/70 hover:bg-rose-900 border border-rose-500/50 text-rose-300 font-bold text-xs flex items-center gap-1 shrink-0 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                          title="از دست رفتن ضربه پنالتی"
+                        >
+                          <span>❌</span>
+                          <span>پنالتی خراب</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenRapidAction('OWN_GOAL', 'گل به خودی')}
+                          className="px-3 py-1.5 rounded-xl bg-red-950/70 hover:bg-red-900 border border-red-500/50 text-red-300 font-bold text-xs flex items-center gap-1 shrink-0 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                          title="گل به خودی (امتیاز به حریف)"
+                        >
+                          <span>🤦‍♂️</span>
+                          <span>گل به خودی</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenRapidAction('SUB', 'ثبت تعویض')}
+                          className="px-3 py-1.5 rounded-xl bg-blue-950/70 hover:bg-blue-900 border border-blue-500/50 text-blue-300 font-bold text-xs flex items-center gap-1 shrink-0 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                          title="ثبت تعویض سریع"
+                        >
+                          <span>🔄</span>
+                          <span>تعویض</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenRapidAction('INJURY', 'مصدومیت')}
+                          className="px-3 py-1.5 rounded-xl bg-purple-950/70 hover:bg-purple-900 border border-purple-500/50 text-purple-300 font-bold text-xs flex items-center gap-1 shrink-0 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                          title="مصدومیت بازیکن"
+                        >
+                          <span>🚑</span>
+                          <span>مصدومیت</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenRapidAction('VAR', 'بررسی داور ویدئویی (VAR)')}
+                          className="px-3 py-1.5 rounded-xl bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-500/50 text-indigo-300 font-bold text-xs flex items-center gap-1 shrink-0 transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                          title="بررسی VAR"
+                        >
+                          <span>🖥️</span>
+                          <span>VAR</span>
+                        </button>
+                      </div>
+                    </div>
 
                     {/* Interactive Tactical Pitch */}
                     <div className="bg-slate-950 p-2 rounded-3xl border-2 border-slate-800 shadow-2xl relative">
@@ -4931,20 +5231,30 @@ export default function AdminDashboard({
                               <span className="text-base shrink-0">
                                 {ev.emoji || ev.icon || (
                                   ev.event_type === 'GOAL' ? '⚽' :
+                                  ev.event_type === 'ASSIST' ? '🅰️' :
                                   ev.event_type === 'OWN_GOAL' ? '🤦‍♂️' :
                                   ev.event_type === 'PENALTY_SCORED' ? '🎯' :
                                   ev.event_type === 'PENALTY_MISSED' ? '❌' :
                                   ev.event_type === 'YELLOW' ? '🟨' :
                                   ev.event_type === 'SECOND_YELLOW' ? '🟨🟥' :
                                   ev.event_type === 'RED' ? '🟥' :
-                                  ev.event_type === 'SUB_IN' ? '🔄' :
+                                  ev.event_type === 'SUB' || ev.event_type === 'SUB_IN' ? '🔄' :
                                   ev.event_type === 'SUB_OUT' ? '⬅️' :
                                   ev.event_type === 'INJURY' ? '🚑' :
                                   ev.event_type === 'VAR' ? '🖥️' : '📢'
                                 )}
                               </span>
-                              <span className="font-black text-cyan-300 text-[11px]">{ev.event_type_display || ev.event_type}</span>
-                              <span className="text-slate-300 truncate max-w-xs">{ev.detail || ev.player_name || ev.player?.name}</span>
+                              <span className="font-black text-cyan-300 text-[11px]">
+                                {ev.event_type === 'ASSIST' ? 'پاس گل' : (ev.event_type_display || ev.event_type)}
+                              </span>
+                              <span className="text-slate-300 truncate max-w-xs flex items-center gap-1.5 flex-wrap">
+                                <span>{ev.detail || ev.player_name || ev.player?.name}</span>
+                                {ev.assist_player_name && (
+                                  <span className="text-emerald-300 font-bold text-[10.5px] bg-emerald-950/80 px-1.5 py-0.5 rounded-md border border-emerald-500/40 shrink-0">
+                                    🅰️ پاس گل: {ev.assist_player_name}
+                                  </span>
+                                )}
+                              </span>
                             </div>
 
                             {!ev.is_undone && (
@@ -6423,6 +6733,191 @@ export default function AdminDashboard({
             </div>
           </motion.div>
         </div>,
+        document.body
+      )}
+
+      {/* Rapid Event Action Modal */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {rapidEventModal && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+              <div className="fixed inset-0" onClick={() => setRapidEventModal(null)} />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="relative z-10 bg-slate-950 border border-slate-800 rounded-3xl w-full max-w-lg my-auto p-5 space-y-4 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-2xl">{
+                      rapidEventModal.eventType === 'GOAL' ? '⚽' :
+                      rapidEventModal.eventType === 'ASSIST' ? '🅰️' :
+                      rapidEventModal.eventType === 'YELLOW' ? '🟨' :
+                      rapidEventModal.eventType === 'SECOND_YELLOW' ? '🟨🟥' :
+                      rapidEventModal.eventType === 'RED' ? '🟥' :
+                      rapidEventModal.eventType === 'PENALTY_SCORED' ? '🎯' :
+                      rapidEventModal.eventType === 'PENALTY_MISSED' ? '❌' :
+                      rapidEventModal.eventType === 'OWN_GOAL' ? '🤦‍♂️' :
+                      rapidEventModal.eventType === 'SUB' ? '🔄' :
+                      rapidEventModal.eventType === 'INJURY' ? '🚑' :
+                      rapidEventModal.eventType === 'VAR' ? '🖥️' : '📢'
+                    }</span>
+                    <div>
+                      <h3 className="font-black text-white text-sm sm:text-base">
+                        {rapidEventModal.title}
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        تیم: <strong className="text-cyan-400">{selectedLiveTeamSwitch === 'home' ? (selectedLiveMatch?.home_team_name || selectedLiveMatch?.home) : (selectedLiveMatch?.away_team_name || selectedLiveMatch?.away)}</strong>
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setRapidEventModal(null)}
+                    className="p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {/* Body Form */}
+                <div className="space-y-3.5 text-xs">
+                  {/* Minute Input */}
+                  <div>
+                    <label className="block text-slate-400 font-bold mb-1">دقیقه رویداد:</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="130"
+                      value={rapidEventModal.minute}
+                      onChange={(e) => setRapidEventModal((prev) => ({ ...prev, minute: parseInt(e.target.value, 10) || 1 }))}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:border-cyan-400 focus:outline-none"
+                    />
+                  </div>
+
+                  {/* If SUB: Player Out & Player In */}
+                  {rapidEventModal.eventType === 'SUB' ? (
+                    <>
+                      <div>
+                        <label className="block text-rose-400 font-bold mb-1">بازیکن خروجی (از ترکیب اصلی):</label>
+                        <select
+                          value={rapidEventModal.playerOutId}
+                          onChange={(e) => setRapidEventModal((prev) => ({ ...prev, playerOutId: e.target.value }))}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:border-rose-400 focus:outline-none"
+                        >
+                          {((selectedLiveTeamSwitch === 'home' ? teamGameplanData?.home?.starters : teamGameplanData?.away?.starters) || []).map((p) => (
+                            <option key={p.id} value={p.id}>
+                              #{p.shirt_number || '-'} {p.name} ({p.position || p.naturalPosition || 'بازیکن'})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-emerald-400 font-bold mb-1">بازیکن تعویضی ورودی (نیمکت / رزرو):</label>
+                        <select
+                          value={rapidEventModal.playerInId}
+                          onChange={(e) => setRapidEventModal((prev) => ({ ...prev, playerInId: e.target.value }))}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:border-emerald-400 focus:outline-none"
+                        >
+                          {[
+                            ...((selectedLiveTeamSwitch === 'home' ? teamGameplanData?.home?.subs : teamGameplanData?.away?.subs) || []),
+                            ...((selectedLiveTeamSwitch === 'home' ? teamGameplanData?.home?.reserves : teamGameplanData?.away?.reserves) || []),
+                          ].map((p) => (
+                            <option key={p.id} value={p.id}>
+                              #{p.shirt_number || '-'} {p.name} ({p.position || p.naturalPosition || 'تعویضی'})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  ) : rapidEventModal.eventType !== 'VAR' ? (
+                    <>
+                      {/* Player Select */}
+                      <div>
+                        <label className="block text-cyan-400 font-bold mb-1">
+                          {rapidEventModal.eventType === 'GOAL' || rapidEventModal.eventType === 'PENALTY_SCORED' ? 'زننده گل:' :
+                           rapidEventModal.eventType === 'ASSIST' ? 'بازیکن پاسور:' :
+                           rapidEventModal.eventType === 'OWN_GOAL' ? 'بازیکن زننده گل به خودی:' :
+                           'بازیکن مربوطه:'}
+                        </label>
+                        <select
+                          value={rapidEventModal.playerId}
+                          onChange={(e) => setRapidEventModal((prev) => ({ ...prev, playerId: e.target.value }))}
+                          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:border-cyan-400 focus:outline-none"
+                        >
+                          <option value="">-- انتخاب بازیکن --</option>
+                          {((selectedLiveTeamSwitch === 'home' ? teamGameplanData?.home?.players : teamGameplanData?.away?.players) || []).map((p) => (
+                            <option key={p.id} value={p.id}>
+                              #{p.shirt_number || '-'} {p.name} ({p.position || p.naturalPosition || 'بازیکن'}) {p.is_starting ? '⭐' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Optional Assist Player Select for GOAL */}
+                      {(rapidEventModal.eventType === 'GOAL' || rapidEventModal.eventType === 'PENALTY_SCORED') && (
+                        <div>
+                          <label className="block text-emerald-400 font-bold mb-1 flex items-center justify-between">
+                            <span>🅰️ پاسور گل (اختیاری):</span>
+                            <span className="text-[10px] text-slate-500">اختیاری</span>
+                          </label>
+                          <select
+                            value={rapidEventModal.assistPlayerId}
+                            onChange={(e) => setRapidEventModal((prev) => ({ ...prev, assistPlayerId: e.target.value }))}
+                            className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:border-emerald-400 focus:outline-none"
+                          >
+                            <option value="">-- بدون پاس گل (انفرادی / ریباند / پنالتی) --</option>
+                            {((selectedLiveTeamSwitch === 'home' ? teamGameplanData?.home?.players : teamGameplanData?.away?.players) || [])
+                              .filter((p) => String(p.id) !== String(rapidEventModal.playerId))
+                              .map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  #{p.shirt_number || '-'} {p.name} ({p.position || p.naturalPosition || 'بازیکن'})
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      )}
+                    </>
+                  ) : null}
+
+                  {/* Additional Note / Detail */}
+                  <div>
+                    <label className="block text-slate-400 font-bold mb-1">توضیحات تکمیلی (اختیاری):</label>
+                    <input
+                      type="text"
+                      placeholder="مثلاً: ضربه سر، شوت از راه دور، خطای شدید..."
+                      value={rapidEventModal.detail}
+                      onChange={(e) => setRapidEventModal((prev) => ({ ...prev, detail: e.target.value }))}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-xs focus:border-cyan-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Modal Footer Buttons */}
+                <div className="flex gap-2 pt-2 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setRapidEventModal(null)}
+                    className="w-1/2 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold cursor-pointer transition-colors text-xs"
+                  >
+                    انصراف
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExecuteRapidAction}
+                    className="w-1/2 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-black shadow-[0_0_15px_rgba(6,182,212,0.4)] cursor-pointer transition-all flex items-center justify-center gap-1.5 text-xs"
+                  >
+                    <CheckCircle2 size={15} />
+                    <span>ثبت نهایی رویداد</span>
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
         document.body
       )}
 

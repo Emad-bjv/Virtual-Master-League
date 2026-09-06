@@ -560,6 +560,7 @@ export default function EFootballGamePlan({
   const [selectedBenchPlayerId, setSelectedBenchPlayerId] = useState(null);
   const [highlightedPosition, setHighlightedPosition] = useState(null);
   const [adminModalPlayer, setAdminModalPlayer] = useState(null);
+  const [selectedAssistId, setSelectedAssistId] = useState('');
   const [adminModalTab, setAdminModalTab] = useState('SUB'); // 'SUB' | 'ACTIONS'
   const [subModalBenchSelect, setSubModalBenchSelect] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
@@ -712,7 +713,18 @@ export default function EFootballGamePlan({
       prev.map((p) => (p.id === targetId ? { ...p, goals: newGoals } : p))
     );
 
-    const text = `گل برای ${teamName} توسط ${adminModalPlayer.name}! ⚽🔥 (مجموع: ${newGoals} گل)`;
+    const assistPlayer = selectedAssistId ? (startingXi || []).find((p) => String(p.id) === String(selectedAssistId)) : null;
+    if (assistPlayer) {
+      const newAssists = (assistPlayer.assists || 0) + 1;
+      setStartingXi((prev) =>
+        prev.map((p) => (p.id === assistPlayer.id ? { ...p, assists: newAssists } : p))
+      );
+    }
+
+    const text = assistPlayer
+      ? `گل برای ${teamName} توسط ${adminModalPlayer.name} با پاس گل ${assistPlayer.name}! ⚽🅰️ (مجموع: ${newGoals} گل)`
+      : `گل برای ${teamName} توسط ${adminModalPlayer.name}! ⚽🔥 (مجموع: ${newGoals} گل)`;
+
     if (onPushLiveEvent) {
       onPushLiveEvent({
         id: Date.now(),
@@ -721,12 +733,15 @@ export default function EFootballGamePlan({
         team: teamName,
         player_id: adminModalPlayer.id,
         player_name: adminModalPlayer.name,
-        icon: '⚽🔥',
+        assist_player_id: assistPlayer ? assistPlayer.id : null,
+        assist_player_name: assistPlayer ? assistPlayer.name : null,
+        icon: '⚽',
         color: 'text-emerald-400 border-emerald-500/40 bg-emerald-950/40',
       });
     }
     showNotification(text);
     setAdminModalPlayer(null);
+    setSelectedAssistId('');
   };
 
   const handleAdminGoalUndo = () => {
@@ -2406,7 +2421,7 @@ export default function EFootballGamePlan({
                   {/* Goal & Assist Row */}
                   <div className="grid grid-cols-2 gap-2">
                     {/* Goal */}
-                    <div className="flex flex-col gap-1.5 p-2 rounded-2xl bg-emerald-950/30 border border-emerald-500/30">
+                    <div className="flex flex-col gap-1.5 p-2.5 rounded-2xl bg-emerald-950/30 border border-emerald-500/30">
                       <button
                         onClick={handleAdminGoal}
                         className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-slate-950 font-black text-xs flex items-center justify-between transition-all cursor-pointer shadow-md shadow-emerald-900/30"
@@ -2414,10 +2429,32 @@ export default function EFootballGamePlan({
                         <span className="flex items-center gap-1">⚽ ثبت گل</span>
                         <span className="text-[10px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded font-mono font-bold">+۱</span>
                       </button>
+
+                      {/* Assist Selector for Goal */}
+                      <div className="pt-0.5">
+                        <label className="text-[10px] text-emerald-300/80 font-bold block mb-1">
+                          🅰️ پاسور گل (اختیاری):
+                        </label>
+                        <select
+                          value={selectedAssistId}
+                          onChange={(e) => setSelectedAssistId(e.target.value)}
+                          className="w-full bg-slate-900/90 border border-emerald-500/40 rounded-xl px-2 py-1 text-[11px] text-white focus:outline-none focus:border-emerald-400"
+                        >
+                          <option value="">-- بدون پاس گل --</option>
+                          {(startingXi || [])
+                            .filter((p) => p && String(p.id) !== String(adminModalPlayer.id))
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} ({p.position}) #{p.shirt_number || ''}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+
                       {adminModalPlayer.goals > 0 && (
                         <button
                           onClick={handleAdminGoalUndo}
-                          className="w-full py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-[10px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer"
+                          className="w-full py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-500/40 text-rose-300 text-[10px] font-bold flex items-center justify-center gap-1 transition-all cursor-pointer mt-1"
                         >
                           <span>↩️ لغو ۱ گل ({adminModalPlayer.goals})</span>
                         </button>
