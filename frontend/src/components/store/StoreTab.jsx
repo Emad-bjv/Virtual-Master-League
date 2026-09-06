@@ -16,9 +16,9 @@ import ConfirmModal from '../common/ConfirmModal';
 import PackOpeningModal from './PackOpeningModal';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 
-import rareCardBg from '../../assets/cards/rare_card_bg.jpg';
-import epicCardBg from '../../assets/cards/epic_card_bg.jpg';
-import legendaryCardBg from '../../assets/cards/legendary_card_bg.jpg';
+import rareCardBg from '../../assets/cards/rare_card_bg.png';
+import epicCardBg from '../../assets/cards/epic_card_bg.png';
+import legendaryCardBg from '../../assets/cards/legendary_card_bg.png';
 
 const STORE_SUBNAV = [
   { id: 'gems', label: 'الماس (جم 💎)' },
@@ -516,9 +516,9 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                 return (
                   <motion.div
                     key={pack.id}
-                    whileHover={{ y: -6, scale: 1.02 }}
+                    whileHover={{ y: -4, scale: 1.015 }}
                     transition={{ duration: 0.25 }}
-                    className="group rounded-[2rem] border border-slate-800 hover:border-slate-700 relative overflow-hidden flex flex-col justify-between min-h-[420px] p-5 shadow-2xl transition-all duration-300"
+                    className="group rounded-2xl border border-slate-800/80 hover:border-slate-700 relative overflow-hidden flex flex-col justify-between min-h-[350px] p-4 shadow-xl transition-all duration-300"
                   >
                     {/* Immersive Borderless Card Background */}
                     <img

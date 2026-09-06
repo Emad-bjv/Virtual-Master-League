@@ -10,9 +10,9 @@ import {
 } from 'lucide-react';
 import { gachaApi, playerApi } from '../../services/api';
 import { getNationalityFlag } from '../../utils/nationalityFlags';
-import rareCardBg from '../../assets/cards/rare_card_bg.jpg';
-import epicCardBg from '../../assets/cards/epic_card_bg.jpg';
-import legendaryCardBg from '../../assets/cards/legendary_card_bg.jpg';
+import rareCardBg from '../../assets/cards/rare_card_bg.png';
+import epicCardBg from '../../assets/cards/epic_card_bg.png';
+import legendaryCardBg from '../../assets/cards/legendary_card_bg.png';
 
 const POSITION_CHOICES = [
   'GK', 'CB', 'LB', 'RB', 'DMF', 'CMF', 'LMF', 'RMF', 'AMF', 'LWF', 'RWF', 'SS', 'CF'
@@ -24,6 +24,7 @@ const TIER_THEMES = {
     defaultBg: rareCardBg,
     borderColor: 'border-blue-500/60',
     neonGlow: 'shadow-[0_0_45px_rgba(37,99,235,0.45)]',
+    dropGlow: 'drop-shadow-[0_0_25px_rgba(37,99,235,0.5)]',
     badgeBg: 'bg-blue-950/90 text-blue-300 border-blue-500/50',
     accentText: 'text-cyan-300',
     ovrColor: 'text-cyan-300',
@@ -35,6 +36,7 @@ const TIER_THEMES = {
     defaultBg: epicCardBg,
     borderColor: 'border-purple-500/60',
     neonGlow: 'shadow-[0_0_45px_rgba(168,85,247,0.45)]',
+    dropGlow: 'drop-shadow-[0_0_25px_rgba(168,85,247,0.5)]',
     badgeBg: 'bg-purple-950/90 text-purple-300 border-purple-500/50',
     accentText: 'text-purple-300',
     ovrColor: 'text-fuchsia-300',
@@ -46,6 +48,7 @@ const TIER_THEMES = {
     defaultBg: legendaryCardBg,
     borderColor: 'border-amber-500/70',
     neonGlow: 'shadow-[0_0_55px_rgba(245,158,11,0.5)]',
+    dropGlow: 'drop-shadow-[0_0_30px_rgba(245,158,11,0.6)]',
     badgeBg: 'bg-amber-950/90 text-amber-300 border-amber-500/60',
     accentText: 'text-yellow-300',
     ovrColor: 'text-amber-300',
@@ -599,7 +602,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                 ref={cardRef}
                 onMouseMove={handleMouseMove}
                 onMouseLeave={handleMouseLeave}
-                className="w-[280px] sm:w-[310px] h-[415px] sm:h-[455px] cursor-pointer transition-transform duration-100 ease-out select-none"
+                className={`w-[230px] sm:w-[255px] h-[345px] sm:h-[385px] cursor-pointer transition-transform duration-100 ease-out select-none ${currentTheme.dropGlow}`}
                 style={{
                   transform: `rotateX(${cardTilt.rotateX}deg) rotateY(${cardTilt.rotateY}deg)`,
                   transformStyle: 'preserve-3d',
@@ -615,10 +618,11 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                   {/* CARD FACE: FRONT (LIVE ULTIMATE TEAM PLAYER CARD)             */}
                   {/* ============================================================= */}
                   <div
-                    className="absolute inset-0 w-full h-full rounded-[2.2rem] overflow-hidden shadow-2xl flex flex-col justify-between p-3.5 [backface-visibility:hidden]"
+                    className="absolute inset-0 w-full h-full overflow-visible flex flex-col justify-between p-2.5 [backface-visibility:hidden] border-0 bg-transparent"
                     style={{
                       backgroundImage: `url(${activeCardBg})`,
-                      backgroundSize: 'cover',
+                      backgroundSize: '100% 100%',
+                      backgroundRepeat: 'no-repeat',
                       backgroundPosition: 'center',
                     }}
                   >
@@ -759,20 +763,21 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                   {/* CARD FACE: BACK (UNOPENED PACK COVER ARTWORK)                 */}
                   {/* ============================================================= */}
                   <div
-                    className="absolute inset-0 w-full h-full rounded-[2.2rem] overflow-hidden shadow-2xl flex flex-col justify-between p-4 [backface-visibility:hidden] [transform:rotateY(180deg)]"
+                    className="absolute inset-0 w-full h-full overflow-visible flex flex-col justify-between p-3 [backface-visibility:hidden] [transform:rotateY(180deg)] border-0 bg-transparent"
                     style={{
                       backgroundImage: `url(${activeCardBg})`,
-                      backgroundSize: 'cover',
+                      backgroundSize: '100% 100%',
+                      backgroundRepeat: 'no-repeat',
                       backgroundPosition: 'center',
                     }}
                   >
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-black/40 to-transparent pointer-events-none" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-black/30 to-transparent pointer-events-none" />
 
                     <div className="relative z-10 flex items-center justify-between text-[11px] font-bold text-white">
-                      <span className="px-2.5 py-0.5 rounded-full bg-black/70 border border-white/20">
+                      <span className="px-2 py-0.5 rounded-full bg-black/60 border border-white/15">
                         {currentTheme.label}
                       </span>
-                      <Sparkles size={16} className="text-yellow-400 animate-pulse" />
+                      <Sparkles size={15} className="text-yellow-400 animate-pulse" />
                     </div>
 
                     <div className="relative z-10 my-auto flex flex-col items-center justify-center text-center space-y-3">

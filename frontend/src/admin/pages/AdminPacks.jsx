@@ -9,6 +9,9 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { gachaApi } from '../../services/api';
 import AdminPackStudio from '../components/AdminPackStudio';
+import rareCardBg from '../../assets/cards/rare_card_bg.png';
+import epicCardBg from '../../assets/cards/epic_card_bg.png';
+import legendaryCardBg from '../../assets/cards/legendary_card_bg.png';
 
 const formatDateForInput = (iso) => {
   if (!iso) return '';
@@ -534,7 +537,7 @@ export default function AdminPacks() {
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-16 rounded-xl overflow-hidden shrink-0 border border-white/20 shadow-md">
                         <img
-                          src={pack.cover_image || (pack.tier === 'LEGENDARY' ? '/assets/cards/legendary_card_bg.jpg' : pack.tier === 'SILVER' ? '/assets/cards/epic_card_bg.jpg' : '/assets/cards/rare_card_bg.jpg')}
+                          src={pack.cover_image || (pack.tier === 'LEGENDARY' ? legendaryCardBg : pack.tier === 'SILVER' ? epicCardBg : rareCardBg)}
                           alt={pack.name}
                           className="w-full h-full object-cover"
                         />
