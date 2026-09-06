@@ -24,15 +24,25 @@ class PackPlayerSerializer(serializers.ModelSerializer):
         elif isinstance(data, dict):
             data = dict(data)
 
+        data.pop('id', None)
+
         for img_field in ['card_image', 'club_logo']:
             img_val = data.get(img_field)
             if isinstance(img_val, str) or img_val is None or img_val == '':
                 data.pop(img_field, None)
 
         for num in ['overall', 'potential_ovr', 'age', 'base_stamina', 'wage', 'market_value']:
-            val = data.get(num)
-            if val == '' or val is None:
-                data[num] = 0
+            if num in data:
+                val = data.get(num)
+                val_str = str(val).strip().lower()
+                if val in ('', None) or val_str in ('', 'null', 'undefined', 'none', 'nan'):
+                    data[num] = 0
+
+        for str_field in ['compatible_positions', 'nationality', 'prime_club']:
+            if str_field in data:
+                val = data.get(str_field)
+                if str(val).strip().lower() in ('null', 'undefined', 'none'):
+                    data[str_field] = ''
 
         return super().to_internal_value(data)
 
@@ -65,6 +75,9 @@ class PackSerializer(serializers.ModelSerializer):
         elif isinstance(data, dict):
             data = dict(data)
 
+        # Strip id so it doesn't cause read-only or type errors
+        data.pop('id', None)
+
         for img_field in ['cover_image', 'custom_card_bg']:
             img_val = data.get(img_field)
             if isinstance(img_val, str) or img_val is None or img_val == '':
@@ -72,19 +85,29 @@ class PackSerializer(serializers.ModelSerializer):
 
         # Sanitize optional datetime fields
         for dt in ['available_from', 'available_until']:
-            val = data.get(dt)
-            if val == '' or val == 'null' or val == 'undefined' or val is None:
-                data.pop(dt, None)
+            if dt in data:
+                val = data.get(dt)
+                if val in ('', 'null', 'undefined', 'None', None) or str(val).strip() == '':
+                    data[dt] = None
 
         # Sanitize numbers
         for num in ['cost_usd', 'cost_irr', 'cost_gems', 'sort_order']:
-            val = data.get(num)
-            if val == '' or val is None:
-                data[num] = 0
+            if num in data:
+                val = data.get(num)
+                val_str = str(val).strip().lower()
+                if val in ('', None) or val_str in ('', 'null', 'undefined', 'none', 'nan'):
+                    data[num] = 0
 
         # Sanitize boolean fields sent as strings from FormData
         if 'is_active' in data:
             data['is_active'] = str(data['is_active']).lower() in ['true', '1', 'yes']
+
+        # Sanitize string fields to avoid literal "null"
+        for str_field in ['description', 'ovr_range_text', 'featured_team']:
+            if str_field in data:
+                val = data.get(str_field)
+                if str(val).strip().lower() in ('null', 'undefined', 'none'):
+                    data[str_field] = ''
 
         return super().to_internal_value(data)
 

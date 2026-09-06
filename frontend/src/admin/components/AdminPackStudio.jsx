@@ -68,7 +68,7 @@ const formatDateForInput = (iso) => {
 
 export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
   // Current active sub-panel in the right column: 'blueprint' | 'designer' | 'roster'
-  const [studioTab, setStudioTab] = useState('designer');
+  const [studioTab, setStudioTab] = useState(pack?.id ? 'designer' : 'blueprint');
 
   // Pack Blueprint Form State
   const [packData, setPackData] = useState({
@@ -200,10 +200,11 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
   };
 
   useEffect(() => {
-    if (pack?.id) {
-      fetchPackPlayers(pack.id);
+    const activeId = packData.id || pack?.id;
+    if (activeId && String(activeId).toLowerCase() !== 'null') {
+      fetchPackPlayers(activeId);
     }
-  }, [pack?.id]);
+  }, [packData.id, pack?.id]);
 
   // Load a player into the designer and live 3D preview
   const selectPlayerForPreview = (player) => {
@@ -335,11 +336,14 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     setSavingPack(true);
     const formData = new FormData();
     Object.keys(packData).forEach((key) => {
+      if (key === 'id') return; // Do not append id to FormData
       const val = packData[key];
       if ((key === 'available_from' || key === 'available_until') && (!val || val === '')) {
         return;
       }
-      formData.append(key, val);
+      if (val !== undefined && val !== null && val !== 'null' && val !== 'undefined') {
+        formData.append(key, val);
+      }
     });
 
     if (packCoverFile) {
@@ -351,23 +355,31 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
 
     try {
       let res;
-      if (packData.id) {
+      const hasValidId = packData.id && String(packData.id).toLowerCase() !== 'null';
+      if (hasValidId) {
         res = await gachaApi.adminUpdatePack(packData.id, formData);
-        showToast(`پک «${packData.name}» به‌روزرسانی شد.`);
+        showToast(`پک «${packData.name}» با موفقیت به‌روزرسانی شد.`);
       } else {
         res = await gachaApi.adminCreatePack(formData);
         const newPack = res.data?.pack || res.data;
         if (newPack?.id) {
           setPackData((prev) => ({ ...prev, id: newPack.id }));
-          showToast(`پک «${newPack.name}» ایجاد شد. اکنون بازیکنان را اضافه کنید.`);
+          showToast(`پک «${newPack.name}» با موفقیت ایجاد شد. اکنون می‌توانید بازیکنان را به این پک اضافه کنید.`);
+          setStudioTab('designer');
+          fetchPackPlayers(newPack.id);
         }
       }
       if (onPackSaved) onPackSaved(res.data?.pack || res.data);
     } catch (err) {
-      const errDetail = err.response?.data?.details
-        ? JSON.stringify(err.response.data.details)
-        : err.response?.data?.error || 'خطا در ذخیره‌سازی پک.';
-      showToast(errDetail, 'error');
+      const errData = err.response?.data;
+      let msg = errData?.error || 'خطا در ذخیره‌سازی پک.';
+      if (errData?.details) {
+        const detailsStr = typeof errData.details === 'object'
+          ? Object.entries(errData.details).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' | ')
+          : String(errData.details);
+        msg += ` (${detailsStr})`;
+      }
+      showToast(msg, 'error');
     } finally {
       setSavingPack(false);
     }
@@ -376,8 +388,9 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
   // Save or Add Player to Pack Roster
   const handleSavePlayer = async (e) => {
     if (e) e.preventDefault();
-    if (!packData.id) {
-      showToast('لطفاً ابتدا پک را با دکمه «ذخیره مشخصات پک» ثبت کنید تا بازیکنان به آن متصل شوند.', 'error');
+    const activePackId = packData.id || pack?.id;
+    if (!activePackId || String(activePackId).toLowerCase() === 'null') {
+      showToast('لطفاً ابتدا مشخصات پک را در تب «مشخصات اصلی پک» ذخیره کنید تا شناسه پک ایجاد شود.', 'error');
       setStudioTab('blueprint');
       return;
     }
@@ -389,7 +402,11 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     setSavingPlayer(true);
     const formData = new FormData();
     Object.keys(playerForm).forEach((key) => {
-      formData.append(key, playerForm[key]);
+      if (key === 'id') return;
+      const val = playerForm[key];
+      if (val !== undefined && val !== null && val !== 'null' && val !== 'undefined') {
+        formData.append(key, val);
+      }
     });
     if (playerPhotoFile) {
       formData.append('card_image', playerPhotoFile);
@@ -400,18 +417,25 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
 
     try {
       if (editingPlayerId) {
-        await gachaApi.adminUpdatePackPlayer(packData.id, editingPlayerId, formData);
+        await gachaApi.adminUpdatePackPlayer(activePackId, editingPlayerId, formData);
         showToast(`کارت «${playerForm.name}» با موفقیت به‌روز شد.`);
       } else {
-        await gachaApi.adminAddPackPlayer(packData.id, formData);
+        await gachaApi.adminAddPackPlayer(activePackId, formData);
         showToast(`کارت «${playerForm.name}» به استخر پک افزوده شد.`);
       }
-      await fetchPackPlayers(packData.id);
+      await fetchPackPlayers(activePackId);
       handleResetPlayerForm();
       setStudioTab('roster');
     } catch (err) {
-      const errText = err.response?.data?.error || 'خطا در ذخیره‌سازی بازیکن.';
-      showToast(errText, 'error');
+      const errData = err.response?.data;
+      let msg = errData?.error || 'خطا در ذخیره‌سازی بازیکن.';
+      if (errData?.details) {
+        const detailsStr = typeof errData.details === 'object'
+          ? Object.entries(errData.details).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join(' | ')
+          : String(errData.details);
+        msg += ` (${detailsStr})`;
+      }
+      showToast(msg, 'error');
     } finally {
       setSavingPlayer(false);
     }

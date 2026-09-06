@@ -10,6 +10,7 @@ import { seasonPassApi, gachaApi } from '../../services/api';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import ConfirmModal from '../common/ConfirmModal';
+import AdminPackStudio from '../../admin/components/AdminPackStudio';
 
 const HUB_TABS = [
   { id: 'pass_levels', label: '🏆 سطوح و پاداش‌های سیزن پس', icon: Crown },
@@ -46,6 +47,8 @@ export default function AdminPacksSeasonPassHub() {
 
   const [editingPack, setEditingPack] = useState(null);
   const [showPackModal, setShowPackModal] = useState(false);
+  const [studioOpen, setStudioOpen] = useState(false);
+  const [studioPack, setStudioPack] = useState(null);
 
   const [taskFilterWeek, setTaskFilterWeek] = useState('ALL');
 
@@ -284,6 +287,22 @@ export default function AdminPacksSeasonPassHub() {
   const filteredTasks = taskFilterWeek === 'ALL'
     ? weeklyTasks
     : weeklyTasks.filter(t => String(t.week_number) === String(taskFilterWeek));
+
+  if (studioOpen) {
+    return (
+      <AdminPackStudio
+        pack={studioPack}
+        onClose={() => {
+          setStudioOpen(false);
+          setStudioPack(null);
+          loadData();
+        }}
+        onPackSaved={() => {
+          loadData();
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 font-sans dir-rtl text-slate-200">
@@ -659,13 +678,25 @@ export default function AdminPacksSeasonPassHub() {
                 پک‌های برنز، نقره و لجندری با استخر بازیکنان مستقل و قابلیت انتخاب ۱ از ۳ کارت
               </p>
             </div>
-            <a
-              href="/admin/packs"
-              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg cursor-pointer"
-            >
-              <Sparkles size={16} />
-              <span>مدیریت کامل و استخر بازیکنان (Admin Suite)</span>
-            </a>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setStudioPack(null);
+                  setStudioOpen(true);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-xs flex items-center gap-2 shadow-lg cursor-pointer hover:scale-105 transition"
+              >
+                <Sparkles size={16} />
+                <span>🎙️ استودیوی ساخت پک (FC Studio)</span>
+              </button>
+              <a
+                href="/admin/packs"
+                className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>صفحه مستقل پک‌ها</span>
+              </a>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
@@ -719,13 +750,17 @@ export default function AdminPacksSeasonPassHub() {
                 </div>
 
                 <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-                  <a
-                    href="/admin/packs"
-                    className="text-cyan-400 hover:text-cyan-300 text-xs font-bold flex items-center gap-1"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStudioPack(pack);
+                      setStudioOpen(true);
+                    }}
+                    className="text-cyan-400 hover:text-cyan-300 text-xs font-bold flex items-center gap-1 cursor-pointer"
                   >
-                    <span>ویرایش و مدیریت بازیکنان استخر</span>
+                    <span>استودیو ۳ بعدی و استخر</span>
                     <ChevronRight size={14} className="rotate-180" />
-                  </a>
+                  </button>
 
                   <button
                     onClick={() => handleDeletePack(pack)}

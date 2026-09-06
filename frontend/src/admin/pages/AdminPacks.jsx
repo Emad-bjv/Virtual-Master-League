@@ -248,19 +248,22 @@ export default function AdminPacks() {
     e.preventDefault();
     const data = new FormData();
     Object.keys(packFormData).forEach((key) => {
+      if (key === 'id') return;
       const val = packFormData[key];
       // Skip empty optional datetimes so backend doesn't receive empty string
       if ((key === 'available_from' || key === 'available_until') && (!val || val === '')) {
         return;
       }
-      data.append(key, val !== undefined && val !== null ? val : '');
+      if (val !== undefined && val !== null && val !== 'null' && val !== 'undefined') {
+        data.append(key, val);
+      }
     });
     if (coverImageFile) {
       data.append('cover_image', coverImageFile);
     }
 
     try {
-      if (editingPack) {
+      if (editingPack && editingPack.id) {
         await gachaApi.adminUpdatePack(editingPack.id, data);
         notify(`پک «${packFormData.name}» با موفقیت ویرایش شد.`);
       } else {

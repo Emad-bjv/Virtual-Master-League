@@ -147,9 +147,18 @@ class AdminPackListView(views.APIView):
 
     def post(self, request):
         pack_id = request.data.get('id')
-        if pack_id:
+        valid_id = None
+        if pack_id is not None:
             try:
-                pack = Pack.objects.get(id=pack_id)
+                val_str = str(pack_id).strip().lower()
+                if val_str not in ('', 'null', 'undefined', 'none', '0'):
+                    valid_id = int(val_str)
+            except (ValueError, TypeError):
+                valid_id = None
+
+        if valid_id:
+            try:
+                pack = Pack.objects.get(id=valid_id)
                 serializer = PackSerializer(pack, data=request.data, partial=True)
                 if serializer.is_valid():
                     updated_pack = serializer.save()
