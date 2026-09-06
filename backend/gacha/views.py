@@ -3,6 +3,9 @@ from rest_framework import generics, status, views, permissions
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.utils import timezone
+from django.db import transaction
+from teams.models import Player
+from audit.utils import log_admin_action
 from .models import Pack, PackPlayer, PackOpeningSession
 from .serializers import PackSerializer, PackPlayerSerializer, PackOpeningSessionSerializer
 from .services import open_pack, pick_card, expire_all_stale_sessions
@@ -394,6 +397,140 @@ class AdminPackPlayerDetailView(views.APIView):
             return Response({'success': True, 'message': f'بازیکن «{player_name}» از پک حذف شد.'})
         except PackPlayer.DoesNotExist:
             return Response({'error': 'بازیکن یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class AdminPackPlayerReturnView(views.APIView):
+    """
+    Admin endpoint to return a claimed player back to the pack pool,
+    removing the created concrete player from the team they were added to.
+    """
+    permission_classes = [IsAdminRole]
+
+    def post(self, request, pack_id, player_id):
+        try:
+            player = PackPlayer.objects.select_related('pack', 'claimed_by_team').get(pk=player_id, pack_id=pack_id)
+        except PackPlayer.DoesNotExist:
+            return Response({'error': 'بازیکن در این پک یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not player.is_claimed:
+            return Response({'error': 'این بازیکن دریافت نشده و هم‌اکنون در استخر پک موجود است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        team = player.claimed_by_team
+        team_name = team.name if team else 'تیم نامشخص'
+        player_name = player.name
+
+        with transaction.atomic():
+            # 1. Delete concrete player created from pack session in that team
+            sessions = PackOpeningSession.objects.filter(picked_card=player)
+            removed_concrete = False
+            for s in sessions:
+                if s.created_player:
+                    try:
+                        p_to_del = s.created_player
+                        s.created_player = None
+                        s.save(update_fields=['created_player'])
+                        p_to_del.delete()
+                        removed_concrete = True
+                    except Exception:
+                        pass
+
+            # Fallback: if no session link or player still exists in team
+            if team:
+                concrete_matches = Player.objects.filter(team=team, name__iexact=player.name, position=player.position)
+                for cp in concrete_matches:
+                    cp.delete()
+                    removed_concrete = True
+
+            # 2. Reset PackPlayer status
+            player.is_claimed = False
+            player.claimed_by_team = None
+            player.claimed_at = None
+            player.save(update_fields=['is_claimed', 'claimed_by_team', 'claimed_at'])
+
+            # 3. Update team star rating
+            if team:
+                try:
+                    team.update_star_rating(save=True)
+                except Exception:
+                    pass
+
+            # 4. Audit log
+            try:
+                log_admin_action(
+                    admin_user=request.user,
+                    action_type='PACK_PLAYER_RETURNED',
+                    target_team=team,
+                    before_value=f"{player_name} claimed by {team_name}",
+                    after_value=f"{player_name} returned to pack {player.pack.name}",
+                    reason=f"Admin returned {player_name} from {team_name} back to {player.pack.name}"
+                )
+            except Exception:
+                pass
+
+        return Response({
+            'success': True,
+            'message': f'بازیکن «{player_name}» با موفقیت از ترکیب «{team_name}» حذف شد و به استخر پک «{player.pack.name}» بازگردانده شد.',
+            'player': PackPlayerSerializer(player).data
+        })
+
+
+class AdminPackPlayersReturnAllView(views.APIView):
+    """
+    Admin endpoint to return all claimed players of a pack back to the pool,
+    removing them from their respective teams.
+    """
+    permission_classes = [IsAdminRole]
+
+    def post(self, request, pack_id):
+        try:
+            pack = Pack.objects.get(pk=pack_id)
+        except Pack.DoesNotExist:
+            return Response({'error': 'پک یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        claimed_players = list(pack.players.filter(is_claimed=True).select_related('claimed_by_team'))
+        if not claimed_players:
+            return Response({'error': 'هیچ بازیکن جذب‌شده‌ای در این پک وجود ندارد.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        returned_count = 0
+        affected_teams = set()
+
+        with transaction.atomic():
+            for player in claimed_players:
+                team = player.claimed_by_team
+                if team:
+                    affected_teams.add(team)
+
+                sessions = PackOpeningSession.objects.filter(picked_card=player)
+                for s in sessions:
+                    if s.created_player:
+                        try:
+                            p_to_del = s.created_player
+                            s.created_player = None
+                            s.save(update_fields=['created_player'])
+                            p_to_del.delete()
+                        except Exception:
+                            pass
+
+                if team:
+                    Player.objects.filter(team=team, name__iexact=player.name, position=player.position).delete()
+
+                player.is_claimed = False
+                player.claimed_by_team = None
+                player.claimed_at = None
+                player.save(update_fields=['is_claimed', 'claimed_by_team', 'claimed_at'])
+                returned_count += 1
+
+            for t in affected_teams:
+                try:
+                    t.update_star_rating(save=True)
+                except Exception:
+                    pass
+
+        return Response({
+            'success': True,
+            'message': f'تعداد {returned_count} بازیکن جذب‌شده با موفقیت از ترکیب تیم‌ها حذف و به استخر پک «{pack.name}» بازگردانده شدند.',
+            'returned_count': returned_count
+        })
 
 
 class AdminPackSessionsView(views.APIView):

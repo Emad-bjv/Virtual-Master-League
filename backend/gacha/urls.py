@@ -9,6 +9,8 @@ from .views import (
     AdminPackPlayersView,
     AdminPackPlayersBulkView,
     AdminPackPlayerDetailView,
+    AdminPackPlayerReturnView,
+    AdminPackPlayersReturnAllView,
     AdminPackSessionsView
 )
 
@@ -31,5 +33,7 @@ urlpatterns = [
     path('gacha/admin/packs/<int:pack_id>/players/', AdminPackPlayersView.as_view(), name='admin-pack-players'),
     path('gacha/admin/packs/<int:pack_id>/players/bulk/', AdminPackPlayersBulkView.as_view(), name='admin-pack-players-bulk'),
     path('gacha/admin/packs/<int:pack_id>/players/<int:player_id>/', AdminPackPlayerDetailView.as_view(), name='admin-pack-player-delete'),
+    path('gacha/admin/packs/<int:pack_id>/players/<int:player_id>/return/', AdminPackPlayerReturnView.as_view(), name='admin-pack-player-return'),
+    path('gacha/admin/packs/<int:pack_id>/players/return-all/', AdminPackPlayersReturnAllView.as_view(), name='admin-pack-players-return-all'),
     path('gacha/admin/sessions/', AdminPackSessionsView.as_view(), name='admin-pack-sessions'),
 ]

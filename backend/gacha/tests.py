@@ -104,3 +104,40 @@ class PackSystemTestCase(TestCase):
         self.assertEqual(self.team.gems, 500)
         session.refresh_from_db()
         self.assertEqual(session.status, 'EXPIRED')
+
+    def test_admin_return_claimed_player_to_pack(self):
+        from rest_framework.test import APIClient
+        from users.models import User
+
+        admin_user = User.objects.create_superuser(username='admin_pack_test', email='admin@test.com', password='password123')
+        client = APIClient()
+        client.force_authenticate(user=admin_user)
+
+        # 1. Open and pick a card so player is in team
+        open_res = open_pack(self.team.id, self.pack.id, payment_method='GEMS')
+        selected_card_id = open_res['cards'][0]['id']
+        pick_res = pick_card(session_id=open_res['session_id'], pack_player_id=selected_card_id, team_id=self.team.id)
+        self.assertTrue(pick_res['success'])
+
+        self.assertEqual(self.team.players.count(), 1)
+        pack_player = PackPlayer.objects.get(id=selected_card_id)
+        self.assertTrue(pack_player.is_claimed)
+        self.assertEqual(pack_player.claimed_by_team, self.team)
+
+        # 2. Call admin return endpoint
+        url = f"/api/gacha/admin/packs/{self.pack.id}/players/{pack_player.id}/return/"
+        res = client.post(url)
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertTrue(res.data['success'])
+
+        # 3. Verify player was deleted from team
+        self.assertEqual(self.team.players.count(), 0)
+
+        # 4. Verify pack_player is reset to unclaimed in pack pool
+        pack_player.refresh_from_db()
+        self.assertFalse(pack_player.is_claimed)
+        self.assertIsNone(pack_player.claimed_by_team)
+        self.assertIsNone(pack_player.claimed_at)
+
+        # 5. Verify pack has all 5 players available again
+        self.assertEqual(self.pack.players.filter(is_claimed=False).count(), 5)

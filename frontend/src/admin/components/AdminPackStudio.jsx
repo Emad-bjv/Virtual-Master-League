@@ -459,6 +459,47 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     }
   };
 
+  // Return Claimed Player to Pack Pool & Remove from Team
+  const [returningPlayerId, setReturningPlayerId] = useState(null);
+  const [isReturningAll, setIsReturningAll] = useState(false);
+
+  const handleReturnPlayerToPack = async (player) => {
+    const teamName = player.claimed_by_team_name || 'تیم خریدار';
+    if (!window.confirm(`آیا از بازگرداندن بازیکن «${player.name}» به استخر این پک و حذف کامل او از ترکیب تیم «${teamName}» اطمینان دارید؟\n\nبا تایید، این بازیکن از لیست بازیکنان تیم حذف شده و کارت دوباره در این پک برای جذب در دسترس قرار می‌گیرد.`)) {
+      return;
+    }
+
+    const activePackId = packData.id || pack?.id;
+    setReturningPlayerId(player.id);
+    try {
+      const res = await gachaApi.adminReturnPackPlayer(activePackId, player.id);
+      showToast(res.data?.message || `بازیکن «${player.name}» از تیم حذف شد و به پک بازگشت.`);
+      await fetchPackPlayers(activePackId);
+    } catch (err) {
+      showToast(err.response?.data?.error || 'خطا در بازگرداندن بازیکن به پک.', 'error');
+    } finally {
+      setReturningPlayerId(null);
+    }
+  };
+
+  const handleReturnAllPlayersToPack = async () => {
+    const activePackId = packData.id || pack?.id;
+    if (!window.confirm(`هشدار: آیا مطمئن هستید که می‌خواهید تمام بازیکنان جذب‌شده این پک (${rosterStats.claimed} بازیکن) را از ترکیب تیم‌ها حذف کرده و به استخر پک بازگردانید؟`)) {
+      return;
+    }
+
+    setIsReturningAll(true);
+    try {
+      const res = await gachaApi.adminReturnAllPackPlayers(activePackId);
+      showToast(res.data?.message || 'تمامی بازیکنان جذب‌شده با موفقیت به پک بازگردانده شدند.');
+      await fetchPackPlayers(activePackId);
+    } catch (err) {
+      showToast(err.response?.data?.error || 'خطا در بازگرداندن بازیکنان به پک.', 'error');
+    } finally {
+      setIsReturningAll(false);
+    }
+  };
+
   // Bulk JSON Upload
   const handleBulkUpload = async () => {
     if (!packData.id) {
@@ -1319,6 +1360,19 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {rosterStats.claimed > 0 && (
+                    <button
+                      type="button"
+                      disabled={isReturningAll}
+                      onClick={handleReturnAllPlayersToPack}
+                      className="px-3 py-1.5 rounded-xl bg-amber-950/80 hover:bg-amber-900 text-amber-200 border border-amber-500/40 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      title="حذف همه بازیکنان جذب‌شده از تیم‌ها و بازگرداندن به استخر این پک"
+                    >
+                      <RotateCcw size={14} className={isReturningAll ? 'animate-spin' : ''} />
+                      <span>{isReturningAll ? 'در حال بازگردانی...' : `بازگرداندن همه جذب‌شده‌ها (${rosterStats.claimed})`}</span>
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => {
@@ -1426,9 +1480,21 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                             <td className="p-2.5 font-sport font-black text-amber-300">{player.overall}</td>
                             <td className="p-2.5">
                               {player.is_claimed ? (
-                                <span className="px-2 py-0.5 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-600/40">
-                                  جذب توسط: {player.claimed_by_team_name || 'تیم'}
-                                </span>
+                                <div className="flex flex-col gap-1 items-start">
+                                  <span className="px-2 py-0.5 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-600/40">
+                                    جذب توسط: {player.claimed_by_team_name || 'تیم'}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    disabled={returningPlayerId === player.id}
+                                    onClick={() => handleReturnPlayerToPack(player)}
+                                    className="px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 hover:text-amber-200 border border-amber-500/40 text-[9.5px] font-bold flex items-center gap-1 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                                    title="حذف بازیکن از ترکیب تیم و بازگرداندن به پک"
+                                  >
+                                    <RotateCcw size={11} className={returningPlayerId === player.id ? 'animate-spin' : ''} />
+                                    <span>{returningPlayerId === player.id ? 'در حال بازگردانی...' : 'بازگرداندن به پک'}</span>
+                                  </button>
+                                </div>
                               ) : (
                                 <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-600/40">
                                   موجود در پک
@@ -1437,6 +1503,18 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                             </td>
                             <td className="p-2.5">
                               <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                {player.is_claimed && (
+                                  <button
+                                    type="button"
+                                    disabled={returningPlayerId === player.id}
+                                    onClick={() => handleReturnPlayerToPack(player)}
+                                    className="p-1.5 rounded-lg bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 hover:text-amber-100 transition cursor-pointer border border-amber-500/30 flex items-center gap-1 text-[10.5px]"
+                                    title="حذف بازیکن از ترکیب تیم و بازگرداندن به پک"
+                                  >
+                                    <RotateCcw size={13} className={returningPlayerId === player.id ? 'animate-spin' : ''} />
+                                    <span className="hidden sm:inline">بازگردانی</span>
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => selectPlayerForPreview(player)}
