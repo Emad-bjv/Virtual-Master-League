@@ -8,7 +8,7 @@ class StorePackageSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'currency_type', 'reward_amount', 'usd_amount',
             'price_irr', 'is_active', 'description', 'icon_code',
-            'bonus_amount', 'sort_order', 'created_at'
+            'badge_tag', 'bonus_amount', 'sort_order', 'created_at'
         ]
         read_only_fields = ['created_at']
 
@@ -36,10 +36,10 @@ class PaymentRequestSerializer(serializers.ModelSerializer):
         model = PaymentRequest
         fields = [
             'id', 'team', 'team_name', 'package', 'package_name',
-            'currency_type', 'reward_amount', 'amount_irr', 'usd_amount', 'receipt_image',
+            'currency_type', 'reward_amount', 'bonus_amount', 'amount_irr', 'usd_amount', 'receipt_image',
             'status', 'admin_note', 'created_at', 'reviewed_at'
         ]
-        read_only_fields = ['team', 'team_name', 'currency_type', 'reward_amount', 'amount_irr', 'usd_amount',
+        read_only_fields = ['team', 'team_name', 'currency_type', 'reward_amount', 'bonus_amount', 'amount_irr', 'usd_amount',
                             'status', 'admin_note', 'created_at', 'reviewed_at']
 
 

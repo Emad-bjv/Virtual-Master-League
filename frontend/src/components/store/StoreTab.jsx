@@ -20,6 +20,7 @@ import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import rareCardBg from '../../assets/cards/rare_card_bg.png';
 import epicCardBg from '../../assets/cards/epic_card_bg.png';
 import legendaryCardBg from '../../assets/cards/legendary_card_bg.png';
+import { PACKAGE_TAGS } from '../../utils/storePackageTags';
 
 const STORE_SUBNAV = [
   { id: 'gems', label: 'الماس (جم 💎)' },
@@ -386,16 +387,61 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
           {gemPackages.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 text-xs">
               {gemPackages.map((pkg) => {
-                const amount = pkg.reward_amount || pkg.usd_amount || 0;
+                const baseAmount = Number(pkg.reward_amount || pkg.usd_amount || 0);
+                const bonusAmount = Number(pkg.bonus_amount || 0);
+                const totalAmount = baseAmount + bonusAmount;
+                const tagData = pkg.badge_tag && PACKAGE_TAGS[pkg.badge_tag];
+
                 return (
-                  <div key={pkg.id} className="fc-card p-4 rounded-3xl border border-cyan-500/40 hover:border-cyan-400 text-center space-y-3 bg-gradient-to-b from-cyan-950/40 via-purple-950/30 to-[#05080e] shadow-[0_0_20px_rgba(0,243,255,0.15)] hover:shadow-[0_0_25px_rgba(0,243,255,0.3)] transition-all">
-                    <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-cyan-600 to-purple-600 border border-cyan-300/40 flex items-center justify-center text-white shadow-[0_0_15px_rgba(0,243,255,0.4)]">
+                  <div
+                    key={pkg.id}
+                    className={`fc-card p-4 rounded-3xl border text-center space-y-3 bg-gradient-to-b from-cyan-950/40 via-purple-950/30 to-[#05080e] transition-all relative overflow-hidden flex flex-col justify-between ${
+                      tagData
+                        ? `${tagData.border} ${tagData.shadow}`
+                        : 'border-cyan-500/40 hover:border-cyan-400 shadow-[0_0_20px_rgba(0,243,255,0.15)] hover:shadow-[0_0_25px_rgba(0,243,255,0.3)]'
+                    }`}
+                  >
+                    {/* Floating Neon Badge Tag */}
+                    {tagData && (
+                      <div className="absolute top-2.5 right-2.5 z-10">
+                        <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${tagData.badgeClass}`}>
+                          {tagData.label}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Icon */}
+                    <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-cyan-600 to-purple-600 border border-cyan-300/40 flex items-center justify-center text-white shadow-[0_0_15px_rgba(0,243,255,0.4)] mt-1 shrink-0">
                       <Gem size={24} className="text-cyan-200 animate-pulse" />
                     </div>
-                    <div>
+
+                    {/* Titles and Amounts */}
+                    <div className="space-y-1.5 flex-1 flex flex-col justify-center">
                       <span className="font-black text-white text-sm block tracking-tight">{pkg.name}</span>
-                      <span className="text-[12px] text-cyan-300 font-black font-sport dir-ltr block mt-0.5">+{Number(amount).toLocaleString('fa-IR')} 💎 الماس</span>
+                      
+                      {/* Base Amount */}
+                      <span className="text-[13px] text-cyan-300 font-black font-sport dir-ltr block">
+                        +{baseAmount.toLocaleString('fa-IR')} 💎 الماس
+                      </span>
+
+                      {/* Bonus Reward Badge & Total */}
+                      {bonusAmount > 0 && (
+                        <div className="space-y-1 pt-1.5 border-t border-cyan-500/20">
+                          <span className="inline-flex items-center gap-1 text-[10.5px] font-black font-sport dir-ltr text-amber-300 bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-lg animate-pulse">
+                            <span>🎁 +{bonusAmount.toLocaleString('fa-IR')} هدیه</span>
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-bold block">
+                            مجموع دریافتی: {totalAmount.toLocaleString('fa-IR')} جم
+                          </span>
+                        </div>
+                      )}
+
+                      {pkg.description && (
+                        <p className="text-[10px] text-slate-400 line-clamp-1">{pkg.description}</p>
+                      )}
                     </div>
+
+                    {/* Action Button */}
                     <button
                       onClick={() => handleStartPayment(pkg)}
                       className="fc-btn-cyan text-slate-950 px-3 py-2 rounded-2xl font-black w-full transition-all shadow-md font-sport cursor-pointer"
@@ -436,16 +482,61 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
           {dollarPackages.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 text-xs">
               {dollarPackages.map((pkg) => {
-                const amount = pkg.reward_amount || pkg.usd_amount || 0;
+                const baseAmount = Number(pkg.reward_amount || pkg.usd_amount || 0);
+                const bonusAmount = Number(pkg.bonus_amount || 0);
+                const totalAmount = baseAmount + bonusAmount;
+                const tagData = pkg.badge_tag && PACKAGE_TAGS[pkg.badge_tag];
+
                 return (
-                  <div key={pkg.id} className="fc-card p-4 rounded-3xl border border-amber-500/40 hover:border-amber-400 text-center space-y-3 bg-gradient-to-b from-amber-950/40 via-slate-900 to-[#05080e] shadow-[0_0_20px_rgba(245,158,11,0.15)] hover:shadow-[0_0_25px_rgba(245,158,11,0.3)] transition-all">
-                    <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-amber-600 to-yellow-500 border border-amber-300/40 flex items-center justify-center text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.4)]">
+                  <div
+                    key={pkg.id}
+                    className={`fc-card p-4 rounded-3xl border text-center space-y-3 bg-gradient-to-b from-amber-950/40 via-slate-900 to-[#05080e] transition-all relative overflow-hidden flex flex-col justify-between ${
+                      tagData
+                        ? `${tagData.border} ${tagData.shadow}`
+                        : 'border-amber-500/40 hover:border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.15)] hover:shadow-[0_0_25px_rgba(245,158,11,0.3)]'
+                    }`}
+                  >
+                    {/* Floating Neon Badge Tag */}
+                    {tagData && (
+                      <div className="absolute top-2.5 right-2.5 z-10">
+                        <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${tagData.badgeClass}`}>
+                          {tagData.label}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Icon */}
+                    <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-tr from-amber-600 to-yellow-500 border border-amber-300/40 flex items-center justify-center text-slate-950 shadow-[0_0_15px_rgba(245,158,11,0.4)] mt-1 shrink-0">
                       <Coins size={24} className="text-slate-950" />
                     </div>
-                    <div>
+
+                    {/* Titles and Amounts */}
+                    <div className="space-y-1.5 flex-1 flex flex-col justify-center">
                       <span className="font-black text-white text-sm block tracking-tight">{pkg.name}</span>
-                      <span className="text-[12px] text-amber-300 font-black font-sport dir-ltr block mt-0.5">+${Number(amount).toLocaleString('fa-IR')} USD</span>
+                      
+                      {/* Base Amount */}
+                      <span className="text-[13px] text-amber-300 font-black font-sport dir-ltr block">
+                        +${baseAmount.toLocaleString('fa-IR')} USD
+                      </span>
+
+                      {/* Bonus Reward Badge & Total */}
+                      {bonusAmount > 0 && (
+                        <div className="space-y-1 pt-1.5 border-t border-amber-500/20">
+                          <span className="inline-flex items-center gap-1 text-[10.5px] font-black font-sport dir-ltr text-amber-300 bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 rounded-lg animate-pulse">
+                            <span>🎁 +${bonusAmount.toLocaleString('fa-IR')} هدیه</span>
+                          </span>
+                          <span className="text-[10px] text-emerald-400 font-bold block">
+                            مجموع دریافتی: ${totalAmount.toLocaleString('fa-IR')}
+                          </span>
+                        </div>
+                      )}
+
+                      {pkg.description && (
+                        <p className="text-[10px] text-slate-400 line-clamp-1">{pkg.description}</p>
+                      )}
                     </div>
+
+                    {/* Action Button */}
                     <button
                       onClick={() => handleStartPayment(pkg)}
                       className="fc-btn-gold text-slate-950 px-3 py-2 rounded-2xl font-black w-full transition-all shadow-md font-sport cursor-pointer"
@@ -721,7 +812,7 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                   {req.status === 'AWAITING_RECEIPT' && (
                     <button
                       onClick={() => {
-                        setSelectedCoinPkg({ id: req.package, name: req.package_name, price_irr: req.amount_irr, usd_amount: req.usd_amount, reward_amount: req.reward_amount, currency_type: req.currency_type });
+                        setSelectedCoinPkg({ id: req.package, name: req.package_name, price_irr: req.amount_irr, usd_amount: req.usd_amount, reward_amount: req.reward_amount, bonus_amount: req.bonus_amount, currency_type: req.currency_type });
                         setCurrentPaymentReq({ payment_request_id: req.id });
                         setPaymentStep(2);
                       }}
@@ -1276,17 +1367,38 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                 </div>
 
                 {/* Selected Package Summary */}
-                <div className="p-3 rounded-2xl bg-slate-900/90 border border-cyan-500/30 flex justify-between items-center">
+                <div className="p-3.5 rounded-2xl bg-slate-900/90 border border-cyan-500/30 flex justify-between items-center gap-2">
                   <div>
-                    <span className="text-slate-400 text-[10.5px] block">بسته انتخابی:</span>
-                    <strong className="text-white font-bold text-sm block">{selectedCoinPkg.name}</strong>
-                    <span className="text-cyan-300 font-bold text-xs dir-ltr font-sport mt-0.5 inline-block">
-                      {selectedCoinPkg.currency_type === 'GEMS'
-                        ? `+${selectedCoinPkg.reward_amount || selectedCoinPkg.usd_amount} 💎 الماس`
-                        : `+$${Number(selectedCoinPkg.reward_amount || selectedCoinPkg.usd_amount || 0).toLocaleString('fa-IR')} USD`}
-                    </span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-slate-400 text-[10.5px] block">بسته انتخابی:</span>
+                      {selectedCoinPkg.badge_tag && PACKAGE_TAGS[selectedCoinPkg.badge_tag] && (
+                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-black ${PACKAGE_TAGS[selectedCoinPkg.badge_tag].badgeClass}`}>
+                          {PACKAGE_TAGS[selectedCoinPkg.badge_tag].shortLabel}
+                        </span>
+                      )}
+                    </div>
+                    <strong className="text-white font-bold text-sm block mt-0.5">{selectedCoinPkg.name}</strong>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                      <span className="text-cyan-300 font-bold text-xs dir-ltr font-sport">
+                        {selectedCoinPkg.currency_type === 'GEMS'
+                          ? `+${Number(selectedCoinPkg.reward_amount || selectedCoinPkg.usd_amount || 0).toLocaleString('fa-IR')} 💎 الماس`
+                          : `+$${Number(selectedCoinPkg.reward_amount || selectedCoinPkg.usd_amount || 0).toLocaleString('fa-IR')} USD`}
+                      </span>
+                      {Number(selectedCoinPkg.bonus_amount || 0) > 0 && (
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-lg font-black font-sport dir-ltr animate-pulse">
+                          +{Number(selectedCoinPkg.bonus_amount).toLocaleString('fa-IR')} هدیه 🎁
+                        </span>
+                      )}
+                    </div>
+                    {Number(selectedCoinPkg.bonus_amount || 0) > 0 && (
+                      <span className="text-[10px] text-emerald-400 font-bold block mt-1">
+                        مجموع شارژ تیم شما: {selectedCoinPkg.currency_type === 'GEMS'
+                          ? `${(Number(selectedCoinPkg.reward_amount || selectedCoinPkg.usd_amount || 0) + Number(selectedCoinPkg.bonus_amount || 0)).toLocaleString('fa-IR')} جم 💎`
+                          : `$${(Number(selectedCoinPkg.reward_amount || selectedCoinPkg.usd_amount || 0) + Number(selectedCoinPkg.bonus_amount || 0)).toLocaleString('fa-IR')} USD`}
+                      </span>
+                    )}
                   </div>
-                  <div className="text-left space-y-1">
+                  <div className="text-left space-y-1 shrink-0">
                     <span className="text-slate-400 text-[10.5px] block">مبلغ واریزی (تومان):</span>
                     <div className="flex items-center gap-1.5 justify-end">
                       <strong className="text-amber-400 font-bold text-sm dir-ltr font-sport">
@@ -1411,9 +1523,12 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                   اطلاعات واریز شما برای ادمین ارسال شد. پس از بررسی و تایید، مبلغ{' '}
                   <strong className="text-cyan-300 dir-ltr font-sport">
                     {selectedCoinPkg?.currency_type === 'GEMS'
-                      ? `+${selectedCoinPkg?.reward_amount || selectedCoinPkg?.usd_amount} 💎 الماس`
-                      : `+$${Number(selectedCoinPkg?.reward_amount || selectedCoinPkg?.usd_amount || 0).toLocaleString('fa-IR')} USD`}
-                  </strong>{' '}
+                      ? `${(Number(selectedCoinPkg?.reward_amount || selectedCoinPkg?.usd_amount || 0) + Number(selectedCoinPkg?.bonus_amount || 0)).toLocaleString('fa-IR')} 💎 الماس`
+                      : `$${(Number(selectedCoinPkg?.reward_amount || selectedCoinPkg?.usd_amount || 0) + Number(selectedCoinPkg?.bonus_amount || 0)).toLocaleString('fa-IR')} USD`}
+                  </strong>
+                  {Number(selectedCoinPkg?.bonus_amount || 0) > 0 && (
+                    <span className="text-amber-300 font-bold"> (شامل {Number(selectedCoinPkg?.bonus_amount).toLocaleString('fa-IR')} پاداش هدیه)</span>
+                  )}{' '}
                   مستقیماً به حساب تیم شما افزوده خواهد شد.
                 </p>
 

@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.contrib import admin, messages
 from django.utils import timezone
 from django.db import transaction as db_transaction
@@ -12,20 +13,20 @@ class CardToCardSettingsAdmin(admin.ModelAdmin):
 
 @admin.register(StorePackage)
 class StorePackageAdmin(admin.ModelAdmin):
-    list_display = ('name', 'currency_type', 'reward_amount', 'usd_amount', 'price_irr', 'is_active', 'created_at')
-    list_filter = ('currency_type', 'is_active')
+    list_display = ('name', 'currency_type', 'reward_amount', 'bonus_amount', 'badge_tag', 'price_irr', 'is_active', 'created_at')
+    list_filter = ('currency_type', 'badge_tag', 'is_active')
     search_fields = ('name',)
 
 
 @admin.register(PaymentRequest)
 class PaymentRequestAdmin(admin.ModelAdmin):
-    list_display = ('id', 'team', 'package', 'currency_type', 'reward_amount', 'amount_irr', 'status', 'created_at', 'reviewed_at')
+    list_display = ('id', 'team', 'package', 'currency_type', 'reward_amount', 'bonus_amount', 'amount_irr', 'status', 'created_at', 'reviewed_at')
     list_filter = ('currency_type', 'status', 'created_at')
     search_fields = ('team__name', 'package__name', 'admin_note')
     readonly_fields = ('created_at', 'reviewed_at')
     actions = ['approve_payments', 'reject_payments']
 
-    @admin.action(description="تایید پرداخت‌های انتخاب‌شده و شارژ حساب تیم (جم یا دلار)")
+    @admin.action(description="تایید پرداخت‌های انتخاب‌شده و شارژ حساب تیم (جم یا دلار + پاداش هدیه)")
     def approve_payments(self, request, queryset):
         approved_count = 0
         for payment_req in queryset:
@@ -37,18 +38,21 @@ class PaymentRequestAdmin(admin.ModelAdmin):
 
                     team = payment_req.team
                     currency = payment_req.currency_type or 'BUDGET'
+                    base_amt = payment_req.reward_amount if (payment_req.reward_amount and payment_req.reward_amount > 0) else (payment_req.usd_amount or Decimal('0.00'))
+                    bonus_amt = payment_req.bonus_amount or Decimal('0.00')
+                    total_amt = base_amt + bonus_amt
                     
                     if currency == 'GEMS':
-                        gem_amount = int(payment_req.reward_amount or 0)
+                        gem_amount = int(total_amt)
                         team.gems += gem_amount
                         team.save(update_fields=['gems'])
                         txn_amount = Decimal(gem_amount)
                     else:
-                        budget_amount = payment_req.reward_amount if (payment_req.reward_amount and payment_req.reward_amount > 0) else payment_req.usd_amount
-                        team.budget += budget_amount
+                        team.budget += total_amt
                         team.save(update_fields=['budget'])
-                        txn_amount = budget_amount
+                        txn_amount = total_amt
 
+                    bonus_desc = f" (+{bonus_amt} هدیه)" if bonus_amt > 0 else ""
                     Transaction.objects.create(
                         team=team,
                         currency=currency,
@@ -56,7 +60,7 @@ class PaymentRequestAdmin(admin.ModelAdmin):
                         amount_irr=payment_req.amount_irr,
                         transaction_type='STORE_PURCHASE',
                         status='SUCCESS',
-                        description=f"خرید بسته {payment_req.package.name if payment_req.package else ''} ({currency}) - تایید از پنل ادمین"
+                        description=f"خرید بسته {payment_req.package.name if payment_req.package else ''}{bonus_desc} ({currency}) - تایید از پنل ادمین"
                     )
                     approved_count += 1
 

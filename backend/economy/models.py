@@ -27,11 +27,25 @@ class StorePackage(models.Model):
     is_active = models.BooleanField(
         default=True, verbose_name="فعال است؟"
     )
+    BADGE_CHOICES = [
+        ('', 'بدون برچسب'),
+        ('HOT_DEAL', 'پیشنهاد شگفت‌انگیز 🔥'),
+        ('BEST_SELLER', 'پرفروش‌ترین ⭐'),
+        ('SPECIAL', 'ویژه 💎'),
+        ('BEST_VALUE', 'ارزش خرید بالا ⚡'),
+        ('LIMITED', 'تخفیف محدود ⏳'),
+        ('POPULAR', 'محبوب مربیان 🚀'),
+    ]
+
     description = models.TextField(
         blank=True, default='', verbose_name="توضیحات بسته"
     )
     icon_code = models.CharField(
         max_length=50, blank=True, default='', verbose_name="کد آیکن یا تم"
+    )
+    badge_tag = models.CharField(
+        max_length=50, blank=True, default='', choices=BADGE_CHOICES,
+        verbose_name="برچسب رنگی بسته"
     )
     bonus_amount = models.DecimalField(
         max_digits=15, decimal_places=2, default=0.00,
@@ -184,6 +198,10 @@ class PaymentRequest(models.Model):
     reward_amount = models.DecimalField(
         max_digits=15, decimal_places=2, default=0.00,
         verbose_name="مقدار ارز اعطایی"
+    )
+    bonus_amount = models.DecimalField(
+        max_digits=15, decimal_places=2, default=0.00,
+        verbose_name="مقدار بونوس هدیه"
     )
     usd_amount = models.DecimalField(
         max_digits=15, decimal_places=2, default=0.00, verbose_name="دلار مجازی (سازگاری)"

@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import generics, status, views
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
@@ -119,12 +120,14 @@ class CreatePaymentRequestView(views.APIView):
             )
 
         reward_amt = package.reward_amount or package.usd_amount
+        bonus_amt = package.bonus_amount or 0
         payment_req = PaymentRequest.objects.create(
             team=request.user.team,
             package=package,
             amount_irr=package.price_irr,
             currency_type=package.currency_type,
             reward_amount=reward_amt,
+            bonus_amount=bonus_amt,
             usd_amount=package.usd_amount or reward_amt,
             status='AWAITING_RECEIPT'
         )
@@ -252,29 +255,38 @@ class AdminApprovePaymentView(views.APIView):
                 payment_req.reviewed_at = timezone.now()
                 payment_req.save(update_fields=['status', 'admin_note', 'reviewed_at'])
 
-                # Credit virtual dollars or gems to team
+                # Credit virtual dollars or gems to team (including bonus)
                 team = payment_req.team
-                reward_amt = payment_req.reward_amount or payment_req.usd_amount
+                base_amt = payment_req.reward_amount or payment_req.usd_amount or Decimal('0.00')
+                bonus_amt = payment_req.bonus_amount or Decimal('0.00')
+                total_reward_amt = base_amt + bonus_amt
                 currency_type = payment_req.currency_type or (payment_req.package.currency_type if payment_req.package else 'BUDGET')
 
                 if currency_type == 'GEMS':
-                    team.gems += int(reward_amt)
+                    team.gems += int(total_reward_amt)
                     team.save(update_fields=['gems'])
-                    reward_desc = f"{int(reward_amt)} جم"
+                    if bonus_amt > 0:
+                        reward_desc = f"{int(total_reward_amt)} جم (شامل {int(bonus_amt)} جم پاداش هدیه)"
+                    else:
+                        reward_desc = f"{int(total_reward_amt)} جم"
                 else:
-                    team.budget += reward_amt
+                    team.budget += total_reward_amt
                     team.save(update_fields=['budget'])
-                    reward_desc = f"{reward_amt} دلار مجازی"
+                    if bonus_amt > 0:
+                        reward_desc = f"{total_reward_amt} دلار مجازی (شامل {bonus_amt} دلار پاداش هدیه)"
+                    else:
+                        reward_desc = f"{total_reward_amt} دلار مجازی"
 
                 # Create transaction record
+                bonus_text = f" (+{bonus_amt} هدیه)" if bonus_amt > 0 else ""
                 Transaction.objects.create(
                     team=team,
                     currency=currency_type,
-                    amount=reward_amt,
+                    amount=total_reward_amt,
                     amount_irr=payment_req.amount_irr,
                     transaction_type='STORE_PURCHASE',
                     status='SUCCESS',
-                    description=f"خرید بسته {payment_req.package.name if payment_req.package else 'نامشخص'} - کارت به کارت - تایید ادمین"
+                    description=f"خرید بسته {payment_req.package.name if payment_req.package else 'نامشخص'}{bonus_text} - کارت به کارت - تایید ادمین"
                 )
 
                 return Response({

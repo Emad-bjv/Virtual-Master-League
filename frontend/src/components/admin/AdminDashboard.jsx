@@ -21,6 +21,7 @@ import AdminPacksSeasonPassHub from './AdminPacksSeasonPassHub';
 import MatchLineupDetailModal from './MatchLineupDetailModal';
 import PenaltyShootoutModal from './PenaltyShootoutModal';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
+import { PACKAGE_TAGS } from '../../utils/storePackageTags';
 import { useTranslation } from 'react-i18next';
 
 const DEFAULT_ADMIN_SUBNAV = [
@@ -1386,6 +1387,7 @@ export default function AdminDashboard({
         currency_type: editingPackage.currency_type || 'GEMS',
         reward_amount: Number(editingPackage.reward_amount),
         bonus_amount: Number(editingPackage.bonus_amount || 0),
+        badge_tag: editingPackage.badge_tag || '',
         price_irr: Number(editingPackage.price_irr),
         description: editingPackage.description?.trim() || '',
         icon_code: editingPackage.icon_code?.trim() || '',
@@ -1841,6 +1843,7 @@ export default function AdminDashboard({
                       currency_type: 'GEMS',
                       reward_amount: 100,
                       bonus_amount: 0,
+                      badge_tag: '',
                       price_irr: 49000,
                       is_active: true,
                       description: '',
@@ -1934,6 +1937,7 @@ export default function AdminDashboard({
                     currency_type: 'GEMS',
                     reward_amount: 100,
                     bonus_amount: 0,
+                    badge_tag: '',
                     price_irr: 49000,
                     is_active: true,
                     description: '',
@@ -2005,9 +2009,16 @@ export default function AdminDashboard({
                                   {isGem ? <Gem size={18} /> : <DollarSign size={18} />}
                                 </div>
                                 <div>
-                                  <strong className="text-white font-bold text-xs block">
-                                    {String(pkg.name || 'بدون عنوان')}
-                                  </strong>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <strong className="text-white font-bold text-xs block">
+                                      {String(pkg.name || 'بدون عنوان')}
+                                    </strong>
+                                    {pkg.badge_tag && PACKAGE_TAGS[pkg.badge_tag] && (
+                                      <span className={`text-[9.5px] px-2 py-0.5 rounded-full font-black ${PACKAGE_TAGS[pkg.badge_tag].badgeClass}`}>
+                                        {PACKAGE_TAGS[pkg.badge_tag].shortLabel}
+                                      </span>
+                                    )}
+                                  </div>
                                   {pkg.description ? (
                                     <span className="text-[10px] text-slate-400 line-clamp-1 block">
                                       {pkg.description}
@@ -5106,6 +5117,47 @@ export default function AdminDashboard({
                 </div>
               </div>
 
+              {/* Badge Tag Selector (Neon Colors & Gaming Style) */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-slate-300 font-bold block text-[11px] flex items-center gap-1.5">
+                    <Tag size={13} className="text-indigo-400" />
+                    <span>برچسب رنگی و نئونی بسته (تگ ویژه):</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">اختیاری</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingPackage({ ...editingPackage, badge_tag: '' })}
+                    className={`p-2 rounded-xl border text-center text-xs transition-all cursor-pointer ${
+                      !editingPackage.badge_tag
+                        ? 'bg-slate-800 border-indigo-400 text-white font-bold ring-1 ring-indigo-400/50'
+                        : 'bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300'
+                    }`}
+                  >
+                    بدون برچسب
+                  </button>
+                  {Object.entries(PACKAGE_TAGS).map(([tagKey, tagData]) => {
+                    const isSelected = editingPackage.badge_tag === tagKey;
+                    return (
+                      <button
+                        key={tagKey}
+                        type="button"
+                        onClick={() => setEditingPackage({ ...editingPackage, badge_tag: tagKey })}
+                        className={`p-2 rounded-xl border text-center text-[11px] font-black transition-all cursor-pointer ${
+                          isSelected
+                            ? `${tagData.badgeClass} ring-2 ring-white/60 scale-[1.02]`
+                            : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-white'
+                        }`}
+                      >
+                        {tagData.shortLabel}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Numeric Inputs Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
@@ -5120,11 +5172,15 @@ export default function AdminDashboard({
                     onChange={(e) => setEditingPackage({ ...editingPackage, reward_amount: e.target.value })}
                     className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-sport text-xs focus:border-indigo-500 focus:outline-none dir-ltr"
                   />
+                  <span className="text-[9.5px] text-slate-500 block">
+                    {editingPackage.currency_type === 'GEMS' ? 'تعداد جم پایه' : 'دلار پایه'}
+                  </span>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-slate-300 font-bold block text-[11px]">
-                    بونوس هدیه (اختیاری):
+                  <label className="text-slate-300 font-bold block text-[11px] flex items-center justify-between">
+                    <span>پاداش هدیه (بونوس):</span>
+                    <span className="text-[9px] text-amber-400 font-bold">هدیه ویژه</span>
                   </label>
                   <input
                     type="number"
@@ -5133,6 +5189,9 @@ export default function AdminDashboard({
                     onChange={(e) => setEditingPackage({ ...editingPackage, bonus_amount: e.target.value })}
                     className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-amber-300 font-sport text-xs focus:border-indigo-500 focus:outline-none dir-ltr"
                   />
+                  <span className="text-[9.5px] text-amber-400/90 block leading-tight">
+                    علاوه بر مقدار اصلی، به حساب تیم واریز می‌شود.
+                  </span>
                 </div>
 
                 <div className="space-y-1">
@@ -5148,6 +5207,9 @@ export default function AdminDashboard({
                     onChange={(e) => setEditingPackage({ ...editingPackage, price_irr: e.target.value })}
                     className="w-full p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-emerald-400 font-sport font-bold text-xs focus:border-indigo-500 focus:outline-none dir-ltr"
                   />
+                  <span className="text-[9.5px] text-slate-500 block">
+                    مبلغ پرداختی خریدار
+                  </span>
                 </div>
               </div>
 
@@ -5194,30 +5256,64 @@ export default function AdminDashboard({
               </label>
 
               {/* Live Preview Card */}
-              <div className="p-3 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 border border-indigo-500/30 space-y-1.5">
-                <span className="text-[10px] text-indigo-300 font-bold block">پیش‌نمایش کارت در فروشگاه:</span>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${editingPackage.currency_type === 'GEMS' ? 'bg-cyan-950 text-cyan-400' : 'bg-emerald-950 text-emerald-400'}`}>
-                      {editingPackage.currency_type === 'GEMS' ? <Gem size={16} /> : <DollarSign size={16} />}
-                    </div>
-                    <div>
-                      <strong className="text-white text-xs block">{editingPackage.name || 'نام بسته'}</strong>
-                      <span className="text-[10.5px] text-cyan-300 font-sport dir-ltr block">
-                        {editingPackage.currency_type === 'GEMS'
-                          ? `+${Number(editingPackage.reward_amount || 0).toLocaleString('fa-IR')} 💎 الماس`
-                          : `+$${Number(editingPackage.reward_amount || 0).toLocaleString('fa-IR')} USD`}
-                        {Number(editingPackage.bonus_amount || 0) > 0 && ` (+${Number(editingPackage.bonus_amount).toLocaleString('fa-IR')} هدیه)`}
+              {(() => {
+                const isGem = editingPackage.currency_type === 'GEMS';
+                const baseAmt = Number(editingPackage.reward_amount || 0);
+                const bonusAmt = Number(editingPackage.bonus_amount || 0);
+                const totalAmt = baseAmt + bonusAmt;
+                const activeTag = editingPackage.badge_tag && PACKAGE_TAGS[editingPackage.badge_tag];
+
+                return (
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 border border-indigo-500/40 space-y-2.5 relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-indigo-300 font-bold flex items-center gap-1.5">
+                        <Sparkles size={12} className="text-amber-300" />
+                        <span>پیش‌نمایش زنده کارت در فروشگاه:</span>
                       </span>
+                      {activeTag && (
+                        <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-black ${activeTag.badgeClass}`}>
+                          {activeTag.label}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex justify-between items-center bg-slate-950/70 p-3 rounded-2xl border border-slate-800">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border ${
+                          isGem ? 'bg-cyan-950/80 border-cyan-500/40 text-cyan-400' : 'bg-emerald-950/80 border-emerald-500/40 text-emerald-400'
+                        }`}>
+                          {isGem ? <Gem size={20} className="animate-pulse" /> : <DollarSign size={20} />}
+                        </div>
+                        <div>
+                          <strong className="text-white text-xs font-bold block">
+                            {editingPackage.name || 'نام بسته'}
+                          </strong>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                            <span className="text-xs font-black font-sport dir-ltr text-white">
+                              {isGem ? `+${baseAmt.toLocaleString('fa-IR')} 💎` : `+$${baseAmt.toLocaleString('fa-IR')}`}
+                            </span>
+                            {bonusAmt > 0 && (
+                              <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-lg font-black font-sport dir-ltr animate-pulse">
+                                +{bonusAmt.toLocaleString('fa-IR')} هدیه 🎁
+                              </span>
+                            )}
+                          </div>
+                          {bonusAmt > 0 && (
+                            <span className="text-[10px] text-emerald-400 font-bold block mt-0.5">
+                              مجموع کل دریافتی: {isGem ? `${totalAmt.toLocaleString('fa-IR')} جم 💎` : `$${totalAmt.toLocaleString('fa-IR')} دلار`}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-left shrink-0">
+                        <span className="text-amber-400 font-black text-xs font-sport dir-ltr block bg-amber-500/10 px-2.5 py-1.5 rounded-xl border border-amber-500/30">
+                          {Number(editingPackage.price_irr || 0).toLocaleString('fa-IR')} تومان
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-left">
-                    <span className="text-amber-400 font-bold text-xs font-sport dir-ltr block">
-                      {Number(editingPackage.price_irr || 0).toLocaleString('fa-IR')} تومان
-                    </span>
-                  </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* Actions */}
               <div className="flex gap-2 pt-2 border-t border-slate-800">
