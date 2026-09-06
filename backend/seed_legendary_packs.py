@@ -32,10 +32,72 @@ REAL_LOGO_SRC = os.path.join(PROJECT_ROOT, 'frontend', 'public', 'assets', 'logo
 BARCA_LOGO_REL = 'packs/clubs/barcelona.webp'
 REAL_LOGO_REL = 'packs/clubs/real-madrid.webp'
 
-if os.path.exists(BARCA_LOGO_SRC):
-    shutil.copy2(BARCA_LOGO_SRC, os.path.join(MEDIA_ROOT, BARCA_LOGO_REL))
-if os.path.exists(REAL_LOGO_SRC):
-    shutil.copy2(REAL_LOGO_SRC, os.path.join(MEDIA_ROOT, REAL_LOGO_REL))
+# Copy club logos if needed
+if not os.path.exists(os.path.join(MEDIA_ROOT, BARCA_LOGO_REL)):
+    for cand in [BARCA_LOGO_SRC, '/opt/vml/frontend/public/assets/logos/barcelona.webp', '/app/static/assets/logos/barcelona.webp']:
+        if os.path.exists(cand):
+            shutil.copy2(cand, os.path.join(MEDIA_ROOT, BARCA_LOGO_REL))
+            break
+
+if not os.path.exists(os.path.join(MEDIA_ROOT, REAL_LOGO_REL)):
+    for cand in [REAL_LOGO_SRC, '/opt/vml/frontend/public/assets/logos/real-madrid.webp', '/app/static/assets/logos/real-madrid.webp']:
+        if os.path.exists(cand):
+            shutil.copy2(cand, os.path.join(MEDIA_ROOT, REAL_LOGO_REL))
+            break
+
+
+def copy_player_image(base_dir, folder_name, player_slug):
+    """Finds image in folder or existing media, returns relative path."""
+    # 1. First check if the file already exists in media/packs/players/
+    for ext in ['.webp', '.jpg', '.jpeg', '.png']:
+        candidate = os.path.join(PACKS_PLAYERS_DIR, f"{player_slug}{ext}")
+        if os.path.exists(candidate):
+            return f"packs/players/{player_slug}{ext}"
+
+    # 2. Check candidate folders
+    candidate_dirs = [
+        base_dir,
+        os.path.join("/opt/vml", os.path.basename(base_dir)),
+        os.path.join(PROJECT_ROOT, "backend", "media", "packs", "players"),
+    ]
+
+    source_folder = None
+    for c_dir in candidate_dirs:
+        if os.path.exists(c_dir):
+            target = os.path.join(c_dir, folder_name)
+            if os.path.exists(target):
+                source_folder = target
+                break
+            try:
+                for d in os.listdir(c_dir):
+                    if d.lower() == folder_name.lower():
+                        source_folder = os.path.join(c_dir, d)
+                        break
+            except Exception:
+                pass
+        if source_folder:
+            break
+
+    if not source_folder or not os.path.exists(source_folder):
+        print(f"[WARN] Folder not found for {player_slug}: {folder_name}")
+        return ""
+
+    try:
+        files = [f for f in os.listdir(source_folder) if os.path.isfile(os.path.join(source_folder, f))]
+        if not files:
+            print(f"[WARN] No files in folder: {source_folder}")
+            return ""
+
+        src_file = files[0]
+        ext = os.path.splitext(src_file)[1].lower()
+        dest_filename = f"{player_slug}{ext}"
+        dest_full_path = os.path.join(PACKS_PLAYERS_DIR, dest_filename)
+
+        shutil.copy2(os.path.join(source_folder, src_file), dest_full_path)
+        return f"packs/players/{dest_filename}"
+    except Exception as e:
+        print(f"[ERROR] Copy failed for {player_slug}: {e}")
+        return ""
 
 BARCA_PLAYERS_DATA = [
     {
