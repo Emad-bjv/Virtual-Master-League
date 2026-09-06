@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Trophy, Star, Shield, Zap, CheckCircle2,
   AlertCircle, X, Clock, Flame, ChevronRight, Gem, Coins, Award, Globe,
-  Volume2, VolumeX, FastForward, ArrowRight, Flag
+  Volume2, VolumeX, FastForward, ArrowRight, Flag, AlertTriangle, Dices
 } from 'lucide-react';
 import { gachaApi } from '../../services/api';
 import { useTeam } from '../../context/TeamContext';
@@ -30,6 +30,8 @@ export default function PackOpeningModal({
   );
   const [isOpening, setIsOpening] = useState(false);
   const [isPicking, setIsPicking] = useState(false);
+  const [isAutoPicking, setIsAutoPicking] = useState(false);
+  const [showExitWarning, setShowExitWarning] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   // FC 26 Walkout Cinematic State
@@ -52,6 +54,8 @@ export default function PackOpeningModal({
       setPaymentMethod(pack?.purchase_method === 'DIRECT' ? 'DIRECT' : 'GEMS');
       setIsOpening(false);
       setIsPicking(false);
+      setIsAutoPicking(false);
+      setShowExitWarning(false);
       setErrorMsg('');
       setSessionId(null);
       setCards([]);
@@ -66,27 +70,21 @@ export default function PackOpeningModal({
 
   // Countdown timer for active session
   useEffect(() => {
-    if (step !== 'CARDS_REVEAL' || timeLeft <= 0) return;
+    if (step !== 'CARDS_REVEAL' || timeLeft <= 0 || pickedPlayer) return;
     const timer = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          if (sessionId) {
-            gachaApi.expireSession(sessionId).then(() => {
-              if (fetchTeam) fetchTeam();
-              if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('vml_team_updated'));
-              }
-            }).catch(() => {});
+          if (sessionId && !pickedPlayer) {
+            handleConfirmExitWithRandomPick();
           }
-          setErrorMsg('مهلت ۵ دقیقه‌ای انتخاب کارت به پایان رسید و کل هزینه پرداختی به موجودی باشگاه شما عودت داده شد.');
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [step, timeLeft, sessionId, fetchTeam]);
+  }, [step, timeLeft, sessionId, pickedPlayer, cards]);
 
   // Cinematic FC 26 Walkout Stage Progression
   useEffect(() => {
@@ -258,6 +256,53 @@ export default function PackOpeningModal({
     }
   };
 
+  const handleAttemptClose = () => {
+    if (isOpening || isPicking || isAutoPicking) return;
+    // If pack is active and cards are awaiting pick, prompt warning
+    if (sessionId && !pickedPlayer && (step === 'CARDS_REVEAL' || step === 'FC26_CINEMATIC')) {
+      setShowExitWarning(true);
+      return;
+    }
+    onClose();
+  };
+
+  const handleConfirmExitWithRandomPick = async () => {
+    setShowExitWarning(false);
+    if (!sessionId || isPicking || isAutoPicking) return;
+
+    setIsAutoPicking(true);
+    setErrorMsg('');
+    const randomCard = cards && cards.length > 0
+      ? cards[Math.floor(Math.random() * cards.length)]
+      : null;
+
+    try {
+      const res = await gachaApi.pickCard({
+        session_id: sessionId,
+        pack_player_id: randomCard ? randomCard.id : 'random',
+        is_random: true
+      });
+
+      if (res.data?.success) {
+        const chosen = (cards || []).find((c) => c.id === (res.data.picked_player_id || res.data.player_id)) || randomCard;
+        setPickedPlayer(chosen);
+        setStep('PICKED_SUCCESS');
+        if (onPlayerClaimed && chosen) onPlayerClaimed(chosen);
+        if (fetchTeam) fetchTeam();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('vml_team_updated'));
+          window.dispatchEvent(new CustomEvent('vml_roster_updated'));
+        }
+      } else {
+        setErrorMsg(res.data?.error || 'خطا در انتخاب خودکار کارت');
+      }
+    } catch (err) {
+      setErrorMsg(err.response?.data?.error || 'خطا در افزودن بازیکن تصادفی به ترکیب.');
+    } finally {
+      setIsAutoPicking(false);
+    }
+  };
+
   const formatTimer = (sec) => {
     const m = Math.floor(sec / 60);
     const s = sec % 60;
@@ -269,15 +314,13 @@ export default function PackOpeningModal({
       className="fixed inset-0 z-[999999] flex items-center justify-center p-3 sm:p-5 bg-black/90 backdrop-blur-md overflow-y-auto"
       style={{ fontFamily: 'Vazirmatn, Tahoma, sans-serif' }}
     >
-      <div className="fixed inset-0" onClick={onClose} />
+      <div className="fixed inset-0" onClick={handleAttemptClose} />
 
       <AnimatePresence>
         <div
           className="fixed inset-0"
           onClick={() => {
-            if (!isOpening && (step !== 'CARDS_REVEAL' || !isPicking) && step !== 'FC26_CINEMATIC') {
-              onClose();
-            }
+            handleAttemptClose();
           }}
         />
 
@@ -302,8 +345,8 @@ export default function PackOpeningModal({
               </div>
 
               <button
-                onClick={onClose}
-                disabled={isOpening || (step === 'CARDS_REVEAL' && isPicking)}
+                onClick={handleAttemptClose}
+                disabled={isOpening || (step === 'CARDS_REVEAL' && (isPicking || isAutoPicking))}
                 className="p-2 rounded-2xl bg-white/5 hover:bg-white/15 text-slate-400 hover:text-white transition cursor-pointer disabled:opacity-50"
               >
                 <X size={20} />
@@ -1098,6 +1141,100 @@ export default function PackOpeningModal({
         </motion.div>
       </AnimatePresence>
     </div>,
+    document.body
+  )}
+
+  {/* =================================================================== */}
+  {/* EXIT WARNING CONFIRMATION MODAL (MANDATORY RANDOM CARD PICK)       */}
+  {/* =================================================================== */}
+  {typeof document !== 'undefined' && createPortal(
+    <AnimatePresence>
+      {showExitWarning && (
+        <div className="fixed inset-0 z-[9999999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto dir-rtl" style={{ fontFamily: 'Vazirmatn, Tahoma, sans-serif' }}>
+          <div className="fixed inset-0" onClick={() => setShowExitWarning(false)} />
+
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            transition={{ duration: 0.2 }}
+            className="relative z-10 my-auto w-full max-w-lg rounded-3xl border border-amber-500/40 bg-slate-950 text-white p-6 sm:p-7 shadow-[0_0_50px_rgba(245,158,11,0.25)] space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Warning Icon & Header */}
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center shrink-0 shadow-[0_0_20px_rgba(245,158,11,0.3)]">
+                <AlertTriangle size={26} className="text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-amber-300 font-sport">
+                  هشدار: خروج از صفحه انتخاب بازیکن
+                </h3>
+                <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                  شما پک را باز کرده‌اید و باید ۱ بازیکن از بین ۳ کارت شانس انتخاب کنید.
+                </p>
+              </div>
+            </div>
+
+            {/* Important Notice */}
+            <div className="p-4 rounded-2xl bg-amber-950/40 border border-amber-500/30 text-xs text-amber-200/90 leading-relaxed space-y-2">
+              <div className="flex items-center gap-2 font-black text-amber-300 text-sm">
+                <Dices size={18} className="shrink-0 text-amber-400 animate-spin" />
+                <span>قانون انتخاب خودکار سیستم:</span>
+              </div>
+              <p className="text-[12px] text-slate-300">
+                در صورتی که بدون انتخاب دستی کارت خارج شوید، سیستم به صورت <strong className="text-amber-300 font-bold">کاملاً خودکار و تصادفی</strong> یکی از ۳ کارت را انتخاب کرده و بازیکن مستقیماً به ترکیب تیم شما اضافه خواهد شد.
+              </p>
+            </div>
+
+            {/* 3 Revealed Cards Mini Preview */}
+            {cards && cards.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-bold text-slate-400 block">
+                  کارت‌های شانس موجود در این پک:
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  {cards.map((c, idx) => (
+                    <div
+                      key={c.id || idx}
+                      className="p-2 rounded-xl bg-white/5 border border-white/10 flex flex-col items-center justify-center text-center space-y-0.5"
+                    >
+                      <span className="text-xs font-black text-amber-300 font-sport">{c.overall}</span>
+                      <span className="text-[9px] font-bold text-cyan-300 font-sport">{c.position}</span>
+                      <span className="text-[10px] text-white truncate max-w-full font-bold">
+                        {revealedCardIds.includes(c.id) ? c.name : `کارت #${idx + 1}`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="pt-2 flex flex-col-reverse sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => setShowExitWarning(false)}
+                className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs sm:text-sm font-sport shadow-lg transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 size={16} />
+                <span>ادامه و انتخاب کارت توسط خودم</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isAutoPicking}
+                onClick={handleConfirmExitWithRandomPick}
+                className="py-3 px-4 rounded-2xl bg-white/10 hover:bg-rose-950/70 border border-white/15 hover:border-rose-500/50 text-slate-300 hover:text-rose-200 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                <Dices size={15} className="text-amber-400" />
+                <span>{isAutoPicking ? 'در حال انتخاب...' : 'خروج و انتخاب تصادفی'}</span>
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>,
     document.body
   );
 }

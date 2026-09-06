@@ -68,11 +68,23 @@ class PickCardView(views.APIView):
             request.data.get('player_id') or
             request.data.get('card_id')
         )
+        is_random = bool(request.data.get('is_random') or request.data.get('auto_random') or str(pack_player_id).lower() in ['random', 'auto', '0'])
 
-        if not session_id or not pack_player_id:
-            return Response({'error': 'شناسه سشن و شناسه کارت انتخابی الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not session_id:
+            return Response({'error': 'شناسه سشن الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if is_random or not pack_player_id:
+            try:
+                session = PackOpeningSession.objects.get(id=int(session_id), team_id=int(team_id))
+                valid_card_ids = [cid for cid in [session.card_1_id, session.card_2_id, session.card_3_id] if cid]
+                import random
+                pack_player_id = random.choice(valid_card_ids)
+            except PackOpeningSession.DoesNotExist:
+                return Response({'error': 'سشن نامعتبر است.'}, status=status.HTTP_404_NOT_FOUND)
 
         result = pick_card(session_id=int(session_id), pack_player_id=int(pack_player_id), team_id=int(team_id))
+        if is_random and result.get('success'):
+            result['is_random_pick'] = True
 
         if result['success']:
             return Response(result, status=status.HTTP_200_OK)
