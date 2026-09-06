@@ -152,13 +152,7 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
         if pack.purchase_method != 'BOTH' and pack.purchase_method != payment_method:
             return {'success': False, 'error': 'این پک با روش پرداخت انتخابی شما سازگار نیست.'}
 
-        # Roster capacity check
-        max_squad = team.max_squad_size
-        if team.players.count() >= max_squad:
-            return {
-                'success': False,
-                'error': f'تیم شما حداکثر ظرفیت مجاز ({max_squad} بازیکن) را دارد. برای جذب بازیکن جدید باید ظرفیت را ارتقا داده یا بازیکنی بفروشید.'
-            }
+        # Squad capacity restriction removed for packs per user request
 
         # Pool availability check (must have at least 3 unclaimed players)
         unclaimed_qs = pack.players.filter(is_claimed=False).select_for_update()
@@ -288,12 +282,7 @@ def pick_card(session_id: int, pack_player_id: int, team_id: int) -> dict:
 
         team = session.team
 
-        # Roster check
-        if team.players.count() >= team.max_squad_size:
-            return {
-                'success': False,
-                'error': f'تیم شما پر است ({team.max_squad_size} بازیکن). امکان افزودن بازیکن جدید نیست.'
-            }
+        # Squad capacity restriction removed for packs per user request
 
         # Find next available shirt number (1-99)
         existing_numbers = set(team.players.values_list('shirt_number', flat=True))

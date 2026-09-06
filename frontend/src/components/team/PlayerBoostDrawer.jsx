@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -31,6 +31,7 @@ export default function PlayerBoostDrawer({
   players = [],
   currentGems = 0,
   onGemBoost,
+  onGemUpdate,
   onRecoverStamina,
   onHealInjury,
   actionLoading = null,
@@ -43,6 +44,11 @@ export default function PlayerBoostDrawer({
   const [skillsMap, setSkillsMap] = useState({});
   const [skillLoadingKey, setSkillLoadingKey] = useState(null);
   const [skillFeedback, setSkillFeedback] = useState(null);
+  const [displayGems, setDisplayGems] = useState(currentGems);
+
+  useEffect(() => {
+    setDisplayGems(currentGems);
+  }, [currentGems]);
 
   const handleToggleSkills = async (player) => {
     if (expandedSkillsPlayerId === player.id) {
@@ -87,10 +93,18 @@ export default function PlayerBoostDrawer({
         setSkillsMap((prev) => ({ ...prev, [player.id]: res.data.skills }));
       }
       setSkillFeedback({ playerId: player.id, message: res.data.status || 'ارتقا انجام شد!' });
-      // If parent gave us onGemBoost or onRefresh, let's trigger
-      if (onGemBoost && res.data.remaining_gems !== undefined) {
-        // Trigger parent state update if available
+      
+      // Instantly deduct gems locally & synchronize globally
+      if (res.data.remaining_gems !== undefined) {
+        setDisplayGems(res.data.remaining_gems);
+        if (onGemUpdate) {
+          onGemUpdate(res.data.remaining_gems);
+        }
       }
+      try {
+        window.dispatchEvent(new CustomEvent('vml_team_updated', { detail: { gems: res.data.remaining_gems } }));
+        window.dispatchEvent(new CustomEvent('vml_roster_updated'));
+      } catch (_e) {}
     } catch (err) {
       setSkillFeedback({ playerId: player.id, message: err.response?.data?.error || 'خطا در ارتقای مهارت', isError: true });
     } finally {
@@ -172,7 +186,7 @@ export default function PlayerBoostDrawer({
                 {/* Gems Badge */}
                 <div className="flex items-center gap-1.5 bg-gradient-to-r from-purple-950 to-indigo-950 px-3 py-1.5 rounded-xl border border-purple-500/40 text-xs font-black text-amber-300 font-sport shadow">
                   <Gem size={14} className="text-cyan-400 fill-cyan-400" />
-                  <span>{currentGems?.toLocaleString('fa-IR') || 0}</span>
+                  <span>{(displayGems ?? currentGems ?? 0).toLocaleString('fa-IR')}</span>
                 </div>
 
                 <button

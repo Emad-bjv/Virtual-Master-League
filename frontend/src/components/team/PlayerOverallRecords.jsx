@@ -659,19 +659,6 @@ export default function PlayerOverallRecords({
                       <span>درمان فوری مصدومیت ({teamData?.injury_heal_cost || 25}💎)</span>
                     </button>
                   )}
-
-                  {(selectedPlayer.level || 1) < 20 && (
-                    <button
-                      onClick={() => {
-                        handleGemBoost(selectedPlayer.id, selectedPlayer.name, selectedPlayer.level || 1);
-                        setSelectedPlayer(null);
-                      }}
-                      className="flex-1 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex items-center justify-center gap-1 shadow-lg hover:from-purple-500 hover:to-indigo-500 cursor-pointer"
-                    >
-                      <Sparkles size={14} />
-                      <span>ارتقای لول ({selectedPlayer.next_level_gem_cost || 10}💎)</span>
-                    </button>
-                  )}
                 </div>
               </div>
 

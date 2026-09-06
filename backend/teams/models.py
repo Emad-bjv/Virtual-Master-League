@@ -329,17 +329,9 @@ class Player(models.Model):
             current_pes = min(99, base_pes + pes_bonus)
             pes_applied = stored.get('pes_applied', True) if current_lvl > 0 else True
             
-            # Gem cost for next level
-            if current_lvl < 5:
-                next_cost = 10
-            elif current_lvl < 10:
-                next_cost = 20
-            elif current_lvl < 15:
-                next_cost = 35
-            elif current_lvl < 20:
-                next_cost = 50
-            else:
-                next_cost = 0  # Maxed
+            # Gem cost for next level (gentle slope starting from 5 gems)
+            from .level_engine import get_pes_skill_upgrade_cost
+            next_cost = get_pes_skill_upgrade_cost(current_lvl)
 
             breakdown.append({
                 'key': k,

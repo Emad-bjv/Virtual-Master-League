@@ -1481,8 +1481,9 @@ export default function TeamTab({
         isOpen={isBoostDrawerOpen}
         onClose={() => setIsBoostDrawerOpen(false)}
         players={players}
-        currentGems={currentGems}
+        currentGems={team?.gems ?? teamData?.gems ?? 0}
         onGemBoost={handleGemBoost}
+        onGemUpdate={updateTeamGems}
         onRecoverStamina={handleRecoverStamina}
         onHealInjury={handleHealInjury}
         actionLoading={actionLoading}

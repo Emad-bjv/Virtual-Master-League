@@ -194,7 +194,7 @@ export default function AdminDashboard({
         adminApi.getOverviewStats(),
         matchApi.getGameweeksStatus(),
         matchApi.getLeagueSchedule({ status: 'ALL' }),
-        teamApi.getStandings ? teamApi.getStandings() : Promise.resolve({ data: [] }),
+        teamApi.getTeams ? teamApi.getTeams() : Promise.resolve({ data: [] }),
       ]);
 
       if (statsRes.status === 'fulfilled') setRealStats(statsRes.value.data);
@@ -311,12 +311,8 @@ export default function AdminDashboard({
         home_score: parseInt(editingMatchForm.home_score, 10) || 0,
         away_score: parseInt(editingMatchForm.away_score, 10) || 0,
       };
-      if (editingMatchForm.home_team_id) {
-        payload.home_team_id = parseInt(editingMatchForm.home_team_id, 10);
-      }
-      if (editingMatchForm.away_team_id) {
-        payload.away_team_id = parseInt(editingMatchForm.away_team_id, 10);
-      }
+      payload.home_team_id = editingMatchForm.home_team_id ? parseInt(editingMatchForm.home_team_id, 10) : null;
+      payload.away_team_id = editingMatchForm.away_team_id ? parseInt(editingMatchForm.away_team_id, 10) : null;
       if (editingMatchForm.date) {
         const timePart = editingMatchForm.time ? `${editingMatchForm.time}:00` : '18:00:00';
         payload.date = `${editingMatchForm.date}T${timePart}`;
@@ -4133,18 +4129,149 @@ export default function AdminDashboard({
                                             </div>
                                           )}
 
+                                          {/* In-Place Bracket Slot Editor */}
+                                          {editingMatchId === m.id && (
+                                            <div className="mt-3 p-3 bg-slate-950/95 rounded-xl border border-amber-400/60 space-y-2.5 shadow-2xl text-[11px] animate-fadeIn">
+                                              <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+                                                <span className="font-bold text-amber-300 flex items-center gap-1">
+                                                  <Edit2 size={12} />
+                                                  <span>تنظیم دستی مسابقه #{m.id}</span>
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 font-sport">{rnd.name}</span>
+                                              </div>
+
+                                              <div className="space-y-2">
+                                                <div>
+                                                  <label className="text-[10px] font-bold text-slate-300 block mb-0.5">تیم میزبان:</label>
+                                                  <select
+                                                    value={editingMatchForm.home_team_id}
+                                                    onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, home_team_id: e.target.value }))}
+                                                    className="w-full bg-slate-900 border border-slate-700 focus:border-amber-400 rounded-lg px-2 py-1 text-white font-bold text-xs"
+                                                  >
+                                                    <option value="">-- بدون تیم (خالی) --</option>
+                                                    {(allTeams || []).map((t) => (
+                                                      <option key={t.id} value={t.id}>{t.name}</option>
+                                                    ))}
+                                                  </select>
+                                                </div>
+
+                                                <div>
+                                                  <label className="text-[10px] font-bold text-slate-300 block mb-0.5">تیم میهمان:</label>
+                                                  <select
+                                                    value={editingMatchForm.away_team_id}
+                                                    onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, away_team_id: e.target.value }))}
+                                                    className="w-full bg-slate-900 border border-slate-700 focus:border-amber-400 rounded-lg px-2 py-1 text-white font-bold text-xs"
+                                                  >
+                                                    <option value="">-- بدون تیم (خالی) --</option>
+                                                    {(allTeams || []).map((t) => (
+                                                      <option key={t.id} value={t.id}>{t.name}</option>
+                                                    ))}
+                                                  </select>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2">
+                                                  <div>
+                                                    <label className="text-[10px] text-slate-400 block mb-0.5">گل میزبان:</label>
+                                                    <input
+                                                      type="number"
+                                                      min="0"
+                                                      value={editingMatchForm.home_score}
+                                                      onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, home_score: e.target.value }))}
+                                                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white text-xs font-mono font-bold"
+                                                    />
+                                                  </div>
+                                                  <div>
+                                                    <label className="text-[10px] text-slate-400 block mb-0.5">گل میهمان:</label>
+                                                    <input
+                                                      type="number"
+                                                      min="0"
+                                                      value={editingMatchForm.away_score}
+                                                      onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, away_score: e.target.value }))}
+                                                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white text-xs font-mono font-bold"
+                                                    />
+                                                  </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2">
+                                                  <div>
+                                                    <label className="text-[10px] text-slate-400 block mb-0.5">پنالتی میزبان:</label>
+                                                    <input
+                                                      type="number"
+                                                      min="0"
+                                                      placeholder="اختیاری"
+                                                      value={editingMatchForm.home_penalties}
+                                                      onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, home_penalties: e.target.value }))}
+                                                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-amber-300 text-xs font-mono"
+                                                    />
+                                                  </div>
+                                                  <div>
+                                                    <label className="text-[10px] text-slate-400 block mb-0.5">پنالتی میهمان:</label>
+                                                    <input
+                                                      type="number"
+                                                      min="0"
+                                                      placeholder="اختیاری"
+                                                      value={editingMatchForm.away_penalties}
+                                                      onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, away_penalties: e.target.value }))}
+                                                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-amber-300 text-xs font-mono"
+                                                    />
+                                                  </div>
+                                                </div>
+
+                                                <div>
+                                                  <label className="text-[10px] text-slate-400 block mb-0.5">وضعیت مسابقه:</label>
+                                                  <select
+                                                    value={editingMatchForm.status}
+                                                    onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, status: e.target.value }))}
+                                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-white text-xs"
+                                                  >
+                                                    <option value="SCHEDULED">برنامه‌ریزی شده</option>
+                                                    <option value="LIVE">در حال برگزاری</option>
+                                                    <option value="FINISHED">پایان یافته</option>
+                                                  </select>
+                                                </div>
+
+                                                <div className="flex items-center gap-2 pt-1">
+                                                  <button
+                                                    type="button"
+                                                    disabled={savingMatchEdit}
+                                                    onClick={() => handleSaveMatchEdit(m.id)}
+                                                    className="flex-1 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs flex items-center justify-center gap-1 shadow cursor-pointer disabled:opacity-50"
+                                                  >
+                                                    {savingMatchEdit ? <RefreshCw size={11} className="animate-spin" /> : <Save size={11} />}
+                                                    <span>ذخیره تغییرات</span>
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setEditingMatchId(null)}
+                                                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer"
+                                                  >
+                                                    انصراف
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )}
+
                                           {/* Bracket Match Actions */}
                                           <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between gap-1 text-[10px]">
                                             <button
                                               type="button"
                                               onClick={() => {
-                                                setCupSubTab('matches');
-                                                handleStartEditMatch(m);
+                                                if (editingMatchId === m.id) {
+                                                  setEditingMatchId(null);
+                                                } else {
+                                                  handleStartEditMatch(m);
+                                                }
                                               }}
-                                              className="px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition-all cursor-pointer font-bold"
+                                              className={`px-2 py-0.5 rounded-lg border transition-all cursor-pointer font-bold ${
+                                                editingMatchId === m.id
+                                                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow'
+                                                  : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700'
+                                              }`}
                                               title="ویرایش این بازی و ست کردن تیم‌ها"
                                             >
-                                              ✏️ تنظیم اسلات
+                                              <Edit2 size={10} className="inline mr-1" />
+                                              <span>{editingMatchId === m.id ? 'بستن فرم' : 'تنظیم اسلات'}</span>
                                             </button>
 
                                             <button

@@ -269,21 +269,21 @@ def apply_level_bonus(player, new_level: int):
 
 def get_pes_skill_upgrade_cost(current_level: int) -> int:
     """
-    Tiered gem costs for 20 skill levels:
-    - Levels 1 to 5 (from lvl 0 to 4): 10 Gems
-    - Levels 6 to 10 (from lvl 5 to 9): 20 Gems
-    - Levels 11 to 15 (from lvl 10 to 14): 35 Gems
-    - Levels 16 to 20 (from lvl 15 to 19): 50 Gems
+    Tiered gem costs for 20 skill levels with gentle slope starting from 5 gems:
+    - Levels 1 to 5 (from lvl 0 to 4): 5 Gems
+    - Levels 6 to 10 (from lvl 5 to 9): 8 Gems
+    - Levels 11 to 15 (from lvl 10 to 14): 12 Gems
+    - Levels 16 to 20 (from lvl 15 to 19): 16 Gems
     - Level 20: 0 (Maxed out)
     """
     if current_level < 5:
-        return 10
+        return 5
     elif current_level < 10:
-        return 20
+        return 8
     elif current_level < 15:
-        return 35
+        return 12
     elif current_level < 20:
-        return 50
+        return 16
     return 0
 
 

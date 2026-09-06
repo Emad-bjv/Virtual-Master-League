@@ -215,6 +215,8 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
   const [editAwayScore, setEditAwayScore] = useState(0);
   const [editHomePenalties, setEditHomePenalties] = useState('');
   const [editAwayPenalties, setEditAwayPenalties] = useState('');
+  const [editHomeTeamId, setEditHomeTeamId] = useState('');
+  const [editAwayTeamId, setEditAwayTeamId] = useState('');
 
   // Cup Stage Navigation State
   const [selectedCupStage, setSelectedCupStage] = useState('');
@@ -342,12 +344,18 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
     try {
       let loadedTeams = [];
       try {
-        const headers = { Authorization: `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('vml_token')}` };
-        const teamsRes = await axios.get('/api/teams/', { headers });
+        const teamsRes = await teamApi.getTeams();
         const rawTeams = Array.isArray(teamsRes.data) ? teamsRes.data : (teamsRes.data?.results || []);
         loadedTeams = Array.isArray(rawTeams) ? rawTeams : [];
       } catch (err) {
-        console.error('Failed to load teams:', err);
+        try {
+          const headers = { Authorization: `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('vml_token')}` };
+          const teamsRes = await axios.get('/api/teams/', { headers });
+          const rawTeams = Array.isArray(teamsRes.data) ? teamsRes.data : (teamsRes.data?.results || []);
+          loadedTeams = Array.isArray(rawTeams) ? rawTeams : [];
+        } catch (_e) {
+          console.error('Failed to load teams:', err);
+        }
       }
 
       const [gwRes, matchesRes, cupsRes, standingsRes] = await Promise.all([
@@ -570,6 +578,8 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
   // Handle Start Match Edit
   const handleStartEditMatch = (match) => {
     setEditingMatchId(match.id);
+    setEditHomeTeamId(match.home_team_id || match.home_team || match.homeId || '');
+    setEditAwayTeamId(match.away_team_id || match.away_team || match.awayId || '');
     setEditDate(match.date ? match.date.substring(0, 16) : '');
     setEditStatus(match.status || 'SCHEDULED');
     setEditHomeScore(match.home_score ?? 0);
@@ -612,6 +622,8 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         status: editStatus,
         home_score: parseInt(editHomeScore, 10) || 0,
         away_score: parseInt(editAwayScore, 10) || 0,
+        home_team_id: editHomeTeamId ? parseInt(editHomeTeamId, 10) : null,
+        away_team_id: editAwayTeamId ? parseInt(editAwayTeamId, 10) : null,
       };
       if (editHomePenalties !== '' && editHomePenalties !== null && editHomePenalties !== undefined) {
         payload.home_penalties = parseInt(editHomePenalties, 10);
@@ -1661,6 +1673,34 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                           {isEditing ? (
                             <div className="w-full space-y-2 bg-slate-900 p-2.5 rounded-xl border border-indigo-500/30">
                               <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-[10px] text-gray-400 block mb-0.5">تیم میزبان:</label>
+                                  <select
+                                    value={editHomeTeamId}
+                                    onChange={(e) => setEditHomeTeamId(e.target.value)}
+                                    className="w-full bg-slate-950 border border-white/10 rounded-lg px-2 py-1 text-xs text-white"
+                                  >
+                                    <option value="">-- بدون تیم --</option>
+                                    {(teams || []).map((t) => (
+                                      <option key={t.id} value={t.id}>{t.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-gray-400 block mb-0.5">تیم میهمان:</label>
+                                  <select
+                                    value={editAwayTeamId}
+                                    onChange={(e) => setEditAwayTeamId(e.target.value)}
+                                    className="w-full bg-slate-950 border border-white/10 rounded-lg px-2 py-1 text-xs text-white"
+                                  >
+                                    <option value="">-- بدون تیم --</option>
+                                    {(teams || []).map((t) => (
+                                      <option key={t.id} value={t.id}>{t.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
                                 <input
                                   type="datetime-local"
                                   value={editDate}
@@ -2209,6 +2249,35 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                               <div className="w-full space-y-2.5 bg-slate-900 p-3 rounded-xl border border-amber-500/40">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                   <div>
+                                    <label className="text-[10px] text-gray-400 block mb-1">تیم میزبان:</label>
+                                    <select
+                                      value={editHomeTeamId}
+                                      onChange={(e) => setEditHomeTeamId(e.target.value)}
+                                      className="w-full bg-slate-950 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white"
+                                    >
+                                      <option value="">-- بدون تیم (خالی) --</option>
+                                      {(teams || []).map((t) => (
+                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] text-gray-400 block mb-1">تیم میهمان:</label>
+                                    <select
+                                      value={editAwayTeamId}
+                                      onChange={(e) => setEditAwayTeamId(e.target.value)}
+                                      className="w-full bg-slate-950 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white"
+                                    >
+                                      <option value="">-- بدون تیم (خالی) --</option>
+                                      {(teams || []).map((t) => (
+                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  <div>
                                     <label className="text-[10px] text-gray-400 block mb-1">تاریخ و ساعت مسابقه:</label>
                                     <input
                                       type="datetime-local"
@@ -2449,6 +2518,146 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                                 صعود برنده به مرحله بعد ➔
                               </button>
                             ) : null}
+
+                            {/* Bracket Slot Manual Edit Button */}
+                            <button
+                              onClick={() => {
+                                if (editingMatchId === m.id) {
+                                  setEditingMatchId(null);
+                                } else {
+                                  handleStartEditMatch(m);
+                                }
+                              }}
+                              className={`w-full mt-2 py-1 border rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                                editingMatchId === m.id
+                                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow'
+                                  : 'bg-slate-800/80 hover:bg-slate-700 text-amber-300 border-slate-700'
+                              }`}
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>{editingMatchId === m.id ? 'بستن ویرایش' : 'تنظیم دستی و اسلات'}</span>
+                            </button>
+
+                            {/* In-Place Bracket Slot Editor */}
+                            {editingMatchId === m.id && (
+                              <div className="mt-2.5 p-2.5 bg-slate-900/95 rounded-xl border border-amber-400/60 space-y-2 text-[10.5px] animate-fadeIn">
+                                <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                                  <span className="font-bold text-amber-300 flex items-center gap-1">
+                                    <Edit3 className="w-3 h-3" />
+                                    <span>تنظیم اسلات #{m.id}</span>
+                                  </span>
+                                  <span className="text-[9px] text-slate-400">{rnd.name}</span>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <div>
+                                    <label className="text-[9.5px] text-gray-400 block mb-0.5">تیم میزبان:</label>
+                                    <select
+                                      value={editHomeTeamId}
+                                      onChange={(e) => setEditHomeTeamId(e.target.value)}
+                                      className="w-full bg-slate-950 border border-white/10 rounded px-2 py-1 text-white text-[11px]"
+                                    >
+                                      <option value="">-- بدون تیم (خالی) --</option>
+                                      {(teams || []).map((t) => (
+                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[9.5px] text-gray-400 block mb-0.5">تیم میهمان:</label>
+                                    <select
+                                      value={editAwayTeamId}
+                                      onChange={(e) => setEditAwayTeamId(e.target.value)}
+                                      className="w-full bg-slate-950 border border-white/10 rounded px-2 py-1 text-white text-[11px]"
+                                    >
+                                      <option value="">-- بدون تیم (خالی) --</option>
+                                      {(teams || []).map((t) => (
+                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-1.5">
+                                    <div>
+                                      <label className="text-[9.5px] text-gray-400 block mb-0.5">گل میزبان:</label>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={editHomeScore}
+                                        onChange={(e) => setEditHomeScore(e.target.value)}
+                                        className="w-full bg-slate-950 border border-white/10 rounded px-1.5 py-0.5 text-white font-mono text-xs"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[9.5px] text-gray-400 block mb-0.5">گل میهمان:</label>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={editAwayScore}
+                                        onChange={(e) => setEditAwayScore(e.target.value)}
+                                        className="w-full bg-slate-950 border border-white/10 rounded px-1.5 py-0.5 text-white font-mono text-xs"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-1.5">
+                                    <div>
+                                      <label className="text-[9.5px] text-gray-400 block mb-0.5">پنالتی میزبان:</label>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        placeholder="اختیاری"
+                                        value={editHomePenalties}
+                                        onChange={(e) => setEditHomePenalties(e.target.value)}
+                                        className="w-full bg-slate-950 border border-white/10 rounded px-1.5 py-0.5 text-amber-300 font-mono text-xs"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[9.5px] text-gray-400 block mb-0.5">پنالتی میهمان:</label>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        placeholder="اختیاری"
+                                        value={editAwayPenalties}
+                                        onChange={(e) => setEditAwayPenalties(e.target.value)}
+                                        className="w-full bg-slate-950 border border-white/10 rounded px-1.5 py-0.5 text-amber-300 font-mono text-xs"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[9.5px] text-gray-400 block mb-0.5">وضعیت:</label>
+                                    <select
+                                      value={editStatus}
+                                      onChange={(e) => setEditStatus(e.target.value)}
+                                      className="w-full bg-slate-950 border border-white/10 rounded px-2 py-1 text-white text-[11px]"
+                                    >
+                                      <option value="SCHEDULED">برنامه‌ریزی شده</option>
+                                      <option value="LIVE">در حال برگزاری</option>
+                                      <option value="FINISHED">پایان یافته</option>
+                                    </select>
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5 pt-1">
+                                    <button
+                                      onClick={() => handleSaveMatchEdit(m.id)}
+                                      disabled={actionLoading}
+                                      className="flex-1 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold text-xs flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50"
+                                    >
+                                      <Save className="w-3 h-3" />
+                                      <span>ذخیره تغییرات</span>
+                                    </button>
+                                    <button
+                                      onClick={() => setEditingMatchId(null)}
+                                      className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded font-bold text-xs cursor-pointer"
+                                    >
+                                      انصراف
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}

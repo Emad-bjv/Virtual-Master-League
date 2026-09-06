@@ -218,13 +218,13 @@ class PESSkillsUpgradeTestCase(APITestCase):
 
     def test_upgrade_skill_success(self):
         url = f"/api/players/{self.player.id}/upgrade_skill/"
-        # First upgrade: level 0 -> 1 (costs 10 gems)
+        # First upgrade: level 0 -> 1 (costs 5 gems)
         res = self.client.post(url, {'skill_key': 'dribbling'}, content_type='application/json')
         self.assertEqual(res.status_code, 200)
         self.team.refresh_from_db()
         self.player.refresh_from_db()
 
-        self.assertEqual(self.team.gems, 490) # 500 - 10
+        self.assertEqual(self.team.gems, 495) # 500 - 5
         skill_data = self.player.skills_data.get('dribbling')
         self.assertEqual(skill_data['level'], 1)
         self.assertFalse(skill_data['pes_applied'])
