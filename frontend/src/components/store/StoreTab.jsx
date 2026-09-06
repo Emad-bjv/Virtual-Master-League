@@ -6,7 +6,7 @@ import {
   CreditCard, ShieldCheck, Copy, CheckCircle, UploadCloud,
   FileImage, Clock, AlertCircle, XCircle, ChevronRight, ChevronLeft, Eye, Gem,
   Star, User, DollarSign, Calendar, Trophy, Lock, CheckCircle2,
-  ArrowLeft, ArrowRight, Flame, Target, PartyPopper
+  ArrowLeft, ArrowRight, Flame, Target, PartyPopper, Rocket
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { economyApi, gachaApi, seasonPassApi } from '../../services/api';
@@ -573,6 +573,14 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                           available_from={pack.available_from}
                           available_until={pack.available_until}
                         />
+                      )}
+
+                      {/* Early Bird Anti-Snipe Boost Badge */}
+                      {pack.odds?.is_early_bird_active && (
+                        <div className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-orange-500/30 to-amber-500/30 border border-orange-400/50 text-orange-300 text-[9px] font-black flex items-center gap-1 shadow-[0_0_15px_rgba(249,115,22,0.4)] animate-pulse">
+                          <Rocket size={11} className="text-orange-400" />
+                          <span>بانس پیشتازان فعال است</span>
+                        </div>
                       )}
                     </div>
 

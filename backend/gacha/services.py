@@ -76,19 +76,31 @@ def weighted_sample_pack_cards(pack: Pack, unclaimed_list: list) -> list:
     pool = list(unclaimed_list)
     selected = []
 
+    # Dynamic Early Bird Anti-Snipe Multiplier:
+    # Early buyers receive boosted odds on 94+ players while the pool is fresh and full.
+    # As players are claimed, the boost smoothly tapers down, completely neutralizing the shrinking pool effect.
+    total_count = getattr(pack, 'total_players_count', len(unclaimed_list)) or len(unclaimed_list)
+    fullness_ratio = (len(unclaimed_list) / total_count) if total_count > 0 else 1.0
+    boost_pct = getattr(pack, 'early_bird_boost_pct', 50) or 0
+    early_bird_mult = 1.0 + ((boost_pct / 100.0) * fullness_ratio)
+
+    def get_card_weight(player):
+        base_w = player.get_effective_weight()
+        if player.overall >= 94 and early_bird_mult > 1.0:
+            return max(1, round(base_w * early_bird_mult))
+        return base_w
+
     # 1. Smart Guaranteed Slot (if configured and eligible cards exist)
     min_ovr = getattr(pack, 'guarantee_min_ovr', 90) or 0
     guaranteed_candidates = [p for p in pool if p.overall >= min_ovr] if min_ovr > 0 else []
 
     if guaranteed_candidates:
-        # In the guaranteed slot, top-tier (94+) stars should have competitive drop odds
-        # rather than being suppressed by mid-tier (90-93) cards!
         mid_w = getattr(pack, 'weight_mid_tier', 5) or 5
         g_weights = []
         for p in guaranteed_candidates:
-            w = p.get_effective_weight()
+            w = get_card_weight(p)
             if p.overall >= 94:
-                # Guarantee slot boosts 94+ to at least equal footing with mid-tier
+                # Guarantee slot elevates 94+ to at least equal footing with mid-tier
                 g_weights.append(max(w, mid_w))
             else:
                 g_weights.append(w)
@@ -99,7 +111,7 @@ def weighted_sample_pack_cards(pack: Pack, unclaimed_list: list) -> list:
 
     # 2. Pick remaining slots up to 3 cards using weighted sampling without replacement
     while len(selected) < 3 and pool:
-        weights = [p.get_effective_weight() for p in pool]
+        weights = [get_card_weight(p) for p in pool]
         chosen = random.choices(pool, weights=weights, k=1)[0]
         selected.append(chosen)
         pool.remove(chosen)

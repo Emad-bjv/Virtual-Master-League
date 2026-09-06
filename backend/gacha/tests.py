@@ -4,7 +4,7 @@ from django.test import TestCase
 from django.utils import timezone
 from teams.models import Team, Player
 from gacha.models import Pack, PackPlayer, PackOpeningSession
-from gacha.services import open_pack, pick_card, expire_session
+from gacha.services import open_pack, pick_card, expire_session, weighted_sample_pack_cards
 
 
 class PackSystemTestCase(TestCase):
@@ -166,3 +166,32 @@ class PackSystemTestCase(TestCase):
             self.assertTrue(any(ovr >= 90 for ovr in card_ovrs), f"Expected at least one card >= 90 in {card_ovrs}")
             # Expire session so gems are refunded and cards remain available for next test iteration
             expire_session(res['session_id'])
+
+    def test_early_bird_anti_snipe_boost(self):
+        # Setup 95 overall player
+        PackPlayer.objects.create(
+            pack=self.pack, name="Cristiano Test", position="CF", overall=95, potential_ovr=99, age=28
+        )
+        self.pack.early_bird_boost_pct = 60
+        self.pack.save()
+
+        # At full pool (100% full)
+        odds = self.pack.get_odds_breakdown()
+        self.assertTrue(odds['is_early_bird_active'])
+        self.assertEqual(odds['early_bird_multiplier'], 1.6)
+
+        # Sample cards with full pool
+        unclaimed = list(self.pack.players.filter(is_claimed=False))
+        cards = weighted_sample_pack_cards(self.pack, unclaimed)
+        self.assertEqual(len(cards), 3)
+
+        # Mark 4 players claimed so pool drops below 70% fullness
+        for p in unclaimed[:4]:
+            p.is_claimed = True
+            p.save()
+
+        # Odds when depleted below 70%
+        depleted_odds = self.pack.get_odds_breakdown()
+        self.assertFalse(depleted_odds['is_early_bird_active'])
+        self.assertLess(depleted_odds['early_bird_multiplier'], 1.6)
+

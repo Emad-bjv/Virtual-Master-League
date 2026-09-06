@@ -67,6 +67,7 @@ class PackSerializer(serializers.ModelSerializer):
             'purchase_method', 'purchase_method_display', 'featured_team',
             'available_from', 'available_until', 'is_active', 'sort_order',
             'weight_top_tier', 'weight_mid_tier', 'weight_base_tier', 'guarantee_min_ovr',
+            'early_bird_boost_pct',
             'odds', 'total_players_count', 'unclaimed_players_count', 'is_sold_out',
             'is_time_valid', 'created_at'
         ]
@@ -94,7 +95,7 @@ class PackSerializer(serializers.ModelSerializer):
                     data[dt] = None
 
         # Sanitize numbers
-        for num in ['cost_usd', 'cost_irr', 'cost_gems', 'sort_order', 'weight_top_tier', 'weight_mid_tier', 'weight_base_tier', 'guarantee_min_ovr']:
+        for num in ['cost_usd', 'cost_irr', 'cost_gems', 'sort_order', 'weight_top_tier', 'weight_mid_tier', 'weight_base_tier', 'guarantee_min_ovr', 'early_bird_boost_pct']:
             if num in data:
                 val = data.get(num)
                 val_str = str(val).strip().lower()

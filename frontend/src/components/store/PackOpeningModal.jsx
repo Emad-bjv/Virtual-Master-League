@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Trophy, Star, Shield, Zap, CheckCircle2,
   AlertCircle, X, Clock, Flame, ChevronRight, Gem, Coins, Award, Globe,
-  Volume2, VolumeX, FastForward, ArrowRight, Flag, AlertTriangle, Dices
+  Volume2, VolumeX, FastForward, ArrowRight, Flag, AlertTriangle, Dices, Rocket
 } from 'lucide-react';
 import { gachaApi } from '../../services/api';
 import { useTeam } from '../../context/TeamContext';
@@ -465,16 +465,24 @@ export default function PackOpeningModal({
                 {/* EA FC Probability Odds Transparency Card */}
                 {pack.odds && (
                   <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-amber-500/30 space-y-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-1.5">
                       <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
                         <Dices size={14} className="text-amber-400" />
                         <span>احتمال و شانس دریافت کارت‌ها (Pack Odds):</span>
                       </span>
-                      {pack.guarantee_min_ovr > 0 && (
-                        <span className="px-2 py-0.5 rounded-md text-[9.5px] font-black bg-amber-400/20 text-amber-300 border border-amber-400/40">
-                          ⭐ اسلات تضمینی اورال {pack.guarantee_min_ovr}+
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {pack.odds?.is_early_bird_active && (
+                          <span className="px-2 py-0.5 rounded-md text-[9.5px] font-black bg-gradient-to-r from-orange-500/20 to-amber-500/20 text-orange-300 border border-orange-400/50 flex items-center gap-1 animate-pulse shadow-sm">
+                            <Rocket size={11} className="text-orange-400" />
+                            <span>بانس پیشتازان ({pack.odds?.early_bird_multiplier}x شانس ۹۴+)</span>
+                          </span>
+                        )}
+                        {pack.guarantee_min_ovr > 0 && (
+                          <span className="px-2 py-0.5 rounded-md text-[9.5px] font-black bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                            ⭐ اسلات تضمینی اورال {pack.guarantee_min_ovr}+
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 text-center pt-1">

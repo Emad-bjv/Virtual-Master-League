@@ -7,7 +7,7 @@ import {
   Plus, Edit2, Trash2, Upload, Search, RotateCcw,
   Sliders, Image as ImageIcon, ArrowLeft, Check, Users,
   Layers, Palette, Eye, DollarSign, Calendar, Globe,
-  Dices, Percent
+  Dices, Percent, Rocket
 } from 'lucide-react';
 import { gachaApi, playerApi } from '../../services/api';
 import { getNationalityFlag } from '../../utils/nationalityFlags';
@@ -95,6 +95,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     weight_mid_tier: pack?.weight_mid_tier ?? 5,
     weight_base_tier: pack?.weight_base_tier ?? 8,
     guarantee_min_ovr: pack?.guarantee_min_ovr ?? 90,
+    early_bird_boost_pct: pack?.early_bird_boost_pct ?? 50,
   });
 
   const [packCoverFile, setPackCoverFile] = useState(null);
@@ -1842,6 +1843,34 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                     <span className="text-[10px] text-slate-400 block mt-1">
                       در هر بازگشایی پک، از میان ۳ کارت پیشنهادی حداقل یک کارت دارای اورال انتخابی بالا خواهد بود (تا زمانی که در استخر موجود باشد).
                     </span>
+                  </div>
+
+                  {/* Early Bird Anti-Snipe Boost Configuration */}
+                  <div className="p-3 rounded-xl bg-slate-950/80 border border-orange-500/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-orange-300 font-bold text-xs flex items-center gap-1.5">
+                        <Rocket size={14} className="text-orange-400" />
+                        <span>درصد بانس شانس پیشتازان (Early Bird Anti-Snipe Boost):</span>
+                      </label>
+                      <span className="text-xs font-sport text-orange-400 font-black">
+                        +{packData.early_bird_boost_pct}% بانس فوق‌ستاره‌ها
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                      <input
+                        type="number"
+                        min="0"
+                        max="200"
+                        value={packData.early_bird_boost_pct}
+                        onChange={(e) => setPackData({ ...packData, early_bird_boost_pct: parseInt(e.target.value) || 0 })}
+                        placeholder="50 = تا ۵۰٪ بانس شانس"
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-orange-400 font-sport font-black text-xs outline-none focus:border-orange-400"
+                      />
+                      <p className="text-[10px] text-slate-400 m-0 leading-relaxed">
+                        این بانس هنگام پر بودن استخر فعال است و با خروج بازیکنان به تدریج کاهش می‌یابد تا نفرات اول بیشترین شانس صید رونالدو را داشته باشند و از کمین کردن برای خالی شدن استخر جلوگیری شود.
+                      </p>
+                    </div>
                   </div>
                 </div>
 

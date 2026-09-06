@@ -70,6 +70,10 @@ class Pack(models.Model):
         default=90, verbose_name="حداقل اورال اسلات تضمینی",
         help_text="حداقل اورال کارت اول در بین ۳ کارت شانس (مثلاً ۹۰، یا ۰ برای غیرفعال کردن تضمین)"
     )
+    early_bird_boost_pct = models.PositiveIntegerField(
+        default=50, verbose_name="درصد بانس پیشتازان (Early Bird Boost)",
+        help_text="درصد افزایش شانس کارت‌های ۹۴+ هنگام پر بودن استخر (پیش‌فرض ۵۰٪)"
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
 
     class Meta:
@@ -103,9 +107,13 @@ class Pack(models.Model):
 
     def get_odds_breakdown(self):
         """
-        Calculates dynamic pack odds and probabilities based on remaining unclaimed players.
+        Calculates dynamic pack odds and probabilities based on remaining unclaimed players
+        and the Early Bird Anti-Snipe multiplier.
         """
         unclaimed = list(self.players.filter(is_claimed=False))
+        total_count = self.players.count()
+        unclaimed_count = len(unclaimed)
+
         if not unclaimed:
             return {
                 'top_tier_pct': 0,
@@ -116,13 +124,22 @@ class Pack(models.Model):
                 'base_tier_count': 0,
                 'guarantee_min_ovr': self.guarantee_min_ovr,
                 'total_unclaimed': 0,
+                'is_early_bird_active': False,
+                'early_bird_boost_pct': getattr(self, 'early_bird_boost_pct', 50),
+                'early_bird_multiplier': 1.0,
+                'pool_fullness_pct': 0.0,
             }
+
+        fullness_ratio = (unclaimed_count / total_count) if total_count > 0 else 1.0
+        boost_pct = getattr(self, 'early_bird_boost_pct', 50) or 0
+        current_multiplier = 1.0 + ((boost_pct / 100.0) * fullness_ratio)
+        is_early_bird_active = fullness_ratio >= 0.70 and boost_pct > 0
 
         top_players = [p for p in unclaimed if p.overall >= 94]
         mid_players = [p for p in unclaimed if 90 <= p.overall < 94]
         base_players = [p for p in unclaimed if p.overall < 90]
 
-        top_weight = sum(p.get_effective_weight() for p in top_players)
+        top_weight = sum(round(p.get_effective_weight() * current_multiplier) for p in top_players)
         mid_weight = sum(p.get_effective_weight() for p in mid_players)
         base_weight = sum(p.get_effective_weight() for p in base_players)
         total_weight = top_weight + mid_weight + base_weight
@@ -142,7 +159,11 @@ class Pack(models.Model):
             'mid_tier_count': len(mid_players),
             'base_tier_count': len(base_players),
             'guarantee_min_ovr': self.guarantee_min_ovr,
-            'total_unclaimed': len(unclaimed),
+            'total_unclaimed': unclaimed_count,
+            'is_early_bird_active': is_early_bird_active,
+            'early_bird_boost_pct': boost_pct,
+            'early_bird_multiplier': round(current_multiplier, 2),
+            'pool_fullness_pct': round(fullness_ratio * 100, 1),
         }
 
 
