@@ -5,7 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Team, Player, ClubFacilities, TeamGamePlan
 from .serializers import (
-    TeamSerializer, PlayerSerializer, GamePlanUpdateSerializer, 
+    TeamSerializer, TeamListSerializer, PlayerSerializer, GamePlanUpdateSerializer, 
     ClubFacilitiesSerializer, TeamGamePlanSerializer, resolve_player_photo_url
 )
 
@@ -50,9 +50,20 @@ class PositionChoicesView(views.APIView):
 from .permissions import IsManagerOrAdminOrReadOnly
 
 class TeamViewSet(viewsets.ModelViewSet):
-    queryset = Team.objects.all().select_related('manager', 'facilities', 'gameplan').prefetch_related('players')
+    queryset = Team.objects.all().select_related('manager', 'facilities', 'gameplan')
     serializer_class = TeamSerializer
     permission_classes = [permissions.IsAuthenticated, IsManagerOrAdminOrReadOnly]
+
+    def get_queryset(self):
+        qs = Team.objects.all().select_related('manager', 'facilities', 'gameplan')
+        if self.action != 'list' or self.request.query_params.get('include_players') == 'true':
+            qs = qs.prefetch_related('players')
+        return qs
+
+    def get_serializer_class(self):
+        if self.action == 'list' and self.request.query_params.get('include_players') != 'true':
+            return TeamListSerializer
+        return TeamSerializer
 
     def get_permissions(self):
         if self.action in ['list', 'retrieve', 'live_stream']:

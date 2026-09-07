@@ -347,7 +347,16 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
     setLoading(true);
     try {
       const [teamsRes, gwRes, matchesRes, cupsRes, standingsRes] = await Promise.all([
-        teamApi.getTeams().catch(() => ({ data: [] })),
+        teamApi.getTeams().catch(async (err) => {
+          console.warn('teamApi.getTeams failed, trying direct axios fallback:', err);
+          try {
+            const token = localStorage.getItem('access_token') || localStorage.getItem('vml_token');
+            const headers = (token && token !== 'null' && token !== 'undefined') ? { Authorization: `Bearer ${token}` } : {};
+            return await axios.get('/api/teams/', { headers });
+          } catch (_e) {
+            return { data: [] };
+          }
+        }),
         matchApi.getGameweeksStatus().catch(() => ({ data: { gameweeks: [], active_gameweek: 'هفته ۱' } })),
         adminApi.getMatches().catch(() => ({ data: [] })),
         adminApi.getCups().catch(() => ({ data: [] })),

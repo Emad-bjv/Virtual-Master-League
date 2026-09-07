@@ -260,6 +260,26 @@ class PlayerSerializer(serializers.ModelSerializer):
         ).count()
 
 
+class TeamListSerializer(serializers.ModelSerializer):
+    facilities = ClubFacilitiesSerializer(read_only=True)
+    gameplan = TeamGamePlanSerializer(read_only=True)
+    manager_username = serializers.CharField(source='manager.username', read_only=True, default=None)
+    manager_full_name = serializers.CharField(source='manager.full_name', read_only=True, default=None)
+    manager_birth_date = serializers.DateField(source='manager.birth_date', read_only=True, default=None)
+    max_squad_size = serializers.IntegerField(read_only=True)
+    injury_heal_cost = serializers.IntegerField(read_only=True)
+    players_count = serializers.IntegerField(source='players.count', read_only=True)
+
+    class Meta:
+        model = Team
+        fields = [
+            'id', 'name', 'logo', 'budget', 'gems', 'wage_cap', 'star_rating',
+            'is_active', 'manager', 'manager_username', 'manager_full_name',
+            'manager_birth_date', 'facilities', 'gameplan', 'default_formation',
+            'max_squad_size', 'injury_heal_cost', 'players_count'
+        ]
+
+
 class TeamSerializer(serializers.ModelSerializer):
     players = PlayerSerializer(many=True, read_only=True)
     facilities = ClubFacilitiesSerializer(read_only=True)

@@ -7,7 +7,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 8000,
+  timeout: 15000,
 });
 
 // In-Memory SWR Cache Storage for Ultra-Fast Tab Switching
@@ -47,8 +47,8 @@ export const cachedGet = async (url, config = {}, ttlMs = 25000) => {
 // Request Interceptor: Attach JWT Bearer token if available
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('vml_token') || localStorage.getItem('access_token');
-    if (token) {
+    const token = localStorage.getItem('access_token') || localStorage.getItem('vml_token');
+    if (token && token !== 'null' && token !== 'undefined') {
       config.headers.Authorization = `Bearer ${token}`;
     }
     // Allow Axios & Browser to properly set multipart/form-data with boundary when data is FormData
