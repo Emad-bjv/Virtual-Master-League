@@ -197,6 +197,9 @@ class Pack(models.Model):
                 'top_tier_count': 0,
                 'mid_tier_count': 0,
                 'base_tier_count': 0,
+                'top_tier': {'pct': 0.0, 'count': 0},
+                'mid_tier': {'pct': 0.0, 'count': 0},
+                'base_tier': {'pct': 0.0, 'count': 0},
                 'guarantee_min_ovr': self.guarantee_min_ovr,
                 'total_unclaimed': 0,
                 'is_early_bird_active': False,
@@ -233,6 +236,18 @@ class Pack(models.Model):
             'top_tier_count': len(top_players),
             'mid_tier_count': len(mid_players),
             'base_tier_count': len(base_players),
+            'top_tier': {
+                'pct': top_pct,
+                'count': len(top_players),
+            },
+            'mid_tier': {
+                'pct': mid_pct,
+                'count': len(mid_players),
+            },
+            'base_tier': {
+                'pct': base_pct,
+                'count': len(base_players),
+            },
             'guarantee_min_ovr': self.guarantee_min_ovr,
             'total_unclaimed': unclaimed_count,
             'is_early_bird_active': is_early_bird_active,

@@ -510,30 +510,30 @@ export default function PackOpeningModal({
                       <div className="p-2 rounded-xl bg-slate-950/80 border border-amber-500/20">
                         <span className="text-[10px] text-slate-400 block">اورال ۹۴+</span>
                         <span className="text-xs sm:text-sm font-black text-amber-400 font-sport block">
-                          {pack.odds.top_tier?.pct ?? 0}%
+                          {pack.odds.top_tier?.pct ?? pack.odds.top_tier_pct ?? 0}%
                         </span>
                         <span className="text-[9px] text-slate-500 block">
-                          ({pack.odds.top_tier?.count ?? 0} بازیکن)
+                          ({pack.odds.top_tier?.count ?? pack.odds.top_tier_count ?? 0} بازیکن)
                         </span>
                       </div>
 
                       <div className="p-2 rounded-xl bg-slate-950/80 border border-purple-500/20">
                         <span className="text-[10px] text-slate-400 block">اورال ۹۰ - ۹۳</span>
                         <span className="text-xs sm:text-sm font-black text-purple-300 font-sport block">
-                          {pack.odds.mid_tier?.pct ?? 0}%
+                          {pack.odds.mid_tier?.pct ?? pack.odds.mid_tier_pct ?? 0}%
                         </span>
                         <span className="text-[9px] text-slate-500 block">
-                          ({pack.odds.mid_tier?.count ?? 0} بازیکن)
+                          ({pack.odds.mid_tier?.count ?? pack.odds.mid_tier_count ?? 0} بازیکن)
                         </span>
                       </div>
 
                       <div className="p-2 rounded-xl bg-slate-950/80 border border-blue-500/20">
                         <span className="text-[10px] text-slate-400 block">زیر ۹۰</span>
                         <span className="text-xs sm:text-sm font-black text-cyan-300 font-sport block">
-                          {pack.odds.base_tier?.pct ?? 0}%
+                          {pack.odds.base_tier?.pct ?? pack.odds.base_tier_pct ?? 0}%
                         </span>
                         <span className="text-[9px] text-slate-500 block">
-                          ({pack.odds.base_tier?.count ?? 0} بازیکن)
+                          ({pack.odds.base_tier?.count ?? pack.odds.base_tier_count ?? 0} بازیکن)
                         </span>
                       </div>
                     </div>
