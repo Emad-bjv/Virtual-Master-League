@@ -1177,9 +1177,11 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                               <span className="text-[#00ff87] font-black">
                                 +${Number(lvl.free_reward_coins || 0).toLocaleString()} USD
                               </span>
-                              <span className="text-cyan-300 font-black">
-                                +{Number(lvl.free_reward_gems || 0)} 💎
-                              </span>
+                              {Number(lvl.free_reward_gems || 0) > 0 && (
+                                <span className="text-cyan-300 font-black">
+                                  +{Number(lvl.free_reward_gems || 0)} 💎
+                                </span>
+                              )}
                             </div>
                           </div>
 

@@ -11,5 +11,7 @@ urlpatterns = [
     path('admin-auto-assign-legends/', SeasonPassViewSet.as_view({'post': 'admin_auto_assign_legends'}), name='season-pass-admin-auto-assign-legends'),
     path('admin-assign-legend/', SeasonPassViewSet.as_view({'post': 'admin_assign_legend'}), name='season-pass-admin-assign-legend'),
     path('admin-save-level/', SeasonPassViewSet.as_view({'post': 'admin_save_level'}), name='season-pass-admin-save-level'),
+    path('admin-reset-team-pass/', SeasonPassViewSet.as_view({'post': 'admin_reset_team_pass'}), name='season-pass-admin-reset-team-pass'),
+    path('admin-reset-all-team-passes/', SeasonPassViewSet.as_view({'post': 'admin_reset_all_team_passes'}), name='season-pass-admin-reset-all-team-passes'),
 ]
 

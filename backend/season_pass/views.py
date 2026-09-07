@@ -1,6 +1,7 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from django.db import transaction
 from .models import TeamTaskProgress, SeasonPassLevel, TeamSeasonPass, WeeklyTask
 from .serializers import TeamTaskProgressSerializer, SeasonPassLevelSerializer, TeamSeasonPassSerializer, WeeklyTaskSerializer
 from .services import (
@@ -257,33 +258,45 @@ class SeasonPassViewSet(viewsets.ViewSet):
         ریست کامل سیزن پس یک تیم خاص به سطح ۱ با ۰ XP و پاکسازی جوایز دریافت شده.
         """
         team_id = request.data.get('team_id')
-        if not team_id:
-            return Response({'error': 'شناسه تیم (team_id) الزامی است.'}, status=400)
+        pass_id = request.data.get('pass_id') or request.data.get('id')
 
-        try:
-            team = Team.objects.get(id=team_id)
-        except Team.DoesNotExist:
-            return Response({'error': 'تیم مورد نظر یافت نشد.'}, status=404)
+        team = None
+        pass_obj = None
 
-        pass_obj, _ = TeamSeasonPass.objects.get_or_create(team=team)
+        if team_id:
+            try:
+                team = Team.objects.get(id=team_id)
+                pass_obj, _ = TeamSeasonPass.objects.get_or_create(team=team)
+            except Team.DoesNotExist:
+                return Response({'error': 'تیم مورد نظر یافت نشد.'}, status=404)
+        elif pass_id:
+            try:
+                pass_obj = TeamSeasonPass.objects.get(id=pass_id)
+                team = pass_obj.team
+            except TeamSeasonPass.DoesNotExist:
+                return Response({'error': 'رکورد سیزن‌پس یافت نشد.'}, status=404)
+        else:
+            return Response({'error': 'شناسه تیم (team_id) یا سیزن‌پس الزامی است.'}, status=400)
 
-        # If the team had claimed the legend player and it is in team roster, release it
-        if pass_obj.assigned_legend_player and pass_obj.assigned_legend_player.team == team:
-            legend = pass_obj.assigned_legend_player
-            legend.team = None
-            legend.save(update_fields=['team'])
+        with transaction.atomic():
+            # If the team had claimed the legend player and it is in team roster, release it
+            if pass_obj.assigned_legend_player:
+                legend = pass_obj.assigned_legend_player
+                if legend.team_id == team.id:
+                    legend.team = None
+                    legend.save(update_fields=['team'])
 
-        pass_obj.current_xp = 0
-        pass_obj.current_level = 1
-        pass_obj.is_vip = False
-        pass_obj.claimed_levels = []
-        pass_obj.legend_claimed = False
-        pass_obj.save()
+            pass_obj.current_xp = 0
+            pass_obj.current_level = 1
+            pass_obj.is_vip = False
+            pass_obj.claimed_levels = []
+            pass_obj.legend_claimed = False
+            pass_obj.save()
 
-        # Reset task progresses for this team
-        TeamTaskProgress.objects.filter(team=team).update(
-            current_value=0, is_completed=False, is_claimed=False
-        )
+            # Reset task progresses for this team
+            TeamTaskProgress.objects.filter(team=team).update(
+                current_value=0, is_completed=False, is_claimed=False
+            )
 
         return Response({
             'success': True,
@@ -296,22 +309,23 @@ class SeasonPassViewSet(viewsets.ViewSet):
         """
         ریست کامل سیزن پس تمام تیم‌های لیگ.
         """
-        team_passes = TeamSeasonPass.objects.all()
-        for tp in team_passes:
-            if tp.assigned_legend_player and tp.assigned_legend_player.team == tp.team:
-                legend = tp.assigned_legend_player
-                legend.team = None
-                legend.save(update_fields=['team'])
-            tp.current_xp = 0
-            tp.current_level = 1
-            tp.is_vip = False
-            tp.claimed_levels = []
-            tp.legend_claimed = False
-            tp.save()
+        with transaction.atomic():
+            team_passes = TeamSeasonPass.objects.all().select_related('assigned_legend_player', 'team')
+            for tp in team_passes:
+                if tp.assigned_legend_player and tp.assigned_legend_player.team_id == tp.team_id:
+                    legend = tp.assigned_legend_player
+                    legend.team = None
+                    legend.save(update_fields=['team'])
+                tp.current_xp = 0
+                tp.current_level = 1
+                tp.is_vip = False
+                tp.claimed_levels = []
+                tp.legend_claimed = False
+                tp.save()
 
-        TeamTaskProgress.objects.all().update(
-            current_value=0, is_completed=False, is_claimed=False
-        )
+            TeamTaskProgress.objects.all().update(
+                current_value=0, is_completed=False, is_claimed=False
+            )
 
         refreshed = TeamSeasonPass.objects.all().select_related('team', 'assigned_legend_player').order_by('team__id')
         return Response({

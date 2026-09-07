@@ -185,7 +185,10 @@ export default function AdminPacksSeasonPassHub() {
         setConfirmModalData(null);
         setActionLoading(true);
         try {
-          const res = await seasonPassApi.adminResetTeamPass({ team_id: tp.team || tp.id });
+          const res = await seasonPassApi.adminResetTeamPass({ 
+            team_id: tp.team,
+            pass_id: tp.id 
+          });
           notify(res.data.message || 'سیزن پس تیم ریست شد.', 'success');
           loadData();
         } catch (err) {
@@ -517,7 +520,7 @@ export default function AdminPacksSeasonPassHub() {
                     xp_required: ((passLevels.length || 0) + 1) * 175,
                     reward_title: `پاداش سطح ${(passLevels.length || 0) + 1}`,
                     free_reward_coins: 50000,
-                    free_reward_gems: 30,
+                    free_reward_gems: 0,
                     vip_reward_coins: 150000,
                     vip_reward_gems: 80,
                     is_final_level: false
@@ -557,9 +560,13 @@ export default function AdminPacksSeasonPassHub() {
                 <div className="space-y-1.5 text-[11px]">
                   <div className="p-2 rounded-xl bg-slate-950/60 border border-slate-800 space-y-0.5">
                     <span className="text-slate-400 text-[10px] block">مسیر رایگان (Free):</span>
-                    <div className="flex justify-between font-sport">
+                    <div className="flex justify-between items-center font-sport">
                       <span className="text-[#00ff87] font-bold">+${Number(lvl.free_reward_coins || 0).toLocaleString()} USD</span>
-                      <span className="text-cyan-300 font-bold">+{lvl.free_reward_gems || 0} 💎</span>
+                      {Number(lvl.free_reward_gems || 0) > 0 ? (
+                        <span className="text-cyan-300 font-bold">+{lvl.free_reward_gems} 💎</span>
+                      ) : (
+                        <span className="text-slate-500 font-normal text-[10px]">بدون الماس</span>
+                      )}
                     </div>
                   </div>
 

@@ -489,12 +489,19 @@ class AdminResetActionView(APIView):
 
                 elif target_action == 'reset-season-pass':
                     passes_count = sp_models.TeamSeasonPass.objects.count()
-                    sp_models.TeamSeasonPass.objects.all().update(
-                        current_xp=0,
-                        current_level=1,
-                        claimed_levels=[],
-                        legend_claimed=False
-                    )
+                    team_passes = sp_models.TeamSeasonPass.objects.all().select_related('assigned_legend_player', 'team')
+                    for tp in team_passes:
+                        if tp.assigned_legend_player and tp.assigned_legend_player.team_id == tp.team_id:
+                            legend = tp.assigned_legend_player
+                            legend.team = None
+                            legend.save(update_fields=['team'])
+                        tp.current_xp = 0
+                        tp.current_level = 1
+                        tp.is_vip = False
+                        tp.claimed_levels = []
+                        tp.legend_claimed = False
+                        tp.save()
+
                     sp_models.TeamTaskProgress.objects.all().update(
                         current_value=0,
                         is_completed=False,
