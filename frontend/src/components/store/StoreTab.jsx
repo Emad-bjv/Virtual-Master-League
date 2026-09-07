@@ -802,6 +802,19 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                           <span>بانس پیشتازان فعال است</span>
                         </div>
                       )}
+
+                      {/* Loyalty Pity Boost Badge / Progress Counter */}
+                      {pack.loyalty_status?.is_loyalty_boost_active ? (
+                        <div className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-yellow-500/40 via-amber-500/40 to-yellow-600/40 border border-yellow-300 text-yellow-200 text-[9px] font-black flex items-center gap-1 shadow-[0_0_15px_rgba(234,179,8,0.5)] animate-pulse">
+                          <Zap size={11} className="text-yellow-300 fill-yellow-300" />
+                          <span>⚡ بوست ۲.۵x وفاداری فعال است!</span>
+                        </div>
+                      ) : pack.loyalty_status && Number(pack.loyalty_status.opens_until_boost) > 0 ? (
+                        <div className="px-2 py-0.5 rounded-full bg-black/60 border border-amber-500/30 text-amber-300/90 text-[8.5px] font-bold flex items-center gap-1">
+                          <Flame size={10} className="text-amber-400" />
+                          <span>{pack.loyalty_status.opens_until_boost} خرید تا بوست ۲.۵x شانس</span>
+                        </div>
+                      ) : null}
                     </div>
 
                     {/* Bottom Content Area */}

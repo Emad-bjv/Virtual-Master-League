@@ -7,16 +7,50 @@ class PackPlayerSerializer(serializers.ModelSerializer):
     card_image = serializers.ImageField(required=False, allow_null=True)
     club_logo = serializers.ImageField(required=False, allow_null=True)
     effective_weight = serializers.IntegerField(source='get_effective_weight', read_only=True)
+    drop_chance_pct = serializers.SerializerMethodField()
+    predictive_odds = serializers.SerializerMethodField()
+    drop_chance_boosted_pct = serializers.SerializerMethodField()
+    predictive_odds_boosted = serializers.SerializerMethodField()
 
     class Meta:
         model = PackPlayer
         fields = [
             'id', 'pack', 'name', 'position', 'compatible_positions', 'overall', 'potential_ovr',
-            'age', 'base_stamina', 'drop_weight', 'effective_weight', 'card_image', 'nationality', 'prime_club', 'club_logo',
+            'age', 'base_stamina', 'drop_weight', 'effective_weight',
+            'drop_chance_pct', 'predictive_odds', 'drop_chance_boosted_pct', 'predictive_odds_boosted',
+            'card_image', 'nationality', 'prime_club', 'club_logo',
             'rarity', 'wage', 'market_value', 'is_claimed', 'claimed_by_team',
             'claimed_by_team_name', 'claimed_at', 'created_at'
         ]
         read_only_fields = ['is_claimed', 'claimed_by_team', 'claimed_at', 'created_at']
+
+    def _get_odds_data(self, obj, is_loyalty_boost=False):
+        if obj.is_claimed:
+            return {
+                'drop_chance_pct': 0.0,
+                'predictive_odds': {'pack_1': 0.0, 'pack_3': 0.0, 'pack_5': 0.0, 'pack_10': 0.0}
+            }
+        cache_key = 'boosted_odds_dict' if is_loyalty_boost else 'odds_dict'
+        odds_dict = self.context.get(cache_key)
+        if odds_dict is None:
+            odds_dict = obj.pack.calculate_player_drop_probabilities(is_loyalty_boost=is_loyalty_boost)
+            self.context[cache_key] = odds_dict
+        return odds_dict.get(obj.id, {
+            'drop_chance_pct': 0.0,
+            'predictive_odds': {'pack_1': 0.0, 'pack_3': 0.0, 'pack_5': 0.0, 'pack_10': 0.0}
+        })
+
+    def get_drop_chance_pct(self, obj):
+        return self._get_odds_data(obj, is_loyalty_boost=False).get('drop_chance_pct', 0.0)
+
+    def get_predictive_odds(self, obj):
+        return self._get_odds_data(obj, is_loyalty_boost=False).get('predictive_odds', {})
+
+    def get_drop_chance_boosted_pct(self, obj):
+        return self._get_odds_data(obj, is_loyalty_boost=True).get('drop_chance_pct', 0.0)
+
+    def get_predictive_odds_boosted(self, obj):
+        return self._get_odds_data(obj, is_loyalty_boost=True).get('predictive_odds', {})
 
     def to_internal_value(self, data):
         # Handle string URL or empty string for image fields gracefully
@@ -61,6 +95,7 @@ class PackSerializer(serializers.ModelSerializer):
     cover_image = serializers.ImageField(required=False, allow_null=True)
     custom_card_bg = serializers.ImageField(required=False, allow_null=True)
     odds = serializers.DictField(source='get_odds_breakdown', read_only=True)
+    loyalty_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Pack
@@ -74,9 +109,22 @@ class PackSerializer(serializers.ModelSerializer):
             'available_from', 'available_until', 'is_active', 'sort_order',
             'weight_top_tier', 'weight_mid_tier', 'weight_base_tier', 'guarantee_min_ovr',
             'early_bird_boost_pct',
-            'odds', 'total_players_count', 'unclaimed_players_count', 'is_sold_out',
+            'odds', 'loyalty_status', 'total_players_count', 'unclaimed_players_count', 'is_sold_out',
             'is_time_valid', 'created_at'
         ]
+
+    def get_loyalty_status(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated and hasattr(request.user, 'team') and request.user.team:
+            from .services import get_team_pack_loyalty_status
+            return get_team_pack_loyalty_status(request.user.team, obj)
+        return {
+            'consecutive_opens': 0,
+            'is_loyalty_boost_active': False,
+            'opens_until_boost': 3,
+            'pity_multiplier': 1.0,
+            'boost_threshold': 3,
+        }
 
     def to_internal_value(self, data):
         # Handle string URL or empty string for image fields gracefully

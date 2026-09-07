@@ -260,9 +260,16 @@ class AdminPackPlayersView(views.APIView):
             return Response({'error': 'پک یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
 
         players = pack.players.all().order_by('is_claimed', '-overall', 'name')
+        odds_dict = pack.calculate_player_drop_probabilities(is_loyalty_boost=False)
+        boosted_odds_dict = pack.calculate_player_drop_probabilities(is_loyalty_boost=True)
+        serializer_context = {
+            'request': request,
+            'odds_dict': odds_dict,
+            'boosted_odds_dict': boosted_odds_dict
+        }
         return Response({
-            'pack': PackSerializer(pack).data,
-            'players': PackPlayerSerializer(players, many=True).data,
+            'pack': PackSerializer(pack, context={'request': request}).data,
+            'players': PackPlayerSerializer(players, many=True, context=serializer_context).data,
             'total_count': players.count(),
             'unclaimed_count': players.filter(is_claimed=False).count(),
             'claimed_count': players.filter(is_claimed=True).count()
@@ -360,7 +367,7 @@ class AdminPackPlayerDetailView(views.APIView):
     def get(self, request, pack_id, player_id):
         try:
             player = PackPlayer.objects.get(pk=player_id, pack_id=pack_id)
-            return Response(PackPlayerSerializer(player).data)
+            return Response(PackPlayerSerializer(player, context={'request': request}).data)
         except PackPlayer.DoesNotExist:
             return Response({'error': 'بازیکن یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -379,13 +386,13 @@ class AdminPackPlayerDetailView(views.APIView):
         except PackPlayer.DoesNotExist:
             return Response({'error': 'بازیکن یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = PackPlayerSerializer(player, data=request.data, partial=True)
+        serializer = PackPlayerSerializer(player, data=request.data, partial=True, context={'request': request})
         if serializer.is_valid():
             updated_player = serializer.save()
             return Response({
                 'success': True,
                 'message': f'اطلاعات بازیکن «{updated_player.name}» به‌روزرسانی شد.',
-                'player': PackPlayerSerializer(updated_player).data
+                'player': PackPlayerSerializer(updated_player, context={'request': request}).data
             })
         return Response({'error': 'اطلاعات وارد شده معتبر نیست.', 'details': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 

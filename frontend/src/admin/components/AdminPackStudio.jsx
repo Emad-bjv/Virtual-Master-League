@@ -187,6 +187,11 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
   const [jsonInput, setJsonInput] = useState('');
   const [jsonMessage, setJsonMessage] = useState('');
 
+  // Smart Odds Analytics Modal State
+  const [analyticsPlayer, setAnalyticsPlayer] = useState(null);
+  const [tuningWeight, setTuningWeight] = useState(0);
+  const [savingTunedWeight, setSavingTunedWeight] = useState(false);
+
   // Status & Feedback
   const [savingPack, setSavingPack] = useState(false);
   const [savingPlayer, setSavingPlayer] = useState(false);
@@ -195,6 +200,121 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast({ msg: '', type: 'success' }), 4000);
+  };
+
+  // Helper for real-time mathematical odds calculation preview in modal
+  const calculateOddsPreview = (player, customWeight, allPlayers, packConfig) => {
+    if (!player || player.is_claimed) {
+      return {
+        drop_chance_pct: 0,
+        predictive_odds: { pack_1: 0, pack_3: 0, pack_5: 0, pack_10: 0 },
+        drop_chance_boosted_pct: 0,
+        predictive_odds_boosted: { pack_1: 0, pack_3: 0, pack_5: 0, pack_10: 0 },
+      };
+    }
+
+    const unclaimed = (allPlayers || []).filter((p) => !p.is_claimed);
+    if (unclaimed.length <= 3) {
+      return {
+        drop_chance_pct: 100,
+        predictive_odds: { pack_1: 100, pack_3: 100, pack_5: 100, pack_10: 100 },
+        drop_chance_boosted_pct: 100,
+        predictive_odds_boosted: { pack_1: 100, pack_3: 100, pack_5: 100, pack_10: 100 },
+      };
+    }
+
+    const totalCount = allPlayers.length;
+    const fullnessRatio = totalCount > 0 ? unclaimed.length / totalCount : 1.0;
+    const boostPct = Number(packConfig?.early_bird_boost_pct ?? 50);
+    const earlyBirdMult = 1.0 + (boostPct / 100.0) * fullnessRatio;
+    const minOvr = Number(packConfig?.guarantee_min_ovr ?? 90);
+    const midTierWeight = Number(packConfig?.weight_mid_tier ?? 5);
+
+    const runCalc = (isLoyaltyBoost) => {
+      const getW = (p) => {
+        let baseW = p.id === player.id
+          ? (customWeight > 0 ? customWeight : (p.overall >= 94 ? Number(packConfig?.weight_top_tier ?? 3) : p.overall >= 90 ? midTierWeight : Number(packConfig?.weight_base_tier ?? 8)))
+          : Number(p.effective_weight ?? (p.overall >= 94 ? Number(packConfig?.weight_top_tier ?? 3) : p.overall >= 90 ? midTierWeight : Number(packConfig?.weight_base_tier ?? 8)));
+
+        let mult = 1.0;
+        if (p.overall >= 94) {
+          if (earlyBirdMult > 1.0) mult *= earlyBirdMult;
+          if (isLoyaltyBoost) mult *= 2.5;
+          return Math.max(1, Math.round(baseW * mult));
+        }
+        return baseW;
+      };
+
+      const weights = {};
+      let totalW = 0;
+      unclaimed.forEach((p) => {
+        const w = getW(p);
+        weights[p.id] = w;
+        totalW += w;
+      });
+
+      const candidates = minOvr > 0 ? unclaimed.filter((p) => p.overall >= minOvr) : [];
+
+      let prob = 0;
+      if (candidates.length > 0) {
+        const gWeights = {};
+        let totalGW = 0;
+        candidates.forEach((c) => {
+          const w = weights[c.id];
+          const gw = c.overall >= 94 ? Math.max(w, midTierWeight) : w;
+          gWeights[c.id] = gw;
+          totalGW += gw;
+        });
+
+        const isCandidate = player.overall >= minOvr;
+        if (isCandidate) {
+          prob += (gWeights[player.id] || 0) / totalGW;
+          candidates.forEach((other) => {
+            if (other.id !== player.id) {
+              const pOtherSlot1 = (gWeights[other.id] || 0) / totalGW;
+              const remSum = totalW - (weights[other.id] || 0);
+              if (remSum > 0) {
+                const pInRem = Math.min(1.0, (2.0 * (weights[player.id] || 0)) / remSum);
+                prob += pOtherSlot1 * pInRem;
+              }
+            }
+          });
+        } else {
+          candidates.forEach((c) => {
+            const pCSlot1 = (gWeights[c.id] || 0) / totalGW;
+            const remSum = totalW - (weights[c.id] || 0);
+            if (remSum > 0) {
+              const pInRem = Math.min(1.0, (2.0 * (weights[player.id] || 0)) / remSum);
+              prob += pCSlot1 * pInRem;
+            }
+          });
+        }
+      } else {
+        const w = weights[player.id] || 0;
+        prob = totalW > 0 ? 1.0 - Math.pow(1.0 - w / totalW, 3) : 0;
+      }
+
+      const pClamped = Math.min(1.0, Math.max(0, prob));
+      const p1 = Math.round(pClamped * 1000) / 10;
+      const p3 = Math.round((1.0 - Math.pow(1.0 - pClamped, 3)) * 1000) / 10;
+      const p5 = Math.round((1.0 - Math.pow(1.0 - pClamped, 5)) * 1000) / 10;
+      const p10 = Math.round((1.0 - Math.pow(1.0 - pClamped, 10)) * 1000) / 10;
+
+      return {
+        drop_chance_pct: p1,
+        predictive_odds: { pack_1: p1, pack_3: p3, pack_5: p5, pack_10: p10 }
+      };
+    };
+
+    const normal = runCalc(false);
+    const boosted = runCalc(true);
+
+    return {
+      drop_chance_pct: normal.drop_chance_pct,
+      predictive_odds: normal.predictive_odds,
+      drop_chance_boosted_pct: boosted.drop_chance_pct,
+      predictive_odds_boosted: boosted.predictive_odds
+    };
   };
 
   // Fetch pack players if editing an existing pack
@@ -222,6 +342,32 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
       showToast('خطا در دریافت لیست بازیکنان استخر پک', 'error');
     } finally {
       setLoadingRoster(false);
+    }
+  };
+
+  const openSmartOddsModal = (player, e) => {
+    if (e) e.stopPropagation();
+    setAnalyticsPlayer(player);
+    setTuningWeight(player.drop_weight ?? 0);
+  };
+
+  const handleSaveTunedWeight = async () => {
+    if (!analyticsPlayer || !packData.id) return;
+    setSavingTunedWeight(true);
+    try {
+      const weightVal = parseInt(tuningWeight, 10) || 0;
+      const res = await gachaApi.adminUpdatePackPlayer(packData.id, analyticsPlayer.id, {
+        drop_weight: weightVal
+      });
+      showToast(`ضریب شانس کارت «${analyticsPlayer.name}» با موفقیت روی ${weightVal > 0 ? weightVal : 'خودکار'} ذخیره شد.`, 'success');
+      await fetchPackPlayers(packData.id);
+      if (res.data?.player) {
+        setAnalyticsPlayer(res.data.player);
+      }
+    } catch {
+      showToast('خطا در ذخیره ضریب شانس کارت', 'error');
+    } finally {
+      setSavingTunedWeight(false);
     }
   };
 
@@ -1521,8 +1667,9 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                       <th className="p-3">پست</th>
                       <th className="p-3">اورال</th>
                       <th className="p-3">ضریب شانس</th>
+                      <th className="p-3 text-center">احتمال خروج (Drop %)</th>
                       <th className="p-3">وضعیت</th>
-                      <th className="p-3">عملیات</th>
+                      <th className="p-3 text-center">عملیات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
@@ -1606,6 +1753,23 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                                 )}
                               </div>
                             </td>
+                            <td className="p-2.5 text-center">
+                              {player.is_claimed ? (
+                                <span className="text-[10px] text-slate-500 font-bold">۰٪ (دریافت شده)</span>
+                              ) : (
+                                <div className="flex flex-col items-center justify-center gap-1">
+                                  <span className="px-2.5 py-0.5 rounded-full font-sport font-black text-xs bg-gradient-to-r from-amber-500/25 to-yellow-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
+                                    {player.drop_chance_pct !== undefined ? `${player.drop_chance_pct}٪` : '—'}
+                                  </span>
+                                  {player.overall >= 94 && player.drop_chance_boosted_pct && (
+                                    <span className="text-[9px] font-bold text-cyan-300 flex items-center gap-0.5" title="با بوست وفاداری ۲.۵x برای خریداران بیش از ۳ پک">
+                                      <span>⚡ ۲.۵x:</span>
+                                      <strong className="font-sport font-black">{player.drop_chance_boosted_pct}٪</strong>
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </td>
                             <td className="p-2.5">
                               {player.is_claimed ? (
                                 <div className="flex flex-col gap-1 items-start">
@@ -1630,7 +1794,16 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                               )}
                             </td>
                             <td className="p-2.5">
-                              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => openSmartOddsModal(player, e)}
+                                  className="p-1.5 rounded-lg bg-cyan-950/70 hover:bg-cyan-900 text-cyan-300 hover:text-cyan-100 transition cursor-pointer border border-cyan-500/40 flex items-center gap-1 text-[10.5px] font-bold shadow-sm"
+                                  title="آنالیز و پیش‌بینی هوشمند شانس این کارت"
+                                >
+                                  <Dices size={13} className="text-cyan-400" />
+                                  <span className="hidden xl:inline">آنالیز شانس 🎯</span>
+                                </button>
                                 {player.is_claimed && (
                                   <button
                                     type="button"
@@ -1666,7 +1839,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                       })
                     ) : (
                       <tr>
-                        <td colSpan="9" className="p-8 text-center text-slate-500">
+                        <td colSpan="10" className="p-8 text-center text-slate-500">
                           {loadingRoster ? 'در حال بارگذاری بازیکنان...' : 'هنوز هیچ بازیکنی در استخر این پک ثبت نشده است.'}
                         </td>
                       </tr>
@@ -2379,7 +2552,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                 <button
                   type="button"
                   onClick={() => setShowJsonModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs"
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs cursor-pointer"
                 >
                   انصراف
                 </button>
@@ -2388,13 +2561,237 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                   type="button"
                   onClick={handleBulkUpload}
                   disabled={!jsonInput.trim()}
-                  className="px-6 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-black text-xs disabled:opacity-50"
+                  className="px-6 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-black text-xs disabled:opacity-50 cursor-pointer"
                 >
                   تایید و افزودن به پک
                 </button>
               </div>
             </motion.div>
           </div>
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Smart Odds Analytics & Predictive Tuner Modal */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {analyticsPlayer && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-md overflow-y-auto">
+              <div className="fixed inset-0" onClick={() => setAnalyticsPlayer(null)} />
+
+              <motion.div
+                initial={{ scale: 0.94, opacity: 0, y: 15 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.94, opacity: 0, y: 15 }}
+                transition={{ duration: 0.2 }}
+                className="relative z-10 my-auto w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-950 text-white p-5 sm:p-6 shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center text-white shadow-lg shrink-0">
+                      <Dices size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                        <span>آنالیز هوشمند شانس خروج کارت</span>
+                        <span className="px-2 py-0.5 rounded-lg text-xs bg-amber-400 text-slate-950 font-black font-sport">
+                          OVR {analyticsPlayer.overall}
+                        </span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        پیش‌بینی ریاضی احتمال دستیابی به کارت در شانس‌های متوالی و تنظیم ضریب شانس
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setAnalyticsPlayer(null)}
+                    className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Content */}
+                {(() => {
+                  const previewOdds = calculateOddsPreview(analyticsPlayer, tuningWeight, roster, packData);
+                  const isTopTier = analyticsPlayer.overall >= 94;
+
+                  return (
+                    <div className="space-y-4 pt-4">
+                      {/* Player Mini Spotlight Card */}
+                      <div className="p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800 flex items-center justify-between gap-4 flex-wrap">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-14 rounded-xl bg-black/70 border border-slate-700 overflow-hidden flex items-center justify-center shrink-0">
+                            {analyticsPlayer.card_image || analyticsPlayer.photo ? (
+                              <img
+                                src={analyticsPlayer.card_image || analyticsPlayer.photo}
+                                alt={analyticsPlayer.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Star size={18} className="text-amber-400" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-black text-white">{analyticsPlayer.name}</span>
+                              <span className="font-sport font-black text-cyan-300 text-xs uppercase px-1.5 py-0.5 bg-slate-800 rounded">
+                                {analyticsPlayer.position}
+                              </span>
+                            </div>
+                            <span className="text-xs text-slate-400 font-bold block mt-0.5">
+                              {analyticsPlayer.prime_club || 'تیم مشخص نشده'} • {analyticsPlayer.nationality || 'ملیت'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <div className="text-center px-3 py-1.5 rounded-xl bg-black/50 border border-white/10">
+                            <span className="text-[10px] text-slate-400 block">شانس در ۱ پک:</span>
+                            <span className="font-sport font-black text-lg text-amber-300">
+                              {previewOdds.drop_chance_pct}٪
+                            </span>
+                          </div>
+                          {isTopTier && (
+                            <div className="text-center px-3 py-1.5 rounded-xl bg-amber-950/40 border border-amber-500/40">
+                              <span className="text-[10px] text-amber-300 block flex items-center gap-0.5">
+                                <span>بوست وفاداری (۲.۵x):</span>
+                              </span>
+                              <span className="font-sport font-black text-lg text-cyan-300">
+                                {previewOdds.drop_chance_boosted_pct}٪
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Predictive Cumulative Odds Cards (۱، ۳، ۵، ۱۰ پک) */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                            <Sparkles size={14} className="text-cyan-400" />
+                            <span>پیش‌بینی هوشمند شانس در خریدهای بعدی:</span>
+                          </span>
+                          <span className="text-[10.5px] text-slate-400">
+                            فرمول: P(N) = ۱ - (۱ - P)ᴺ
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                          {[
+                            { label: '۱ پک (شانس فوری)', key: 'pack_1', bar: 'bg-cyan-500' },
+                            { label: '۳ پک بعدی', key: 'pack_3', bar: 'bg-teal-400' },
+                            { label: '۵ پک بعدی', key: 'pack_5', bar: 'bg-amber-400' },
+                            { label: '۱۰ پک بعدی', key: 'pack_10', bar: 'bg-fuchsia-400' },
+                          ].map((item) => {
+                            const val = previewOdds.predictive_odds[item.key] || 0;
+                            const boostedVal = previewOdds.predictive_odds_boosted[item.key] || 0;
+                            return (
+                              <div
+                                key={item.key}
+                                className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between space-y-2"
+                              >
+                                <span className="text-[11px] font-bold text-slate-300">{item.label}</span>
+                                <div className="space-y-1">
+                                  <div className="flex items-baseline justify-between">
+                                    <span className="font-sport font-black text-base text-white">{val}٪</span>
+                                    {isTopTier && (
+                                      <span className="text-[9.5px] font-sport font-black text-amber-300" title="با بوست وفاداری ۲.۵x">
+                                        ⚡ {boostedVal}٪
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${item.bar} transition-all duration-300`}
+                                      style={{ width: `${Math.min(100, val)}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Loyalty Boost Banner */}
+                      <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-950/40 via-yellow-950/20 to-slate-900 border border-amber-500/30 flex items-start gap-3">
+                        <Flame size={18} className="text-amber-400 shrink-0 mt-0.5" />
+                        <div className="space-y-0.5 text-xs">
+                          <span className="font-bold text-amber-300 block">سیستم بوست وفاداری (Loyalty Pity Boost):</span>
+                          <p className="text-slate-300 leading-relaxed text-[11px]">
+                            مربیانی که <strong className="text-white">بیش از ۳ پک</strong> از این پک خریداری کرده باشند، ضریب شانس کارت‌های تاپ‌تیر (۹۴+) برای آن‌ها <strong className="text-amber-300">۲.۵ برابر (+۱۵۰٪ بوست)</strong> می‌شود تا زمانی که فوق‌ستاره را جذب نمایند.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Interactive Weight Tuner */}
+                      <div className="p-4 rounded-2xl bg-slate-900 border border-cyan-500/30 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                            <Sliders size={14} className="text-cyan-400" />
+                            <span>تنظیم مستقیم ضریب شانس اختصاصی این بازیکن:</span>
+                          </span>
+                          <span className="text-[11px] font-mono text-slate-400">
+                            {Number(tuningWeight) > 0 ? `ضریب سفارشی: ${tuningWeight}` : 'پیروی خودکار از رده پک'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                          <input
+                            type="range"
+                            min="0"
+                            max="50"
+                            step="1"
+                            value={tuningWeight}
+                            onChange={(e) => setTuningWeight(parseInt(e.target.value, 10) || 0)}
+                            className="flex-1 accent-cyan-400 cursor-pointer"
+                          />
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={tuningWeight}
+                              onChange={(e) => setTuningWeight(parseInt(e.target.value, 10) || 0)}
+                              className="w-16 bg-slate-950 border border-slate-700 rounded-xl px-2 py-1 text-center font-sport font-black text-cyan-300 text-xs outline-none focus:border-cyan-400"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setTuningWeight(0)}
+                              className="px-2 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300 cursor-pointer"
+                              title="بازنشانی به حالت خودکار"
+                            >
+                              خودکار (۰)
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                          <span className="text-[11px] text-slate-400">
+                            تغییرات بالا به صورت لحظه‌ای در پیش‌بینی شانس منعکس می‌شود.
+                          </span>
+                          <button
+                            type="button"
+                            disabled={savingTunedWeight}
+                            onClick={handleSaveTunedWeight}
+                            className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs transition-all shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                          >
+                            <Check size={14} />
+                            <span>{savingTunedWeight ? 'در حال ذخیره...' : 'ذخیره ضریب شانس کارت'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </motion.div>
+            </div>
+          )}
         </AnimatePresence>,
         document.body
       )}

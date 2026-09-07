@@ -49,6 +49,7 @@ export default function PackOpeningModal({
   const [revealedCardIds, setRevealedCardIds] = useState([]);
   const [pickedPlayer, setPickedPlayer] = useState(null);
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
+  const [loyaltyBoostApplied, setLoyaltyBoostApplied] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -65,6 +66,7 @@ export default function PackOpeningModal({
       setPickedPlayer(null);
       setTimeLeft(300);
       setTopCard(null);
+      setLoyaltyBoostApplied(false);
       setWalkoutStage('POSITION');
       if (stageTimerRef.current) clearTimeout(stageTimerRef.current);
     }
@@ -186,6 +188,7 @@ export default function PackOpeningModal({
         const receivedCards = res.data.cards || [];
         setSessionId(res.data.session_id);
         setCards(receivedCards);
+        setLoyaltyBoostApplied(Boolean(res.data?.loyalty_boost_applied));
 
         // Find the top card (highest overall rating) for the FC 26 walkout cinematic
         const bestCard = receivedCards.reduce(
@@ -530,6 +533,29 @@ export default function PackOpeningModal({
                     </div>
                   </div>
                 )}
+
+                {/* Loyalty Pity Boost Status Banner */}
+                {pack.loyalty_status?.is_loyalty_boost_active ? (
+                  <div className="p-3 rounded-2xl bg-gradient-to-r from-yellow-950/60 via-amber-950/50 to-slate-900 border border-yellow-400/50 flex items-center justify-between text-xs shadow-[0_0_20px_rgba(234,179,8,0.25)]">
+                    <div className="flex items-center gap-2.5">
+                      <Zap size={18} className="text-yellow-400 fill-yellow-400 animate-pulse shrink-0" />
+                      <div>
+                        <strong className="text-yellow-300 block font-black">⚡ بوست شانس وفاداری ۲.۵x برای شما فعال است!</strong>
+                        <span className="text-[10px] text-slate-300">شانس خروج تمامی کارت‌های تاپ‌تیر (اورال ۹۴+) با ضریب ۲.۵ برابر محاسبه می‌شود.</span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-black text-yellow-300 bg-yellow-400/20 px-2.5 py-1 rounded-xl border border-yellow-400/40 font-sport">
+                      ۲.۵x بوست شانس
+                    </span>
+                  </div>
+                ) : pack.loyalty_status && Number(pack.loyalty_status.opens_until_boost) > 0 ? (
+                  <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-amber-500/20 flex items-center gap-2 text-xs">
+                    <Flame size={15} className="text-amber-400 shrink-0" />
+                    <span className="text-[11px] text-slate-300">
+                      با خرید <strong className="text-amber-300">{pack.loyalty_status.opens_until_boost} پک دیگر</strong> از این بسته، بوست وفاداری ۲.۵x برای فوق‌ستاره‌های ۹۴+ فعال خواهد شد.
+                    </span>
+                  </div>
+                ) : null}
 
                 {/* Flash Sale Banner if discount is active */}
                 {pack.is_discount_active && (
@@ -991,6 +1017,14 @@ export default function PackOpeningModal({
                   )}
                 </div>
               </div>
+
+              {/* Loyalty Pity Boost Active Notification Banner */}
+              {loyaltyBoostApplied && (
+                <div className="p-2.5 rounded-2xl bg-gradient-to-r from-yellow-500/20 via-amber-500/20 to-yellow-600/20 border border-yellow-400/40 text-yellow-300 text-xs flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(234,179,8,0.2)] animate-pulse">
+                  <Zap size={14} className="text-yellow-400 fill-yellow-400" />
+                  <span className="font-bold">⚡ بوست وفاداری ۲.۵x برای شما اعمال شد: شانس کارت‌های فوق‌ستاره ۹۴+ افزایش یافت!</span>
+                </div>
+              )}
 
               {/* 3 Interactive Cards Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 justify-items-center">

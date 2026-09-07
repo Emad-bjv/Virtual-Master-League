@@ -195,3 +195,102 @@ class PackSystemTestCase(TestCase):
         self.assertFalse(depleted_odds['is_early_bird_active'])
         self.assertLess(depleted_odds['early_bird_multiplier'], 1.6)
 
+    def test_calculate_player_drop_probabilities_and_predictive_odds(self):
+        p95 = PackPlayer.objects.create(
+            pack=self.pack, name="Zidane 95", position="AMF", overall=95, potential_ovr=99, age=28
+        )
+        p91 = PackPlayer.objects.create(
+            pack=self.pack, name="Modric 91", position="CMF", overall=91, potential_ovr=94, age=30
+        )
+        p80 = PackPlayer.objects.create(
+            pack=self.pack, name="Regular 80", position="CB", overall=80, potential_ovr=85, age=22
+        )
+
+        odds_normal = self.pack.calculate_player_drop_probabilities(is_loyalty_boost=False)
+        self.assertIn(p95.id, odds_normal)
+        self.assertIn(p91.id, odds_normal)
+        self.assertIn(p80.id, odds_normal)
+
+        p95_odds = odds_normal[p95.id]
+        p_odds = p95_odds['predictive_odds']
+        self.assertGreater(p95_odds['drop_chance_pct'], 0)
+        # Verify cumulative probability progression: P(1) <= P(3) <= P(5) <= P(10)
+        self.assertLessEqual(p_odds['pack_1'], p_odds['pack_3'])
+        self.assertLessEqual(p_odds['pack_3'], p_odds['pack_5'])
+        self.assertLessEqual(p_odds['pack_5'], p_odds['pack_10'])
+
+        # Compare with loyalty boost
+        odds_boosted = self.pack.calculate_player_drop_probabilities(is_loyalty_boost=True)
+        p95_boosted = odds_boosted[p95.id]
+        self.assertGreater(p95_boosted['drop_chance_pct'], p95_odds['drop_chance_pct'])
+
+    def test_loyalty_pity_system_activation_and_reset(self):
+        from gacha.services import get_team_pack_loyalty_status
+
+        top_player = PackPlayer.objects.create(
+            pack=self.pack, name="Ronaldo 96", position="CF", overall=96, potential_ovr=99, age=27
+        )
+
+        status_init = get_team_pack_loyalty_status(self.team, self.pack)
+        self.assertFalse(status_init['is_loyalty_boost_active'])
+        self.assertEqual(status_init['consecutive_opens'], 0)
+        self.assertEqual(status_init['opens_until_boost'], 3)
+
+        # Give team ample gems for multiple openings
+        self.team.gems = 2000
+        self.team.save()
+
+        # Simulate 3 pack openings where coach chooses low-tier players (overall < 94)
+        for i in range(3):
+            open_res = open_pack(self.team.id, self.pack.id, payment_method='GEMS')
+            self.assertTrue(open_res['success'])
+            # Pick a non-top card
+            low_card = [c for c in open_res['cards'] if c['overall'] < 94][0]
+            pick_res = pick_card(open_res['session_id'], low_card['id'], self.team.id)
+            self.assertTrue(pick_res['success'])
+
+        # Now coach has opened 3 consecutive packs without a 94+ card: Boost should be ACTIVE
+        status_boosted = get_team_pack_loyalty_status(self.team, self.pack)
+        self.assertTrue(status_boosted['is_loyalty_boost_active'])
+        self.assertEqual(status_boosted['consecutive_opens'], 3)
+        self.assertEqual(status_boosted['opens_until_boost'], 0)
+        self.assertEqual(status_boosted['pity_multiplier'], 2.5)
+
+        # Next opening should have loyalty_boost_applied = True
+        open_boosted_res = open_pack(self.team.id, self.pack.id, payment_method='GEMS')
+        self.assertTrue(open_boosted_res['success'])
+        self.assertTrue(open_boosted_res['loyalty_boost_applied'])
+        self.assertEqual(open_boosted_res['loyalty_multiplier'], 2.5)
+
+        # Coach picks top_player (OVR 96)
+        pick_top_res = pick_card(open_boosted_res['session_id'], top_player.id, self.team.id)
+        self.assertTrue(pick_top_res['success'])
+
+        # Pity should now be RESET because top player was drawn
+        status_after = get_team_pack_loyalty_status(self.team, self.pack)
+        self.assertFalse(status_after['is_loyalty_boost_active'])
+        self.assertEqual(status_after['consecutive_opens'], 0)
+        self.assertEqual(status_after['opens_until_boost'], 3)
+
+    def test_admin_patch_player_drop_weight(self):
+        from rest_framework.test import APIClient
+        from users.models import User
+
+        admin_user = User.objects.create_superuser(username='admin_weight_test', email='admin_w@test.com', password='password123')
+        client = APIClient()
+        client.force_authenticate(user=admin_user)
+
+        target_p = self.players[0]
+        self.assertEqual(target_p.drop_weight, 0)
+
+        url = f"/api/gacha/admin/packs/{self.pack.id}/players/{target_p.id}/"
+        res = client.patch(url, {'drop_weight': 25}, format='json')
+        self.assertEqual(res.status_code, 200, res.data)
+        self.assertTrue(res.data['success'])
+        self.assertEqual(res.data['player']['drop_weight'], 25)
+        self.assertEqual(res.data['player']['effective_weight'], 25)
+
+        target_p.refresh_from_db()
+        self.assertEqual(target_p.drop_weight, 25)
+        self.assertEqual(target_p.get_effective_weight(), 25)
+

@@ -60,12 +60,52 @@ def generate_random_player(rarity: str, team: Team = None) -> Player:
     return player
 
 
-def weighted_sample_pack_cards(pack: Pack, unclaimed_list: list) -> list:
+def get_team_pack_loyalty_status(team: Team, pack: Pack) -> dict:
+    """
+    Returns loyalty and pity tracking information for a specific team on a specific pack.
+    If a coach opens 3 or more packs of this pack without pulling an OVR 94+ player,
+    a 2.5x Loyalty Boost is activated for all OVR 94+ players until one is drawn.
+    """
+    if not team or not pack:
+        return {
+            'consecutive_opens': 0,
+            'is_loyalty_boost_active': False,
+            'opens_until_boost': 3,
+            'pity_multiplier': 1.0,
+            'boost_threshold': 3,
+        }
+
+    completed_sessions = PackOpeningSession.objects.filter(
+        team=team, pack=pack, status='COMPLETED'
+    ).select_related('picked_card').order_by('-id')
+
+    consecutive_opens = 0
+    for s in completed_sessions:
+        if s.picked_card and s.picked_card.overall >= 94:
+            break
+        consecutive_opens += 1
+
+    is_active = consecutive_opens >= 3
+    opens_until = max(0, 3 - consecutive_opens)
+    multiplier = 2.5 if is_active else 1.0
+
+    return {
+        'consecutive_opens': consecutive_opens,
+        'is_loyalty_boost_active': is_active,
+        'opens_until_boost': opens_until,
+        'pity_multiplier': multiplier,
+        'boost_threshold': 3,
+    }
+
+
+def weighted_sample_pack_cards(pack: Pack, unclaimed_list: list, team: Team = None) -> list:
     """
     Samples 3 unique cards using admin-configured weights and guaranteed OVR slot.
     - Slot 1: If pack.guarantee_min_ovr > 0 and cards with overall >= guarantee_min_ovr exist,
               sample 1 card from them weighted by their effective weights.
     - Slots 2 & 3: Sample without replacement from the remaining cards weighted by effective weights.
+    - Loyalty Pity Boost: If coach has opened >= 3 packs without pulling a 94+ player,
+      boost all 94+ player weights by 2.5x.
     - Shuffles the 3 selected cards so the guaranteed card isn't always in slot 1.
     """
     if len(unclaimed_list) <= 3:
@@ -78,16 +118,22 @@ def weighted_sample_pack_cards(pack: Pack, unclaimed_list: list) -> list:
 
     # Dynamic Early Bird Anti-Snipe Multiplier:
     # Early buyers receive boosted odds on 94+ players while the pool is fresh and full.
-    # As players are claimed, the boost smoothly tapers down, completely neutralizing the shrinking pool effect.
     total_count = getattr(pack, 'total_players_count', len(unclaimed_list)) or len(unclaimed_list)
     fullness_ratio = (len(unclaimed_list) / total_count) if total_count > 0 else 1.0
     boost_pct = getattr(pack, 'early_bird_boost_pct', 50) or 0
     early_bird_mult = 1.0 + ((boost_pct / 100.0) * fullness_ratio)
 
+    # Check loyalty pity status
+    loyalty_status = get_team_pack_loyalty_status(team, pack) if team else {'is_loyalty_boost_active': False}
+    is_loyalty_boost = loyalty_status.get('is_loyalty_boost_active', False)
+
     def get_card_weight(player):
         base_w = player.get_effective_weight()
-        if player.overall >= 94 and early_bird_mult > 1.0:
-            return max(1, round(base_w * early_bird_mult))
+        if player.overall >= 94:
+            mult = early_bird_mult if early_bird_mult > 1.0 else 1.0
+            if is_loyalty_boost:
+                mult *= 2.5
+            return max(1, round(base_w * mult))
         return base_w
 
     # 1. Smart Guaranteed Slot (if configured and eligible cards exist)
@@ -189,8 +235,9 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
                 if not wallet_res['success']:
                     return {'success': False, 'error': wallet_res.get('error', 'موجودی دلار کافی نیست.')}
 
-        # Sample 3 weighted cards using admin weights and smart guarantee slot
-        selected_cards = weighted_sample_pack_cards(pack, unclaimed_list)
+        # Sample 3 weighted cards using admin weights and smart guarantee slot + loyalty pity boost
+        selected_cards = weighted_sample_pack_cards(pack, unclaimed_list, team=team)
+        loyalty_info = get_team_pack_loyalty_status(team, pack)
 
         # Create opening session (expires in 5 minutes)
         session = PackOpeningSession.objects.create(
@@ -239,6 +286,9 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
                 serialize_card(selected_cards[1]),
                 serialize_card(selected_cards[2]),
             ],
+            'loyalty_status': loyalty_info,
+            'loyalty_boost_applied': loyalty_info.get('is_loyalty_boost_active', False),
+            'loyalty_multiplier': loyalty_info.get('pity_multiplier', 1.0),
             'expires_at': session.expires_at.isoformat(),
             'remaining_balance': team.gems if payment_method == 'GEMS' else float(team.budget)
         }

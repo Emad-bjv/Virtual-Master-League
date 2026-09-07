@@ -215,6 +215,118 @@ class Pack(models.Model):
             'pool_fullness_pct': round(fullness_ratio * 100, 1),
         }
 
+    def calculate_player_drop_probabilities(self, is_loyalty_boost=False):
+        """
+        Calculates mathematically accurate drop probabilities and multi-pull predictive odds
+        for every unclaimed player in this pack, accounting for guaranteed slot,
+        early bird boost, and optional 2.5x loyalty boost.
+        """
+        unclaimed = list(self.players.filter(is_claimed=False))
+        if not unclaimed:
+            return {}
+
+        total_count = self.players.count()
+        unclaimed_count = len(unclaimed)
+        if unclaimed_count <= 3:
+            # If 3 or fewer players remain, every remaining card is guaranteed to be revealed (100%)
+            return {
+                p.id: {
+                    'drop_chance_pct': 100.0,
+                    'predictive_odds': {
+                        'pack_1': 100.0,
+                        'pack_3': 100.0,
+                        'pack_5': 100.0,
+                        'pack_10': 100.0,
+                    }
+                }
+                for p in unclaimed
+            }
+
+        fullness_ratio = (unclaimed_count / total_count) if total_count > 0 else 1.0
+        boost_pct = getattr(self, 'early_bird_boost_pct', 50) or 0
+        early_bird_mult = 1.0 + ((boost_pct / 100.0) * fullness_ratio)
+
+        def get_w(p):
+            base_w = p.get_effective_weight()
+            mult = 1.0
+            if p.overall >= 94:
+                if early_bird_mult > 1.0:
+                    mult *= early_bird_mult
+                if is_loyalty_boost:
+                    mult *= 2.5
+                return max(1, round(base_w * mult))
+            return base_w
+
+        weights = {p.id: get_w(p) for p in unclaimed}
+        total_w = sum(weights.values())
+
+        min_ovr = getattr(self, 'guarantee_min_ovr', 90) or 0
+        candidates = [p for p in unclaimed if p.overall >= min_ovr] if min_ovr > 0 else []
+
+        probabilities = {}
+
+        if candidates and len(candidates) > 0:
+            mid_w = getattr(self, 'weight_mid_tier', 5) or 5
+            g_weights = {}
+            for c in candidates:
+                w = weights[c.id]
+                g_weights[c.id] = max(w, mid_w) if c.overall >= 94 else w
+            total_g_w = sum(g_weights.values())
+
+            for p in unclaimed:
+                pid = p.id
+                prob = 0.0
+                if p in candidates:
+                    # Slot 1 chance
+                    prob += g_weights[pid] / total_g_w
+
+                    # Slot 2 & 3 chance if another candidate was drawn in slot 1
+                    for other_c in candidates:
+                        if other_c.id == pid:
+                            continue
+                        p_other_slot1 = g_weights[other_c.id] / total_g_w
+                        rem_sum = total_w - weights[other_c.id]
+                        if rem_sum > 0:
+                            p_in_rem = min(1.0, 2.0 * weights[pid] / rem_sum)
+                            prob += p_other_slot1 * p_in_rem
+                else:
+                    # p is not a guaranteed candidate, so it can only appear in slots 2 and 3
+                    for c in candidates:
+                        p_c_slot1 = g_weights[c.id] / total_g_w
+                        rem_sum = total_w - weights[c.id]
+                        if rem_sum > 0:
+                            p_in_rem = min(1.0, 2.0 * weights[pid] / rem_sum)
+                            prob += p_c_slot1 * p_in_rem
+
+                p_clamped = min(1.0, max(0.0, prob))
+                probabilities[pid] = p_clamped
+        else:
+            for p in unclaimed:
+                pid = p.id
+                w = weights[pid]
+                if total_w > 0:
+                    prob = 1.0 - ((1.0 - (w / total_w)) ** 3)
+                else:
+                    prob = 0.0
+                probabilities[pid] = min(1.0, max(0.0, prob))
+
+        result = {}
+        for pid, p_val in probabilities.items():
+            pct = round(p_val * 100.0, 1)
+            p3 = round((1.0 - ((1.0 - p_val) ** 3)) * 100.0, 1)
+            p5 = round((1.0 - ((1.0 - p_val) ** 5)) * 100.0, 1)
+            p10 = round((1.0 - ((1.0 - p_val) ** 10)) * 100.0, 1)
+            result[pid] = {
+                'drop_chance_pct': pct,
+                'predictive_odds': {
+                    'pack_1': pct,
+                    'pack_3': p3,
+                    'pack_5': p5,
+                    'pack_10': p10,
+                }
+            }
+        return result
+
 
 class PackPlayer(models.Model):
     pack = models.ForeignKey(
