@@ -137,6 +137,14 @@ class Pack(models.Model):
         verbose_name="ضریب افزایش شانس وفاداری (Boost Multiplier)",
         help_text="ضریب ضرب شانس کارت‌های منتخب هنگام فعال بودن بوست (پیش‌فرض: ۲.۵۰)"
     )
+    loyalty_mid_step_pct = models.PositiveIntegerField(
+        default=35, verbose_name="درصد بوست پله‌ای کارت‌های میانی باارزش (۹۰-۹۳)",
+        help_text="درصد افزایش شانس کارت‌های اورال ۹۰ تا ۹۳ در هر خرید ناموفق متوالی (پیش‌فرض: ۳۵٪)"
+    )
+    loyalty_step_boost_pct = models.PositiveIntegerField(
+        default=15, verbose_name="درصد بوست پله‌ای کارت‌های ۱ درصدی (۹۴+)",
+        help_text="درصد افزایش شانس کنترل‌شده کارت‌های ۱ درصدی در هر خرید ناموفق متوالی (پیش‌فرض: ۱۵٪)"
+    )
     loyalty_min_ovr = models.PositiveIntegerField(
         default=94, verbose_name="حداقل اورال کارت‌های مشمول بوست وفاداری",
         help_text="حداقل اورال کارت‌هایی که ضریب بوست وفاداری روی آن‌ها اعمال می‌شود (پیش‌فرض: ۹۴)"
@@ -449,6 +457,10 @@ class PackOpeningSession(models.Model):
     picked_card = models.ForeignKey(
         PackPlayer, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='session_picked', verbose_name="کارت انتخاب شده"
+    )
+    guaranteed_card = models.ForeignKey(
+        PackPlayer, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='session_guaranteed_pity', verbose_name="کارت تضمین‌شده پیتی"
     )
     created_player = models.ForeignKey(
         Player, on_delete=models.SET_NULL, null=True, blank=True,

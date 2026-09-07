@@ -803,16 +803,26 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                         </div>
                       )}
 
-                      {/* Loyalty Pity Boost Badge / Progress Counter */}
-                      {pack.loyalty_status?.is_loyalty_boost_active ? (
-                        <div className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-yellow-500/40 via-amber-500/40 to-yellow-600/40 border border-yellow-300 text-yellow-200 text-[9px] font-black flex items-center gap-1 shadow-[0_0_15px_rgba(234,179,8,0.5)] animate-pulse">
-                          <Zap size={11} className="text-yellow-300 fill-yellow-300" />
-                          <span>⚡ بوست ۲.۵x وفاداری فعال است!</span>
+                      {/* Loyalty Pity Boost Badge / Progress Counter / Depletion Alert */}
+                      {pack.loyalty_status?.is_top_tier_depleted ? (
+                        <div className="px-2 py-0.5 rounded-full bg-rose-950/80 border border-rose-500/40 text-rose-300 text-[8.5px] font-bold flex items-center gap-1">
+                          <AlertCircle size={10} className="text-rose-400" />
+                          <span>اتمام کارت‌های ۹۴+ در استخر</span>
+                        </div>
+                      ) : pack.loyalty_status?.is_hard_guaranteed ? (
+                        <div className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-500 border border-yellow-200 text-slate-950 text-[9px] font-black flex items-center gap-1 shadow-[0_0_20px_rgba(250,204,21,0.8)] animate-bounce">
+                          <Sparkles size={11} className="text-slate-950 fill-slate-950" />
+                          <span>⚡ خرید بعدی: ۱۰۰٪ تضمین فوق‌ستاره!</span>
+                        </div>
+                      ) : pack.loyalty_status?.is_loyalty_boost_active ? (
+                        <div className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500/30 to-yellow-500/30 border border-amber-400/50 text-amber-200 text-[8.5px] font-bold flex items-center gap-1">
+                          <Flame size={10} className="text-amber-400" />
+                          <span>⚡ بوست پله {pack.loyalty_status.consecutive_opens || 1} (+{Math.round(((pack.loyalty_status.mid_multiplier || 1.35) - 1) * 100)}٪ میانی / +{Math.round(((pack.loyalty_status.top_multiplier || 1.15) - 1) * 100)}٪ ۹۴+)</span>
                         </div>
                       ) : pack.loyalty_status && Number(pack.loyalty_status.opens_until_boost) > 0 ? (
                         <div className="px-2 py-0.5 rounded-full bg-black/60 border border-amber-500/30 text-amber-300/90 text-[8.5px] font-bold flex items-center gap-1">
                           <Flame size={10} className="text-amber-400" />
-                          <span>{pack.loyalty_status.opens_until_boost} خرید تا بوست ۲.۵x شانس</span>
+                          <span>{pack.loyalty_status.opens_until_boost} خرید تا تضمین ۱۰۰٪ فوق‌ستاره</span>
                         </div>
                       ) : null}
                     </div>

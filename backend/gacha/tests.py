@@ -249,18 +249,26 @@ class PackSystemTestCase(TestCase):
             pick_res = pick_card(open_res['session_id'], low_card['id'], self.team.id)
             self.assertTrue(pick_res['success'])
 
-        # Now coach has opened 3 consecutive packs without a 94+ card: Boost should be ACTIVE
+        # Now coach has opened 3 consecutive packs without a 94+ card:
+        # Pity is at step 3, meaning the 4th open is HARD GUARANTEED!
         status_boosted = get_team_pack_loyalty_status(self.team, self.pack)
         self.assertTrue(status_boosted['is_loyalty_boost_active'])
+        self.assertTrue(status_boosted['is_hard_guaranteed'])
         self.assertEqual(status_boosted['consecutive_opens'], 3)
         self.assertEqual(status_boosted['opens_until_boost'], 0)
-        self.assertEqual(status_boosted['pity_multiplier'], 2.5)
+        # Check progressive multipliers: mid = 1.0 + 3 * 0.35 = 2.05, top = 1.0 + 3 * 0.15 = 1.45
+        self.assertEqual(status_boosted['mid_multiplier'], 2.05)
+        self.assertEqual(status_boosted['top_multiplier'], 1.45)
 
-        # Next opening should have loyalty_boost_applied = True
+        # 4th opening: MUST have hard pity applied and guaranteed top card!
         open_boosted_res = open_pack(self.team.id, self.pack.id, payment_method='GEMS')
         self.assertTrue(open_boosted_res['success'])
-        self.assertTrue(open_boosted_res['loyalty_boost_applied'])
-        self.assertEqual(open_boosted_res['loyalty_multiplier'], 2.5)
+        self.assertTrue(open_boosted_res['is_hard_pity_applied'])
+        self.assertEqual(open_boosted_res['guaranteed_card_id'], top_player.id)
+        # Verify exactly one card has is_pity_guaranteed = True
+        guaranteed_in_cards = [c for c in open_boosted_res['cards'] if c.get('is_pity_guaranteed')]
+        self.assertEqual(len(guaranteed_in_cards), 1)
+        self.assertEqual(guaranteed_in_cards[0]['id'], top_player.id)
 
         # Coach picks top_player (OVR 96)
         pick_top_res = pick_card(open_boosted_res['session_id'], top_player.id, self.team.id)
@@ -269,6 +277,7 @@ class PackSystemTestCase(TestCase):
         # Pity should now be RESET because top player was drawn
         status_after = get_team_pack_loyalty_status(self.team, self.pack)
         self.assertFalse(status_after['is_loyalty_boost_active'])
+        self.assertFalse(status_after['is_hard_guaranteed'])
         self.assertEqual(status_after['consecutive_opens'], 0)
         self.assertEqual(status_after['opens_until_boost'], 3)
 

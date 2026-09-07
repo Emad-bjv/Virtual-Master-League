@@ -63,37 +63,60 @@ def generate_random_player(rarity: str, team: Team = None) -> Player:
 def get_team_pack_loyalty_status(team: Team, pack: Pack) -> dict:
     """
     Returns loyalty and pity tracking information for a specific team on a specific pack.
-    Admin configurable per pack:
+    Admin configurable tiered progressive boost:
     - pack.is_loyalty_boost_enabled (bool)
-    - pack.loyalty_boost_threshold (int)
-    - pack.loyalty_boost_multiplier (Decimal/float)
-    - pack.loyalty_min_ovr (int)
+    - pack.loyalty_boost_threshold (int, default: 3): 3 consecutive misses => 4th purchase is hard pity guaranteed!
+    - pack.loyalty_mid_step_pct (int, default: 35): +35% per miss on 90-93 OVR cards
+    - pack.loyalty_step_boost_pct (int, default: 15): +15% per miss on 94+ OVR cards (controlled for truly lucky)
+    - pack.loyalty_min_ovr (int, default: 94)
     """
-    if not team or not pack:
-        return {
-            'consecutive_opens': 0,
-            'is_loyalty_boost_active': False,
-            'opens_until_boost': 3,
-            'pity_multiplier': 1.0,
-            'boost_threshold': 3,
-            'is_enabled': True,
-            'target_min_ovr': 94,
-        }
-
     is_enabled = getattr(pack, 'is_loyalty_boost_enabled', True)
     threshold = getattr(pack, 'loyalty_boost_threshold', 3) or 3
     multiplier = float(getattr(pack, 'loyalty_boost_multiplier', Decimal('2.50')) or Decimal('2.50'))
     target_ovr = getattr(pack, 'loyalty_min_ovr', 94) or 94
+    mid_step_pct = getattr(pack, 'loyalty_mid_step_pct', 35) or 35
+    top_step_pct = getattr(pack, 'loyalty_step_boost_pct', 15) or 15
+
+    top_tier_unclaimed_count = pack.players.filter(is_claimed=False, overall__gte=target_ovr).count() if pack else 0
+    mid_tier_unclaimed_count = pack.players.filter(is_claimed=False, overall__gte=90, overall__lt=target_ovr).count() if pack else 0
+    is_top_tier_depleted = (top_tier_unclaimed_count == 0)
+
+    if not team or not pack:
+        return {
+            'consecutive_opens': 0,
+            'is_loyalty_boost_active': False,
+            'is_hard_guaranteed': False,
+            'opens_until_boost': threshold,
+            'mid_multiplier': 1.0,
+            'top_multiplier': 1.0,
+            'pity_multiplier': 1.0,
+            'boost_threshold': threshold,
+            'is_enabled': is_enabled,
+            'target_min_ovr': target_ovr,
+            'mid_step_pct': mid_step_pct,
+            'top_step_pct': top_step_pct,
+            'top_tier_unclaimed_count': top_tier_unclaimed_count,
+            'mid_tier_unclaimed_count': mid_tier_unclaimed_count,
+            'is_top_tier_depleted': is_top_tier_depleted,
+        }
 
     if not is_enabled:
         return {
             'consecutive_opens': 0,
             'is_loyalty_boost_active': False,
+            'is_hard_guaranteed': False,
             'opens_until_boost': 0,
+            'mid_multiplier': 1.0,
+            'top_multiplier': 1.0,
             'pity_multiplier': 1.0,
             'boost_threshold': threshold,
             'is_enabled': False,
             'target_min_ovr': target_ovr,
+            'mid_step_pct': mid_step_pct,
+            'top_step_pct': top_step_pct,
+            'top_tier_unclaimed_count': top_tier_unclaimed_count,
+            'mid_tier_unclaimed_count': mid_tier_unclaimed_count,
+            'is_top_tier_depleted': is_top_tier_depleted,
         }
 
     completed_sessions = PackOpeningSession.objects.filter(
@@ -106,37 +129,59 @@ def get_team_pack_loyalty_status(team: Team, pack: Pack) -> dict:
             break
         consecutive_opens += 1
 
-    is_active = consecutive_opens >= threshold
+    is_hard_guaranteed = consecutive_opens >= threshold
+    is_active = consecutive_opens > 0
     opens_until = max(0, threshold - consecutive_opens)
+
+    mid_multiplier = round(1.0 + (consecutive_opens * (mid_step_pct / 100.0)), 2)
+    top_multiplier = round(1.0 + (consecutive_opens * (top_step_pct / 100.0)), 2)
 
     return {
         'consecutive_opens': consecutive_opens,
         'is_loyalty_boost_active': is_active,
+        'is_hard_guaranteed': is_hard_guaranteed,
         'opens_until_boost': opens_until,
-        'pity_multiplier': multiplier if is_active else 1.0,
+        'mid_multiplier': mid_multiplier,
+        'top_multiplier': top_multiplier,
+        'pity_multiplier': top_multiplier,
         'boost_threshold': threshold,
         'is_enabled': is_enabled,
         'target_min_ovr': target_ovr,
+        'mid_step_pct': mid_step_pct,
+        'top_step_pct': top_step_pct,
+        'top_tier_unclaimed_count': top_tier_unclaimed_count,
+        'mid_tier_unclaimed_count': mid_tier_unclaimed_count,
+        'is_top_tier_depleted': is_top_tier_depleted,
     }
 
 
-def weighted_sample_pack_cards(pack: Pack, unclaimed_list: list, team: Team = None) -> list:
+def weighted_sample_pack_cards(pack: Pack, unclaimed_list: list, team: Team = None, return_guaranteed: bool = False):
     """
-    Samples 3 unique cards using admin-configured weights and guaranteed OVR slot.
-    - Slot 1: If pack.guarantee_min_ovr > 0 and cards with overall >= guarantee_min_ovr exist,
-              sample 1 card from them weighted by their effective weights.
-    - Slots 2 & 3: Sample without replacement from the remaining cards weighted by effective weights.
-    - Loyalty Pity Boost: If coach has opened >= threshold packs without pulling target player,
-      boost player weights by configured multiplier.
-    - Shuffles the 3 selected cards so the guaranteed card isn't always in slot 1.
+    Samples 3 unique cards using admin-configured weights, guaranteed OVR slot,
+    tiered progressive boost, and hard 4th-open pity guarantee.
     """
+    loyalty_status = get_team_pack_loyalty_status(team, pack) if team else {'is_loyalty_boost_active': False, 'is_hard_guaranteed': False}
+    is_hard_guaranteed = loyalty_status.get('is_hard_guaranteed', False)
+    is_enabled = loyalty_status.get('is_enabled', True)
+    mid_mult = loyalty_status.get('mid_multiplier', 1.0)
+    top_mult = loyalty_status.get('top_multiplier', 1.0)
+    target_min_ovr = loyalty_status.get('target_min_ovr', 94)
+
     if len(unclaimed_list) <= 3:
         cards = list(unclaimed_list)
         random.shuffle(cards)
-        return cards
+        guaranteed_card = None
+        if is_hard_guaranteed and is_enabled:
+            top_candidates = [p for p in cards if p.overall >= target_min_ovr]
+            if top_candidates:
+                guaranteed_card = top_candidates[0]
+            elif cards:
+                guaranteed_card = max(cards, key=lambda p: (p.overall, p.get_effective_weight()))
+        return (cards, guaranteed_card) if return_guaranteed else cards
 
     pool = list(unclaimed_list)
     selected = []
+    guaranteed_card = None
 
     # Dynamic Early Bird Anti-Snipe Multiplier:
     total_count = getattr(pack, 'total_players_count', len(unclaimed_list)) or len(unclaimed_list)
@@ -144,50 +189,65 @@ def weighted_sample_pack_cards(pack: Pack, unclaimed_list: list, team: Team = No
     boost_pct = getattr(pack, 'early_bird_boost_pct', 50) or 0
     early_bird_mult = 1.0 + ((boost_pct / 100.0) * fullness_ratio)
 
-    # Check loyalty pity status
-    loyalty_status = get_team_pack_loyalty_status(team, pack) if team else {'is_loyalty_boost_active': False}
-    is_loyalty_boost = loyalty_status.get('is_loyalty_boost_active', False)
-    loyalty_multiplier = loyalty_status.get('pity_multiplier', 2.5)
-    target_min_ovr = loyalty_status.get('target_min_ovr', 94)
-
     def get_card_weight(player):
         base_w = player.get_effective_weight()
         if player.overall >= target_min_ovr:
             mult = early_bird_mult if early_bird_mult > 1.0 else 1.0
-            if is_loyalty_boost:
-                mult *= loyalty_multiplier
+            if is_enabled:
+                mult *= top_mult
+            return max(1, round(base_w * mult))
+        elif player.overall >= 90:
+            mult = 1.0
+            if is_enabled:
+                mult *= mid_mult
             return max(1, round(base_w * mult))
         return base_w
 
-    # 1. Smart Guaranteed Slot (if configured and eligible cards exist)
+    # A) Hard Pity 4th Purchase Guarantee
+    if is_hard_guaranteed and is_enabled:
+        top_candidates = [p for p in pool if p.overall >= target_min_ovr]
+        if top_candidates:
+            c_weights = [get_card_weight(p) for p in top_candidates]
+            chosen_top = random.choices(top_candidates, weights=c_weights, k=1)[0]
+            guaranteed_card = chosen_top
+            selected.append(chosen_top)
+            pool.remove(chosen_top)
+        else:
+            fallback_candidates = [p for p in pool if p.overall >= getattr(pack, 'guarantee_min_ovr', 90)] or pool
+            if fallback_candidates:
+                chosen_fallback = max(fallback_candidates, key=lambda p: (p.overall, p.get_effective_weight()))
+                guaranteed_card = chosen_fallback
+                selected.append(chosen_fallback)
+                pool.remove(chosen_fallback)
+
+    # B) Smart Guaranteed Slot (if not already picked by hard pity and eligible cards exist)
     min_ovr = getattr(pack, 'guarantee_min_ovr', 90) or 0
-    guaranteed_candidates = [p for p in pool if p.overall >= min_ovr] if min_ovr > 0 else []
+    if not selected and min_ovr > 0:
+        guaranteed_candidates = [p for p in pool if p.overall >= min_ovr]
+        if guaranteed_candidates:
+            mid_w = getattr(pack, 'weight_mid_tier', 5) or 5
+            g_weights = []
+            for p in guaranteed_candidates:
+                w = get_card_weight(p)
+                if p.overall >= 94:
+                    g_weights.append(max(w, mid_w))
+                else:
+                    g_weights.append(w)
 
-    if guaranteed_candidates:
-        mid_w = getattr(pack, 'weight_mid_tier', 5) or 5
-        g_weights = []
-        for p in guaranteed_candidates:
-            w = get_card_weight(p)
-            if p.overall >= 94:
-                # Guarantee slot elevates 94+ to at least equal footing with mid-tier
-                g_weights.append(max(w, mid_w))
-            else:
-                g_weights.append(w)
+            chosen_g = random.choices(guaranteed_candidates, weights=g_weights, k=1)[0]
+            selected.append(chosen_g)
+            pool.remove(chosen_g)
 
-        chosen_g = random.choices(guaranteed_candidates, weights=g_weights, k=1)[0]
-        selected.append(chosen_g)
-        pool.remove(chosen_g)
-
-    # 2. Pick remaining slots up to 3 cards using weighted sampling without replacement
+    # C) Pick remaining slots up to 3 cards using weighted sampling without replacement
     while len(selected) < 3 and pool:
         weights = [get_card_weight(p) for p in pool]
         chosen = random.choices(pool, weights=weights, k=1)[0]
         selected.append(chosen)
         pool.remove(chosen)
 
-    # 3. Shuffle so guaranteed card isn't always in the first position
+    # D) Randomly shuffle the 3 cards so position is never fixed
     random.shuffle(selected)
-    return selected
+    return (selected, guaranteed_card) if return_guaranteed else selected
 
 
 def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
@@ -258,8 +318,8 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
                 if not wallet_res['success']:
                     return {'success': False, 'error': wallet_res.get('error', 'موجودی دلار کافی نیست.')}
 
-        # Sample 3 weighted cards using admin weights and smart guarantee slot + loyalty pity boost
-        selected_cards = weighted_sample_pack_cards(pack, unclaimed_list, team=team)
+        # Sample 3 weighted cards using admin weights, smart guarantee slot, tiered progressive boost, and hard pity guarantee
+        selected_cards, guaranteed_card = weighted_sample_pack_cards(pack, unclaimed_list, team=team, return_guaranteed=True)
         loyalty_info = get_team_pack_loyalty_status(team, pack)
 
         # Create opening session (expires in 5 minutes)
@@ -269,6 +329,7 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
             card_1=selected_cards[0],
             card_2=selected_cards[1],
             card_3=selected_cards[2],
+            guaranteed_card=guaranteed_card,
             payment_method=payment_method,
             cost=cost,
             status='PENDING',
@@ -291,7 +352,8 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
                 'club_logo': card.club_logo.url if card.club_logo else None,
                 'wage': float(card.wage),
                 'market_value': float(card.market_value),
-                'card_image': card.card_image.url if card.card_image else None
+                'card_image': card.card_image.url if card.card_image else None,
+                'is_pity_guaranteed': (guaranteed_card is not None and card.id == guaranteed_card.id),
             }
 
         return {
@@ -311,7 +373,10 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
             ],
             'loyalty_status': loyalty_info,
             'loyalty_boost_applied': loyalty_info.get('is_loyalty_boost_active', False),
-            'loyalty_multiplier': loyalty_info.get('pity_multiplier', 1.0),
+            'loyalty_multiplier': loyalty_info.get('top_multiplier', 1.0),
+            'guaranteed_card_id': guaranteed_card.id if guaranteed_card else None,
+            'is_hard_pity_applied': (guaranteed_card is not None),
+            'is_top_tier_depleted': loyalty_info.get('is_top_tier_depleted', False),
             'expires_at': session.expires_at.isoformat(),
             'remaining_balance': team.gems if payment_method == 'GEMS' else float(team.budget)
         }

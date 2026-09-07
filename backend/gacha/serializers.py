@@ -109,7 +109,8 @@ class PackSerializer(serializers.ModelSerializer):
             'available_from', 'available_until', 'is_active', 'sort_order',
             'weight_top_tier', 'weight_mid_tier', 'weight_base_tier', 'guarantee_min_ovr',
             'early_bird_boost_pct',
-            'is_loyalty_boost_enabled', 'loyalty_boost_threshold', 'loyalty_boost_multiplier', 'loyalty_min_ovr',
+            'is_loyalty_boost_enabled', 'loyalty_boost_threshold', 'loyalty_boost_multiplier',
+            'loyalty_mid_step_pct', 'loyalty_step_boost_pct', 'loyalty_min_ovr',
             'odds', 'loyalty_status', 'total_players_count', 'unclaimed_players_count', 'is_sold_out',
             'is_time_valid', 'created_at'
         ]
@@ -122,6 +123,7 @@ class PackSerializer(serializers.ModelSerializer):
         return {
             'consecutive_opens': 0,
             'is_loyalty_boost_active': False,
+            'is_hard_guaranteed': False,
             'opens_until_boost': 3,
             'pity_multiplier': 1.0,
             'boost_threshold': 3,
@@ -157,7 +159,7 @@ class PackSerializer(serializers.ModelSerializer):
                     data[opt_num] = None
 
         # Sanitize numbers
-        for num in ['cost_usd', 'cost_irr', 'cost_gems', 'sort_order', 'weight_top_tier', 'weight_mid_tier', 'weight_base_tier', 'guarantee_min_ovr', 'early_bird_boost_pct']:
+        for num in ['cost_usd', 'cost_irr', 'cost_gems', 'sort_order', 'weight_top_tier', 'weight_mid_tier', 'weight_base_tier', 'guarantee_min_ovr', 'early_bird_boost_pct', 'loyalty_boost_threshold', 'loyalty_mid_step_pct', 'loyalty_step_boost_pct', 'loyalty_min_ovr']:
             if num in data:
                 val = data.get(num)
                 val_str = str(val).strip().lower()
@@ -167,6 +169,8 @@ class PackSerializer(serializers.ModelSerializer):
         # Sanitize boolean fields sent as strings from FormData
         if 'is_active' in data:
             data['is_active'] = str(data['is_active']).lower() in ['true', '1', 'yes']
+        if 'is_loyalty_boost_enabled' in data:
+            data['is_loyalty_boost_enabled'] = str(data['is_loyalty_boost_enabled']).lower() in ['true', '1', 'yes']
 
         # Sanitize string fields to avoid literal "null"
         for str_field in ['description', 'ovr_range_text', 'featured_team']:
@@ -186,6 +190,7 @@ class PackOpeningSessionSerializer(serializers.ModelSerializer):
     card_2_detail = PackPlayerSerializer(source='card_2', read_only=True)
     card_3_detail = PackPlayerSerializer(source='card_3', read_only=True)
     picked_card_detail = PackPlayerSerializer(source='picked_card', read_only=True)
+    guaranteed_card_detail = PackPlayerSerializer(source='guaranteed_card', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
 
     class Meta:
@@ -194,6 +199,7 @@ class PackOpeningSessionSerializer(serializers.ModelSerializer):
             'id', 'team', 'team_name', 'pack', 'pack_name', 'pack_tier',
             'card_1', 'card_1_detail', 'card_2', 'card_2_detail',
             'card_3', 'card_3_detail', 'picked_card', 'picked_card_detail',
+            'guaranteed_card', 'guaranteed_card_detail',
             'created_player', 'payment_method', 'cost', 'status',
             'status_display', 'expires_at', 'created_at', 'completed_at'
         ]

@@ -50,6 +50,8 @@ export default function PackOpeningModal({
   const [pickedPlayer, setPickedPlayer] = useState(null);
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
   const [loyaltyBoostApplied, setLoyaltyBoostApplied] = useState(false);
+  const [isHardPityApplied, setIsHardPityApplied] = useState(false);
+  const [isTopTierDepleted, setIsTopTierDepleted] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -67,6 +69,8 @@ export default function PackOpeningModal({
       setTimeLeft(300);
       setTopCard(null);
       setLoyaltyBoostApplied(false);
+      setIsHardPityApplied(false);
+      setIsTopTierDepleted(false);
       setWalkoutStage('POSITION');
       if (stageTimerRef.current) clearTimeout(stageTimerRef.current);
     }
@@ -189,6 +193,8 @@ export default function PackOpeningModal({
         setSessionId(res.data.session_id);
         setCards(receivedCards);
         setLoyaltyBoostApplied(Boolean(res.data?.loyalty_boost_applied));
+        setIsHardPityApplied(Boolean(res.data?.is_hard_pity_applied));
+        setIsTopTierDepleted(Boolean(res.data?.is_top_tier_depleted));
 
         // Find the top card (highest overall rating) for the FC 26 walkout cinematic
         const bestCard = receivedCards.reduce(
@@ -534,28 +540,55 @@ export default function PackOpeningModal({
                   </div>
                 )}
 
-                {/* Loyalty Pity Boost Status Banner */}
-                {pack.loyalty_status?.is_loyalty_boost_active ? (
-                  <div className="p-3 rounded-2xl bg-gradient-to-r from-yellow-950/60 via-amber-950/50 to-slate-900 border border-yellow-400/50 flex items-center justify-between text-xs shadow-[0_0_20px_rgba(234,179,8,0.25)]">
+                {/* Loyalty Pity Boost & Depletion Status Banner */}
+                {pack.loyalty_status?.is_top_tier_depleted ? (
+                  <div className="p-3 rounded-2xl bg-rose-950/70 border border-rose-500/50 flex items-center gap-2.5 text-xs shadow-[0_0_15px_rgba(244,63,94,0.2)]">
+                    <AlertTriangle size={18} className="text-rose-400 shrink-0" />
+                    <div>
+                      <strong className="text-rose-300 block font-black">توجه: کارت‌های فوق‌ستاره (اورال ۹۴+) در این پک تمام شده‌اند!</strong>
+                      <span className="text-[10px] text-rose-200/80">
+                        در صورت فعال شدن گارانتی وفاداری، کارت تضمینی از بین بالاترین کارت‌های باارزش موجود در استخر به شما اهدا می‌شود.
+                      </span>
+                    </div>
+                  </div>
+                ) : pack.loyalty_status?.is_hard_guaranteed ? (
+                  <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/25 via-yellow-500/35 to-amber-500/25 border-2 border-yellow-400/80 flex items-center justify-between text-xs shadow-[0_0_25px_rgba(234,179,8,0.35)] animate-pulse">
                     <div className="flex items-center gap-2.5">
-                      <Zap size={18} className="text-yellow-400 fill-yellow-400 animate-pulse shrink-0" />
+                      <Zap size={20} className="text-yellow-400 fill-yellow-400 shrink-0" />
                       <div>
-                        <strong className="text-yellow-300 block font-black">⚡ بوست شانس وفاداری ۲.۵x برای شما فعال است!</strong>
-                        <span className="text-[10px] text-slate-300">شانس خروج تمامی کارت‌های تاپ‌تیر (اورال ۹۴+) با ضریب ۲.۵ برابر محاسبه می‌شود.</span>
+                        <strong className="text-yellow-300 block font-black text-xs sm:text-sm">⚡ پاداش وفاداری فعال: ۱۰۰٪ تضمین فوق‌ستاره (۹۴+)!</strong>
+                        <span className="text-[10.5px] text-slate-200">با این خرید، دقیقا یکی از ۳ کارت پیش‌روی شما قطعا یک فوق‌ستاره با اورال ۹۴+ خواهد بود.</span>
                       </div>
                     </div>
-                    <span className="text-[10px] font-black text-yellow-300 bg-yellow-400/20 px-2.5 py-1 rounded-xl border border-yellow-400/40 font-sport">
-                      ۲.۵x بوست شانس
+                    <span className="text-[10.5px] font-black text-slate-950 bg-yellow-400 px-3 py-1 rounded-xl border border-yellow-300 font-sport shrink-0">
+                      تضمین ۱۰۰٪
                     </span>
                   </div>
-                ) : pack.loyalty_status && Number(pack.loyalty_status.opens_until_boost) > 0 ? (
-                  <div className="p-2.5 rounded-2xl bg-slate-900/90 border border-amber-500/20 flex items-center gap-2 text-xs">
-                    <Flame size={15} className="text-amber-400 shrink-0" />
-                    <span className="text-[11px] text-slate-300">
-                      با خرید <strong className="text-amber-300">{pack.loyalty_status.opens_until_boost} پک دیگر</strong> از این بسته، بوست وفاداری ۲.۵x برای فوق‌ستاره‌های ۹۴+ فعال خواهد شد.
+                ) : pack.loyalty_status && Number(pack.loyalty_status.consecutive_non_top_tier_opens) > 0 ? (
+                  <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-950/60 via-slate-900 to-amber-950/40 border border-amber-500/40 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2.5">
+                      <Flame size={18} className="text-amber-400 shrink-0" />
+                      <div>
+                        <strong className="text-amber-300 block font-bold">
+                          خرید شماره {Number(pack.loyalty_status.consecutive_non_top_tier_opens) + 1}: افزایش شانس بازیکنان باارزش!
+                        </strong>
+                        <span className="text-[10px] text-slate-300">
+                          شانس بازیکنان ۹۰ تا ۹۳ با ضریب {pack.loyalty_status.mid_multiplier}x و فوق‌ستاره‌های ۹۴+ با ضریب {pack.loyalty_status.top_multiplier}x محاسبه می‌شود.
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-bold text-amber-300 bg-amber-500/20 px-2.5 py-1 rounded-xl border border-amber-500/40 font-sport shrink-0">
+                      {pack.loyalty_status.opens_until_boost} خرید تا تضمین ۱۰۰٪
                     </span>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="p-2.5 rounded-2xl bg-slate-900/80 border border-white/10 flex items-center gap-2 text-xs">
+                    <Flame size={15} className="text-amber-400/80 shrink-0" />
+                    <span className="text-[10.5px] text-slate-400">
+                      سیستم وفاداری هوشمند: با هر خرید ناموفق، شانس بازیکنان باارزش بالا می‌رود و خرید چهارم ۱۰۰٪ حاوی یک فوق‌ستاره ۹۴+ خواهد بود.
+                    </span>
+                  </div>
+                )}
 
                 {/* Flash Sale Banner if discount is active */}
                 {pack.is_discount_active && (
@@ -1018,25 +1051,50 @@ export default function PackOpeningModal({
                 </div>
               </div>
 
-              {/* Loyalty Pity Boost Active Notification Banner */}
-              {loyaltyBoostApplied && (
-                <div className="p-2.5 rounded-2xl bg-gradient-to-r from-yellow-500/20 via-amber-500/20 to-yellow-600/20 border border-yellow-400/40 text-yellow-300 text-xs flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(234,179,8,0.2)] animate-pulse">
-                  <Zap size={14} className="text-yellow-400 fill-yellow-400" />
-                  <span className="font-bold">⚡ بوست وفاداری ۲.۵x برای شما اعمال شد: شانس کارت‌های فوق‌ستاره ۹۴+ افزایش یافت!</span>
+              {/* Depletion Alert if top tier was depleted */}
+              {isTopTierDepleted && (
+                <div className="p-2.5 rounded-2xl bg-rose-950/80 border border-rose-500/40 text-rose-300 text-xs flex items-center justify-center gap-2">
+                  <AlertTriangle size={15} className="text-rose-400 shrink-0" />
+                  <span>کارت‌های اورال ۹۴+ این بسته تمام شده بودند؛ کارت ویژه از بین برترین کارت‌های موجود اهدا شد.</span>
                 </div>
               )}
+
+              {/* Loyalty Pity Boost Active Notification Banner */}
+              {isHardPityApplied ? (
+                <div className="p-3 rounded-2xl bg-gradient-to-r from-yellow-500/30 via-amber-500/40 to-yellow-600/30 border-2 border-yellow-400 text-yellow-200 text-xs flex items-center justify-between shadow-[0_0_25px_rgba(234,179,8,0.35)] animate-pulse">
+                  <div className="flex items-center gap-2">
+                    <Zap size={18} className="text-yellow-400 fill-yellow-400 shrink-0" />
+                    <span className="font-black text-yellow-300 text-xs sm:text-sm">
+                      🌟 تبریک! پاداش وفاداری فعال شد: یکی از ۳ کارت پیش‌رو ۱۰۰٪ تضمینی فوق‌ستاره است!
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-black bg-yellow-400 text-slate-950 px-2.5 py-1 rounded-xl uppercase font-sport shrink-0">
+                    Hard Pity 100%
+                  </span>
+                </div>
+              ) : loyaltyBoostApplied ? (
+                <div className="p-2.5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-yellow-500/20 to-amber-600/20 border border-amber-400/40 text-amber-300 text-xs flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(234,179,8,0.2)]">
+                  <Flame size={15} className="text-amber-400 shrink-0" />
+                  <span className="font-bold">⚡ بوست وفاداری برای این پک اعمال شد: شانس کارت‌های باارزش شما افزایش یافته بود.</span>
+                </div>
+              ) : null}
 
               {/* 3 Interactive Cards Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 justify-items-center">
                 {(cards || []).map((card, index) => {
                   const isFlipped = revealedCardIds.includes(card.id);
+                  const isGuaranteed = Boolean(card.is_pity_guaranteed);
 
                   return (
                     <div key={card.id} className="flex flex-col items-center">
                       {/* 3D Flip Card Container */}
                       <div
                         onClick={() => handleFlipCard(card.id)}
-                        className={`w-[185px] sm:w-[210px] h-[285px] sm:h-[320px] cursor-pointer [perspective:1000px] group transition-transform duration-200 hover:scale-105 ${tierConfig.dropGlow}`}
+                        className={`w-[185px] sm:w-[210px] h-[285px] sm:h-[320px] cursor-pointer [perspective:1000px] group transition-transform duration-200 hover:scale-105 ${tierConfig.dropGlow} ${
+                          isGuaranteed && isFlipped
+                            ? 'ring-2 ring-yellow-400 rounded-3xl shadow-[0_0_35px_rgba(234,179,8,0.7)]'
+                            : ''
+                        }`}
                       >
                         <motion.div
                           initial={false}
@@ -1106,6 +1164,16 @@ export default function PackOpeningModal({
                                 <span className="text-xs">{getNationalityFlag(card.nationality)}</span>
                               </div>
                             </div>
+
+                            {/* Loyalty Guaranteed Card Badge */}
+                            {isGuaranteed && (
+                              <div className="absolute top-9 inset-x-1.5 z-40 flex justify-center pointer-events-none">
+                                <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-600 text-slate-950 text-[9px] font-black font-sport border border-yellow-200 shadow-[0_0_15px_rgba(234,179,8,0.9)] flex items-center gap-1 animate-bounce">
+                                  <Star size={10} className="fill-slate-950" />
+                                  کارت تضمین‌شده وفاداری (Pity Reward)
+                                </span>
+                              </div>
+                            )}
 
                             {/* Center: Heroic Player Cutout (Fills the Card) */}
                             <div className="absolute inset-x-0 top-6 bottom-11 z-20 flex items-center justify-center overflow-visible pointer-events-none">
@@ -1207,6 +1275,12 @@ export default function PackOpeningModal({
               </div>
 
               <div className="space-y-1">
+                {pickedPlayer.is_pity_guaranteed && (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-400/20 border border-yellow-400/60 text-yellow-300 text-xs font-black shadow-[0_0_15px_rgba(234,179,8,0.4)] animate-pulse mb-1">
+                    <Star size={13} className="fill-yellow-400 text-yellow-400" />
+                    <span>کارت تضمین‌شده سیستم وفاداری (Hard Pity Guarantee)</span>
+                  </div>
+                )}
                 <h3 className="text-xl sm:text-2xl font-black text-emerald-300 font-sport">
                   تبریک! بازیکن با موفقیت به ترکیب تیم اضافه شد
                 </h3>

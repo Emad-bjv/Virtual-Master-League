@@ -111,6 +111,8 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     is_loyalty_boost_enabled: pack?.is_loyalty_boost_enabled ?? true,
     loyalty_boost_threshold: pack?.loyalty_boost_threshold ?? 3,
     loyalty_boost_multiplier: pack?.loyalty_boost_multiplier ?? 2.5,
+    loyalty_mid_step_pct: pack?.loyalty_mid_step_pct ?? 35,
+    loyalty_step_boost_pct: pack?.loyalty_step_boost_pct ?? 15,
     loyalty_min_ovr: pack?.loyalty_min_ovr ?? 94,
   });
 
@@ -2445,66 +2447,115 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                     </div>
 
                     {packData.is_loyalty_boost_enabled ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                        <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1">
-                          <span className="text-[11px] text-slate-300 font-bold block">
-                            آستانه خریدهای متوالی (Threshold):
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min="1"
-                              max="20"
-                              value={packData.loyalty_boost_threshold}
-                              onChange={(e) => setPackData({ ...packData, loyalty_boost_threshold: Math.max(1, parseInt(e.target.value) || 1) })}
-                              className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-amber-300 font-sport font-black text-xs outline-none focus:border-amber-400"
-                            />
-                            <span className="text-[11px] text-slate-400 shrink-0">پک</span>
-                          </div>
-                          <span className="text-[9.5px] text-slate-500 block">
-                            پس از این تعداد پک متوالی بدون کارت تاپ‌تیر، بوست فعال می‌شود.
-                          </span>
-                        </div>
+                      <div className="space-y-3 pt-2">
+                        {/* Top-Tier Remaining Pool Status Indicator */}
+                        {(() => {
+                          const remainingTopTierCount = (roster || []).filter((p) => !p.is_claimed && p.overall >= (packData.loyalty_min_ovr || 94)).length;
+                          const isDepleted = remainingTopTierCount === 0;
 
-                        <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1">
-                          <span className="text-[11px] text-slate-300 font-bold block">
-                            ضریب بوست شانس (Multiplier):
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              step="0.1"
-                              min="1.0"
-                              max="10.0"
-                              value={packData.loyalty_boost_multiplier}
-                              onChange={(e) => setPackData({ ...packData, loyalty_boost_multiplier: Math.max(1.0, parseFloat(e.target.value) || 1.0) })}
-                              className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-cyan-300 font-sport font-black text-xs outline-none focus:border-cyan-400"
-                            />
-                            <span className="text-[11px] text-cyan-400 shrink-0 font-sport font-bold">برابر (x)</span>
-                          </div>
-                          <span className="text-[9.5px] text-slate-500 block">
-                            ضریب ضربدر وزن کارت‌های تاپ‌تیر (مثلا ۲.۵ = +۱۵۰٪ شانس).
-                          </span>
-                        </div>
+                          return isDepleted ? (
+                            <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/50 flex items-center justify-between gap-2 text-rose-300 text-xs shadow-[0_0_15px_rgba(244,63,94,0.2)]">
+                              <div className="flex items-center gap-2">
+                                <AlertCircle size={16} className="text-rose-400 shrink-0" />
+                                <span><strong>هشدار اتمام:</strong> تمامی کارت‌های با اورال {packData.loyalty_min_ovr}+ در استخر این پک صید شده‌اند.</span>
+                              </div>
+                              <span className="text-[10px] px-2 py-0.5 rounded-lg bg-rose-500/20 text-rose-300 font-bold shrink-0">
+                                ۰ کارت موجود
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center justify-between gap-2 text-emerald-300 text-xs">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                                <span><strong>وضعیت استخر:</strong> کارت‌های فوق‌ستاره جهت اعمال بوست وفاداری در استخر موجود هستند.</span>
+                              </div>
+                              <span className="text-[10px] px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-sport font-black shrink-0">
+                                {remainingTopTierCount} کارت برتر آزاد
+                              </span>
+                            </div>
+                          );
+                        })()}
 
-                        <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1">
-                          <span className="text-[11px] text-slate-300 font-bold block">
-                            حداقل OVR کارت‌های تاپ‌تیر:
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              min="80"
-                              max="99"
-                              value={packData.loyalty_min_ovr}
-                              onChange={(e) => setPackData({ ...packData, loyalty_min_ovr: Math.max(80, Math.min(99, parseInt(e.target.value) || 94)) })}
-                              className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-yellow-400 font-sport font-black text-xs outline-none focus:border-yellow-400"
-                            />
-                            <span className="text-[11px] text-amber-400 shrink-0 font-sport font-bold">OVR+</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1">
+                            <span className="text-[10.5px] text-slate-300 font-bold block">
+                              آستانه خرید تضمینی (Threshold):
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="1"
+                                max="20"
+                                value={packData.loyalty_boost_threshold}
+                                onChange={(e) => setPackData({ ...packData, loyalty_boost_threshold: Math.max(1, parseInt(e.target.value) || 1) })}
+                                className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-amber-300 font-sport font-black text-xs outline-none focus:border-amber-400"
+                              />
+                              <span className="text-[10.5px] text-slate-400 shrink-0">پک</span>
+                            </div>
+                            <span className="text-[9px] text-slate-500 block">
+                              پس از ۳ خرید ناموفق، خرید ۴ام ۱۰۰٪ تضمینی خواهد بود.
+                            </span>
                           </div>
-                          <span className="text-[9.5px] text-slate-500 block">
-                            کارت‌هایی که بوست شامل آن‌ها می‌شود و صیدشان پیتی را ریست می‌کند.
-                          </span>
+
+                          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1">
+                            <span className="text-[10.5px] text-slate-300 font-bold block">
+                              بوست کارت‌های میانی (۹۰-۹۳):
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={packData.loyalty_mid_step_pct}
+                                onChange={(e) => setPackData({ ...packData, loyalty_mid_step_pct: Math.max(0, parseInt(e.target.value) || 0) })}
+                                className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-teal-300 font-sport font-black text-xs outline-none focus:border-teal-400"
+                              />
+                              <span className="text-[10.5px] text-teal-400 shrink-0 font-sport font-bold">٪+ در پله</span>
+                            </div>
+                            <span className="text-[9px] text-slate-500 block">
+                              افزایش شانس کارت‌های باارزش در خریدهای ۲ و ۳.
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1">
+                            <span className="text-[10.5px] text-slate-300 font-bold block">
+                              بوست کارت‌های ۱ درصدی (۹۴+):
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={packData.loyalty_step_boost_pct}
+                                onChange={(e) => setPackData({ ...packData, loyalty_step_boost_pct: Math.max(0, parseInt(e.target.value) || 0) })}
+                                className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-cyan-300 font-sport font-black text-xs outline-none focus:border-cyan-400"
+                              />
+                              <span className="text-[10.5px] text-cyan-400 shrink-0 font-sport font-bold">٪+ در پله</span>
+                            </div>
+                            <span className="text-[9px] text-slate-500 block">
+                              رشد کنترل‌شده فقط برای افراد واقعاً خوش‌شانس.
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1">
+                            <span className="text-[10.5px] text-slate-300 font-bold block">
+                              حداقل OVR کارت ۱ درصدی:
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="80"
+                                max="99"
+                                value={packData.loyalty_min_ovr}
+                                onChange={(e) => setPackData({ ...packData, loyalty_min_ovr: Math.max(80, Math.min(99, parseInt(e.target.value) || 94)) })}
+                                className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-yellow-400 font-sport font-black text-xs outline-none focus:border-yellow-400"
+                              />
+                              <span className="text-[10.5px] text-amber-400 shrink-0 font-sport font-bold">OVR+</span>
+                            </div>
+                            <span className="text-[9px] text-slate-500 block">
+                              کارت‌هایی که در خرید ۴ام تضمین شده و پیتی را ریست می‌کنند.
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -2838,52 +2889,48 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                         </div>
                       </div>
 
-                      {/* Predictive Cumulative Odds Cards (۱، ۳، ۵، ۱۰ پک) */}
+                      {/* Predictive Progressive Odds Cards (خریدهای ۱، ۲، ۳ و ۴) */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                             <Sparkles size={14} className="text-cyan-400" />
-                            <span>پیش‌بینی هوشمند شانس در خریدهای بعدی:</span>
+                            <span>پیش‌بینی ریاضی شانس در خریدهای متوالی (Progressive Curve):</span>
                           </span>
                           <span className="text-[10.5px] text-slate-400">
-                            فرمول: P(N) = ۱ - (۱ - P)ᴺ
+                            خرید ۴ام: ۱۰۰٪ تضمین قطعی فوق‌ستاره
                           </span>
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                           {[
-                            { label: '۱ پک (شانس فوری)', key: 'pack_1', bar: 'bg-cyan-500' },
-                            { label: '۳ پک بعدی', key: 'pack_3', bar: 'bg-teal-400' },
-                            { label: '۵ پک بعدی', key: 'pack_5', bar: 'bg-amber-400' },
-                            { label: '۱۰ پک بعدی', key: 'pack_10', bar: 'bg-fuchsia-400' },
-                          ].map((item) => {
-                            const val = previewOdds.predictive_odds[item.key] || 0;
-                            const boostedVal = previewOdds.predictive_odds_boosted[item.key] || 0;
-                            return (
-                              <div
-                                key={item.key}
-                                className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col justify-between space-y-2"
-                              >
+                            { label: 'خرید ۱ (پایه)', val: previewOdds.drop_chance_pct, note: 'بدون بوست', bar: 'bg-cyan-500' },
+                            { label: 'خرید ۲ (+۱۵٪ ۹۴+)', val: Math.round(previewOdds.drop_chance_pct * 1.15 * 10) / 10, note: isTopTier ? 'کنترل‌شده' : '+۳۵٪ میانی', bar: 'bg-teal-400' },
+                            { label: 'خرید ۳ (+۳۰٪ ۹۴+)', val: Math.round(previewOdds.drop_chance_pct * 1.30 * 10) / 10, note: isTopTier ? 'خوش‌شانس‌ها' : '+۷۰٪ میانی', bar: 'bg-amber-400' },
+                            { label: 'خرید ۴ (تضمینی ⚡)', val: isTopTier ? 100 : Math.min(100, Math.round(previewOdds.drop_chance_pct * 1.8 * 10) / 10), note: isTopTier ? '۱۰۰٪ تضمین' : 'پاداش پیتی', bar: 'bg-yellow-400' },
+                          ].map((item, idx) => (
+                            <div
+                              key={idx}
+                              className={`p-3 rounded-2xl border flex flex-col justify-between space-y-2 ${
+                                idx === 3 && isTopTier
+                                  ? 'bg-amber-950/40 border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                                  : 'bg-slate-900/80 border-slate-800'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
                                 <span className="text-[11px] font-bold text-slate-300">{item.label}</span>
-                                <div className="space-y-1">
-                                  <div className="flex items-baseline justify-between">
-                                    <span className="font-sport font-black text-base text-white">{val}٪</span>
-                                    {isTopTier && (
-                                      <span className="text-[9.5px] font-sport font-black text-amber-300" title="با بوست وفاداری ۲.۵x">
-                                        ⚡ {boostedVal}٪
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                                    <div
-                                      className={`h-full rounded-full ${item.bar} transition-all duration-300`}
-                                      style={{ width: `${Math.min(100, val)}%` }}
-                                    />
-                                  </div>
+                                <span className="text-[9px] text-amber-300 font-bold">{item.note}</span>
+                              </div>
+                              <div className="space-y-1">
+                                <span className="font-sport font-black text-base text-white">{item.val}٪</span>
+                                <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${item.bar} transition-all duration-300`}
+                                    style={{ width: `${Math.min(100, item.val)}%` }}
+                                  />
                                 </div>
                               </div>
-                            );
-                          })}
+                            </div>
+                          ))}
                         </div>
                       </div>
 
@@ -2892,9 +2939,9 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                         <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-950/40 via-yellow-950/20 to-slate-900 border border-amber-500/30 flex items-start gap-3">
                           <Flame size={18} className="text-amber-400 shrink-0 mt-0.5" />
                           <div className="space-y-0.5 text-xs">
-                            <span className="font-bold text-amber-300 block">سیستم بوست وفاداری (Loyalty Pity Boost):</span>
+                            <span className="font-bold text-amber-300 block">سیستم بوست وفاداری تفکیک‌شده (Tiered Loyalty Pity):</span>
                             <p className="text-slate-300 leading-relaxed text-[11px]">
-                              مربیانی که <strong className="text-white">حداقل {packData.loyalty_boost_threshold} پک متوالی</strong> از این پک بدون جذب کارت {packData.loyalty_min_ovr}+ باز کرده باشند، ضریب شانس کارت‌های تاپ‌تیر برای آن‌ها <strong className="text-amber-300">{packData.loyalty_boost_multiplier} برابر (+{Math.round((Number(packData.loyalty_boost_multiplier) - 1.0) * 100)}٪ بوست)</strong> می‌شود تا زمانی که فوق‌ستاره را صید نمایند.
+                              در خریدهای ۲ و ۳ شانس کارت‌های باارزش میانی (<strong className="text-white">+{packData.loyalty_mid_step_pct || 35}٪</strong>) و کارت‌های ۱ درصدی به صورت کنترل‌شده (<strong className="text-amber-300">+{packData.loyalty_step_boost_pct || 15}٪</strong>) رشد می‌کند؛ و در صورت ۳ خرید ناموفق، <strong className="text-yellow-300 font-bold">خرید چهارم ۱۰۰٪ تضمینی</strong> برای دریافت یک فوق‌ستاره {packData.loyalty_min_ovr}+ خواهد بود!
                             </p>
                           </div>
                         </div>
@@ -3024,17 +3071,19 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                   </div>
 
                   <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800">
-                    <span className="text-[10px] text-slate-400 block mb-1">آستانه فعال‌سازی:</span>
+                    <span className="text-[10px] text-slate-400 block mb-1">آستانه تضمین قطعی:</span>
                     <span className="text-xs font-sport font-black text-amber-300">
-                      {packData.loyalty_boost_threshold} خرید متوالی
+                      خرید {Number(packData.loyalty_boost_threshold || 3) + 1}ام (۱۰۰٪ قطعی)
                     </span>
                   </div>
 
                   <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800">
-                    <span className="text-[10px] text-slate-400 block mb-1">ضریب بوست شانس:</span>
-                    <span className="text-xs font-sport font-black text-cyan-300">
-                      {packData.loyalty_boost_multiplier}x (+{(Math.round((Number(packData.loyalty_boost_multiplier) - 1.0) * 100))}% شانس)
-                    </span>
+                    <span className="text-[10px] text-slate-400 block mb-1">پله بوست کارت‌ها:</span>
+                    <div className="text-[11px] font-sport font-bold">
+                      <span className="text-teal-300">+{packData.loyalty_mid_step_pct || 35}٪ میانی</span>
+                      <span className="text-slate-500 mx-1">/</span>
+                      <span className="text-cyan-300">+{packData.loyalty_step_boost_pct || 15}٪ ۹۴+</span>
+                    </div>
                   </div>
 
                   <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800">
@@ -3095,28 +3144,34 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                       })
                       .map((team) => {
                         const isActionLoading = actionInProgressTeamId === team.team_id;
-                        const isBoosted = team.is_loyalty_boost_active;
-                        const threshold = team.loyalty_boost_threshold || packData.loyalty_boost_threshold;
-                        const consecutive = team.consecutive_opens_without_top_tier || 0;
+                        const threshold = team.loyalty_boost_threshold || packData.loyalty_boost_threshold || 3;
+                        const consecutive = team.consecutive_opens || team.consecutive_opens_without_top_tier || 0;
+                        const isHardGuaranteed = team.is_hard_guaranteed || consecutive >= threshold;
                         const progressPct = Math.min(100, Math.round((consecutive / threshold) * 100));
+                        const midBoostVal = consecutive * (packData.loyalty_mid_step_pct || 35);
+                        const topBoostVal = consecutive * (packData.loyalty_step_boost_pct || 15);
 
                         return (
                           <div
                             key={team.team_id}
                             className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-4 flex-wrap ${
-                              isBoosted
-                                ? 'bg-amber-950/20 border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.1)]'
+                              isHardGuaranteed
+                                ? 'bg-yellow-950/30 border-yellow-400/60 shadow-[0_0_25px_rgba(250,204,21,0.15)]'
+                                : consecutive > 0
+                                ? 'bg-amber-950/20 border-amber-500/40'
                                 : 'bg-slate-900/60 border-slate-800'
                             }`}
                           >
                             {/* Team Info */}
                             <div className="flex items-center gap-3">
                               <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-sport font-black text-sm shrink-0 ${
-                                isBoosted
+                                isHardGuaranteed
+                                  ? 'bg-yellow-400/20 text-yellow-300 border border-yellow-400/50'
+                                  : consecutive > 0
                                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                                   : 'bg-slate-800 text-slate-300 border border-slate-700'
                               }`}>
-                                {isBoosted ? <Flame size={18} className="text-amber-400 animate-pulse" /> : <Shield size={18} />}
+                                {isHardGuaranteed ? <Sparkles size={18} className="text-yellow-400 animate-pulse" /> : <Shield size={18} />}
                               </div>
                               <div>
                                 <div className="flex items-center gap-2">
@@ -3134,24 +3189,28 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                             {/* Status & Actions */}
                             <div className="flex items-center gap-3">
                               {/* Progress / Boost Badge */}
-                              <div className="text-right min-w-[110px]">
-                                {isBoosted ? (
-                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-black bg-gradient-to-r from-amber-500/30 to-yellow-500/30 border border-amber-500/50 text-amber-300">
-                                    <Zap size={11} className="text-yellow-300" />
-                                    <span>بوست فعال ({team.loyalty_boost_multiplier || packData.loyalty_boost_multiplier}x)</span>
+                              <div className="text-right min-w-[130px]">
+                                {isHardGuaranteed ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-gradient-to-r from-yellow-500/30 to-amber-500/30 border border-yellow-400/60 text-yellow-300 shadow-[0_0_15px_rgba(250,204,21,0.3)]">
+                                    <Sparkles size={11} className="text-yellow-300 fill-yellow-300" />
+                                    <span>⚡ خرید بعدی: ۱۰۰٪ تضمینی</span>
                                   </span>
-                                ) : (
-                                  <div className="space-y-1">
-                                    <span className="text-[10px] text-slate-400 block">
-                                      پیشرفت تا بوست ({progressPct}٪)
+                                ) : consecutive > 0 ? (
+                                  <div className="space-y-1 text-right">
+                                    <span className="text-[10px] font-bold text-amber-300 block">
+                                      پله {consecutive}: +{midBoostVal}٪ میانی / +{topBoostVal}٪ ۹۴+
                                     </span>
-                                    <div className="w-24 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                    <div className="w-28 bg-slate-800 rounded-full h-1.5 overflow-hidden">
                                       <div
-                                        className="h-full bg-amber-500 rounded-full transition-all"
+                                        className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 rounded-full transition-all"
                                         style={{ width: `${progressPct}%` }}
                                       />
                                     </div>
                                   </div>
+                                ) : (
+                                  <span className="text-[10.5px] text-slate-500 block">
+                                    پله ۱ (شانس پایه)
+                                  </span>
                                 )}
                               </div>
 
@@ -3159,13 +3218,13 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                               <div className="flex items-center gap-1.5">
                                 <button
                                   type="button"
-                                  disabled={isActionLoading}
+                                  disabled={isActionLoading || isHardGuaranteed}
                                   onClick={() => handleActionLoyaltyPity(team.team_id, 'grant_boost')}
                                   className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                                  title="فعال‌سازی فوری بوست وفاداری برای این تیم"
+                                  title="فعال‌سازی فوری تضمین ۱۰۰٪ خرید بعدی برای این تیم"
                                 >
                                   <Zap size={12} />
-                                  <span>اعطای بوست</span>
+                                  <span>اعطای تضمین</span>
                                 </button>
 
                                 <button

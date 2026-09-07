@@ -597,13 +597,21 @@ class AdminPackLoyaltyPityView(views.APIView):
                 **status_data
             })
 
+        top_tier_unclaimed_count = pack.players.filter(is_claimed=False, overall__gte=pack.loyalty_min_ovr).count()
+        mid_tier_unclaimed_count = pack.players.filter(is_claimed=False, overall__gte=90, overall__lt=pack.loyalty_min_ovr).count()
+
         return Response({
             'pack_id': pack.id,
             'pack_name': pack.name,
             'is_loyalty_boost_enabled': pack.is_loyalty_boost_enabled,
             'loyalty_boost_threshold': pack.loyalty_boost_threshold,
             'loyalty_boost_multiplier': float(pack.loyalty_boost_multiplier),
+            'loyalty_mid_step_pct': pack.loyalty_mid_step_pct,
+            'loyalty_step_boost_pct': pack.loyalty_step_boost_pct,
             'loyalty_min_ovr': pack.loyalty_min_ovr,
+            'top_tier_unclaimed_count': top_tier_unclaimed_count,
+            'mid_tier_unclaimed_count': mid_tier_unclaimed_count,
+            'is_top_tier_depleted': (top_tier_unclaimed_count == 0),
             'teams': team_loyalty_data
         })
 
@@ -651,7 +659,7 @@ class AdminPackLoyaltyPityView(views.APIView):
                         picked_card=low_player,
                         status='COMPLETED'
                     )
-            msg = f"بوست وفاداری برای تیم «{team.name}» با موفقیت فعال شد."
+            msg = f"تضمین خرید بعدی و بوست وفاداری برای تیم «{team.name}» با موفقیت فعال شد."
         else:
             return Response({'error': 'عملیات نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
 
