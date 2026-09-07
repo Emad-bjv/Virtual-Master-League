@@ -169,3 +169,14 @@ class SeasonPassTests(TestCase):
         self.assertEqual(legend.team, self.team)
         pass_obj.refresh_from_db()
         self.assertTrue(pass_obj.legend_claimed)
+
+    def test_admin_overview_endpoint(self):
+        """
+        تست فراخوانی اندپوینت admin-overview.
+        """
+        self.client.force_authenticate(user=self.admin_user)
+        res = self.client.get('/api/season-pass/admin-overview/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('levels', res.data)
+        self.assertIn('team_passes', res.data)
+        self.assertIn('legend_players_pool', res.data)

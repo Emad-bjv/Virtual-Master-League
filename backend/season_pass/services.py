@@ -251,23 +251,22 @@ def auto_assign_unique_team_legends() -> dict:
     # Ensure legend players exist in database
     created_or_found_legends = []
     for leg_data in ICONIC_LEGENDS_DATA:
-        player, created = Player.objects.get_or_create(
-            name=leg_data['name'],
-            defaults={
-                'position': leg_data['position'],
-                'overall': leg_data['overall'],
-                'base_overall': leg_data['overall'],
-                'potential_ovr': 99,
-                'age': leg_data['age'],
-                'base_stamina': leg_data['base_stamina'],
-                'virtual_stamina': 100.0,
-                'rarity': 'LEGENDARY',
-                'market_value': Decimal('15000000.00'),
-                'wage': Decimal('500.00')
-            }
-        )
-        # Ensure rarity is LEGENDARY
-        if player.rarity != 'LEGENDARY':
+        player = Player.objects.filter(name=leg_data['name']).first()
+        if not player:
+            player = Player.objects.create(
+                name=leg_data['name'],
+                position=leg_data['position'],
+                overall=leg_data['overall'],
+                base_overall=leg_data['overall'],
+                potential_ovr=99,
+                age=leg_data['age'],
+                base_stamina=leg_data['base_stamina'],
+                virtual_stamina=100.0,
+                rarity='LEGENDARY',
+                market_value=Decimal('15000000.00'),
+                wage=Decimal('500.00')
+            )
+        elif player.rarity != 'LEGENDARY':
             player.rarity = 'LEGENDARY'
             player.save(update_fields=['rarity'])
         created_or_found_legends.append(player)

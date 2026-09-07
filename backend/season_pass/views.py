@@ -12,6 +12,21 @@ from .services import (
 from teams.models import Team, Player
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class IsAdminRole(permissions.BasePermission):
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user and user.is_authenticated and (
+                user.is_staff or user.is_superuser or getattr(user, 'role', '') in ['admin', 'superadmin']
+            )
+        )
+
+
 class SeasonPassViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -95,7 +110,7 @@ class SeasonPassViewSet(viewsets.ViewSet):
     # ─────────────────────────────────────────────────────────────────────────
     # ADMIN MANAGEMENT ENDPOINTS (ROLE: ADMIN ONLY)
     # ─────────────────────────────────────────────────────────────────────────
-    @action(detail=False, methods=['get'], url_path='admin-overview', permission_classes=[permissions.IsAdminUser])
+    @action(detail=False, methods=['get'], url_path='admin-overview', permission_classes=[IsAdminRole])
     def admin_overview(self, request):
         """
         داشبورد مدیریتی ارشد سیزن پس و لجندهای اختصاصی تیم‌ها.
@@ -110,7 +125,10 @@ class SeasonPassViewSet(viewsets.ViewSet):
         for t in teams:
             TeamSeasonPass.objects.get_or_create(team=t)
 
-        auto_assign_unique_team_legends()
+        try:
+            auto_assign_unique_team_legends()
+        except Exception as e:
+            logger.exception("Failed to auto assign unique team legends: %s", e)
 
         team_passes = TeamSeasonPass.objects.all().select_related('team', 'assigned_legend_player').order_by('team__id')
         tasks = WeeklyTask.objects.all().order_by('week_number', 'id')
@@ -142,7 +160,7 @@ class SeasonPassViewSet(viewsets.ViewSet):
             }
         })
 
-    @action(detail=False, methods=['post'], url_path='admin-seed-levels', permission_classes=[permissions.IsAdminUser])
+    @action(detail=False, methods=['post'], url_path='admin-seed-levels', permission_classes=[IsAdminRole])
     def admin_seed_levels(self, request):
         """
         تنظیم مجدد مهندسی‌شده ۲۰ سطح صعودی سیزن پس با کلیک ادمین.
@@ -155,7 +173,7 @@ class SeasonPassViewSet(viewsets.ViewSet):
             'levels': SeasonPassLevelSerializer(levels, many=True).data
         })
 
-    @action(detail=False, methods=['post'], url_path='admin-seed-tasks', permission_classes=[permissions.IsAdminUser])
+    @action(detail=False, methods=['post'], url_path='admin-seed-tasks', permission_classes=[IsAdminRole])
     def admin_seed_tasks(self, request):
         """
         تولید خودکار تسک‌های استاندارد فصل (هفته ۱ تا ۳۰).
@@ -168,7 +186,7 @@ class SeasonPassViewSet(viewsets.ViewSet):
             'tasks': WeeklyTaskSerializer(tasks, many=True).data
         })
 
-    @action(detail=False, methods=['post'], url_path='admin-auto-assign-legends', permission_classes=[permissions.IsAdminUser])
+    @action(detail=False, methods=['post'], url_path='admin-auto-assign-legends', permission_classes=[IsAdminRole])
     def admin_auto_assign_legends(self, request):
         """
         تخصیص هوشمند و غیرتکراری بازیکنان لجند به تمام تیم‌های لیگ.
@@ -180,7 +198,7 @@ class SeasonPassViewSet(viewsets.ViewSet):
             'team_passes': TeamSeasonPassSerializer(team_passes, many=True).data
         })
 
-    @action(detail=False, methods=['post'], url_path='admin-assign-legend', permission_classes=[permissions.IsAdminUser])
+    @action(detail=False, methods=['post'], url_path='admin-assign-legend', permission_classes=[IsAdminRole])
     def admin_assign_legend(self, request):
         """
         انتساب دستی یا تغییر بازیکن لجند یک تیم خاص.
@@ -215,7 +233,7 @@ class SeasonPassViewSet(viewsets.ViewSet):
             'team_pass': TeamSeasonPassSerializer(pass_obj).data
         })
 
-    @action(detail=False, methods=['post'], url_path='admin-save-level', permission_classes=[permissions.IsAdminUser])
+    @action(detail=False, methods=['post'], url_path='admin-save-level', permission_classes=[IsAdminRole])
     def admin_save_level(self, request):
         """
         ایجاد یا ویرایش پاداش یک سطح سیزن پس.
@@ -252,7 +270,7 @@ class SeasonPassViewSet(viewsets.ViewSet):
             'level': SeasonPassLevelSerializer(level_obj).data
         })
 
-    @action(detail=False, methods=['post'], url_path='admin-reset-team-pass', permission_classes=[permissions.IsAdminUser])
+    @action(detail=False, methods=['post'], url_path='admin-reset-team-pass', permission_classes=[IsAdminRole])
     def admin_reset_team_pass(self, request):
         """
         ریست کامل سیزن پس یک تیم خاص به سطح ۱ با ۰ XP و پاکسازی جوایز دریافت شده.
@@ -414,7 +432,7 @@ class SeasonPassViewSet(viewsets.ViewSet):
             'team_pass': TeamSeasonPassSerializer(pass_obj).data
         })
 
-    @action(detail=False, methods=['post'], url_path='admin-reset-all-team-passes', permission_classes=[permissions.IsAdminUser])
+    @action(detail=False, methods=['post'], url_path='admin-reset-all-team-passes', permission_classes=[IsAdminRole])
     def admin_reset_all_team_passes(self, request):
         """
         ریست کامل سیزن پس تمام تیم‌های لیگ.

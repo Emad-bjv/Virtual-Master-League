@@ -64,21 +64,33 @@ export default function AdminPacksSeasonPassHub() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [passRes, gachaRes] = await Promise.all([
+      const [passRes, gachaRes] = await Promise.allSettled([
         seasonPassApi.getAdminOverview(),
         gachaApi.adminGetPacks()
       ]);
 
-      setPassLevels(passRes.data.levels || []);
-      setTeamPasses(passRes.data.team_passes || []);
-      setWeeklyTasks(passRes.data.weekly_tasks || []);
-      setLegendPlayersPool(passRes.data.legend_players_pool || []);
-      setXpRates(passRes.data.xp_rates || null);
+      if (passRes.status === 'fulfilled') {
+        setPassLevels(passRes.value.data?.levels || []);
+        setTeamPasses(passRes.value.data?.team_passes || []);
+        setWeeklyTasks(passRes.value.data?.weekly_tasks || []);
+        setLegendPlayersPool(passRes.value.data?.legend_players_pool || []);
+        setXpRates(passRes.value.data?.xp_rates || null);
+      } else {
+        const err = passRes.reason;
+        const msg = err?.response?.data?.error || err?.response?.data?.detail || 'خطا در بارگذاری اطلاعات سیزن پس';
+        notify(msg, 'error');
+      }
 
-      setGachaPacks(gachaRes.data.packs || []);
-      setPackLogs(gachaRes.data.recent_logs || []);
+      if (gachaRes.status === 'fulfilled') {
+        setGachaPacks(gachaRes.value.data?.packs || []);
+        setPackLogs(gachaRes.value.data?.recent_sessions || gachaRes.value.data?.recent_logs || []);
+      } else {
+        const err = gachaRes.reason;
+        const msg = err?.response?.data?.error || err?.response?.data?.detail || 'خطا در بارگذاری پک‌ها';
+        notify(msg, 'error');
+      }
     } catch (err) {
-      notify(err.response?.data?.error || 'خطا در بارگذاری اطلاعات پنل مدیریت', 'error');
+      notify('خطای پیش‌بینی نشده در بارگذاری اطلاعات', 'error');
     } finally {
       setLoading(false);
     }
