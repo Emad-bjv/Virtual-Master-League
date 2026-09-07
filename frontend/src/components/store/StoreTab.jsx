@@ -1121,6 +1121,7 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                   const currentXp = Number(seasonPassData?.current_xp || 0);
                   const reqXp = Number(lvl.xp_required || 0);
                   const lvlNum = Number(lvl.level || index + 1);
+                  const isUnlocked = currentXp >= reqXp;
                   const claimedList = Array.isArray(seasonPassData?.claimed_levels) ? seasonPassData.claimed_levels : [];
                   const claimedVipList = Array.isArray(seasonPassData?.claimed_vip_levels) ? seasonPassData.claimed_vip_levels : [];
                   const isFreeClaimed = claimedList.includes(lvlNum);
