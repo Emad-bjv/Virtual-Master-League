@@ -1878,6 +1878,14 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                     </div>
                   </div>
 
+                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-200">
+                    <Coins size={18} className="text-yellow-400 shrink-0" />
+                    <div>
+                      <span className="font-bold block text-white">+۱۵٪ بونوس افزایش درآمد بلیت‌فروشی بازی‌های خانگی</span>
+                      <span className="text-[11px] text-yellow-300/80">افزایش درآمد دلاری استادیوم در تمامی بازی‌های میزبانی لیگ</span>
+                    </div>
+                  </div>
+
                   <div className="flex items-center gap-3 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-200">
                     <ShieldCheck size={18} className="text-rose-400 shrink-0" />
                     <div>

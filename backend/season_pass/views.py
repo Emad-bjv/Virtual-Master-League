@@ -7,6 +7,7 @@ from .serializers import TeamTaskProgressSerializer, SeasonPassLevelSerializer, 
 from .services import (
     claim_task_reward, claim_level_reward, auto_assign_unique_team_legends,
     seed_balanced_season_pass_levels, seed_season_weekly_tasks,
+    batch_configure_season_pass_levels,
     XP_MATCH_WIN, XP_MATCH_DRAW, XP_MATCH_LOSS, XP_PER_TASK, TOTAL_SEASON_PASS_XP
 )
 from teams.models import Team, Player
@@ -170,6 +171,38 @@ class SeasonPassViewSet(viewsets.ViewSet):
         return Response({
             'success': True,
             'message': f'{count} سطح استاندارد سیزن پس با موفقیت تنظیم شدند.',
+            'levels': SeasonPassLevelSerializer(levels, many=True).data
+        })
+
+    @action(detail=False, methods=['post'], url_path='admin-batch-configure-levels', permission_classes=[IsAdminRole])
+    def admin_batch_configure_levels(self, request):
+        """
+        تنظیم فرمولی و دسته‌جمعی هر ۲۰ سطح سیزن‌پس با ورودی مقادیر پایه و شیب افزایش با ۱ کلیک ادمین.
+        """
+        try:
+            initial_vip_gems = int(request.data.get('initial_vip_gems', 30))
+            gem_slope = int(request.data.get('gem_slope', 35))
+            initial_vip_coins = int(request.data.get('initial_vip_coins', 35000))
+            coin_slope = int(request.data.get('coin_slope', 60000))
+            initial_free_coins = int(request.data.get('initial_free_coins', 10000))
+            free_coin_slope = int(request.data.get('free_coin_slope', 25000))
+            final_level_bonus_mult = float(request.data.get('final_level_bonus_mult', 1.45))
+        except (ValueError, TypeError) as e:
+            return Response({'error': f'مقادیر ورودی نامعتبر هستند: {e}'}, status=400)
+
+        count = batch_configure_season_pass_levels(
+            initial_vip_gems=initial_vip_gems,
+            gem_slope=gem_slope,
+            initial_vip_coins=initial_vip_coins,
+            coin_slope=coin_slope,
+            initial_free_coins=initial_free_coins,
+            free_coin_slope=free_coin_slope,
+            final_level_bonus_mult=final_level_bonus_mult
+        )
+        levels = SeasonPassLevel.objects.all().order_by('level')
+        return Response({
+            'success': True,
+            'message': f'تمامی {count} سطح سیزن‌پس با فرمول مدنظر شما با موفقیت محاسبه و ذخیره شدند.',
             'levels': SeasonPassLevelSerializer(levels, many=True).data
         })
 

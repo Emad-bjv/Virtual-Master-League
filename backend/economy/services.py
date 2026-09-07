@@ -94,18 +94,27 @@ def distribute_match_rewards(match) -> dict:
         clean_sheet = opponent_score == 0
         raw = calculate_match_reward(team, result, own_score, clean_sheet)
 
-        # Apply Stadium Multiplier for home matches (Ticket & Matchday Sponsor)
-        if team == match.home_team and hasattr(team, 'facilities') and team.facilities:
-            stadium_mult = Decimal(str(get_stadium_multiplier(team)))
-            raw = (raw * stadium_mult).quantize(Decimal('0.01'))
+        # Apply Stadium Multiplier & VIP Bonus for home matches (Ticket & Matchday Sponsor)
+        is_home = (team == match.home_team)
+        is_vip_team = getattr(team, 'is_vip', False)
+        if is_home:
+            if hasattr(team, 'facilities') and team.facilities:
+                stadium_mult = Decimal(str(get_stadium_multiplier(team)))
+                raw = (raw * stadium_mult).quantize(Decimal('0.01'))
+            if is_vip_team:
+                raw = (raw * Decimal('1.15')).quantize(Decimal('0.01'))
 
         capped = apply_weekly_soft_cap(team, raw, week_start)
 
         # Dollar reward
+        desc_role = 'میهمان'
+        if is_home:
+            desc_role = 'میزبان با بونوس استادیوم و VIP (+۱۵٪)' if is_vip_team else 'میزبان با بونوس استادیوم'
+
         process_atomic_wallet_update(
             team_id=team.id, amount=capped, currency='BUDGET',
             transaction_type='MATCH_REWARD',
-            description=f"پاداش مسابقه {match} — {('میزبان با بونوس استادیوم' if team == match.home_team else 'میهمان')} ({result})"
+            description=f"پاداش مسابقه {match} — {desc_role} ({result})"
         )
 
         # Gem reward (Win & Underdog)

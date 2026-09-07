@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import {
   Crown, Gift, Trophy, Star, Sparkles, RefreshCw, Plus, Edit2, Trash2,
   CheckCircle, AlertCircle, ShieldCheck, DollarSign, Gem, ArrowRightLeft,
-  Calendar, Check, X, Users, User, Clock, FileText, Zap, Eye, RotateCcw
+  Calendar, Check, X, Users, User, Clock, FileText, Zap, Eye, RotateCcw,
+  Sliders, Wand2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { seasonPassApi, gachaApi } from '../../services/api';
@@ -42,6 +43,18 @@ export default function AdminPacksSeasonPassHub() {
   // Modals & Selection States
   const [editingLevel, setEditingLevel] = useState(null);
   const [showLevelModal, setShowLevelModal] = useState(false);
+
+  // Batch Formula Generator Modal State
+  const [showFormulaModal, setShowFormulaModal] = useState(false);
+  const [formulaConfig, setFormulaConfig] = useState({
+    initial_vip_gems: 30,
+    gem_slope: 35,
+    initial_vip_coins: 35000,
+    coin_slope: 60000,
+    initial_free_coins: 10000,
+    free_coin_slope: 25000,
+    final_level_bonus_mult: 1.45
+  });
 
   const [selectedTeamPassForLegend, setSelectedTeamPassForLegend] = useState(null);
   const [selectedLegendPlayerId, setSelectedLegendPlayerId] = useState('');
@@ -123,6 +136,59 @@ export default function AdminPacksSeasonPassHub() {
         }
       }
     });
+  };
+
+  const previewStats = React.useMemo(() => {
+    let totalVipGems = 0;
+    let totalVipCoins = 0;
+    let totalFreeCoins = 0;
+    const sampleLevels = [];
+
+    const initVipGems = Number(formulaConfig.initial_vip_gems || 0);
+    const gemSlope = Number(formulaConfig.gem_slope || 0);
+    const initVipCoins = Number(formulaConfig.initial_vip_coins || 0);
+    const coinSlope = Number(formulaConfig.coin_slope || 0);
+    const initFreeCoins = Number(formulaConfig.initial_free_coins || 0);
+    const freeSlope = Number(formulaConfig.free_coin_slope || 0);
+    const finalMult = Number(formulaConfig.final_level_bonus_mult || 1.45);
+
+    for (let lvl = 1; lvl <= 20; lvl++) {
+      const step = lvl - 1;
+      const isFinal = (lvl === 20);
+      const fCoins = Math.round(initFreeCoins + step * freeSlope);
+      let vCoins = Math.round(initVipCoins + step * coinSlope);
+      let vGems = Math.round(initVipGems + step * gemSlope);
+
+      if (isFinal) {
+        vCoins = Math.round(vCoins * finalMult);
+        vGems = Math.round(vGems * finalMult);
+      }
+
+      totalFreeCoins += fCoins;
+      totalVipCoins += vCoins;
+      totalVipGems += vGems;
+
+      if (lvl === 1 || lvl === 10 || lvl === 20) {
+        sampleLevels.push({ lvl, fCoins, vCoins, vGems, isFinal });
+      }
+    }
+
+    return { totalFreeCoins, totalVipCoins, totalVipGems, sampleLevels };
+  }, [formulaConfig]);
+
+  const handleApplyFormula = async (e) => {
+    if (e) e.preventDefault();
+    setActionLoading(true);
+    try {
+      const res = await seasonPassApi.adminBatchConfigureLevels(formulaConfig);
+      notify(res.data.message || 'تمامی سطوح با فرمول جدید با موفقیت تنظیم شدند.', 'success');
+      setShowFormulaModal(false);
+      loadData();
+    } catch (err) {
+      notify(err.response?.data?.error || 'خطا در اعمال فرمول سطوح', 'error');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleSaveLevel = async (e) => {
@@ -516,7 +582,15 @@ export default function AdminPacksSeasonPassHub() {
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
               <span>فهرست سطوح سیزن پس ({passLevels.length} سطح)</span>
             </h3>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setShowFormulaModal(true)}
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 hover:from-purple-500 hover:to-indigo-500 border border-purple-400/50 text-white text-xs font-black flex items-center gap-1.5 shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all cursor-pointer"
+              >
+                <Zap size={14} className="text-amber-300 animate-pulse" />
+                <span>⚡ تنظیم فرمولی و یک‌کلیکه سطوح (جم و بودجه)</span>
+              </button>
               <button
                 onClick={handleSeedLevels}
                 disabled={actionLoading}
@@ -1535,6 +1609,232 @@ export default function AdminPacksSeasonPassHub() {
                   className="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-black cursor-pointer shadow-lg"
                 >
                   {actionLoading ? 'در حال ذخیره...' : 'ذخیره پک'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>,
+        document.body
+      )}
+
+      {/* Batch Formula Configuration Modal (createPortal to document.body) */}
+      {typeof document !== 'undefined' && showFormulaModal && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+          <div className="fixed inset-0" onClick={() => !actionLoading && setShowFormulaModal(false)} />
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="relative z-10 bg-slate-950 rounded-3xl w-full max-w-2xl my-auto p-6 border border-purple-500/40 shadow-[0_0_50px_rgba(168,85,247,0.3)] space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-amber-500 flex items-center justify-center text-slate-950 shadow-md">
+                  <Wand2 size={24} className="text-slate-950" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-white flex items-center gap-2">
+                    <span>تنظیم فرمولی و یک‌کلیکه تمامی سطوح سیزن‌پس</span>
+                    <Sparkles size={16} className="text-amber-400" />
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    تعیین مقادیر پایه و شیب افزایش پاداش‌ها برای بازتولید خودکار ۲۰ سطح لیگ
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFormulaModal(false)}
+                className="w-8 h-8 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer transition-all"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Inputs Form */}
+            <form onSubmit={handleApplyFormula} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* VIP Gems Group */}
+                <div className="p-4 rounded-2xl bg-slate-900/80 border border-amber-500/30 space-y-3">
+                  <div className="flex items-center gap-2 text-amber-300 font-bold border-b border-slate-800 pb-2">
+                    <Gem size={16} className="text-amber-400" />
+                    <span>تنظیمات الماس VIP (Gems)</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-slate-300 font-bold block mb-1">الماس اولیه در سطح ۱:</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formulaConfig.initial_vip_gems}
+                        onChange={(e) => setFormulaConfig({ ...formulaConfig, initial_vip_gems: parseInt(e.target.value, 10) || 0 })}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white font-sport focus:border-amber-400 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-300 font-bold block mb-1">شیب افزایش در هر سطح (+جم):</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={formulaConfig.gem_slope}
+                        onChange={(e) => setFormulaConfig({ ...formulaConfig, gem_slope: parseInt(e.target.value, 10) || 0 })}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white font-sport focus:border-amber-400 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* VIP Coins Group */}
+                <div className="p-4 rounded-2xl bg-slate-900/80 border border-purple-500/30 space-y-3">
+                  <div className="flex items-center gap-2 text-purple-300 font-bold border-b border-slate-800 pb-2">
+                    <Crown size={16} className="text-purple-400" />
+                    <span>تنظیمات بودجه دلاری VIP (USD)</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-slate-300 font-bold block mb-1">بودجه دلاری در سطح ۱ ($):</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={formulaConfig.initial_vip_coins}
+                        onChange={(e) => setFormulaConfig({ ...formulaConfig, initial_vip_coins: parseInt(e.target.value, 10) || 0 })}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white font-sport focus:border-purple-400 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-300 font-bold block mb-1">شیب افزایش بودجه دلاری (+دلار):</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={formulaConfig.coin_slope}
+                        onChange={(e) => setFormulaConfig({ ...formulaConfig, coin_slope: parseInt(e.target.value, 10) || 0 })}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white font-sport focus:border-purple-400 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Free Coins Group */}
+                <div className="p-4 rounded-2xl bg-slate-900/80 border border-emerald-500/30 space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-300 font-bold border-b border-slate-800 pb-2">
+                    <DollarSign size={16} className="text-emerald-400" />
+                    <span>تنظیمات بودجه رایگان (Free USD)</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-slate-300 font-bold block mb-1">بودجه رایگان در سطح ۱ ($):</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={formulaConfig.initial_free_coins}
+                        onChange={(e) => setFormulaConfig({ ...formulaConfig, initial_free_coins: parseInt(e.target.value, 10) || 0 })}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white font-sport focus:border-emerald-400 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-slate-300 font-bold block mb-1">شیب افزایش بودجه رایگان (+دلار):</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={formulaConfig.free_coin_slope}
+                        onChange={(e) => setFormulaConfig({ ...formulaConfig, free_coin_slope: parseInt(e.target.value, 10) || 0 })}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white font-sport focus:border-emerald-400 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Final Level Multiplier */}
+                <div className="p-4 rounded-2xl bg-slate-900/80 border border-indigo-500/30 space-y-3">
+                  <div className="flex items-center gap-2 text-indigo-300 font-bold border-b border-slate-800 pb-2">
+                    <Trophy size={16} className="text-amber-400" />
+                    <span>ضریب بونوس سطح نهایی (سطح ۲۰)</span>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-slate-300 font-bold block mb-1">ضریب جهش پاداش سطح ۲۰ (ضربدر):</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="5"
+                        step="0.05"
+                        value={formulaConfig.final_level_bonus_mult}
+                        onChange={(e) => setFormulaConfig({ ...formulaConfig, final_level_bonus_mult: parseFloat(e.target.value) || 1 })}
+                        className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white font-sport focus:border-indigo-400 outline-none"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-1 block">
+                        پاداش سطح نهایی در این عدد ضرب می‌شود تا جایزه فینال باارزش‌تر باشد.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Preview Card */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/40 via-slate-900 to-amber-950/40 border border-slate-700/80 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <span className="font-bold text-white flex items-center gap-1.5">
+                    <Sliders size={14} className="text-cyan-400" />
+                    <span>پیش‌نمایش زنده خروجی ۲۰ سطح:</span>
+                  </span>
+                  <div className="flex items-center gap-3 font-sport text-[11px]">
+                    <span className="text-amber-300">مجموع جم VIP: <strong>{previewStats.totalVipGems.toLocaleString()} 💎</strong></span>
+                    <span className="text-[#00ff87]">مجموع بودجه VIP: <strong>${previewStats.totalVipCoins.toLocaleString()}</strong></span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
+                  {previewStats.sampleLevels.map((s) => (
+                    <div key={s.lvl} className="p-2 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+                      <span className="font-bold text-slate-400 block font-sport">
+                        {s.isFinal ? '🏆 سطح ۲۰ (نهایی)' : `سطح ${s.lvl}`}
+                      </span>
+                      <div className="text-[#00ff87] font-sport font-black text-xs">
+                        VIP: ${s.vCoins.toLocaleString()}
+                      </div>
+                      <div className="text-amber-400 font-sport font-bold">
+                        +{s.vGems} 💎
+                      </div>
+                      <div className="text-slate-400 text-[10px] font-sport">
+                        Free: ${s.fCoins.toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="pt-2 border-t border-slate-800 flex justify-end gap-3">
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => setShowFormulaModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 cursor-pointer text-xs font-bold transition-all"
+                >
+                  انصراف
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-500 hover:from-purple-500 hover:to-amber-400 text-slate-950 font-black cursor-pointer shadow-[0_0_25px_rgba(168,85,247,0.5)] text-xs flex items-center gap-2 transition-all disabled:opacity-50"
+                >
+                  {actionLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                      <span>در حال اعمال فرمول...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={15} />
+                      <span>تایید و اعمال روی تمام ۲۰ سطح (یک کلیک)</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

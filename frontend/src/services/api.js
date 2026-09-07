@@ -282,6 +282,7 @@ export const seasonPassApi = {
   adminAutoAssignLegends: () => api.post('/season-pass/admin-auto-assign-legends/'),
   adminAssignLegend: (data) => api.post('/season-pass/admin-assign-legend/', data),
   adminSaveLevel: (data) => api.post('/season-pass/admin-save-level/', data),
+  adminBatchConfigureLevels: (data) => api.post('/season-pass/admin-batch-configure-levels/', data),
   adminResetTeamPass: (data) => api.post('/season-pass/admin-reset-team-pass/', data),
   adminResetAllTeamPasses: () => api.post('/season-pass/admin-reset-all-team-passes/'),
 };

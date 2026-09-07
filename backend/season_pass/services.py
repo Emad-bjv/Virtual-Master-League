@@ -301,37 +301,50 @@ def auto_assign_unique_team_legends() -> dict:
     }
 
 
-def seed_balanced_season_pass_levels() -> int:
+XP_REQUIRED_PER_LEVEL = [
+    200, 380, 560, 740, 930, 1120, 1320, 1520, 1730, 1940,
+    2150, 2360, 2580, 2800, 3020, 3240, 3460, 3680, 3900, 4100
+]
+
+
+def batch_configure_season_pass_levels(
+    initial_vip_gems: int = 30,
+    gem_slope: int = 35,
+    initial_vip_coins: int = 35000,
+    coin_slope: int = 60000,
+    initial_free_coins: int = 10000,
+    free_coin_slope: int = 25000,
+    final_level_bonus_mult: float = 1.45
+) -> int:
     """
-    تنظیم مهندسی‌شده ۲۰ سطح سیزن پس با پاداش‌های صعودی.
-    - سطح ۱ (کم‌ارزش‌ترین): $10,000 + 10 جم
-    - سطوح میانی: صعود پلکانی تا صدها هزار دلار و جم
-    - سطح ۲۰ (سطح آخر): $500,000 + 300 جم + بازیکن لجند اختصاصی تیم
-    - مجموع کل XP = 3,500 XP (پایان در هفته ۱۷ برای تیم‌های فعال).
+    تنظیم فرمولی و دسته‌جمعی هر ۲۰ سطح سیزن‌پس با ورودی مقادیر پایه و شیب افزایش.
+    امکان شخصی‌سازی کامل مقادیر توسط ادمین در یک کلیک.
     """
-    levels_data = [
-        # (lvl, xp, title, free_coins, free_gems, vip_coins, vip_gems, is_final)
-        (1, 200, "پاداش سطح ۱ - بودجه مقدماتی", 10000, 0, 25000, 25, False),
-        (2, 380, "پاداش سطح ۲ - بسته اعتباری اولیه", 15000, 0, 35000, 35, False),
-        (3, 560, "پاداش سطح ۳ - شارژ امکانات", 20000, 0, 50000, 45, False),
-        (4, 740, "پاداش سطح ۴ - پاداش پیروزی", 25000, 0, 60000, 60, False),
-        (5, 930, "پاداش سطح ۵ - جهش بودجه نیمه‌اول", 40000, 0, 100000, 80, False),
-        (6, 1120, "پاداش سطح ۶ - پاداش هفتگی باشگاه", 45000, 0, 110000, 90, False),
-        (7, 1320, "پاداش سطح ۷ - تقویت نقل و انتقالات", 50000, 0, 130000, 100, False),
-        (8, 1520, "پاداش سطح ۸ - توسعه آکادمی", 60000, 0, 150000, 120, False),
-        (9, 1730, "پاداش سطح ۹ - پاداش انگیزه", 75000, 0, 180000, 140, False),
-        (10, 1940, "پاداش سطح ۱۰ - نقطه عطف میانه فصل", 100000, 0, 250000, 175, False),
-        (11, 2150, "پاداش سطح ۱۱ - تزریق سرمایه", 120000, 0, 280000, 200, False),
-        (12, 2360, "پاداش سطح ۱۲ - ارتقای توان مالی باشگاه", 140000, 0, 320000, 225, False),
-        (13, 2580, "پاداش سطح ۱۳ - آماده‌سازی دور برگشت", 160000, 0, 360000, 250, False),
-        (14, 2800, "پاداش سطح ۱۴ - بودجه استراتژیک", 180000, 0, 400000, 280, False),
-        (15, 3020, "پاداش سطح ۱۵ - بودجه نخبگان لیگ", 220000, 0, 500000, 320, False),
-        (16, 3240, "پاداش سطح ۱۶ - پاداش درخشش", 260000, 0, 600000, 370, False),
-        (17, 3460, "پاداش سطح ۱۷ - پاداش قهرمانی", 300000, 0, 700000, 420, False),
-        (18, 3680, "پاداش سطح ۱۸ - آمادگی فینال", 350000, 0, 800000, 470, False),
-        (19, 3900, "پاداش سطح ۱۹ - گام نهایی", 400000, 0, 900000, 520, False),
-        (20, 4100, "🏆 سطح نهایی - پاداش بزرگ و بازیکن لجند اختصاصی", 500000, 0, 1200000, 700, True),
-    ]
+    levels_data = []
+    for lvl in range(1, 21):
+        step = lvl - 1
+        xp = XP_REQUIRED_PER_LEVEL[step] if step < len(XP_REQUIRED_PER_LEVEL) else 200 * lvl
+        is_final = (lvl == 20)
+
+        f_coins = int(initial_free_coins + step * free_coin_slope)
+        v_coins = int(initial_vip_coins + step * coin_slope)
+        v_gems = int(initial_vip_gems + step * gem_slope)
+
+        if is_final:
+            v_coins = int(v_coins * final_level_bonus_mult)
+            v_gems = int(v_gems * final_level_bonus_mult)
+            title = "🏆 سطح نهایی - پاداش بزرگ و بازیکن لجند اختصاصی"
+        else:
+            title = f"پاداش مرحله {lvl}"
+
+        levels_data.append((
+            lvl, xp, title,
+            Decimal(str(f_coins)),
+            0,  # Free gems strictly 0
+            Decimal(str(v_coins)),
+            v_gems,
+            is_final
+        ))
 
     with transaction.atomic():
         SeasonPassLevel.objects.all().delete()
@@ -341,9 +354,9 @@ def seed_balanced_season_pass_levels() -> int:
                 level=lvl,
                 xp_required=xp,
                 reward_title=title,
-                free_reward_coins=Decimal(str(f_coins)),
+                free_reward_coins=f_coins,
                 free_reward_gems=f_gems,
-                vip_reward_coins=Decimal(str(v_coins)),
+                vip_reward_coins=v_coins,
                 vip_reward_gems=v_gems,
                 vip_reward_player_rarity='LEGENDARY' if is_final else '',
                 is_final_level=is_final
@@ -351,6 +364,21 @@ def seed_balanced_season_pass_levels() -> int:
             created_count += 1
 
     return created_count
+
+
+def seed_balanced_season_pass_levels() -> int:
+    """
+    تنظیم استاندارد مهندسی‌شده ۲۰ سطح صعودی سیزن‌پس با ارزش بالای VIP.
+    """
+    return batch_configure_season_pass_levels(
+        initial_vip_gems=30,
+        gem_slope=35,
+        initial_vip_coins=35000,
+        coin_slope=60000,
+        initial_free_coins=10000,
+        free_coin_slope=25000,
+        final_level_bonus_mult=1.45
+    )
 
 
 def seed_season_weekly_tasks() -> int:

@@ -123,8 +123,8 @@ class SeasonPassTests(TestCase):
         self.assertTrue(res.data['success'])
 
         self.team.refresh_from_db()
-        # 1000 - 750 (cost) + 25 (retroactive level 1 VIP gems) = 275
-        self.assertEqual(self.team.gems, 275)
+        # 1000 - 750 (cost) + 30 (retroactive level 1 VIP gems) = 280
+        self.assertEqual(self.team.gems, 280)
         self.assertTrue(self.team.is_vip)
 
         pass_obj = TeamSeasonPass.objects.get(team=self.team)
@@ -180,3 +180,36 @@ class SeasonPassTests(TestCase):
         self.assertIn('levels', res.data)
         self.assertIn('team_passes', res.data)
         self.assertIn('legend_players_pool', res.data)
+
+    def test_admin_batch_configure_levels(self):
+        """
+        تست اندپوینت فرمول‌ساز یک‌کلیکه ادمین برای تنظیم تمام ۲۰ سطح.
+        """
+        self.client.force_authenticate(user=self.admin_user)
+        payload = {
+            'initial_vip_gems': 50,
+            'gem_slope': 40,
+            'initial_vip_coins': 50000,
+            'coin_slope': 70000,
+            'initial_free_coins': 15000,
+            'free_coin_slope': 30000,
+            'final_level_bonus_mult': 1.5
+        }
+        res = self.client.post('/api/season-pass/admin-batch-configure-levels/', payload)
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data['success'])
+        self.assertEqual(len(res.data['levels']), 20)
+
+        lvl1 = SeasonPassLevel.objects.get(level=1)
+        self.assertEqual(lvl1.vip_reward_gems, 50)
+        self.assertEqual(lvl1.vip_reward_coins, Decimal('50000.00'))
+        self.assertEqual(lvl1.free_reward_coins, Decimal('15000.00'))
+
+        lvl2 = SeasonPassLevel.objects.get(level=2)
+        self.assertEqual(lvl2.vip_reward_gems, 90)
+        self.assertEqual(lvl2.vip_reward_coins, Decimal('120000.00'))
+
+        lvl20 = SeasonPassLevel.objects.get(level=20)
+        self.assertTrue(lvl20.is_final_level)
+        # 50 + 19*40 = 810 * 1.5 = 1215
+        self.assertEqual(lvl20.vip_reward_gems, 1215)
