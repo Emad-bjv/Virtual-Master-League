@@ -8,7 +8,7 @@ import {
   Users, Zap, ShieldAlert, X, RotateCcw, SlidersHorizontal, Layers, Flame,
   Edit3, Scale, Gavel, FileEdit, Hash, HelpCircle, CheckSquare, Save
 } from 'lucide-react';
-import { adminApi, matchApi, teamApi } from '../../services/api';
+import { adminApi, matchApi, teamApi, clearApiCache } from '../../services/api';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import axios from 'axios';
 
@@ -243,6 +243,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
 
   const fetchStandingsList = async () => {
     try {
+      clearApiCache('/matches/standings/');
       const res = await matchApi.getLeagueStandings();
       setStandingsList(res.data || []);
     } catch (e) {
@@ -338,33 +339,23 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
     }
   };
 
-  // Initial Fetch
-  const loadData = useCallback(async () => {
+  // Initial Fetch with full parallelism and zero-redundancy dependency
+  const loadData = useCallback(async (forceRefresh = false) => {
+    if (forceRefresh) {
+      clearApiCache('/matches/');
+    }
     setLoading(true);
     try {
-      let loadedTeams = [];
-      try {
-        const teamsRes = await teamApi.getTeams();
-        const rawTeams = Array.isArray(teamsRes.data) ? teamsRes.data : (teamsRes.data?.results || []);
-        loadedTeams = Array.isArray(rawTeams) ? rawTeams : [];
-      } catch (err) {
-        try {
-          const headers = { Authorization: `Bearer ${localStorage.getItem('access_token') || localStorage.getItem('vml_token')}` };
-          const teamsRes = await axios.get('/api/teams/', { headers });
-          const rawTeams = Array.isArray(teamsRes.data) ? teamsRes.data : (teamsRes.data?.results || []);
-          loadedTeams = Array.isArray(rawTeams) ? rawTeams : [];
-        } catch (_e) {
-          console.error('Failed to load teams:', err);
-        }
-      }
-
-      const [gwRes, matchesRes, cupsRes, standingsRes] = await Promise.all([
+      const [teamsRes, gwRes, matchesRes, cupsRes, standingsRes] = await Promise.all([
+        teamApi.getTeams().catch(() => ({ data: [] })),
         matchApi.getGameweeksStatus().catch(() => ({ data: { gameweeks: [], active_gameweek: 'هفته ۱' } })),
         adminApi.getMatches().catch(() => ({ data: [] })),
         adminApi.getCups().catch(() => ({ data: [] })),
         matchApi.getLeagueStandings().catch(() => ({ data: [] })),
       ]);
 
+      const rawTeams = Array.isArray(teamsRes.data) ? teamsRes.data : (teamsRes.data?.results || []);
+      const loadedTeams = Array.isArray(rawTeams) ? rawTeams : [];
       const activeIds = loadedTeams.filter(t => t.is_active !== false).map(t => t.id);
       setTeams(loadedTeams);
       setSelectedLeagueTeamIds(prev => prev.length === 0 ? activeIds : prev);
@@ -385,15 +376,22 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
       
       const cups = cupsRes.data || [];
       setCupsList(cups);
-      if (cups.length > 0 && !selectedCupId) {
-        setSelectedCupId(cups[0].id);
+      if (cups.length > 0) {
+        setSelectedCupId(prev => {
+          const targetId = prev || cups[0].id;
+          const targetCup = cups.find(c => c.id === targetId) || cups[0];
+          if (targetCup?.bracket) {
+            setCupBracketData(targetCup.bracket);
+          }
+          return targetId;
+        });
       }
     } catch (err) {
       console.error('Error loading tournament hub data:', err);
     } finally {
       setLoading(false);
     }
-  }, [selectedCupId]);
+  }, []);
 
   // Filter matches for selected gameweek (sorted chronologically by match date/time)
   const currentGameweekMatches = useMemo(() => {
@@ -408,16 +406,26 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
     loadData();
   }, [loadData]);
 
-  // Load Bracket when selectedCupId changes
+  // Load Bracket when selectedCupId changes (uses in-memory cached bracket if available)
   useEffect(() => {
     if (selectedCupId) {
+      const matchingCup = (cupsList || []).find((c) => c.id === selectedCupId);
+      if (matchingCup?.bracket) {
+        setCupBracketData(matchingCup.bracket);
+        return;
+      }
       adminApi.getCupBracket(selectedCupId)
-        .then((res) => setCupBracketData(res.data))
+        .then((res) => {
+          setCupBracketData(res.data);
+          setCupsList((prev) =>
+            (prev || []).map((c) => (c.id === selectedCupId ? { ...c, bracket: res.data } : c))
+          );
+        })
         .catch((err) => console.error('Error loading cup bracket:', err));
     } else {
       setCupBracketData(null);
     }
-  }, [selectedCupId]);
+  }, [selectedCupId, cupsList]);
 
   // Derived Stages and Matches for Cup Management
   const cupStages = useMemo(() => {
@@ -509,7 +517,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         window.dispatchEvent(new CustomEvent('vml_league_schedule_updated'));
         localStorage.setItem('vml_last_schedule_update', Date.now().toString());
       } catch (_e) {}
-      await loadData();
+      await loadData(true);
     } catch (err) {
       notify(err.response?.data?.error || 'خطا در پاک‌سازی مسابقات لیگ', 'error');
     } finally {
@@ -545,7 +553,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         window.dispatchEvent(new CustomEvent('vml_league_schedule_updated'));
         localStorage.setItem('vml_last_schedule_update', Date.now().toString());
       } catch (_e) {}
-      await loadData();
+      await loadData(true);
     } catch (err) {
       notify(err.response?.data?.error || 'خطا در تولید برنامه مسابقات لیگ', 'error');
     } finally {
@@ -566,7 +574,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         window.dispatchEvent(new CustomEvent('vml_league_schedule_updated'));
         localStorage.setItem('vml_last_schedule_update', Date.now().toString());
       } catch (_e) {}
-      await loadData();
+      await loadData(true);
     } catch (err) {
       notify(err.response?.data?.error || 'خطا در انجام عملیات روی هفته', 'error');
     } finally {
@@ -601,7 +609,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         window.dispatchEvent(new CustomEvent('vml_league_schedule_updated'));
         localStorage.setItem('vml_last_schedule_update', Date.now().toString());
       } catch (_e) {}
-      await loadData();
+      await loadData(true);
       if (selectedCupId) {
         const bRes = await adminApi.getCupBracket(selectedCupId);
         setCupBracketData(bRes.data);
@@ -639,7 +647,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         notify('تغییرات مسابقه با موفقیت ذخیره شد.', 'success');
       }
       setEditingMatchId(null);
-      await loadData();
+      await loadData(true);
       if (selectedCupId) {
         const bRes = await adminApi.getCupBracket(selectedCupId);
         setCupBracketData(bRes.data);
@@ -675,7 +683,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         team_ids: selectedCupTeamIds,
       });
       notify(res.data?.message || 'تورنمنت جام حذفی ساخته شد.', 'success');
-      await loadData();
+      await loadData(true);
       if (res.data?.tournament_id) {
         setSelectedCupId(res.data.tournament_id);
       }
@@ -694,7 +702,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
       const res = await adminApi.deleteCup(cupId);
       notify(res.data?.message || 'جام حذفی حذف شد.', 'success');
       setSelectedCupId(null);
-      await loadData();
+      await loadData(true);
     } catch (err) {
       notify(err.response?.data?.error || 'خطا در حذف جام حذفی', 'error');
     } finally {
@@ -717,7 +725,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         window.dispatchEvent(new CustomEvent('vml_league_schedule_updated'));
         localStorage.setItem('vml_last_schedule_update', Date.now().toString());
       } catch (_e) {}
-      await loadData();
+      await loadData(true);
     } catch (err) {
       notify(err.response?.data?.error || 'خطا در پاک‌سازی مسابقات جام حذفی', 'error');
     } finally {
@@ -759,7 +767,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         `سینک هوشمند با موفقیت انجام شد! ${res.data?.updated_matches_count || 0} مسابقه جام حذفی بین هفته‌های لیگ زمان‌بندی شدند.`,
         'success'
       );
-      await loadData();
+      await loadData(true);
       if (selectedCupId) {
         const bRes = await adminApi.getCupBracket(selectedCupId);
         setCupBracketData(bRes.data);
@@ -800,7 +808,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
     return Array.from(matchMap.values()).sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
   }, [leagueMatches, cupBracketData]);
 
-  if (loading) {
+  if (loading && teams.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
         <RefreshCw className="w-8 h-8 animate-spin text-emerald-400" />

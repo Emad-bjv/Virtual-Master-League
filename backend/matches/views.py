@@ -170,10 +170,8 @@ class LeagueStandingsView(generics.GenericAPIView):
 
         force_recalculate = request.query_params.get('recalculate') == 'true'
         has_standings = LeagueStanding.objects.filter(tournament=tournament).exists()
-        active_teams_count = Team.objects.filter(is_active=True).count()
-        standings_count = LeagueStanding.objects.filter(tournament=tournament, team__is_active=True).count()
 
-        if force_recalculate or not has_standings or (active_teams_count > 0 and standings_count < active_teams_count):
+        if force_recalculate or not has_standings:
             try:
                 recalculate_tournament_standings(tournament.id)
             except Exception:
@@ -737,7 +735,6 @@ class AdminMatchListView(generics.ListAPIView):
 
         qs = Match.objects.all().select_related(
             'home_team__manager', 'away_team__manager',
-            'home_team__gameplan', 'away_team__gameplan',
             'tournament'
         ).prefetch_related('gameplans').order_by('date', 'id')
 
@@ -2165,19 +2162,25 @@ class AdminCupTournamentView(APIView):
 
     def get(self, request):
         from .cup_engine import serialize_cup_bracket
-        cups = Tournament.objects.filter(tournament_type='CUP').order_by('-created_at')
+        from django.db.models import Count, Q
+        cups = (
+            Tournament.objects.filter(tournament_type='CUP')
+            .annotate(
+                annotated_total=Count('matches', distinct=True),
+                annotated_finished=Count('matches', filter=Q(matches__status='FINISHED'), distinct=True)
+            )
+            .order_by('-created_at')
+        )
         res = []
-        for c in cups:
-            bracket_data = serialize_cup_bracket(c)
-            total_matches = c.matches.count()
-            finished_matches = c.matches.filter(status='FINISHED').count()
+        for idx, c in enumerate(cups):
+            bracket_data = serialize_cup_bracket(c) if (idx == 0 or c.is_active) else None
             res.append({
                 'id': c.id,
                 'name': c.name,
                 'is_active': c.is_active,
                 'created_at': c.created_at.isoformat(),
-                'total_matches': total_matches,
-                'finished_matches': finished_matches,
+                'total_matches': c.annotated_total,
+                'finished_matches': c.annotated_finished,
                 'bracket': bracket_data
             })
         return Response(res, status=status.HTTP_200_OK)

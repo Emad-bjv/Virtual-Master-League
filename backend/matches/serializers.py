@@ -94,12 +94,19 @@ class MatchSerializer(serializers.ModelSerializer):
     def get_home_lineup_ready(self, obj):
         if not obj.home_team_id:
             return False
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        if 'gameplans' in cache:
+            return any(gp.team_id == obj.home_team_id and gp.is_submitted for gp in cache['gameplans'])
         return obj.gameplans.filter(team_id=obj.home_team_id, is_submitted=True).exists()
 
     def get_away_lineup_ready(self, obj):
         if not obj.away_team_id:
             return False
+        cache = getattr(obj, '_prefetched_objects_cache', {})
+        if 'gameplans' in cache:
+            return any(gp.team_id == obj.away_team_id and gp.is_submitted for gp in cache['gameplans'])
         return obj.gameplans.filter(team_id=obj.away_team_id, is_submitted=True).exists()
+
 
 
 class MatchEventSerializer(serializers.ModelSerializer):

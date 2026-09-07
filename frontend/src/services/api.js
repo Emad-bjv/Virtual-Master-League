@@ -191,9 +191,9 @@ export const gachaApi = {
 
 export const adminApi = {
   getOverviewStats: () => api.get('/admin/overview-stats/'),
-  getMatches: (params) => api.get('/matches/admin-list/', { params }),
-  createMatch: (data) => api.post('/matches/admin-create/', data),
-  updateMatch: (matchId, data) => api.post(`/matches/${matchId}/admin-update/`, data),
+  getMatches: (params) => cachedGet('/matches/admin-list/', { params }, 20000),
+  createMatch: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin-create/', data); },
+  updateMatch: (matchId, data) => { clearApiCache('/matches/'); return api.post(`/matches/${matchId}/admin-update/`, data); },
   updatePlayer: (data) => api.post('/teams/admin_update_player/', data),
   overrideFacility: (data) => api.post('/teams/admin_override_facility/', data),
   adjustBudget: (data) => api.post('/teams/admin_adjust_budget/', data),
@@ -204,28 +204,28 @@ export const adminApi = {
   updateFeatureFlags: (data) => api.patch('/admin/feature-flags/', data),
   getSystemSettings: () => api.get('/admin/system-settings/'),
   updateSystemSettings: (data) => api.patch('/admin/system-settings/', data),
-  executeReset: (action, confirmation) => api.post(`/admin/reset/${action}/`, { confirmation }),
+  executeReset: (action, confirmation) => { clearApiCache('/matches/'); return api.post(`/admin/reset/${action}/`, { confirmation }); },
 
   // League & Cup Tournament Management
-  configureLeague: (data) => api.post('/matches/admin/league/configure/', data),
-  resetLeague: (data) => api.post('/matches/admin/league/reset/', data),
-  gameweekAction: (data) => api.post('/matches/admin/gameweek-action/', data),
-  getCups: () => api.get('/matches/admin/cups/'),
-  createCup: (data) => api.post('/matches/admin/cups/', data),
-  deleteCup: (cupId) => api.delete(`/matches/admin/cups/${cupId}/`),
-  resetCup: (data) => api.post('/matches/admin/cups/reset/', data),
-  getCupBracket: (tournamentId) => api.get(`/matches/admin/cups/${tournamentId}/bracket/`),
-  advanceCupWinner: (matchId) => api.post(`/matches/admin/cups/${matchId}/advance/`),
-  syncCupWithLeague: (data) => api.post('/matches/admin/sync-cup-league/', data),
-  forfeitMatch: (matchId, data) => api.post(`/matches/${matchId}/forfeit/`, data),
-  recordCupPenaltyShootout: (matchId, data) => api.post(`/matches/${matchId}/control/`, { action: 'RECORD_PENALTY_SHOOTOUT', ...data }),
-  startExtraTime: (matchId, data = {}) => api.post(`/matches/${matchId}/control/`, { action: 'START_EXTRA_TIME', ...data }),
-  startPenalties: (matchId, data = {}) => api.post(`/matches/${matchId}/control/`, { action: 'START_PENALTIES', ...data }),
+  configureLeague: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/league/configure/', data); },
+  resetLeague: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/league/reset/', data); },
+  gameweekAction: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/gameweek-action/', data); },
+  getCups: () => cachedGet('/matches/admin/cups/', {}, 25000),
+  createCup: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/cups/', data); },
+  deleteCup: (cupId) => { clearApiCache('/matches/'); return api.delete(`/matches/admin/cups/${cupId}/`); },
+  resetCup: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/cups/reset/', data); },
+  getCupBracket: (tournamentId) => cachedGet(`/matches/admin/cups/${tournamentId}/bracket/`, {}, 25000),
+  advanceCupWinner: (matchId) => { clearApiCache('/matches/'); return api.post(`/matches/admin/cups/${matchId}/advance/`); },
+  syncCupWithLeague: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/sync-cup-league/', data); },
+  forfeitMatch: (matchId, data) => { clearApiCache('/matches/'); return api.post(`/matches/${matchId}/forfeit/`, data); },
+  recordCupPenaltyShootout: (matchId, data) => { clearApiCache('/matches/'); return api.post(`/matches/${matchId}/control/`, { action: 'RECORD_PENALTY_SHOOTOUT', ...data }); },
+  startExtraTime: (matchId, data = {}) => { clearApiCache('/matches/'); return api.post(`/matches/${matchId}/control/`, { action: 'START_EXTRA_TIME', ...data }); },
+  startPenalties: (matchId, data = {}) => { clearApiCache('/matches/'); return api.post(`/matches/${matchId}/control/`, { action: 'START_PENALTIES', ...data }); },
 
   // Standings Management & Penalty Points
-  manualEditStanding: (data) => api.post('/matches/admin/standings/manual-edit/', data),
-  applyStandingPenalty: (data) => api.post('/matches/admin/standings/apply-penalty/', data),
-  recalculateStandings: (data = {}) => api.post('/matches/admin/standings/recalculate/', data),
+  manualEditStanding: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/standings/manual-edit/', data); },
+  applyStandingPenalty: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/standings/apply-penalty/', data); },
+  recalculateStandings: (data = {}) => { clearApiCache('/matches/'); return api.post('/matches/admin/standings/recalculate/', data); },
 };
 
 export const coreApi = {
@@ -235,7 +235,7 @@ export const coreApi = {
 
 
 export const matchApi = {
-  getGameweeksStatus: () => api.get('/matches/gameweeks-status/'),
+  getGameweeksStatus: () => cachedGet('/matches/gameweeks-status/', {}, 20000),
   getLiveMatchContext: (teamId) => api.get('/matches/live-context/', { params: teamId ? { team_id: teamId } : {} }),
   getMatchLiveState: (matchId) => api.get(`/matches/${matchId}/live-state/`),
   controlMatch: (matchId, payload) => api.post(`/matches/${matchId}/control/`, payload),
