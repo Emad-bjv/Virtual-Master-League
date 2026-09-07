@@ -341,6 +341,9 @@ class TeamViewSet(viewsets.ModelViewSet):
         
         # Gem cost escalates with current level: e.g. lvl 0->1: 15, lvl 1->2: 30, lvl 10->11: 165
         gem_cost = 15 + (current_level * 15)
+        # Apply 10% VIP discount if team has active season pass VIP
+        if team.is_vip:
+            gem_cost = max(1, int(round(gem_cost * 0.9)))
         
         from economy.services import process_atomic_wallet_update
         wallet_res = process_atomic_wallet_update(

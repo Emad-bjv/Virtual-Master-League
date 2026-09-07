@@ -48,19 +48,22 @@ ICONIC_LEGENDS_DATA = [
 def add_match_season_pass_xp(team: Team, outcome: str = 'WON') -> int:
     """
     اعطای مستقیم XP مسابقه به سیزن پس تیم بعد از پایان بازی.
-    - WON: +165 XP (15 برد = 70.7% کل سیزن پس)
-    - DRAW: +70 XP
-    - LOST: +20 XP
+    - تیم‌های عادی: WON: +75 XP, DRAW: +30 XP, LOST: +10 XP
+    - تیم‌های VIP: ضریب ۱.۵ برابری (+۵۰٪ بوست): WON: +112 XP, DRAW: +45 XP, LOST: +15 XP
     """
-    if outcome == 'WON':
-        xp_gain = XP_MATCH_WIN
-    elif outcome == 'DRAW':
-        xp_gain = XP_MATCH_DRAW
-    else:
-        xp_gain = XP_MATCH_LOSS
-
     with transaction.atomic():
         pass_obj, _ = TeamSeasonPass.objects.select_for_update().get_or_create(team=team)
+
+        if outcome == 'WON':
+            base_xp = XP_MATCH_WIN
+        elif outcome == 'DRAW':
+            base_xp = XP_MATCH_DRAW
+        else:
+            base_xp = XP_MATCH_LOSS
+
+        multiplier = 1.5 if pass_obj.is_vip else 1.0
+        xp_gain = int(round(base_xp * multiplier))
+
         pass_obj.current_xp += xp_gain
         _recalculate_level(pass_obj)
         pass_obj.save(update_fields=['current_xp', 'current_level'])
@@ -102,7 +105,9 @@ def claim_task_reward(team: Team, task_progress_id: int) -> dict:
         progress.save(update_fields=['is_claimed'])
 
         pass_obj, _ = TeamSeasonPass.objects.select_for_update().get_or_create(team=team)
-        earned_xp = progress.task.reward_xp or XP_PER_TASK
+        base_xp = progress.task.reward_xp or XP_PER_TASK
+        multiplier = 1.5 if pass_obj.is_vip else 1.0
+        earned_xp = int(round(base_xp * multiplier))
         pass_obj.current_xp += earned_xp
         _recalculate_level(pass_obj)
         pass_obj.save(update_fields=['current_xp', 'current_level'])
@@ -143,8 +148,12 @@ def claim_level_reward(team: Team, level: int) -> dict:
 
         if level > pass_obj.current_level:
             return {'success': False, 'error': f'هنوز به سطح {level} نرسیده‌اید.'}
-        if level in pass_obj.claimed_levels:
-            return {'success': False, 'error': f'پاداش سطح {level} قبلاً دریافت شده است.'}
+        # Check what can be claimed:
+        can_claim_free = level not in (pass_obj.claimed_levels or [])
+        can_claim_vip = pass_obj.is_vip and (level not in (pass_obj.claimed_vip_levels or []))
+
+        if not can_claim_free and not can_claim_vip:
+            return {'success': False, 'error': f'تمام پاداش‌های سطح {level} قبلاً دریافت شده است.'}
 
         try:
             level_def = SeasonPassLevel.objects.get(level=level)
@@ -157,29 +166,24 @@ def claim_level_reward(team: Team, level: int) -> dict:
             'legendary_player': None
         }
 
-        # 1. Free Track Rewards
-        if level_def.free_reward_coins and level_def.free_reward_coins > 0:
-            process_atomic_wallet_update(
-                team_id=team.id,
-                amount=level_def.free_reward_coins,
-                currency='BUDGET',
-                transaction_type='PRIZE',
-                description=f"پاداش دلاری سطح {level} سیزن پس"
-            )
-            rewards_granted['coins'] += level_def.free_reward_coins
+        # 1. Free Track Rewards (if not claimed yet)
+        if can_claim_free:
+            if level_def.free_reward_coins and level_def.free_reward_coins > 0:
+                process_atomic_wallet_update(
+                    team_id=team.id,
+                    amount=level_def.free_reward_coins,
+                    currency='BUDGET',
+                    transaction_type='PRIZE',
+                    description=f"پاداش دلاری سطح {level} سیزن پس"
+                )
+                rewards_granted['coins'] += level_def.free_reward_coins
 
-        if level_def.free_reward_gems and level_def.free_reward_gems > 0:
-            process_atomic_wallet_update(
-                team_id=team.id,
-                amount=Decimal(level_def.free_reward_gems),
-                currency='GEMS',
-                transaction_type='PRIZE',
-                description=f"پاداش جم سطح {level} سیزن پس"
-            )
-            rewards_granted['gems'] += level_def.free_reward_gems
+            if pass_obj.claimed_levels is None:
+                pass_obj.claimed_levels = []
+            pass_obj.claimed_levels.append(level)
 
-        # 2. VIP Track Rewards
-        if pass_obj.is_vip:
+        # 2. VIP Track Rewards (if VIP and not claimed yet)
+        if can_claim_vip:
             if level_def.vip_reward_coins and level_def.vip_reward_coins > 0:
                 process_atomic_wallet_update(
                     team_id=team.id,
@@ -200,33 +204,32 @@ def claim_level_reward(team: Team, level: int) -> dict:
                 )
                 rewards_granted['gems'] += level_def.vip_reward_gems
 
-        # 3. Final Level Legend Player Reward
-        if level_def.is_final_level:
-            legend_player = pass_obj.assigned_legend_player
-            
-            # If no legend assigned yet, assign an unassigned legend player
-            if not legend_player:
-                auto_assign_unique_team_legends()
-                pass_obj.refresh_from_db()
+            # 3. Final Level Legend Player Reward (VIP Exclusive!)
+            if level_def.is_final_level and not pass_obj.legend_claimed:
                 legend_player = pass_obj.assigned_legend_player
+                if not legend_player:
+                    auto_assign_unique_team_legends()
+                    pass_obj.refresh_from_db()
+                    legend_player = pass_obj.assigned_legend_player
 
-            if legend_player:
-                # Add player to team roster
-                legend_player.team = team
-                legend_player.save(update_fields=['team'])
-                pass_obj.legend_claimed = True
-                rewards_granted['legendary_player'] = {
-                    'id': legend_player.id,
-                    'name': legend_player.name,
-                    'position': legend_player.position,
-                    'overall': legend_player.overall,
-                    'age': legend_player.age,
-                    'rarity': 'LEGENDARY'
-                }
+                if legend_player:
+                    legend_player.team = team
+                    legend_player.save(update_fields=['team'])
+                    pass_obj.legend_claimed = True
+                    rewards_granted['legendary_player'] = {
+                        'id': legend_player.id,
+                        'name': legend_player.name,
+                        'position': legend_player.position,
+                        'overall': legend_player.overall,
+                        'age': legend_player.age,
+                        'rarity': 'LEGENDARY'
+                    }
 
-        # Update claimed levels
-        pass_obj.claimed_levels.append(level)
-        pass_obj.save(update_fields=['claimed_levels', 'legend_claimed'])
+            if pass_obj.claimed_vip_levels is None:
+                pass_obj.claimed_vip_levels = []
+            pass_obj.claimed_vip_levels.append(level)
+
+        pass_obj.save(update_fields=['claimed_levels', 'claimed_vip_levels', 'legend_claimed'])
 
         return {
             'success': True,

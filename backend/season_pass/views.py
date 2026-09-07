@@ -290,6 +290,7 @@ class SeasonPassViewSet(viewsets.ViewSet):
             pass_obj.current_level = 1
             pass_obj.is_vip = False
             pass_obj.claimed_levels = []
+            pass_obj.claimed_vip_levels = []
             pass_obj.legend_claimed = False
             pass_obj.save()
 
@@ -301,6 +302,115 @@ class SeasonPassViewSet(viewsets.ViewSet):
         return Response({
             'success': True,
             'message': f'سیزن پس تیم «{team.name}» با موفقیت ریست شد.',
+            'team_pass': TeamSeasonPassSerializer(pass_obj).data
+        })
+
+    @action(detail=False, methods=['post'], url_path='purchase-vip')
+    def purchase_vip(self, request):
+        """
+        خرید اشتراک مسیر ویژه VIP سیزن‌پس با ۷۵۰ الماس (جم).
+        همچنین تمام جوایز VIP مراحلی که مربی قبلاً در این فصل باز کرده به صورت آنی اعطا می‌شوند.
+        """
+        team = self.get_team(request)
+        if not team:
+            return Response({'error': 'تیم شما یافت نشد.'}, status=404)
+
+        from decimal import Decimal
+        from economy.services import process_atomic_wallet_update
+        from .services import auto_assign_unique_team_legends
+
+        VIP_COST_GEMS = 750
+
+        with transaction.atomic():
+            pass_obj, _ = TeamSeasonPass.objects.select_for_update().get_or_create(team=team)
+            if pass_obj.is_vip:
+                return Response({'error': 'شما قبلاً اشتراک VIP این فصل را فعال کرده‌اید.'}, status=400)
+
+            team.refresh_from_db()
+            if team.gems < VIP_COST_GEMS:
+                return Response({
+                    'error': f'الماس کافی نیست. برای فعال‌سازی مسیر VIP به {VIP_COST_GEMS} جم نیاز دارید. (موجودی فعلی شما: {team.gems} جم)',
+                    'required_gems': VIP_COST_GEMS,
+                    'current_gems': team.gems
+                }, status=400)
+
+            wallet_res = process_atomic_wallet_update(
+                team_id=team.id,
+                amount=Decimal(str(-VIP_COST_GEMS)),
+                currency='GEMS',
+                transaction_type='STORE_PURCHASE',
+                description="خرید اشتراک VIP سیزن‌پس"
+            )
+            if not wallet_res.get('success'):
+                return Response({'error': wallet_res.get('error', 'خطا در کسر الماس.')}, status=400)
+
+            pass_obj.is_vip = True
+
+            # Retroactively claim all unlocked VIP levels
+            unclaimed_vip_levels = SeasonPassLevel.objects.filter(
+                level__lte=pass_obj.current_level
+            ).order_by('level')
+
+            if pass_obj.claimed_vip_levels is None:
+                pass_obj.claimed_vip_levels = []
+
+            total_bonus_coins = Decimal('0.00')
+            total_bonus_gems = 0
+            legend_reward = None
+
+            for lvl_def in unclaimed_vip_levels:
+                if lvl_def.level not in pass_obj.claimed_vip_levels:
+                    if lvl_def.vip_reward_coins > 0:
+                        process_atomic_wallet_update(
+                            team_id=team.id,
+                            amount=lvl_def.vip_reward_coins,
+                            currency='BUDGET',
+                            transaction_type='PRIZE',
+                            description=f"پاداش دلاری VIP مرحله {lvl_def.level} سیزن‌پس"
+                        )
+                        total_bonus_coins += lvl_def.vip_reward_coins
+
+                    if lvl_def.vip_reward_gems > 0:
+                        process_atomic_wallet_update(
+                            team_id=team.id,
+                            amount=Decimal(lvl_def.vip_reward_gems),
+                            currency='GEMS',
+                            transaction_type='PRIZE',
+                            description=f"پاداش جم VIP مرحله {lvl_def.level} سیزن‌پس"
+                        )
+                        total_bonus_gems += lvl_def.vip_reward_gems
+
+                    # Final level legend if reached level 20
+                    if lvl_def.is_final_level and not pass_obj.legend_claimed:
+                        legend_player = pass_obj.assigned_legend_player
+                        if not legend_player:
+                            auto_assign_unique_team_legends()
+                            pass_obj.refresh_from_db()
+                            legend_player = pass_obj.assigned_legend_player
+
+                        if legend_player:
+                            legend_player.team = team
+                            legend_player.save(update_fields=['team'])
+                            pass_obj.legend_claimed = True
+                            legend_reward = legend_player.name
+
+                    pass_obj.claimed_vip_levels.append(lvl_def.level)
+
+            pass_obj.save(update_fields=['is_vip', 'claimed_vip_levels', 'legend_claimed'])
+            team.refresh_from_db()
+
+        bonus_msg = ""
+        if total_bonus_gems > 0 or total_bonus_coins > 0:
+            bonus_msg = f" همچنین +{total_bonus_gems} 💎 و +${int(total_bonus_coins):,} USD پاداش مراحل قبل به حسابتان اضافه شد."
+
+        return Response({
+            'success': True,
+            'message': f'مسیر ویژه VIP سیزن‌پس با موفقیت فعال شد!{bonus_msg}',
+            'is_vip': True,
+            'current_gems': team.gems,
+            'bonus_coins': str(total_bonus_coins),
+            'bonus_gems': total_bonus_gems,
+            'legend_reward': legend_reward,
             'team_pass': TeamSeasonPassSerializer(pass_obj).data
         })
 
@@ -320,6 +430,7 @@ class SeasonPassViewSet(viewsets.ViewSet):
                 tp.current_level = 1
                 tp.is_vip = False
                 tp.claimed_levels = []
+                tp.claimed_vip_levels = []
                 tp.legend_claimed = False
                 tp.save()
 

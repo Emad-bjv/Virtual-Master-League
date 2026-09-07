@@ -42,6 +42,6 @@ class TeamSeasonPassSerializer(serializers.ModelSerializer):
         model = TeamSeasonPass
         fields = [
             'id', 'team', 'team_name', 'team_logo', 'current_xp', 'current_level',
-            'is_vip', 'claimed_levels', 'assigned_legend_player', 'legend_claimed'
+            'is_vip', 'claimed_levels', 'claimed_vip_levels', 'assigned_legend_player', 'legend_claimed'
         ]
 

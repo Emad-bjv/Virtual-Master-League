@@ -269,6 +269,7 @@ class TeamListSerializer(serializers.ModelSerializer):
     max_squad_size = serializers.IntegerField(read_only=True)
     injury_heal_cost = serializers.IntegerField(read_only=True)
     players_count = serializers.IntegerField(source='players.count', read_only=True)
+    is_vip = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Team
@@ -276,7 +277,7 @@ class TeamListSerializer(serializers.ModelSerializer):
             'id', 'name', 'logo', 'budget', 'gems', 'wage_cap', 'star_rating',
             'is_active', 'manager', 'manager_username', 'manager_full_name',
             'manager_birth_date', 'facilities', 'gameplan', 'default_formation',
-            'max_squad_size', 'injury_heal_cost', 'players_count'
+            'max_squad_size', 'injury_heal_cost', 'players_count', 'is_vip'
         ]
 
 
@@ -289,6 +290,7 @@ class TeamSerializer(serializers.ModelSerializer):
     manager_birth_date = serializers.DateField(source='manager.birth_date', read_only=True, default=None)
     max_squad_size = serializers.IntegerField(read_only=True)
     injury_heal_cost = serializers.IntegerField(read_only=True)
+    is_vip = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Team

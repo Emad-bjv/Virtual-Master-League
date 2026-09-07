@@ -274,6 +274,7 @@ export const seasonPassApi = {
   getStatus: () => api.get('/season-pass/status/'),
   claimTask: (taskProgressId) => api.post('/season-pass/claim-task/', { task_progress_id: taskProgressId }),
   claimLevel: (level) => api.post('/season-pass/claim-level/', { level }),
+  purchaseVip: () => api.post('/season-pass/purchase-vip/'),
   // Admin Methods
   getAdminOverview: () => api.get('/season-pass/admin-overview/'),
   adminSeedLevels: () => api.post('/season-pass/admin-seed-levels/'),

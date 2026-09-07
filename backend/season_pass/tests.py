@@ -100,3 +100,72 @@ class SeasonPassTests(TestCase):
             self.assertEqual(tp.current_level, 1)
             self.assertFalse(tp.is_vip)
             self.assertEqual(tp.claimed_levels, [])
+            self.assertEqual(tp.claimed_vip_levels, [])
+
+    def test_vip_purchase_and_xp_boost(self):
+        """
+        تست خرید VIP با ۷۵۰ الماس و اعمال ضریب ۱.۵ برابری XP مسابقات.
+        """
+        self.client.force_authenticate(user=self.team_user)
+
+        # 1. Reject if insufficient gems
+        self.team.gems = 500
+        self.team.save()
+        res = self.client.post('/api/season-pass/purchase-vip/')
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("الماس کافی نیست", res.data['error'])
+
+        # 2. Successfully purchase with 750+ gems
+        self.team.gems = 1000
+        self.team.save()
+        res = self.client.post('/api/season-pass/purchase-vip/')
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data['success'])
+
+        self.team.refresh_from_db()
+        # 1000 - 750 (cost) + 25 (retroactive level 1 VIP gems) = 275
+        self.assertEqual(self.team.gems, 275)
+        self.assertTrue(self.team.is_vip)
+
+        pass_obj = TeamSeasonPass.objects.get(team=self.team)
+        self.assertTrue(pass_obj.is_vip)
+
+        # 3. Test VIP match XP gain (75 * 1.5 = 112)
+        xp_gain = add_match_season_pass_xp(self.team, outcome='WON')
+        self.assertEqual(xp_gain, 112)
+
+    def test_level_20_legend_restricted_to_vip(self):
+        """
+        تست اینکه بازیکن لجند سطح ۲۰ فقط و فقط به دارندگان VIP تعلق می‌گیرد.
+        """
+        pass_obj, _ = TeamSeasonPass.objects.get_or_create(team=self.team)
+        legend = Player.objects.create(
+            name="Exclusive Legend", rarity='LEGENDARY',
+            overall=91, base_overall=91, age=27, base_stamina=92, virtual_stamina=100.0
+        )
+        pass_obj.assigned_legend_player = legend
+        pass_obj.current_xp = 4500
+        pass_obj.current_level = 20
+        pass_obj.is_vip = False
+        pass_obj.save()
+
+        # Free user claims level 20
+        res = claim_level_reward(self.team, level=20)
+        self.assertTrue(res['success'])
+        self.assertIsNone(res['rewards']['legendary_player'])
+        
+        legend.refresh_from_db()
+        self.assertIsNone(legend.team)
+
+        # Now upgrade to VIP
+        self.team.gems = 800
+        self.team.save()
+        self.client.force_authenticate(user=self.team_user)
+        buy_res = self.client.post('/api/season-pass/purchase-vip/')
+        self.assertEqual(buy_res.status_code, 200)
+
+        # Legend should now be granted retroactively
+        legend.refresh_from_db()
+        self.assertEqual(legend.team, self.team)
+        pass_obj.refresh_from_db()
+        self.assertTrue(pass_obj.legend_claimed)

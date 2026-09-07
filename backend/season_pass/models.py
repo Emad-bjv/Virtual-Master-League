@@ -65,6 +65,7 @@ class TeamSeasonPass(models.Model):
     current_level = models.PositiveIntegerField(default=1, verbose_name="سطح فعلی")
     is_vip = models.BooleanField(default=False, verbose_name="عضویت VIP")
     claimed_levels = models.JSONField(default=list, verbose_name="سطوح دریافت شده")
+    claimed_vip_levels = models.JSONField(default=list, blank=True, verbose_name="سطوح VIP دریافت شده")
     assigned_legend_player = models.ForeignKey(
         'teams.Player', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='season_pass_assigned_team', verbose_name="بازیکن لجند اختصاصی تیم"

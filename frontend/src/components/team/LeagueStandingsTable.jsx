@@ -247,6 +247,15 @@ export default function LeagueStandingsTable({ userTeamId, initialStandings = nu
                           <span className={`truncate font-bold text-xs ${isUser ? 'text-cyan-300' : 'text-white'}`}>
                             {row.name}
                           </span>
+                          {row.is_vip && (
+                            <span 
+                              title="عضو ویژه VIP سیزن‌پس"
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8.5px] font-black bg-gradient-to-r from-amber-500/25 to-yellow-500/20 text-amber-300 border border-amber-400/50 shadow-[0_0_8px_rgba(245,158,11,0.3)] shrink-0"
+                            >
+                              <Crown size={10} className="text-amber-400 shrink-0 animate-pulse" />
+                              <span className="font-sport font-bold">VIP</span>
+                            </span>
+                          )}
                           {isUser && (
                             <span className="text-[8.5px] bg-cyan-500/25 text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-400/40 shrink-0 font-black font-sport">
                               YOU

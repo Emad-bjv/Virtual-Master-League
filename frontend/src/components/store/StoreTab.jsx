@@ -6,7 +6,7 @@ import {
   CreditCard, ShieldCheck, Copy, CheckCircle, UploadCloud,
   FileImage, Clock, AlertCircle, XCircle, ChevronRight, ChevronLeft, Eye, Gem,
   Star, User, DollarSign, Calendar, Trophy, Lock, CheckCircle2,
-  ArrowLeft, ArrowRight, Flame, Target, PartyPopper, Rocket
+  ArrowLeft, ArrowRight, Flame, Target, PartyPopper, Rocket, Building
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { economyApi, gachaApi, seasonPassApi } from '../../services/api';
@@ -192,6 +192,25 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
   // Daily rewards state
   const [dailyClaimed, setDailyClaimed] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [showVipModal, setShowVipModal] = useState(false);
+  const [isVipBuying, setIsVipBuying] = useState(false);
+
+  const handleBuyVipPass = async () => {
+    setIsVipBuying(true);
+    try {
+      const res = await seasonPassApi.purchaseVip();
+      setToastMessage(res.data.message || 'مسیر ویژه VIP سیزن‌پس فعال شد! 👑');
+      setShowVipModal(false);
+      await fetchSeasonPassData();
+      if (fetchTeam) fetchTeam();
+      if (onRefreshTeam) onRefreshTeam();
+    } catch (err) {
+      setToastMessage(err.response?.data?.error || 'خطا در خرید اشتراک VIP');
+    } finally {
+      setIsVipBuying(false);
+      setTimeout(() => setToastMessage(''), 4500);
+    }
+  };
 
   // Payment modal state
   const [selectedCoinPkg, setSelectedCoinPkg] = useState(null);
@@ -997,7 +1016,28 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                {seasonPassData?.is_vip ? (
+                  <div className="px-3.5 py-2 rounded-2xl bg-gradient-to-r from-amber-500/25 via-yellow-500/20 to-purple-950/50 border border-amber-400/70 shadow-[0_0_20px_rgba(245,158,11,0.35)] flex items-center gap-2.5 text-amber-300">
+                    <Crown size={20} className="text-amber-400 animate-pulse shrink-0" />
+                    <div>
+                      <span className="font-black text-xs block">عضویت VIP سیزن‌پس فعال است</span>
+                      <span className="text-[10px] text-amber-400/90 font-bold block">+۵۰٪ بوست XP مسابقات و تسک‌ها + دسترسی کامل</span>
+                    </div>
+                  </div>
+                ) : (
+                  <motion.button
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => setShowVipModal(true)}
+                    className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 hover:from-amber-300 hover:to-yellow-200 text-slate-950 text-xs font-black flex items-center gap-2 shadow-[0_0_25px_rgba(245,158,11,0.6)] cursor-pointer transition-all border border-amber-200"
+                  >
+                    <Crown size={17} className="text-slate-950 animate-bounce" />
+                    <span>خرید مسیر ویژه VIP (۷۵۰ 💎)</span>
+                    <Sparkles size={14} className="text-slate-950" />
+                  </motion.button>
+                )}
+
                 <button
                   onClick={() => scrollToLevel(Number(seasonPassData?.current_level || 1))}
                   className="px-3 py-2 rounded-2xl bg-purple-950/90 hover:bg-purple-900 border border-purple-500/50 text-purple-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-md active:scale-95"
@@ -1021,12 +1061,12 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
             {/* Total XP Progress Bar */}
             {(() => {
               const curXp = Number(seasonPassData?.current_xp || 0);
-              const progressPct = Math.min(100, Math.max(0, Math.round((curXp / 3500) * 100)));
+              const progressPct = Math.min(100, Math.max(0, Math.round((curXp / 4100) * 100)));
               return (
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-[11px] font-sport">
                     <span className="text-cyan-300 font-bold font-sans">
-                      مجموع تجربه (XP): <strong className="font-sport text-white font-bold">{curXp}</strong> / ۳,۵۰۰ XP
+                      مجموع تجربه (XP): <strong className="font-sport text-white font-bold">{curXp}</strong> / ۴,۱۰۰ XP
                     </span>
                     <span className="text-purple-300 font-bold font-sans">
                       {progressPct}% تکمیل کل سیزن پس
@@ -1081,9 +1121,12 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                   const currentXp = Number(seasonPassData?.current_xp || 0);
                   const reqXp = Number(lvl.xp_required || 0);
                   const lvlNum = Number(lvl.level || index + 1);
-                  const isUnlocked = currentXp >= reqXp;
                   const claimedList = Array.isArray(seasonPassData?.claimed_levels) ? seasonPassData.claimed_levels : [];
-                  const isClaimed = claimedList.includes(lvlNum);
+                  const claimedVipList = Array.isArray(seasonPassData?.claimed_vip_levels) ? seasonPassData.claimed_vip_levels : [];
+                  const isFreeClaimed = claimedList.includes(lvlNum);
+                  const isVipClaimed = claimedVipList.includes(lvlNum);
+                  const isClaimed = isFreeClaimed && (!seasonPassData?.is_vip || isVipClaimed);
+                  const canClaimVipOnly = isUnlocked && seasonPassData?.is_vip && isFreeClaimed && !isVipClaimed;
                   const isFinal = Boolean(lvl.is_final_level);
                   const isCurrentActive = Number(seasonPassData?.current_level || 1) === lvlNum;
                   const isAnimating = animatingClaimLevel === lvlNum;
@@ -1211,11 +1254,17 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                             <div className="p-2.5 rounded-xl bg-gradient-to-r from-amber-950/70 via-slate-950 to-purple-950/70 border border-amber-400/60 text-center space-y-1 shadow-lg">
                               <div className="flex items-center justify-center gap-1.5 text-amber-300 font-black text-[10.5px]">
                                 <Sparkles size={13} className="text-amber-400 animate-spin-slow" />
-                                <span>⭐ پاداش بزرگ پایانی سیزن</span>
+                                <span>⭐ بازیکن اسطوره‌ای (Legend)</span>
                               </div>
-                              <span className="text-[9.5px] text-slate-300 block">
-                                بازیکن لجند اختصاصی و یکتای تیم شما مستقیماً به ترکیب اضافه می‌شود!
-                              </span>
+                              {seasonPassData?.is_vip ? (
+                                <span className="text-[9.5px] text-emerald-300 font-bold block">
+                                  👑 فعال برای شما: بازیکن لجند اختصاصی مستقیماً به ترکیب اسکواد ملحق می‌شود!
+                                </span>
+                              ) : (
+                                <span className="text-[9.5px] text-amber-300 font-bold block">
+                                  🔒 انحصاری VIP: برای ملحق شدن لجند به ترکیب، اشتراک VIP الزامی است.
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1228,6 +1277,17 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                             <CheckCircle2 size={14} className="text-emerald-400" />
                             <span>جایزه این مرحله دریافت شد</span>
                           </div>
+                        ) : canClaimVipOnly ? (
+                          <motion.button
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
+                            onClick={() => handleClaimLevel(lvlNum)}
+                            className="w-full py-2 rounded-xl bg-gradient-to-r from-purple-500 via-indigo-500 to-amber-400 hover:from-purple-400 hover:to-amber-300 text-slate-950 font-black text-xs shadow-[0_0_20px_rgba(168,85,247,0.5)] cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+                          >
+                            <Crown size={14} className="text-slate-950 animate-bounce" />
+                            <span>دریافت پاداش VIP</span>
+                            <Sparkles size={12} className="text-slate-950" />
+                          </motion.button>
                         ) : isUnlocked ? (
                           <motion.button
                             whileHover={{ scale: 1.03 }}
@@ -1260,33 +1320,41 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
             <div className="p-3 rounded-2xl bg-slate-900/80 border border-emerald-500/30 space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 text-[11px]">برد مسابقه لیگ:</span>
-                <span className="text-emerald-400 font-black font-sport dir-ltr">+{Number(xpRates?.win_xp || 165)} XP</span>
+                <span className="text-emerald-400 font-black font-sport dir-ltr">+{Number(xpRates?.win_xp || 75)} XP</span>
               </div>
-              <span className="text-[10px] text-slate-500 block">۱۵ برد = ۲,۴۷۵ XP (۷۰٪ مسیر)</span>
+              <span className="text-[10px] text-amber-300 font-bold block">
+                {seasonPassData?.is_vip ? '⚡ بوست VIP فعال: +۱۱۲ XP' : '👑 با خرید VIP: +۱۱۲ XP'}
+              </span>
             </div>
 
             <div className="p-3 rounded-2xl bg-slate-900/80 border border-amber-500/30 space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 text-[11px]">مساوی مسابقه:</span>
-                <span className="text-amber-400 font-black font-sport dir-ltr">+{Number(xpRates?.draw_xp || 70)} XP</span>
+                <span className="text-amber-400 font-black font-sport dir-ltr">+{Number(xpRates?.draw_xp || 30)} XP</span>
               </div>
-              <span className="text-[10px] text-slate-500 block">امتیاز شرکت و نبرد</span>
+              <span className="text-[10px] text-amber-300 font-bold block">
+                {seasonPassData?.is_vip ? '⚡ بوست VIP فعال: +۴۵ XP' : '👑 با خرید VIP: +۴۵ XP'}
+              </span>
             </div>
 
             <div className="p-3 rounded-2xl bg-slate-900/80 border border-cyan-500/30 space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 text-[11px]">تکمیل هر تسک:</span>
-                <span className="text-cyan-400 font-black font-sport dir-ltr">+{Number(xpRates?.task_xp || 56)} XP</span>
+                <span className="text-cyan-400 font-black font-sport dir-ltr">+{Number(xpRates?.task_xp || 45)} XP</span>
               </div>
-              <span className="text-[10px] text-slate-500 block">۲۵ تسک = ۱,۴۰۰ XP (۴۰٪ مسیر)</span>
+              <span className="text-[10px] text-amber-300 font-bold block">
+                {seasonPassData?.is_vip ? '⚡ بوست VIP فعال: +۶۸ XP' : '👑 با خرید VIP: +۶۸ XP'}
+              </span>
             </div>
 
             <div className="p-3 rounded-2xl bg-slate-900/80 border border-purple-500/30 space-y-1">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400 text-[11px]">هدف پایان سیزن:</span>
-                <span className="text-purple-300 font-bold">هفته ۱۷ فصل</span>
+                <span className="text-slate-400 text-[11px]">بوست سرعت VIP:</span>
+                <span className="text-amber-300 font-black font-sport dir-ltr">+50% BOOST</span>
               </div>
-              <span className="text-[10px] text-slate-500 block">تکمیل کامل قبل از پایان لیگ</span>
+              <span className="text-[10px] text-purple-300 font-bold block">
+                {seasonPassData?.is_vip ? '🚀 سرعت ۱.۵ برابر فعال است' : 'رسیدن به سطح ۲۰ تا هفته ۱۳'}
+              </span>
             </div>
           </div>
 
@@ -1312,9 +1380,17 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                     </div>
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
-                          ⭐ پاداش اختصاصی سطح ۲۰ تیم شما
-                        </span>
+                        {seasonPassData?.is_vip ? (
+                          <span className="text-[11px] bg-amber-500/25 text-amber-300 border border-amber-400/50 px-2.5 py-0.5 rounded-full font-black flex items-center gap-1">
+                            <Crown size={12} className="text-amber-400 animate-pulse" />
+                            <span>⭐ پاداش بزرگ VIP سطح ۲۰</span>
+                          </span>
+                        ) : (
+                          <span className="text-[11px] bg-rose-950/80 text-rose-300 border border-rose-500/50 px-2.5 py-0.5 rounded-full font-black flex items-center gap-1">
+                            <Lock size={12} className="text-rose-400" />
+                            <span>انحصاری خریداران VIP سیزن‌پس</span>
+                          </span>
+                        )}
                         {Boolean(seasonPassData?.legend_claimed) && (
                           <span className="text-[11px] bg-emerald-950 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
                             <Check size={12} /> در ترکیب تیم
@@ -1332,14 +1408,30 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                     </div>
                   </div>
 
-                  <div className="text-center md:text-left space-y-1">
+                  <div className="text-center md:text-left space-y-1.5">
                     <span className="text-[11px] text-slate-400 block">
                       این بازیکن اسطوره‌ای به صورت یکتا به باشگاه شما اختصاص یافته است.
                     </span>
                     {!Boolean(seasonPassData?.legend_claimed) && (
-                      <span className="text-xs font-bold text-amber-300 block">
-                        با رسیدن به سطح ۲۰ سیزن پس، مستقیماً به اسکواد شما ملحق می‌شود!
-                      </span>
+                      seasonPassData?.is_vip ? (
+                        <span className="text-xs font-bold text-amber-300 block flex items-center justify-center md:justify-start gap-1">
+                          <Crown size={13} className="text-amber-400" />
+                          <span>با رسیدن به سطح ۲۰ سیزن پس، مستقیماً به اسکواد شما ملحق می‌شود!</span>
+                        </span>
+                      ) : (
+                        <div className="flex flex-col items-center md:items-end gap-1">
+                          <span className="text-xs font-black text-rose-300 bg-rose-950/90 border border-rose-500/40 px-3 py-1 rounded-xl flex items-center gap-1.5">
+                            <Lock size={12} className="text-rose-400" />
+                            <span>قفل برای مسیر رایگان</span>
+                          </span>
+                          <button
+                            onClick={() => setShowVipModal(true)}
+                            className="text-xs font-black text-amber-400 hover:text-amber-300 underline cursor-pointer mt-0.5"
+                          >
+                            خرید مسیر VIP (۷۵۰ 💎) برای آزاد شدن لجند
+                          </button>
+                        </div>
+                      )
                     )}
                   </div>
                 </div>
@@ -1729,6 +1821,138 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
             />
           </motion.div>
         </div>,
+        document.body
+      )}
+
+      {/* VIP Season Pass Purchase Modal (createPortal to document.body) */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showVipModal && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+              <div className="fixed inset-0" onClick={() => !isVipBuying && setShowVipModal(false)} />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="relative z-10 bg-slate-950 rounded-3xl w-full max-w-lg my-auto p-6 border border-amber-500/40 shadow-[0_0_50px_rgba(245,158,11,0.25)]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="text-center space-y-2 mb-6">
+                  <div className="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-600 flex items-center justify-center text-slate-950 shadow-[0_0_30px_rgba(245,158,11,0.5)]">
+                    <Crown size={36} className="animate-bounce" />
+                  </div>
+                  <h3 className="text-xl font-black text-white flex items-center justify-center gap-2">
+                    <span>خرید اشتراک VIP سیزن‌پس</span>
+                    <Sparkles size={18} className="text-amber-400" />
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    با فعال‌سازی مسیر ویژه، پاداش‌های شگفت‌انگیز و مزایای استثنایی باشگاهی را از آن خود کنید!
+                  </p>
+                </div>
+
+                {/* Perks list */}
+                <div className="space-y-2.5 mb-6 text-xs">
+                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200">
+                    <Zap size={18} className="text-amber-400 shrink-0" />
+                    <div>
+                      <span className="font-bold block text-white">+۵۰٪ افزایش سرعت کسب XP (۱.۵x بوست دائمی سیزن)</span>
+                      <span className="text-[11px] text-amber-300/80">برد: ۱۱۲ XP | مساوی: ۴۵ XP | باخت: ۱۵ XP | تسک هفتگی: ۶۸ XP</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-purple-200">
+                    <Crown size={18} className="text-purple-400 shrink-0" />
+                    <div>
+                      <span className="font-bold block text-white">دریافت انحصاری بازیکن لجند سطح ۲۰ (Legend OVR 90+)</span>
+                      <span className="text-[11px] text-purple-300/80">این بازیکن فقط و فقط برای دارندگان سیزن‌پس VIP فعال و جذب می‌شود</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-200">
+                    <Building size={18} className="text-emerald-400 shrink-0" />
+                    <div>
+                      <span className="font-bold block text-white">۱۰٪ تخفیف در ارتقای تمام ۶ زیرساخت و امکانات باشگاه</span>
+                      <span className="text-[11px] text-emerald-300/80">صرفه‌جویی عظیم بودجه دلاری در ورزشگاه، پزشکی، آکادمی و...</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-200">
+                    <ShieldCheck size={18} className="text-rose-400 shrink-0" />
+                    <div>
+                      <span className="font-bold block text-white">۲۰٪ تخفیف در درمان فوری مصدومیت بازیکنان</span>
+                      <span className="text-[11px] text-rose-300/80">کاهش هزینه الماس درمان آنی ستاره‌های مصدوم تیم</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-200">
+                    <Sparkles size={18} className="text-cyan-400 shrink-0" />
+                    <div>
+                      <span className="font-bold block text-white">نشان طلایی Crown در جدول رده‌بندی، پروفایل و باشگاه</span>
+                      <span className="text-[11px] text-cyan-300/80">نمایش وضعیت لوکس و متمایز باشگاه شما در بین تمام مربیان</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-slate-300 text-[11px]">
+                    <CheckCircle2 size={16} className="text-amber-400 shrink-0" />
+                    <span>
+                      <strong>پاداش‌های عطف‌به‌ماسبق:</strong> با خرید VIP، تمام جوایز مراحل قبلی که طی کرده‌اید فوراً در دسترستان قرار می‌گیرد!
+                    </span>
+                  </div>
+                </div>
+
+                {/* Pricing and Action */}
+                <div className="pt-4 border-t border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between px-2">
+                    <span className="text-xs text-slate-400 font-bold">قیمت اشتراک کل فصل:</span>
+                    <div className="flex items-center gap-1.5 text-amber-400 font-sport font-black text-lg">
+                      <Gem size={18} className="text-cyan-400" />
+                      <span>۷۵۰ الماس</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between px-2 text-[11px]">
+                    <span className="text-slate-400">موجودی فعلی شما:</span>
+                    <span className={`font-sport font-bold ${(team?.gems ?? 0) >= 750 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {team?.gems ?? 0} الماس
+                    </span>
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      disabled={isVipBuying}
+                      onClick={() => setShowVipModal(false)}
+                      className="flex-1 py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      انصراف
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isVipBuying || ((team?.gems ?? 0) < 750)}
+                      onClick={handleBuyVipPass}
+                      className="flex-[2] py-3 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(245,158,11,0.5)] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {isVipBuying ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                          <span>در حال فعال‌سازی VIP...</span>
+                        </>
+                      ) : ((team?.gems ?? 0) < 750) ? (
+                        <span>الماس کافی نیست (کسری: {750 - (team?.gems ?? 0)})</span>
+                      ) : (
+                        <>
+                          <Crown size={16} />
+                          <span>تایید و فعال‌سازی اشتراک VIP</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
         document.body
       )}
     </div>

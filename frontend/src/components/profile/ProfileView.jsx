@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   ArrowRight, Trophy, Award, Medal, LogOut, RefreshCw, Shield, 
   CheckCircle2, Lock, Flame, Target, Users, TrendingUp, Edit3, 
-  Calendar, User as UserIcon, X, Check, Sparkles 
+  Calendar, User as UserIcon, X, Check, Sparkles, Crown 
 } from 'lucide-react';
 import SubNav from '../common/SubNav';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -286,8 +286,16 @@ export default function ProfileView({ user: propUser, teamData, onBack, onLogout
         </h3>
 
         {/* Club Name & Username */}
-        <div className="text-xs text-cyan-300 font-bold mt-0.5">
-          هدایت باشگاه: <strong className="text-white font-black">{teamData?.name || 'باشگاه اختصاصی'}</strong>
+        <div className="flex items-center justify-center gap-2 mt-0.5 flex-wrap">
+          <div className="text-xs text-cyan-300 font-bold">
+            هدایت باشگاه: <strong className="text-white font-black">{teamData?.name || 'باشگاه اختصاصی'}</strong>
+          </div>
+          {teamData?.is_vip && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-500/30 to-yellow-500/20 text-amber-300 border border-amber-400/60 shadow-[0_0_12px_rgba(245,158,11,0.5)]">
+              <Crown size={12} className="text-amber-400 animate-pulse" />
+              <span>عضو VIP سیزن‌پس</span>
+            </span>
+          )}
         </div>
 
         {/* Details Pill Strip (Username, Birth Date, Age, Budget) */}

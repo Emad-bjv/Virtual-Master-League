@@ -73,15 +73,26 @@ class Team(models.Model):
         return 25
 
     @property
+    def is_vip(self) -> bool:
+        """بررسی وضعیت فعال بودن اشتراک VIP سیزن‌پس تیم"""
+        if hasattr(self, 'season_pass') and self.season_pass:
+            return bool(self.season_pass.is_vip)
+        return False
+
+    @property
     def injury_heal_cost(self) -> int:
         """
         Base gem cost to heal an injury is 25 gems.
         Upgrading the medical center (levels 1-20) reduces the cost down to 10 gems.
+        VIP pass members receive an additional 20% discount on injury heal costs.
         """
+        cost = 25
         if hasattr(self, 'facilities') and self.facilities:
             reduction = round(ClubFacilities.scaled_effect(self.facilities.medical_level, 15.0))
-            return max(10, 25 - int(reduction))
-        return 25
+            cost = max(10, 25 - int(reduction))
+        if self.is_vip:
+            cost = max(5, int(round(cost * 0.8)))
+        return cost
 
 
 class ClubFacilities(models.Model):

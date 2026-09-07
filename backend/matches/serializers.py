@@ -414,6 +414,7 @@ class LeagueStandingSerializer(serializers.ModelSerializer):
     team_id = serializers.IntegerField(source='team.id', read_only=True)
     name = serializers.CharField(source='team.name', read_only=True)
     logo = serializers.CharField(source='team.logo', read_only=True)
+    is_vip = serializers.BooleanField(source='team.is_vip', read_only=True, default=False)
     gf = serializers.IntegerField(source='goals_for', read_only=True)
     ga = serializers.IntegerField(source='goals_against', read_only=True)
     gd = serializers.SerializerMethodField()
@@ -423,7 +424,7 @@ class LeagueStandingSerializer(serializers.ModelSerializer):
     class Meta:
         model = LeagueStanding
         fields = [
-            'id', 'team_id', 'name', 'logo', 'played', 'won', 'drawn', 'lost',
+            'id', 'team_id', 'name', 'logo', 'is_vip', 'played', 'won', 'drawn', 'lost',
             'gf', 'ga', 'gd', 'raw_points', 'points', 'points_deduction',
             'points_deduction_reason', 'is_manually_overridden'
         ]

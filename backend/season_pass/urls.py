@@ -5,6 +5,7 @@ urlpatterns = [
     path('status/', SeasonPassViewSet.as_view({'get': 'status'}), name='season-pass-status'),
     path('claim-task/', SeasonPassViewSet.as_view({'post': 'claim_task'}), name='season-pass-claim-task'),
     path('claim-level/', SeasonPassViewSet.as_view({'post': 'claim_level'}), name='season-pass-claim-level'),
+    path('purchase-vip/', SeasonPassViewSet.as_view({'post': 'purchase_vip'}), name='season-pass-purchase-vip'),
     path('admin-overview/', SeasonPassViewSet.as_view({'get': 'admin_overview'}), name='season-pass-admin-overview'),
     path('admin-seed-levels/', SeasonPassViewSet.as_view({'post': 'admin_seed_levels'}), name='season-pass-admin-seed-levels'),
     path('admin-seed-tasks/', SeasonPassViewSet.as_view({'post': 'admin_seed_tasks'}), name='season-pass-admin-seed-tasks'),

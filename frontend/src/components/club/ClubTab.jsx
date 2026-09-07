@@ -4,7 +4,7 @@ import SubNav from '../common/SubNav';
 import { 
   Building, Zap, Dumbbell, Stethoscope, Waves, Compass, Trophy, Award, 
   Shield, GraduationCap, Sparkles, X, ArrowRightLeft, CreditCard, 
-  CheckCircle2, TrendingUp, DollarSign, ChevronLeft
+  CheckCircle2, TrendingUp, DollarSign, ChevronLeft, Crown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { teamApi, economyApi } from '../../services/api';
@@ -264,6 +264,23 @@ export default function ClubTab({ teamData }) {
       {/* Major Facilities (1 to 20 levels) */}
       {activeSub === 'facilities' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
+          {(teamData?.is_vip || team?.is_vip) && (
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/25 via-yellow-500/15 to-purple-950/40 border border-amber-400/50 flex items-center justify-between gap-3 text-xs shadow-lg">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 shadow-md">
+                  <Crown size={18} className="animate-pulse" />
+                </div>
+                <div>
+                  <span className="font-black text-amber-300 block">مزایای ویژه VIP باشگاه شما فعال است</span>
+                  <span className="text-[11px] text-slate-300 block">۱۰٪ تخفیف اختصاصی در ارتقای کلیه امکانات باشگاه + ۲۰٪ تخفیف درمان فوری مصدومیت</span>
+                </div>
+              </div>
+              <span className="text-[11px] font-black bg-gradient-to-r from-amber-400 to-yellow-300 text-slate-950 px-2.5 py-1 rounded-xl shrink-0 font-sport shadow-md">
+                10% VIP OFF
+              </span>
+            </div>
+          )}
+
           <div className="text-[11px] text-purple-300 bg-purple-950/40 p-2.5 rounded-xl border border-purple-500/30 flex justify-between items-center md:col-span-2 lg:col-span-3">
             <span>امکانات اصلی باشگاه دارای ۲۰ سطح پیشرفت نمایی بوده و پتانسیل کل تیم را افزایش می‌دهند.</span>
           </div>
