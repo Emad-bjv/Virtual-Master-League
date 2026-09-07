@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.db import models
 from django.utils import timezone
 from teams.models import Team, Player
@@ -123,6 +124,23 @@ class Pack(models.Model):
         default=50, verbose_name="درصد بانس پیشتازان (Early Bird Boost)",
         help_text="درصد افزایش شانس کارت‌های ۹۴+ هنگام پر بودن استخر (پیش‌فرض ۵۰٪)"
     )
+    is_loyalty_boost_enabled = models.BooleanField(
+        default=True, verbose_name="فعال بودن بوست وفاداری (Loyalty Boost)",
+        help_text="فعال یا غیرفعال‌سازی سیستم بوست شانس پیتی برای خریداران متوالی"
+    )
+    loyalty_boost_threshold = models.PositiveIntegerField(
+        default=3, verbose_name="تعداد خرید برای فعال‌سازی بوست (Pity Threshold)",
+        help_text="حداقل تعداد پک‌های متوالی بازشده بدون فوق‌ستاره جهت فعال‌سازی بوست (پیش‌فرض: ۳)"
+    )
+    loyalty_boost_multiplier = models.DecimalField(
+        max_digits=4, decimal_places=2, default=Decimal('2.50'),
+        verbose_name="ضریب افزایش شانس وفاداری (Boost Multiplier)",
+        help_text="ضریب ضرب شانس کارت‌های منتخب هنگام فعال بودن بوست (پیش‌فرض: ۲.۵۰)"
+    )
+    loyalty_min_ovr = models.PositiveIntegerField(
+        default=94, verbose_name="حداقل اورال کارت‌های مشمول بوست وفاداری",
+        help_text="حداقل اورال کارت‌هایی که ضریب بوست وفاداری روی آن‌ها اعمال می‌شود (پیش‌فرض: ۹۴)"
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ ایجاد")
 
     class Meta:
@@ -245,15 +263,18 @@ class Pack(models.Model):
         fullness_ratio = (unclaimed_count / total_count) if total_count > 0 else 1.0
         boost_pct = getattr(self, 'early_bird_boost_pct', 50) or 0
         early_bird_mult = 1.0 + ((boost_pct / 100.0) * fullness_ratio)
+        loyalty_enabled = getattr(self, 'is_loyalty_boost_enabled', True)
+        loyalty_min_ovr = getattr(self, 'loyalty_min_ovr', 94) or 94
+        loyalty_multiplier = float(getattr(self, 'loyalty_boost_multiplier', Decimal('2.50')) or Decimal('2.50'))
 
         def get_w(p):
             base_w = p.get_effective_weight()
             mult = 1.0
-            if p.overall >= 94:
+            if p.overall >= loyalty_min_ovr:
                 if early_bird_mult > 1.0:
                     mult *= early_bird_mult
-                if is_loyalty_boost:
-                    mult *= 2.5
+                if is_loyalty_boost and loyalty_enabled:
+                    mult *= loyalty_multiplier
                 return max(1, round(base_w * mult))
             return base_w
 

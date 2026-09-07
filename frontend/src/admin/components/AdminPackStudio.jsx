@@ -107,12 +107,24 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     discount_cost_usd: pack?.discount_cost_usd ?? '',
     discount_until: formatDateForInput(pack?.discount_until),
     discount_duration_hours: '',
+    // Loyalty Pity Boost Admin Controls
+    is_loyalty_boost_enabled: pack?.is_loyalty_boost_enabled ?? true,
+    loyalty_boost_threshold: pack?.loyalty_boost_threshold ?? 3,
+    loyalty_boost_multiplier: pack?.loyalty_boost_multiplier ?? 2.5,
+    loyalty_min_ovr: pack?.loyalty_min_ovr ?? 94,
   });
 
   const [packCoverFile, setPackCoverFile] = useState(null);
   const [packCoverPreview, setPackCoverPreview] = useState(pack?.cover_image || null);
   const [customCardBgFile, setCustomCardBgFile] = useState(null);
   const [customCardBgPreview, setCustomCardBgPreview] = useState(pack?.custom_card_bg || null);
+
+  // Loyalty Pity Management Modal State
+  const [showLoyaltyManagementModal, setShowLoyaltyManagementModal] = useState(false);
+  const [loyaltyTeamsList, setLoyaltyTeamsList] = useState([]);
+  const [loadingLoyaltyTeams, setLoadingLoyaltyTeams] = useState(false);
+  const [actionInProgressTeamId, setActionInProgressTeamId] = useState(null);
+  const [loyaltySearchQuery, setLoyaltySearchQuery] = useState('');
 
   // Roster Pool State
   const [roster, setRoster] = useState([]);
@@ -229,17 +241,20 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
     const earlyBirdMult = 1.0 + (boostPct / 100.0) * fullnessRatio;
     const minOvr = Number(packConfig?.guarantee_min_ovr ?? 90);
     const midTierWeight = Number(packConfig?.weight_mid_tier ?? 5);
+    const isLoyaltyEnabled = packConfig?.is_loyalty_boost_enabled ?? true;
+    const loyaltyMinOvr = Number(packConfig?.loyalty_min_ovr ?? 94);
+    const loyaltyMult = Number(packConfig?.loyalty_boost_multiplier ?? 2.5);
 
     const runCalc = (isLoyaltyBoost) => {
       const getW = (p) => {
         let baseW = p.id === player.id
-          ? (customWeight > 0 ? customWeight : (p.overall >= 94 ? Number(packConfig?.weight_top_tier ?? 3) : p.overall >= 90 ? midTierWeight : Number(packConfig?.weight_base_tier ?? 8)))
-          : Number(p.effective_weight ?? (p.overall >= 94 ? Number(packConfig?.weight_top_tier ?? 3) : p.overall >= 90 ? midTierWeight : Number(packConfig?.weight_base_tier ?? 8)));
+          ? (customWeight > 0 ? customWeight : (p.overall >= loyaltyMinOvr ? Number(packConfig?.weight_top_tier ?? 3) : p.overall >= 90 ? midTierWeight : Number(packConfig?.weight_base_tier ?? 8)))
+          : Number(p.effective_weight ?? (p.overall >= loyaltyMinOvr ? Number(packConfig?.weight_top_tier ?? 3) : p.overall >= 90 ? midTierWeight : Number(packConfig?.weight_base_tier ?? 8)));
 
         let mult = 1.0;
-        if (p.overall >= 94) {
+        if (p.overall >= loyaltyMinOvr) {
           if (earlyBirdMult > 1.0) mult *= earlyBirdMult;
-          if (isLoyaltyBoost) mult *= 2.5;
+          if (isLoyaltyBoost && isLoyaltyEnabled) mult *= loyaltyMult;
           return Math.max(1, Math.round(baseW * mult));
         }
         return baseW;
@@ -261,7 +276,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
         let totalGW = 0;
         candidates.forEach((c) => {
           const w = weights[c.id];
-          const gw = c.overall >= 94 ? Math.max(w, midTierWeight) : w;
+          const gw = c.overall >= loyaltyMinOvr ? Math.max(w, midTierWeight) : w;
           gWeights[c.id] = gw;
           totalGW += gw;
         });
@@ -370,6 +385,48 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
       setSavingTunedWeight(false);
     }
   };
+
+  // Fetch coach pity status for this pack
+  const fetchLoyaltyTeams = async (packId) => {
+    const activePackId = packId || packData.id || pack?.id;
+    if (!activePackId || String(activePackId).toLowerCase() === 'null') return;
+    setLoadingLoyaltyTeams(true);
+    try {
+      const res = await gachaApi.adminGetPackLoyaltyPity(activePackId);
+      setLoyaltyTeamsList(res.data?.teams || []);
+    } catch {
+      showToast('خطا در دریافت وضعیت وفاداری مربیان', 'error');
+    } finally {
+      setLoadingLoyaltyTeams(false);
+    }
+  };
+
+  const handleActionLoyaltyPity = async (teamId, action) => {
+    const activePackId = packData.id || pack?.id;
+    if (!activePackId || !teamId) return;
+    setActionInProgressTeamId(teamId);
+    try {
+      const res = await gachaApi.adminManagePackLoyaltyPity(activePackId, {
+        team_id: teamId,
+        action: action, // 'reset' | 'grant_boost'
+      });
+      showToast(res.data?.message || 'عملیات با موفقیت انجام شد.', 'success');
+      await fetchLoyaltyTeams(activePackId);
+    } catch (err) {
+      showToast(err.response?.data?.error || 'خطا در مدیریت پیتی مربی', 'error');
+    } finally {
+      setActionInProgressTeamId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (showLoyaltyManagementModal) {
+      const activeId = packData.id || pack?.id;
+      if (activeId && String(activeId).toLowerCase() !== 'null') {
+        fetchLoyaltyTeams(activeId);
+      }
+    }
+  }, [showLoyaltyManagementModal, packData.id, pack?.id]);
 
   useEffect(() => {
     const activeId = packData.id || pack?.id;
@@ -2345,6 +2402,118 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                       </p>
                     </div>
                   </div>
+
+                  {/* Loyalty Pity Boost Settings */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-950/40 via-yellow-950/20 to-slate-900 border border-amber-500/40 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                          <Flame size={16} />
+                        </div>
+                        <div>
+                          <label className="text-amber-300 font-bold text-xs flex items-center gap-1.5">
+                            <span>سیستم بوست وفاداری و بدشانسی (Loyalty Pity Boost):</span>
+                          </label>
+                          <span className="text-[10px] text-slate-400 block">
+                            افزایش تصاعدی شانس صید برترین بازیکنان برای مربیانی که پک‌های پیاپی باز کرده‌اند.
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          disabled={!packData.id}
+                          onClick={() => setShowLoyaltyManagementModal(true)}
+                          className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={!packData.id ? 'ابتدا پک را ذخیره کنید' : 'مشاهده و مدیریت وضعیت مربیان'}
+                        >
+                          <Users size={13} />
+                          <span>مدیریت وضعیت مربیان</span>
+                        </button>
+
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={packData.is_loyalty_boost_enabled}
+                            onChange={(e) => setPackData({ ...packData, is_loyalty_boost_enabled: e.target.checked })}
+                            className="sr-only peer"
+                          />
+                          <div className="w-10 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500" />
+                        </label>
+                      </div>
+                    </div>
+
+                    {packData.is_loyalty_boost_enabled ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                        <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1">
+                          <span className="text-[11px] text-slate-300 font-bold block">
+                            آستانه خریدهای متوالی (Threshold):
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="1"
+                              max="20"
+                              value={packData.loyalty_boost_threshold}
+                              onChange={(e) => setPackData({ ...packData, loyalty_boost_threshold: Math.max(1, parseInt(e.target.value) || 1) })}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-amber-300 font-sport font-black text-xs outline-none focus:border-amber-400"
+                            />
+                            <span className="text-[11px] text-slate-400 shrink-0">پک</span>
+                          </div>
+                          <span className="text-[9.5px] text-slate-500 block">
+                            پس از این تعداد پک متوالی بدون کارت تاپ‌تیر، بوست فعال می‌شود.
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1">
+                          <span className="text-[11px] text-slate-300 font-bold block">
+                            ضریب بوست شانس (Multiplier):
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="1.0"
+                              max="10.0"
+                              value={packData.loyalty_boost_multiplier}
+                              onChange={(e) => setPackData({ ...packData, loyalty_boost_multiplier: Math.max(1.0, parseFloat(e.target.value) || 1.0) })}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-cyan-300 font-sport font-black text-xs outline-none focus:border-cyan-400"
+                            />
+                            <span className="text-[11px] text-cyan-400 shrink-0 font-sport font-bold">برابر (x)</span>
+                          </div>
+                          <span className="text-[9.5px] text-slate-500 block">
+                            ضریب ضربدر وزن کارت‌های تاپ‌تیر (مثلا ۲.۵ = +۱۵۰٪ شانس).
+                          </span>
+                        </div>
+
+                        <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1">
+                          <span className="text-[11px] text-slate-300 font-bold block">
+                            حداقل OVR کارت‌های تاپ‌تیر:
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="80"
+                              max="99"
+                              value={packData.loyalty_min_ovr}
+                              onChange={(e) => setPackData({ ...packData, loyalty_min_ovr: Math.max(80, Math.min(99, parseInt(e.target.value) || 94)) })}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-yellow-400 font-sport font-black text-xs outline-none focus:border-yellow-400"
+                            />
+                            <span className="text-[11px] text-amber-400 shrink-0 font-sport font-bold">OVR+</span>
+                          </div>
+                          <span className="text-[9.5px] text-slate-500 block">
+                            کارت‌هایی که بوست شامل آن‌ها می‌شود و صیدشان پیتی را ریست می‌کند.
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 rounded-xl bg-slate-950/50 border border-slate-800 text-slate-500 text-xs flex items-center gap-2">
+                        <AlertCircle size={14} />
+                        <span>سیستم بوست وفاداری برای این پک غیرفعال است (شانس همه مربیان همیشه یکسان خواهد بود).</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Scheduling & Countdown Timer */}
@@ -2618,7 +2787,7 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                 {/* Content */}
                 {(() => {
                   const previewOdds = calculateOddsPreview(analyticsPlayer, tuningWeight, roster, packData);
-                  const isTopTier = analyticsPlayer.overall >= 94;
+                  const isTopTier = analyticsPlayer.overall >= (packData.loyalty_min_ovr ?? 94);
 
                   return (
                     <div className="space-y-4 pt-4">
@@ -2656,10 +2825,10 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                               {previewOdds.drop_chance_pct}٪
                             </span>
                           </div>
-                          {isTopTier && (
+                          {isTopTier && packData.is_loyalty_boost_enabled && (
                             <div className="text-center px-3 py-1.5 rounded-xl bg-amber-950/40 border border-amber-500/40">
                               <span className="text-[10px] text-amber-300 block flex items-center gap-0.5">
-                                <span>بوست وفاداری (۲.۵x):</span>
+                                <span>بوست وفاداری ({packData.loyalty_boost_multiplier}x):</span>
                               </span>
                               <span className="font-sport font-black text-lg text-cyan-300">
                                 {previewOdds.drop_chance_boosted_pct}٪
@@ -2719,15 +2888,22 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                       </div>
 
                       {/* Loyalty Boost Banner */}
-                      <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-950/40 via-yellow-950/20 to-slate-900 border border-amber-500/30 flex items-start gap-3">
-                        <Flame size={18} className="text-amber-400 shrink-0 mt-0.5" />
-                        <div className="space-y-0.5 text-xs">
-                          <span className="font-bold text-amber-300 block">سیستم بوست وفاداری (Loyalty Pity Boost):</span>
-                          <p className="text-slate-300 leading-relaxed text-[11px]">
-                            مربیانی که <strong className="text-white">بیش از ۳ پک</strong> از این پک خریداری کرده باشند، ضریب شانس کارت‌های تاپ‌تیر (۹۴+) برای آن‌ها <strong className="text-amber-300">۲.۵ برابر (+۱۵۰٪ بوست)</strong> می‌شود تا زمانی که فوق‌ستاره را جذب نمایند.
-                          </p>
+                      {packData.is_loyalty_boost_enabled ? (
+                        <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-950/40 via-yellow-950/20 to-slate-900 border border-amber-500/30 flex items-start gap-3">
+                          <Flame size={18} className="text-amber-400 shrink-0 mt-0.5" />
+                          <div className="space-y-0.5 text-xs">
+                            <span className="font-bold text-amber-300 block">سیستم بوست وفاداری (Loyalty Pity Boost):</span>
+                            <p className="text-slate-300 leading-relaxed text-[11px]">
+                              مربیانی که <strong className="text-white">حداقل {packData.loyalty_boost_threshold} پک متوالی</strong> از این پک بدون جذب کارت {packData.loyalty_min_ovr}+ باز کرده باشند، ضریب شانس کارت‌های تاپ‌تیر برای آن‌ها <strong className="text-amber-300">{packData.loyalty_boost_multiplier} برابر (+{Math.round((Number(packData.loyalty_boost_multiplier) - 1.0) * 100)}٪ بوست)</strong> می‌شود تا زمانی که فوق‌ستاره را صید نمایند.
+                            </p>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-center gap-2.5 text-xs text-slate-400">
+                          <AlertCircle size={16} className="text-slate-500" />
+                          <span>بوست وفاداری برای این پک غیرفعال تنظیم شده است.</span>
+                        </div>
+                      )}
 
                       {/* Interactive Weight Tuner */}
                       <div className="p-4 rounded-2xl bg-slate-900 border border-cyan-500/30 space-y-3">
@@ -2789,6 +2965,226 @@ export default function AdminPackStudio({ pack, onClose, onPackSaved }) {
                     </div>
                   );
                 })()}
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Coach Loyalty Pity Management Modal */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showLoyaltyManagementModal && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+              <div className="fixed inset-0" onClick={() => setShowLoyaltyManagementModal(false)} />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="relative z-10 my-auto w-full max-w-3xl rounded-3xl border border-slate-800 bg-slate-950 text-white p-5 sm:p-6 shadow-2xl overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-600 to-yellow-500 flex items-center justify-center text-white shadow-lg shrink-0">
+                      <Flame size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                        <span>مدیریت وضعیت وفاداری و پیتی مربیان</span>
+                      </h3>
+                      <p className="text-[11px] text-slate-400">
+                        مشاهده پیشرفت پیتی، بازنشانی دستی یا اعطای فوری بوست شانس برای پک «{packData.name || 'پک فعلی'}»
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowLoyaltyManagementModal(false)}
+                    className="p-2 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Pack Loyalty Rules Status Summary */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 my-4">
+                  <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800">
+                    <span className="text-[10px] text-slate-400 block mb-1">وضعیت سیستم:</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-2 h-2 rounded-full ${packData.is_loyalty_boost_enabled ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+                      <span className={`text-xs font-bold ${packData.is_loyalty_boost_enabled ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {packData.is_loyalty_boost_enabled ? 'فعال' : 'غیرفعال'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800">
+                    <span className="text-[10px] text-slate-400 block mb-1">آستانه فعال‌سازی:</span>
+                    <span className="text-xs font-sport font-black text-amber-300">
+                      {packData.loyalty_boost_threshold} خرید متوالی
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800">
+                    <span className="text-[10px] text-slate-400 block mb-1">ضریب بوست شانس:</span>
+                    <span className="text-xs font-sport font-black text-cyan-300">
+                      {packData.loyalty_boost_multiplier}x (+{(Math.round((Number(packData.loyalty_boost_multiplier) - 1.0) * 100))}% شانس)
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800">
+                    <span className="text-[10px] text-slate-400 block mb-1">کارت‌های هدف:</span>
+                    <span className="text-xs font-sport font-black text-yellow-400">
+                      اورال {packData.loyalty_min_ovr}+
+                    </span>
+                  </div>
+                </div>
+
+                {/* Filter and Refresh Bar */}
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="relative flex-1">
+                    <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={loyaltySearchQuery}
+                      onChange={(e) => setLoyaltySearchQuery(e.target.value)}
+                      placeholder="جستجوی تیم یا مربی..."
+                      className="w-full bg-slate-900/80 border border-slate-800 rounded-xl pr-9 pl-3 py-2 text-xs text-white placeholder:text-slate-500 outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={loadingLoyaltyTeams}
+                    onClick={() => fetchLoyaltyTeams(packData.id)}
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <RotateCcw size={13} className={loadingLoyaltyTeams ? 'animate-spin' : ''} />
+                    <span>بروزرسانی</span>
+                  </button>
+                </div>
+
+                {/* Teams List */}
+                <div className="max-h-[360px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  {loadingLoyaltyTeams ? (
+                    <div className="p-8 text-center text-slate-400 text-xs">
+                      در حال دریافت وضعیت پیتی مربیان...
+                    </div>
+                  ) : loyaltyTeamsList.length === 0 ? (
+                    <div className="p-8 text-center rounded-2xl bg-slate-900/40 border border-slate-800/60 space-y-2">
+                      <Users size={28} className="mx-auto text-slate-600" />
+                      <p className="text-xs text-slate-400">تاکنون هیچ تیمی این پک را بازگشایی نکرده است.</p>
+                      <span className="text-[10.5px] text-slate-500 block">
+                        پس از ثبت نخستین خرید توسط مربیان، وضعیت پیتی آن‌ها در این بخش نمایش داده خواهد شد.
+                      </span>
+                    </div>
+                  ) : (
+                    loyaltyTeamsList
+                      .filter((t) => {
+                        if (!loyaltySearchQuery.trim()) return true;
+                        const q = loyaltySearchQuery.toLowerCase();
+                        return (
+                          (t.team_name || '').toLowerCase().includes(q) ||
+                          (t.manager_name || '').toLowerCase().includes(q)
+                        );
+                      })
+                      .map((team) => {
+                        const isActionLoading = actionInProgressTeamId === team.team_id;
+                        const isBoosted = team.is_loyalty_boost_active;
+                        const threshold = team.loyalty_boost_threshold || packData.loyalty_boost_threshold;
+                        const consecutive = team.consecutive_opens_without_top_tier || 0;
+                        const progressPct = Math.min(100, Math.round((consecutive / threshold) * 100));
+
+                        return (
+                          <div
+                            key={team.team_id}
+                            className={`p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-4 flex-wrap ${
+                              isBoosted
+                                ? 'bg-amber-950/20 border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.1)]'
+                                : 'bg-slate-900/60 border-slate-800'
+                            }`}
+                          >
+                            {/* Team Info */}
+                            <div className="flex items-center gap-3">
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-sport font-black text-sm shrink-0 ${
+                                isBoosted
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                  : 'bg-slate-800 text-slate-300 border border-slate-700'
+                              }`}>
+                                {isBoosted ? <Flame size={18} className="text-amber-400 animate-pulse" /> : <Shield size={18} />}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-sm text-white">{team.team_name}</span>
+                                  <span className="text-[11px] text-slate-400">({team.manager_name})</span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
+                                  <span>کل خریدهای این پک: <strong className="text-white font-sport">{team.total_completed_opens}</strong></span>
+                                  <span>•</span>
+                                  <span>ناموفق متوالی: <strong className="text-amber-300 font-sport">{consecutive}</strong> از {threshold}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Status & Actions */}
+                            <div className="flex items-center gap-3">
+                              {/* Progress / Boost Badge */}
+                              <div className="text-right min-w-[110px]">
+                                {isBoosted ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-black bg-gradient-to-r from-amber-500/30 to-yellow-500/30 border border-amber-500/50 text-amber-300">
+                                    <Zap size={11} className="text-yellow-300" />
+                                    <span>بوست فعال ({team.loyalty_boost_multiplier || packData.loyalty_boost_multiplier}x)</span>
+                                  </span>
+                                ) : (
+                                  <div className="space-y-1">
+                                    <span className="text-[10px] text-slate-400 block">
+                                      پیشرفت تا بوست ({progressPct}٪)
+                                    </span>
+                                    <div className="w-24 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                      <div
+                                        className="h-full bg-amber-500 rounded-full transition-all"
+                                        style={{ width: `${progressPct}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={isActionLoading}
+                                  onClick={() => handleActionLoyaltyPity(team.team_id, 'grant_boost')}
+                                  className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  title="فعال‌سازی فوری بوست وفاداری برای این تیم"
+                                >
+                                  <Zap size={12} />
+                                  <span>اعطای بوست</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  disabled={isActionLoading || consecutive === 0}
+                                  onClick={() => handleActionLoyaltyPity(team.team_id, 'reset')}
+                                  className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                  title="بازنشانی خریدهای متوالی و پیتی به صفر"
+                                >
+                                  <RotateCcw size={12} />
+                                  <span>بازنشانی</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                  )}
+                </div>
               </motion.div>
             </div>
           )}

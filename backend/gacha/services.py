@@ -63,8 +63,11 @@ def generate_random_player(rarity: str, team: Team = None) -> Player:
 def get_team_pack_loyalty_status(team: Team, pack: Pack) -> dict:
     """
     Returns loyalty and pity tracking information for a specific team on a specific pack.
-    If a coach opens 3 or more packs of this pack without pulling an OVR 94+ player,
-    a 2.5x Loyalty Boost is activated for all OVR 94+ players until one is drawn.
+    Admin configurable per pack:
+    - pack.is_loyalty_boost_enabled (bool)
+    - pack.loyalty_boost_threshold (int)
+    - pack.loyalty_boost_multiplier (Decimal/float)
+    - pack.loyalty_min_ovr (int)
     """
     if not team or not pack:
         return {
@@ -73,6 +76,24 @@ def get_team_pack_loyalty_status(team: Team, pack: Pack) -> dict:
             'opens_until_boost': 3,
             'pity_multiplier': 1.0,
             'boost_threshold': 3,
+            'is_enabled': True,
+            'target_min_ovr': 94,
+        }
+
+    is_enabled = getattr(pack, 'is_loyalty_boost_enabled', True)
+    threshold = getattr(pack, 'loyalty_boost_threshold', 3) or 3
+    multiplier = float(getattr(pack, 'loyalty_boost_multiplier', Decimal('2.50')) or Decimal('2.50'))
+    target_ovr = getattr(pack, 'loyalty_min_ovr', 94) or 94
+
+    if not is_enabled:
+        return {
+            'consecutive_opens': 0,
+            'is_loyalty_boost_active': False,
+            'opens_until_boost': 0,
+            'pity_multiplier': 1.0,
+            'boost_threshold': threshold,
+            'is_enabled': False,
+            'target_min_ovr': target_ovr,
         }
 
     completed_sessions = PackOpeningSession.objects.filter(
@@ -81,20 +102,21 @@ def get_team_pack_loyalty_status(team: Team, pack: Pack) -> dict:
 
     consecutive_opens = 0
     for s in completed_sessions:
-        if s.picked_card and s.picked_card.overall >= 94:
+        if s.picked_card and s.picked_card.overall >= target_ovr:
             break
         consecutive_opens += 1
 
-    is_active = consecutive_opens >= 3
-    opens_until = max(0, 3 - consecutive_opens)
-    multiplier = 2.5 if is_active else 1.0
+    is_active = consecutive_opens >= threshold
+    opens_until = max(0, threshold - consecutive_opens)
 
     return {
         'consecutive_opens': consecutive_opens,
         'is_loyalty_boost_active': is_active,
         'opens_until_boost': opens_until,
-        'pity_multiplier': multiplier,
-        'boost_threshold': 3,
+        'pity_multiplier': multiplier if is_active else 1.0,
+        'boost_threshold': threshold,
+        'is_enabled': is_enabled,
+        'target_min_ovr': target_ovr,
     }
 
 
@@ -104,8 +126,8 @@ def weighted_sample_pack_cards(pack: Pack, unclaimed_list: list, team: Team = No
     - Slot 1: If pack.guarantee_min_ovr > 0 and cards with overall >= guarantee_min_ovr exist,
               sample 1 card from them weighted by their effective weights.
     - Slots 2 & 3: Sample without replacement from the remaining cards weighted by effective weights.
-    - Loyalty Pity Boost: If coach has opened >= 3 packs without pulling a 94+ player,
-      boost all 94+ player weights by 2.5x.
+    - Loyalty Pity Boost: If coach has opened >= threshold packs without pulling target player,
+      boost player weights by configured multiplier.
     - Shuffles the 3 selected cards so the guaranteed card isn't always in slot 1.
     """
     if len(unclaimed_list) <= 3:
@@ -117,7 +139,6 @@ def weighted_sample_pack_cards(pack: Pack, unclaimed_list: list, team: Team = No
     selected = []
 
     # Dynamic Early Bird Anti-Snipe Multiplier:
-    # Early buyers receive boosted odds on 94+ players while the pool is fresh and full.
     total_count = getattr(pack, 'total_players_count', len(unclaimed_list)) or len(unclaimed_list)
     fullness_ratio = (len(unclaimed_list) / total_count) if total_count > 0 else 1.0
     boost_pct = getattr(pack, 'early_bird_boost_pct', 50) or 0
@@ -126,13 +147,15 @@ def weighted_sample_pack_cards(pack: Pack, unclaimed_list: list, team: Team = No
     # Check loyalty pity status
     loyalty_status = get_team_pack_loyalty_status(team, pack) if team else {'is_loyalty_boost_active': False}
     is_loyalty_boost = loyalty_status.get('is_loyalty_boost_active', False)
+    loyalty_multiplier = loyalty_status.get('pity_multiplier', 2.5)
+    target_min_ovr = loyalty_status.get('target_min_ovr', 94)
 
     def get_card_weight(player):
         base_w = player.get_effective_weight()
-        if player.overall >= 94:
+        if player.overall >= target_min_ovr:
             mult = early_bird_mult if early_bird_mult > 1.0 else 1.0
             if is_loyalty_boost:
-                mult *= 2.5
+                mult *= loyalty_multiplier
             return max(1, round(base_w * mult))
         return base_w
 

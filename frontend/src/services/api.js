@@ -186,6 +186,8 @@ export const gachaApi = {
   adminDeletePackPlayer: (packId, playerId) => api.delete(`/gacha/admin/packs/${packId}/players/${playerId}/`),
   adminReturnPackPlayer: (packId, playerId) => api.post(`/gacha/admin/packs/${packId}/players/${playerId}/return/`),
   adminReturnAllPackPlayers: (packId) => api.post(`/gacha/admin/packs/${packId}/players/return-all/`),
+  adminGetPackLoyaltyPity: (packId) => api.get(`/gacha/admin/packs/${packId}/loyalty-pity/`),
+  adminManagePackLoyaltyPity: (packId, data) => api.post(`/gacha/admin/packs/${packId}/loyalty-pity/`, data),
   adminGetPackSessions: (params) => api.get('/gacha/admin/sessions/', { params }),
 };
 

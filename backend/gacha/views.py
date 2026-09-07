@@ -561,3 +561,104 @@ class AdminPackSessionsView(views.APIView):
 
         sessions = qs[:100]
         return Response(PackOpeningSessionSerializer(sessions, many=True).data)
+
+
+class AdminPackLoyaltyPityView(views.APIView):
+    """
+    Admin endpoint to view and manage loyalty/pity progress for coaches on a specific pack.
+    - GET: list of teams with completed sessions, current consecutive opens, and whether loyalty boost is active.
+    - POST: manually reset or instantly grant loyalty pity boost for a specific team.
+    """
+    permission_classes = [IsAdminRole]
+
+    def get(self, request, pack_id):
+        try:
+            pack = Pack.objects.get(pk=pack_id)
+        except Pack.DoesNotExist:
+            return Response({'error': 'پک یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        from .services import get_team_pack_loyalty_status
+        from teams.models import Team
+
+        team_ids = PackOpeningSession.objects.filter(
+            pack=pack, status='COMPLETED'
+        ).values_list('team_id', flat=True).distinct()
+        teams = Team.objects.filter(id__in=team_ids).select_related('manager')
+
+        team_loyalty_data = []
+        for team in teams:
+            status_data = get_team_pack_loyalty_status(team, pack)
+            total_opens = PackOpeningSession.objects.filter(pack=pack, team=team, status='COMPLETED').count()
+            team_loyalty_data.append({
+                'team_id': team.id,
+                'team_name': team.name,
+                'manager_name': team.manager.username if team.manager else 'نامشخص',
+                'total_completed_opens': total_opens,
+                **status_data
+            })
+
+        return Response({
+            'pack_id': pack.id,
+            'pack_name': pack.name,
+            'is_loyalty_boost_enabled': pack.is_loyalty_boost_enabled,
+            'loyalty_boost_threshold': pack.loyalty_boost_threshold,
+            'loyalty_boost_multiplier': float(pack.loyalty_boost_multiplier),
+            'loyalty_min_ovr': pack.loyalty_min_ovr,
+            'teams': team_loyalty_data
+        })
+
+    def post(self, request, pack_id):
+        try:
+            pack = Pack.objects.get(pk=pack_id)
+        except Pack.DoesNotExist:
+            return Response({'error': 'پک یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        from teams.models import Team
+        team_id = request.data.get('team_id')
+        action = request.data.get('action', 'reset')
+
+        if not team_id:
+            return Response({'error': 'شناسه تیم الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            team = Team.objects.get(pk=team_id)
+        except Team.DoesNotExist:
+            return Response({'error': 'تیم یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if action == 'reset':
+            high_player = pack.players.filter(overall__gte=pack.loyalty_min_ovr).first() or pack.players.first()
+            if high_player:
+                PackOpeningSession.objects.create(
+                    team=team,
+                    pack=pack,
+                    card_1=high_player,
+                    card_2=high_player,
+                    card_3=high_player,
+                    picked_card=high_player,
+                    status='COMPLETED'
+                )
+            msg = f"پیتی وفاداری برای تیم «{team.name}» بازنشانی شد."
+        elif action == 'grant_boost':
+            low_player = pack.players.filter(overall__lt=pack.loyalty_min_ovr).first() or pack.players.first()
+            if low_player:
+                for _ in range(pack.loyalty_boost_threshold):
+                    PackOpeningSession.objects.create(
+                        team=team,
+                        pack=pack,
+                        card_1=low_player,
+                        card_2=low_player,
+                        card_3=low_player,
+                        picked_card=low_player,
+                        status='COMPLETED'
+                    )
+            msg = f"بوست وفاداری برای تیم «{team.name}» با موفقیت فعال شد."
+        else:
+            return Response({'error': 'عملیات نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from .services import get_team_pack_loyalty_status
+        new_status = get_team_pack_loyalty_status(team, pack)
+        return Response({
+            'success': True,
+            'message': msg,
+            'loyalty_status': new_status
+        })

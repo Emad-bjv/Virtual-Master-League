@@ -109,6 +109,7 @@ class PackSerializer(serializers.ModelSerializer):
             'available_from', 'available_until', 'is_active', 'sort_order',
             'weight_top_tier', 'weight_mid_tier', 'weight_base_tier', 'guarantee_min_ovr',
             'early_bird_boost_pct',
+            'is_loyalty_boost_enabled', 'loyalty_boost_threshold', 'loyalty_boost_multiplier', 'loyalty_min_ovr',
             'odds', 'loyalty_status', 'total_players_count', 'unclaimed_players_count', 'is_sold_out',
             'is_time_valid', 'created_at'
         ]
