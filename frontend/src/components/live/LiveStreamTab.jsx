@@ -31,6 +31,7 @@ export default function LiveStreamTab({
   // Active Match State
   const [activeMatch, setActiveMatch] = useState(null);
   const [events, setEvents] = useState(liveEvents);
+  const [rawMatchEvents, setRawMatchEvents] = useState([]);
   const [matchState, setMatchState] = useState(currentMatchStatus || 'SCHEDULED');
   const [halfTimeSeconds, setHalfTimeSeconds] = useState(30);
   const [subsCount, setSubsCount] = useState(0);
@@ -332,8 +333,8 @@ export default function LiveStreamTab({
       }).catch(() => {});
     }
 
-    // Background fallback sync interval (fast 2.5s interval during active/live matches) to ensure immediate resilience
-    const syncInterval = setInterval(async () => {
+    // Immediate and background fallback sync interval (fast 2.5s interval) to ensure instant FotMob badge sync
+    const pollLiveState = async () => {
       try {
         const res = await matchApi.getMatchLiveState(matchId);
         if (res.data?.match) {
@@ -352,10 +353,14 @@ export default function LiveStreamTab({
           }
         }
         if (res.data?.events && Array.isArray(res.data.events)) {
+          setRawMatchEvents(res.data.events);
           res.data.events.forEach((ev) => handleProcessLiveEvent({ event: ev }));
         }
       } catch (_e) {}
-    }, 2500);
+    };
+
+    pollLiveState();
+    const syncInterval = setInterval(pollLiveState, 2500);
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -475,6 +480,19 @@ export default function LiveStreamTab({
             setTimeout(() => setSaveToast(''), 7000);
           }
 
+          if (data.event) {
+            setRawMatchEvents((prev) => {
+              const evId = data.event.id;
+              if (prev.some((e) => e.id === evId)) return prev;
+              return [data.event, ...prev];
+            });
+          }
+
+          if (data.type === 'event_deleted' && data.event_id) {
+            setRawMatchEvents((prev) => prev.filter((e) => String(e.id) !== String(data.event_id)));
+            setEvents((prev) => prev.filter((e) => !String(e.id).includes(String(data.event_id))));
+          }
+
           if (data.message || data.event || data.custom_text) {
             handleProcessLiveEvent(data);
           }
@@ -582,13 +600,79 @@ export default function LiveStreamTab({
   const reserves = useMemo(() => nonStarting.slice(11), [nonStarting]);
   const formation = serverFormation || teamData?.default_formation || '4-3-3 (4-2-1-3)';
 
+  // Helper to compute live badges for players based on match event history (FotMob style)
+  const computePlayerMatchBadges = (player, eventList = []) => {
+    if (!player) return player;
+    const pId = String(player.id || player.player_id || '');
+    let in_match_goals = 0;
+    let in_match_assists = 0;
+    let yellowCards = 0;
+    let isRed = false;
+    let isInjured = false;
+    let subMinute = null;
+
+    (eventList || []).forEach((ev) => {
+      if (ev.is_undone) return;
+      const evPlayerId = String(ev.player_id || ev.player?.id || ev.player || '');
+      const evAssistId = String(ev.assist_player_id || ev.assist_player?.id || ev.assist_player || '');
+      const evType = ev.event_type || ev.type;
+
+      if (evPlayerId === pId) {
+        if (evType === 'GOAL' || evType === 'PENALTY_SCORED') {
+          in_match_goals += 1;
+        } else if (evType === 'YELLOW') {
+          yellowCards += 1;
+          if (yellowCards >= 2) isRed = true;
+        } else if (evType === 'SECOND_YELLOW' || evType === 'RED') {
+          isRed = true;
+          yellowCards = Math.max(yellowCards, evType === 'SECOND_YELLOW' ? 2 : 1);
+        } else if (evType === 'INJURY') {
+          isInjured = true;
+        } else if (evType === 'SUB' || evType === 'SUB_OUT') {
+          subMinute = ev.minute;
+        }
+      }
+
+      if (evAssistId === pId || (evType === 'ASSIST' && evPlayerId === pId)) {
+        in_match_assists += 1;
+      }
+    });
+
+    return {
+      ...player,
+      in_match_goals,
+      goals: in_match_goals,
+      in_match_assists,
+      assists: in_match_assists,
+      yellowCards,
+      isRed,
+      isInjured,
+      subMinute: subMinute || player.subMinute,
+    };
+  };
+
+  const decoratedStartingXi = useMemo(() => {
+    const baseList = liveWorkingLineup?.startingXi || startingXi;
+    return (baseList || []).map((p) => computePlayerMatchBadges(p, rawMatchEvents));
+  }, [liveWorkingLineup?.startingXi, startingXi, rawMatchEvents]);
+
+  const decoratedSubstitutes = useMemo(() => {
+    const baseList = liveWorkingLineup?.substitutes || substitutes;
+    return (baseList || []).map((p) => computePlayerMatchBadges(p, rawMatchEvents));
+  }, [liveWorkingLineup?.substitutes, substitutes, rawMatchEvents]);
+
+  const decoratedReserves = useMemo(() => {
+    const baseList = liveWorkingLineup?.reserves || reserves;
+    return (baseList || []).map((p) => computePlayerMatchBadges(p, rawMatchEvents));
+  }, [liveWorkingLineup?.reserves, reserves, rawMatchEvents]);
+
   const aparatEmbedSrc = liveStreamUrl || "https://www.aparat.com/embed/live/VML.Emad";
 
   // Smart Diff Lineup & Tactics Submission Handler (Only sends actual modifications)
   const handleSaveGamePlan = async (updatedPlan) => {
     const targetFormation = updatedPlan?.currentFormation || liveWorkingLineup?.formation || serverFormation || formation;
-    const targetStartingXi = updatedPlan?.startingXi || liveWorkingLineup?.startingXi || startingXi;
-    const targetSubs = updatedPlan?.substitutes || liveWorkingLineup?.substitutes || substitutes;
+    const targetStartingXi = updatedPlan?.startingXi || liveWorkingLineup?.startingXi || decoratedStartingXi;
+    const targetSubs = updatedPlan?.substitutes || liveWorkingLineup?.substitutes || decoratedSubstitutes;
     const currentMatchId = activeMatch?.id || teamNextMatch?.id;
 
     // 1. Smart Tactical Diffing: Compare current tactics vs baseline tactics
@@ -1358,7 +1442,7 @@ export default function LiveStreamTab({
                 {/* Unified Single Tactics & Lineup Submit Button */}
                 <div className="flex justify-end pt-1">
                   <button
-                    onClick={() => handleSaveGamePlan({ currentFormation: liveWorkingLineup?.formation || serverFormation || formation, startingXi: liveWorkingLineup?.startingXi || startingXi, substitutes: liveWorkingLineup?.substitutes || substitutes })}
+                    onClick={() => handleSaveGamePlan({ currentFormation: liveWorkingLineup?.formation || serverFormation || formation, startingXi: liveWorkingLineup?.startingXi || decoratedStartingXi, substitutes: liveWorkingLineup?.substitutes || decoratedSubstitutes })}
                     disabled={isSubmittingChanges}
                     className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black px-7 py-3 rounded-2xl shadow-xl transition-all text-xs flex items-center justify-center gap-2 cursor-pointer active:scale-95 border border-emerald-300 font-sport disabled:opacity-50"
                   >
@@ -1368,13 +1452,13 @@ export default function LiveStreamTab({
                 </div>
               </div>
 
-              {/* Full Interactive Pitch with Live Sub Capabilities */}
+              {/* Full Interactive Pitch with Live Sub Capabilities and Live FotMob Badges */}
               <EFootballGamePlan
-                key={`live-pitch-${(liveWorkingLineup?.startingXi || startingXi).map(p => p.id).join('-')}`}
+                key={`live-pitch-${(decoratedStartingXi || []).map(p => `${p.id}-${p.in_match_goals || 0}-${p.yellowCards || 0}-${p.isRed ? 1 : 0}-${p.isInjured ? 1 : 0}`).join('-')}`}
                 initialFormationProp={liveWorkingLineup?.formation || formation}
-                initialStartingXi={liveWorkingLineup?.startingXi || startingXi}
-                initialSubstitutes={liveWorkingLineup?.substitutes || substitutes}
-                initialReserves={liveWorkingLineup?.reserves || reserves}
+                initialStartingXi={decoratedStartingXi}
+                initialSubstitutes={decoratedSubstitutes}
+                initialReserves={decoratedReserves}
                 onSaveGamePlan={handleSaveGamePlan}
                 onLineupChange={(lineupData) => {
                   setLiveWorkingLineup(lineupData);
