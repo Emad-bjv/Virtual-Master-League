@@ -65,15 +65,39 @@ export default function MatchLineupDetailModal({
 
     const fetchGameplans = async () => {
       setLoading(true);
-      const homeId = match.home_team || match.home_team_id || match.homeId;
-      const awayId = match.away_team || match.away_team_id || match.awayId;
+      const getTeamId = (val) => {
+        if (!val) return null;
+        if (typeof val === 'object') return val.id || val.pk || null;
+        const n = Number(val);
+        return isNaN(n) ? val : n;
+      };
+      const homeId = getTeamId(match.home_team) || getTeamId(match.home_team_id) || getTeamId(match.homeId) || getTeamId(match.home);
+      const awayId = getTeamId(match.away_team) || getTeamId(match.away_team_id) || getTeamId(match.awayId) || getTeamId(match.away);
 
       const parseTeamData = (data) => {
         if (!data) return null;
         const gp = data.gameplan || {};
         const teamObj = data.team || {};
-        const rawPlayers = teamObj.players || [];
-        const gpPlayersData = gp.players_data || [];
+        let rawPlayers = Array.isArray(teamObj.players) ? [...teamObj.players] : [];
+        const gpPlayersData = Array.isArray(gp.players_data) ? gp.players_data : [];
+
+        if (rawPlayers.length === 0 && gpPlayersData.length > 0) {
+          rawPlayers = gpPlayersData.map((p, idx) => ({
+            id: p.player_id || p.id || idx + 1,
+            name: p.name || `Player ${idx + 1}`,
+            position: p.position || 'CM',
+            naturalPosition: p.naturalPosition || p.position || 'CM',
+            tacticalPosition: p.position || null,
+            shirt_number: p.shirt_number || p.kit_number || idx + 1,
+            is_starting: p.is_starting !== undefined ? Boolean(p.is_starting) : idx < 11,
+            x_coord: p.x_coord,
+            y_coord: p.y_coord,
+            rating: p.rating || 7.0,
+            overall_rating: p.overall_rating || p.rating || 75,
+            photo_url: p.photo_url || p.photo || null,
+          }));
+        }
+
         const gpMap = new Map();
         if (Array.isArray(gpPlayersData)) {
           gpPlayersData.forEach((item) => {

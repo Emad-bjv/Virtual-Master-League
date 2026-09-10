@@ -249,15 +249,40 @@ export default function LiveBroadcastControl() {
         // Fetch lineups from submit_gameplan which stores the coaches' confirmed
         // starting XI (is_starting=true) and bench (is_starting=false).
         // The response is: { gameplan: {...}, team: { players: [...] } }
-        if (m.home_team) {
-          api.get(`/teams/${m.home_team}/submit_gameplan/`, { params: { match_id: m.id } }).then(gpRes => {
-            const gp = gpRes.data.gameplan || null;
+        const getTeamId = (val) => {
+          if (!val) return null;
+          if (typeof val === 'object') return val.id || val.pk || null;
+          const n = Number(val);
+          return isNaN(n) ? val : n;
+        };
+        const homeTeamId = getTeamId(m.home_team) || getTeamId(m.home_team_id) || getTeamId(m.homeId) || getTeamId(m.home);
+        const awayTeamId = getTeamId(m.away_team) || getTeamId(m.away_team_id) || getTeamId(m.awayId) || getTeamId(m.away);
+
+        if (homeTeamId) {
+          api.get(`/teams/${homeTeamId}/submit_gameplan/`, { params: { match_id: m.id } }).then(gpRes => {
+            const gp = gpRes.data?.gameplan || null;
             setHomeGameplan(gp);
-            const teamPlayers = gpRes.data.team?.players || [];
+            let teamPlayers = gpRes.data?.team?.players || [];
+            const gpPlayersData = Array.isArray(gp?.players_data) ? gp.players_data : [];
+
+            if (teamPlayers.length === 0 && gpPlayersData.length > 0) {
+              teamPlayers = gpPlayersData.map((p, idx) => ({
+                id: p.player_id || p.id || idx + 1,
+                name: p.name || `Player ${idx + 1}`,
+                position: p.position || 'CM',
+                naturalPosition: p.naturalPosition || p.position || 'CM',
+                tacticalPosition: p.position || null,
+                shirt_number: p.shirt_number || p.kit_number || idx + 1,
+                is_starting: p.is_starting !== undefined ? Boolean(p.is_starting) : idx < 11,
+                x_coord: p.x_coord,
+                y_coord: p.y_coord,
+              }));
+            }
+
             let finalPlayers = teamPlayers;
-            if (gp && Array.isArray(gp.players_data) && gp.players_data.length > 0) {
+            if (gpPlayersData.length > 0) {
               const pMap = new Map();
-              gp.players_data.forEach(item => {
+              gpPlayersData.forEach(item => {
                 const pid = item.player_id || item.id;
                 if (pid) pMap.set(String(pid), item);
               });
@@ -275,24 +300,45 @@ export default function LiveBroadcastControl() {
                 return p;
               });
             }
-            setHomePlayers(finalPlayers);
+            if (finalPlayers.length === 0) {
+              api.get(`/teams/${homeTeamId}/`).then(tRes => {
+                setHomePlayers(tRes.data?.players || []);
+              }).catch(() => {});
+            } else {
+              setHomePlayers(finalPlayers);
+            }
           }).catch(() => {
-            // Fallback: fetch basic team players without lineup status
-            api.get(`/teams/${m.home_team}/`).then(tRes => {
-              setHomePlayers(tRes.data.players || []);
+            api.get(`/teams/${homeTeamId}/`).then(tRes => {
+              setHomePlayers(tRes.data?.players || []);
             }).catch(() => {});
           });
         }
 
-        if (m.away_team) {
-          api.get(`/teams/${m.away_team}/submit_gameplan/`, { params: { match_id: m.id } }).then(gpRes => {
-            const gp = gpRes.data.gameplan || null;
+        if (awayTeamId) {
+          api.get(`/teams/${awayTeamId}/submit_gameplan/`, { params: { match_id: m.id } }).then(gpRes => {
+            const gp = gpRes.data?.gameplan || null;
             setAwayGameplan(gp);
-            const teamPlayers = gpRes.data.team?.players || [];
+            let teamPlayers = gpRes.data?.team?.players || [];
+            const gpPlayersData = Array.isArray(gp?.players_data) ? gp.players_data : [];
+
+            if (teamPlayers.length === 0 && gpPlayersData.length > 0) {
+              teamPlayers = gpPlayersData.map((p, idx) => ({
+                id: p.player_id || p.id || idx + 1,
+                name: p.name || `Player ${idx + 1}`,
+                position: p.position || 'CM',
+                naturalPosition: p.naturalPosition || p.position || 'CM',
+                tacticalPosition: p.position || null,
+                shirt_number: p.shirt_number || p.kit_number || idx + 1,
+                is_starting: p.is_starting !== undefined ? Boolean(p.is_starting) : idx < 11,
+                x_coord: p.x_coord,
+                y_coord: p.y_coord,
+              }));
+            }
+
             let finalPlayers = teamPlayers;
-            if (gp && Array.isArray(gp.players_data) && gp.players_data.length > 0) {
+            if (gpPlayersData.length > 0) {
               const pMap = new Map();
-              gp.players_data.forEach(item => {
+              gpPlayersData.forEach(item => {
                 const pid = item.player_id || item.id;
                 if (pid) pMap.set(String(pid), item);
               });
@@ -310,10 +356,16 @@ export default function LiveBroadcastControl() {
                 return p;
               });
             }
-            setAwayPlayers(finalPlayers);
+            if (finalPlayers.length === 0) {
+              api.get(`/teams/${awayTeamId}/`).then(tRes => {
+                setAwayPlayers(tRes.data?.players || []);
+              }).catch(() => {});
+            } else {
+              setAwayPlayers(finalPlayers);
+            }
           }).catch(() => {
-            api.get(`/teams/${m.away_team}/`).then(tRes => {
-              setAwayPlayers(tRes.data.players || []);
+            api.get(`/teams/${awayTeamId}/`).then(tRes => {
+              setAwayPlayers(tRes.data?.players || []);
             }).catch(() => {});
           });
         }
@@ -1009,11 +1061,11 @@ export default function LiveBroadcastControl() {
                   {/* Lineup & Preset Indicator */}
                   <div className="flex flex-col items-center gap-1">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 font-sport ${
-                      selectedMatch.home_lineup_ready || homeGameplan?.is_submitted
+                      Boolean(selectedMatch.home_lineup_ready)
                         ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50'
                         : 'bg-amber-950/80 text-amber-300 border-amber-500/50'
                     }`}>
-                      {selectedMatch.home_lineup_ready || homeGameplan?.is_submitted ? '✓ ترکیب ارسال شده' : '⏳ ترکیب پیش‌فرض'}
+                      {Boolean(selectedMatch.home_lineup_ready) ? '✓ ترکیب ارسال شده' : '⏳ ترکیب پیش‌فرض'}
                     </span>
 
                     {(homeGameplan?.preset_name || selectedMatch.home_preset_name) && (
@@ -1064,11 +1116,11 @@ export default function LiveBroadcastControl() {
                   {/* Lineup & Preset Indicator */}
                   <div className="flex flex-col items-center gap-1">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 font-sport ${
-                      selectedMatch.away_lineup_ready || awayGameplan?.is_submitted
+                      Boolean(selectedMatch.away_lineup_ready)
                         ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50'
                         : 'bg-amber-950/80 text-amber-300 border-amber-500/50'
                     }`}>
-                      {selectedMatch.away_lineup_ready || awayGameplan?.is_submitted ? '✓ ترکیب ارسال شده' : '⏳ ترکیب پیش‌فرض'}
+                      {Boolean(selectedMatch.away_lineup_ready) ? '✓ ترکیب ارسال شده' : '⏳ ترکیب پیش‌فرض'}
                     </span>
 
                     {(awayGameplan?.preset_name || selectedMatch.away_preset_name) && (

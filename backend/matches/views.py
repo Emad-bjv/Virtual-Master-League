@@ -135,9 +135,38 @@ class LiveMatchTacticsUpdateView(APIView):
                             elif str(val).strip() in ['تهاجمی', 'aggressive', 'Aggressive']:
                                 val = 'تهاجمی'
                         setattr(mgp, field, val)
-                mgp.is_submitted = True
-                from django.utils import timezone
-                mgp.submitted_at = timezone.now()
+                starting_xi_ids = data.get('startingXi') or data.get('starting_xi')
+                players_data = data.get('players_data') or data.get('players')
+                if players_data and isinstance(players_data, list):
+                    mgp.players_data = players_data
+                elif starting_xi_ids and team_name:
+                    from teams.models import Player
+                    team_players = list(Player.objects.filter(team=team_name))
+                    p_data = []
+                    for p in team_players:
+                        p_data.append({
+                            'id': p.id,
+                            'name': p.name,
+                            'position': p.position,
+                            'overall_rating': getattr(p, 'overall_rating', 75),
+                            'is_starting': p.id in starting_xi_ids,
+                            'kit_number': getattr(p, 'kit_number', None)
+                        })
+                    mgp.players_data = p_data
+                elif not mgp.players_data and team_name:
+                    from teams.models import TeamGamePlan
+                    tgp = TeamGamePlan.objects.filter(team=team_name).first()
+                    if tgp and tgp.players_data:
+                        mgp.players_data = tgp.players_data
+
+                valid_starters = [
+                    p for p in (mgp.players_data or [])
+                    if isinstance(p, dict) and p.get('is_starting')
+                ]
+                if len(valid_starters) >= 11 or len(mgp.players_data or []) >= 11:
+                    mgp.is_submitted = True
+                    from django.utils import timezone
+                    mgp.submitted_at = timezone.now()
                 mgp.save()
                 
         if match_id:

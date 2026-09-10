@@ -96,16 +96,28 @@ class MatchSerializer(serializers.ModelSerializer):
             return False
         cache = getattr(obj, '_prefetched_objects_cache', {})
         if 'gameplans' in cache:
-            return any(gp.team_id == obj.home_team_id and gp.is_submitted for gp in cache['gameplans'])
-        return obj.gameplans.filter(team_id=obj.home_team_id, is_submitted=True).exists()
+            return any(
+                gp.team_id == obj.home_team_id and gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11)
+                for gp in cache['gameplans']
+            )
+        return any(
+            gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11)
+            for gp in obj.gameplans.filter(team_id=obj.home_team_id)
+        )
 
     def get_away_lineup_ready(self, obj):
         if not obj.away_team_id:
             return False
         cache = getattr(obj, '_prefetched_objects_cache', {})
         if 'gameplans' in cache:
-            return any(gp.team_id == obj.away_team_id and gp.is_submitted for gp in cache['gameplans'])
-        return obj.gameplans.filter(team_id=obj.away_team_id, is_submitted=True).exists()
+            return any(
+                gp.team_id == obj.away_team_id and gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11)
+                for gp in cache['gameplans']
+            )
+        return any(
+            gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11)
+            for gp in obj.gameplans.filter(team_id=obj.away_team_id)
+        )
 
 
 
@@ -242,12 +254,18 @@ class MatchDetailSerializer(serializers.ModelSerializer):
     def get_home_lineup_ready(self, obj):
         if not obj.home_team_id:
             return False
-        return obj.gameplans.filter(team_id=obj.home_team_id, is_submitted=True).exists()
+        return any(
+            gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11)
+            for gp in obj.gameplans.filter(team_id=obj.home_team_id)
+        )
 
     def get_away_lineup_ready(self, obj):
         if not obj.away_team_id:
             return False
-        return obj.gameplans.filter(team_id=obj.away_team_id, is_submitted=True).exists()
+        return any(
+            gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11)
+            for gp in obj.gameplans.filter(team_id=obj.away_team_id)
+        )
 
     def get_home_preset_name(self, obj):
         if not obj.home_team_id:
@@ -386,12 +404,18 @@ class MatchSummarySerializer(serializers.ModelSerializer):
     def get_home_lineup_ready(self, obj):
         if not obj.home_team_id:
             return False
-        return obj.gameplans.filter(team_id=obj.home_team_id, is_submitted=True).exists()
+        return any(
+            gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11)
+            for gp in obj.gameplans.filter(team_id=obj.home_team_id)
+        )
 
     def get_away_lineup_ready(self, obj):
         if not obj.away_team_id:
             return False
-        return obj.gameplans.filter(team_id=obj.away_team_id, is_submitted=True).exists()
+        return any(
+            gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11)
+            for gp in obj.gameplans.filter(team_id=obj.away_team_id)
+        )
 
     def get_home_preset_name(self, obj):
         if not obj.home_team_id:

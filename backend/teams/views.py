@@ -116,7 +116,7 @@ class TeamViewSet(viewsets.ModelViewSet):
     def submit_gameplan(self, request, pk=None):
         team = self.get_object()
         is_admin = request.user.is_staff or request.user.is_superuser or getattr(request.user, 'role', '') in ['admin', 'superadmin']
-        if not is_admin and team.manager != request.user:
+        if request.method == 'POST' and not is_admin and team.manager != request.user:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("شما دسترسی برای تغییر تاکتیک این تیم را ندارید.")
         
@@ -169,45 +169,67 @@ class TeamViewSet(viewsets.ModelViewSet):
                 }
             )
 
-        # If match_gameplan is not submitted yet, always inherit the latest default gameplan & formation
-        if match_gameplan and not match_gameplan.is_submitted:
-            match_gameplan.formation = default_gameplan.formation or team.default_formation or '4-3-3 (4-2-1-3)'
-            match_gameplan.attacking_style = default_gameplan.attacking_style
-            match_gameplan.build_up = default_gameplan.build_up
-            match_gameplan.attacking_area = default_gameplan.attacking_area
-            match_gameplan.positioning = default_gameplan.positioning
-            match_gameplan.support_range = default_gameplan.support_range
-            match_gameplan.defensive_style = default_gameplan.defensive_style
-            match_gameplan.containment_area = default_gameplan.containment_area
-            match_gameplan.pressing = default_gameplan.pressing
-            match_gameplan.defensive_line = default_gameplan.defensive_line
-            match_gameplan.compactness = default_gameplan.compactness
-            match_gameplan.adv_offense_1 = default_gameplan.adv_offense_1
-            match_gameplan.adv_offense_2 = default_gameplan.adv_offense_2
-            match_gameplan.adv_defense_1 = default_gameplan.adv_defense_1
-            match_gameplan.adv_defense_2 = default_gameplan.adv_defense_2
-            match_gameplan.preset_name = default_gameplan.preset_name
-            match_gameplan.has_custom_player_edits = default_gameplan.has_custom_player_edits
-            if default_gameplan.players_data:
-                match_gameplan.players_data = default_gameplan.players_data
+        # If match_gameplan is not submitted yet or has empty players_data, always inherit the latest default gameplan & formation
+        if match_gameplan:
+            if not match_gameplan.is_submitted or not match_gameplan.players_data:
+                match_gameplan.formation = default_gameplan.formation or team.default_formation or '4-3-3 (4-2-1-3)'
+                match_gameplan.attacking_style = default_gameplan.attacking_style
+                match_gameplan.build_up = default_gameplan.build_up
+                match_gameplan.attacking_area = default_gameplan.attacking_area
+                match_gameplan.positioning = default_gameplan.positioning
+                match_gameplan.support_range = default_gameplan.support_range
+                match_gameplan.defensive_style = default_gameplan.defensive_style
+                match_gameplan.containment_area = default_gameplan.containment_area
+                match_gameplan.pressing = default_gameplan.pressing
+                match_gameplan.defensive_line = default_gameplan.defensive_line
+                match_gameplan.compactness = default_gameplan.compactness
+                match_gameplan.adv_offense_1 = default_gameplan.adv_offense_1
+                match_gameplan.adv_offense_2 = default_gameplan.adv_offense_2
+                match_gameplan.adv_defense_1 = default_gameplan.adv_defense_1
+                match_gameplan.adv_defense_2 = default_gameplan.adv_defense_2
+                match_gameplan.preset_name = default_gameplan.preset_name
+                match_gameplan.has_custom_player_edits = default_gameplan.has_custom_player_edits
+                if default_gameplan.players_data:
+                    match_gameplan.players_data = default_gameplan.players_data
 
-        # If default_gameplan has no players_data yet, populate from current team starters
-        if not default_gameplan.players_data:
-            existing_players = Player.objects.filter(team=team)
-            if existing_players.filter(is_starting=True).exists():
-                default_gameplan.players_data = [
-                    {
+            # A match gameplan without actual players_data cannot be considered submitted
+            if not match_gameplan.players_data or len(match_gameplan.players_data) < 11:
+                match_gameplan.is_submitted = False
+
+        # Ensure default_gameplan always has 11 valid starting players
+        if not default_gameplan.players_data or len(default_gameplan.players_data) < 11:
+            existing_players = list(Player.objects.filter(team=team))
+            if existing_players:
+                starters = [p for p in existing_players if p.is_starting]
+                if len(starters) < 11:
+                    non_starters = sorted([p for p in existing_players if not p.is_starting], key=lambda p: p.overall, reverse=True)
+                    needed = min(11 - len(starters), len(non_starters))
+                    starters.extend(non_starters[:needed])
+
+                starter_ids = {p.id for p in starters}
+                p_list = []
+                for p in starters:
+                    p_list.append({
                         'player_id': p.id,
                         'id': str(p.id),
-                        'x_coord': p.x_coord,
-                        'y_coord': p.y_coord,
+                        'x_coord': p.x_coord if p.x_coord else 50.0,
+                        'y_coord': p.y_coord if p.y_coord else 50.0,
                         'position': p.position,
-                        'is_starting': p.is_starting,
-                    }
-                    for p in existing_players
-                ]
+                        'is_starting': True,
+                    })
+                for p in existing_players:
+                    if p.id not in starter_ids:
+                        p_list.append({
+                            'player_id': p.id,
+                            'id': str(p.id),
+                            'x_coord': p.x_coord if p.x_coord else 0.0,
+                            'y_coord': p.y_coord if p.y_coord else 0.0,
+                            'position': p.position,
+                            'is_starting': False,
+                        })
+                default_gameplan.players_data = p_list
                 default_gameplan.save(update_fields=['players_data'])
-                if match_gameplan and not match_gameplan.is_submitted:
+                if match_gameplan and (not match_gameplan.is_submitted or not match_gameplan.players_data):
                     match_gameplan.players_data = default_gameplan.players_data
 
         active_gameplan = match_gameplan if match_gameplan else default_gameplan
