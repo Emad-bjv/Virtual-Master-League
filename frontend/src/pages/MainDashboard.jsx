@@ -22,6 +22,7 @@ const StoreTab = lazy(() => import('../components/store/StoreTab'));
 const ProfileView = lazy(() => import('../components/profile/ProfileView'));
 const AdminDashboard = lazy(() => import('../components/admin/AdminDashboard'));
 const LiveStreamTab = lazy(() => import('../components/live/LiveStreamTab'));
+const BattleRoyaleBracket = lazy(() => import('../components/BattleRoyaleBracket'));
 
 const DisabledModuleNotice = ({ title, message, onBackHome }) => (
   <div className="glass-panel p-8 rounded-3xl border border-slate-700/80 bg-slate-950/60 shadow-2xl text-center max-w-lg mx-auto my-12 space-y-4 font-sans dir-rtl">
@@ -401,7 +402,7 @@ export default function MainDashboard() {
                     </div>
                   }
                 >
-                  {!teamData && activeTab !== 'profile' && activeTab !== 'admin' ? (
+                  {!teamData && activeTab !== 'profile' && activeTab !== 'admin' && activeTab !== 'battle_royale' ? (
                     <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-6 bg-slate-900/60 rounded-3xl border border-slate-800/80 shadow-2xl">
                       <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-4">
                         <span className="text-3xl">⚽</span>
@@ -445,6 +446,10 @@ export default function MainDashboard() {
                           isLineupSubmitted={isLineupSubmitted}
                           onSaveLineup={handleSaveLineup}
                         />
+                      )}
+
+                      {activeTab === 'battle_royale' && (
+                        <BattleRoyaleBracket />
                       )}
 
                       {activeTab === 'live' && (

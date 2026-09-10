@@ -837,9 +837,13 @@ class AdminMatchUpdateView(APIView):
 
         advance_result = None
         if match.is_knockout and match.status == 'FINISHED':
-            from .cup_engine import advance_winner
             try:
-                advance_result = advance_winner(match)
+                if match.tournament and match.tournament.tournament_type == 'BATTLE_ROYALE':
+                    from .battle_royale_engine import advance_battle_royale_winner
+                    advance_result = advance_battle_royale_winner(match)
+                else:
+                    from .cup_engine import advance_winner
+                    advance_result = advance_winner(match)
             except Exception as e:
                 advance_result = {'success': False, 'error': str(e)}
 
@@ -1243,9 +1247,13 @@ class AdminMatchControlRoomView(APIView):
 
             advance_result = None
             if match.is_knockout:
-                from .cup_engine import advance_winner
                 try:
-                    advance_result = advance_winner(match)
+                    if match.tournament and match.tournament.tournament_type == 'BATTLE_ROYALE':
+                        from .battle_royale_engine import advance_battle_royale_winner
+                        advance_result = advance_battle_royale_winner(match)
+                    else:
+                        from .cup_engine import advance_winner
+                        advance_result = advance_winner(match)
                 except Exception as e:
                     advance_result = {'success': False, 'error': str(e)}
 
@@ -2399,8 +2407,12 @@ class AdminMatchForfeitView(APIView):
             update_standings_for_match(match)
 
         if match.is_knockout:
-            from .cup_engine import advance_winner
-            advance_winner(match)
+            if match.tournament and match.tournament.tournament_type == 'BATTLE_ROYALE':
+                from .battle_royale_engine import advance_battle_royale_winner
+                advance_battle_royale_winner(match)
+            else:
+                from .cup_engine import advance_winner
+                advance_winner(match)
 
         return Response({
             'status': 'success',
@@ -2574,6 +2586,276 @@ class AdminStandingsRecalculateView(APIView):
             'message': f'جدول رده‌بندی لیگ «{tournament.name}» با موفقیت از روی نتایج واقعی تمام بازی‌ها بازسازی و محاسبه مجدد شد.',
             'standings': standings
         }, status=status.HTTP_200_OK)
+
+
+# =====================================================================
+# BATTLE ROYALE (DOUBLE ELIMINATION) API VIEWS
+# =====================================================================
+
+class AdminBattleRoyaleTournamentView(APIView):
+    """
+    CRUD endpoint for Battle Royale (Double Elimination) Tournaments.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def get(self, request):
+        from .battle_royale_engine import serialize_battle_royale_bracket
+        from django.db.models import Count, Q
+        tourneys = (
+            Tournament.objects.filter(tournament_type='BATTLE_ROYALE')
+            .annotate(
+                annotated_total=Count('matches', distinct=True),
+                annotated_finished=Count('matches', filter=Q(matches__status='FINISHED'), distinct=True)
+            )
+            .order_by('-created_at')
+        )
+        res = []
+        for idx, t in enumerate(tourneys):
+            bracket_data = serialize_battle_royale_bracket(t) if (idx == 0 or t.is_active) else None
+            res.append({
+                'id': t.id,
+                'name': t.name,
+                'is_active': t.is_active,
+                'created_at': t.created_at.isoformat() if t.created_at else None,
+                'total_matches': t.annotated_total,
+                'finished_matches': t.annotated_finished,
+                'bracket': bracket_data
+            })
+        return Response(res, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        from .battle_royale_engine import generate_battle_royale_bracket
+        import datetime
+
+        name = request.data.get('name', 'نبرد رویال مستر لیگ')
+        start_date_str = request.data.get('start_date')
+        team_ids = request.data.get('team_ids')
+        shuffle_draw = request.data.get('shuffle_draw', True)
+        if isinstance(shuffle_draw, str):
+            shuffle_draw = shuffle_draw.lower() in ['true', '1']
+
+        start_date = None
+        if start_date_str:
+            try:
+                start_date = datetime.datetime.strptime(str(start_date_str).strip(), '%Y-%m-%d').date()
+            except ValueError:
+                start_date = datetime.date.today() + datetime.timedelta(days=1)
+        else:
+            start_date = datetime.date.today() + datetime.timedelta(days=1)
+
+        season_id = request.data.get('season_id')
+        if season_id:
+            season = Season.objects.filter(id=season_id).first()
+        else:
+            season, _ = Season.objects.get_or_create(
+                is_active=True,
+                defaults={'name': 'فصل جاری', 'started_at': timezone.now()}
+            )
+
+        tournament = Tournament.objects.create(
+            name=name,
+            tournament_type='BATTLE_ROYALE',
+            season=season,
+            is_active=True
+        )
+
+        if team_ids and isinstance(team_ids, list):
+            teams = list(Team.objects.filter(id__in=team_ids).order_by('id'))
+        else:
+            all_teams = list(Team.objects.filter(is_active=True).order_by('id'))
+            target_count = 16 if len(all_teams) >= 16 else (8 if len(all_teams) >= 8 else 4)
+            teams = all_teams[:target_count]
+
+        import math
+        if len(teams) < 4 or not math.log2(len(teams)).is_integer():
+            tournament.delete()
+            return Response({'error': 'تعداد تیم‌ها باید توانی از ۲ باشد (مثلاً ۸، ۱۶ یا ۳۲ تیم).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        bracket_result = generate_battle_royale_bracket(
+            tournament=tournament,
+            teams=teams,
+            start_date=start_date,
+            clear_existing=True,
+            shuffle_draw=shuffle_draw
+        )
+
+        try:
+            from realtime.events import broadcast_global_event
+            broadcast_global_event('battle_royale_created', {
+                'tournament_id': tournament.id,
+                'name': tournament.name
+            })
+        except Exception:
+            pass
+
+        return Response({
+            'status': 'success',
+            'message': f'تورنمنت نبرد رویال «{name}» با موفقیت با {len(teams)} تیم ایجاد شد.',
+            'tournament_id': tournament.id,
+            'bracket_result': bracket_result
+        }, status=status.HTTP_201_CREATED)
+
+    def delete(self, request, tournament_id=None):
+        target_id = tournament_id or request.data.get('tournament_id')
+        if not target_id:
+            return Response({'error': 'شناسه تورنمنت الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+        tournament = get_object_or_404(Tournament, id=target_id, tournament_type='BATTLE_ROYALE')
+        tournament.delete()
+        try:
+            from realtime.events import broadcast_global_event
+            broadcast_global_event('battle_royale_deleted', {'tournament_id': target_id})
+        except Exception:
+            pass
+        return Response({'status': 'success', 'message': 'تورنمنت نبرد رویال با موفقیت حذف گردید.'}, status=status.HTTP_200_OK)
+
+
+class BattleRoyaleBracketView(APIView):
+    """
+    Public bracket serializer endpoint for coaches and viewers.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, tournament_id):
+        from .battle_royale_engine import serialize_battle_royale_bracket
+        tournament = get_object_or_404(Tournament, id=tournament_id)
+        data = serialize_battle_royale_bracket(tournament)
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class BattleRoyaleActiveView(APIView):
+    """
+    Returns the currently active Battle Royale tournament and bracket.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        from .battle_royale_engine import serialize_battle_royale_bracket
+        tournament = (
+            Tournament.objects.filter(tournament_type='BATTLE_ROYALE', is_active=True)
+            .order_by('-created_at')
+            .first()
+        )
+        if not tournament:
+            return Response({
+                'active': False,
+                'message': 'هیچ تورنمنت نبرد رویال فعالی وجود ندارد.'
+            }, status=status.HTTP_200_OK)
+
+        data = serialize_battle_royale_bracket(tournament)
+        data['active'] = True
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class AdminBattleRoyaleAdvanceView(APIView):
+    """
+    Admin manual override to set scores, penalties, and advance a Battle Royale match.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request, match_id):
+        from .battle_royale_engine import advance_battle_royale_winner
+        match = get_object_or_404(Match, id=match_id)
+
+        home_score = request.data.get('home_score')
+        away_score = request.data.get('away_score')
+        home_penalties = request.data.get('home_penalties')
+        away_penalties = request.data.get('away_penalties')
+
+        if home_score is not None:
+            match.home_score = int(home_score)
+        if away_score is not None:
+            match.away_score = int(away_score)
+        if home_penalties is not None:
+            match.home_penalties = int(home_penalties) if home_penalties != '' else None
+        if away_penalties is not None:
+            match.away_penalties = int(away_penalties) if away_penalties != '' else None
+
+        match.status = 'FINISHED'
+        match.half_status = 'FINISHED'
+        match.save()
+
+        res = advance_battle_royale_winner(match)
+        match.standings_processed = True
+        match.save(update_fields=['standings_processed'])
+
+        try:
+            from realtime.events import broadcast_global_event
+            broadcast_global_event('battle_royale_bracket_updated', {
+                'tournament_id': match.tournament_id,
+                'match_id': match.id,
+                'result': res
+            })
+        except Exception:
+            pass
+
+        return Response(res, status=status.HTTP_200_OK if res.get('success') else status.HTTP_400_BAD_REQUEST)
+
+
+class AdminBattleRoyaleResetView(APIView):
+    """
+    Purges or resets a Battle Royale tournament.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request):
+        tournament_id = request.data.get('tournament_id')
+        with transaction.atomic():
+            if tournament_id:
+                tourneys = Tournament.objects.filter(id=tournament_id, tournament_type='BATTLE_ROYALE')
+            else:
+                tourneys = Tournament.objects.filter(tournament_type='BATTLE_ROYALE')
+
+            count = tourneys.count()
+            Match.objects.filter(tournament__in=tourneys).delete()
+            tourneys.delete()
+
+        return Response({
+            'status': 'success',
+            'message': f'تعداد {count} تورنمنت نبرد رویال و تمام مسابقات مربوطه پاکسازی گردید.'
+        }, status=status.HTTP_200_OK)
+
+
+class BattleRoyaleScheduleView(APIView):
+    """
+    Returns the full match schedule grouped by date and round for a Battle Royale tournament.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, tournament_id):
+        tournament = get_object_or_404(Tournament, id=tournament_id)
+        matches = (
+            Match.objects.filter(tournament=tournament)
+            .select_related('home_team', 'away_team')
+            .order_by('date', 'id')
+        )
+        schedule_by_date = {}
+        for m in matches:
+            date_key = m.date.strftime('%Y-%m-%d') if m.date else 'بدون تاریخ'
+            if date_key not in schedule_by_date:
+                schedule_by_date[date_key] = []
+            schedule_by_date[date_key].append({
+                'id': m.id,
+                'round_name': m.round_name,
+                'bracket_side': m.bracket_side,
+                'bracket_round': m.bracket_round,
+                'home_team': m.home_team.name if m.home_team else 'مشخص نشده',
+                'away_team': m.away_team.name if m.away_team else 'مشخص نشده',
+                'home_team_logo': m.home_team.logo if m.home_team else '',
+                'away_team_logo': m.away_team.logo if m.away_team else '',
+                'home_score': m.home_score,
+                'away_score': m.away_score,
+                'status': m.status,
+                'time': m.date.strftime('%H:%M') if m.date else None,
+                'has_extra_time': m.has_extra_time,
+                'is_reset_match': m.is_reset_match,
+            })
+
+        return Response({
+            'tournament_id': tournament.id,
+            'tournament_name': tournament.name,
+            'schedule': [{'date': k, 'matches': v} for k, v in schedule_by_date.items()]
+        }, status=status.HTTP_200_OK)
+
 
 
 

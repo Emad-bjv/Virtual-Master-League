@@ -11,6 +11,7 @@ import MakeOfferModal from './MakeOfferModal';
 import TransferInbox from './TransferInbox';
 import ConfirmModal from '../common/ConfirmModal';
 import Pagination from '../common/Pagination';
+import TransferCountdownBanner from '../common/TransferCountdownBanner';
 
 const MARKET_SUBNAV = [
   { id: 'scout', label: 'استعدادیابی و بررسی رقبا' },
@@ -154,6 +155,7 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
   return (
     <div className="space-y-4 pb-20">
       <Toast message={actionMessage} isVisible={!!actionMessage} type="success" />
+      <TransferCountdownBanner />
       <SubNav items={MARKET_SUBNAV} activeId={activeSub} onChange={setActiveSub} />
 
       {activeSub === 'scout' && (

@@ -39,6 +39,13 @@ from .views import (
     AdminStandingsManualEditView,
     AdminStandingsApplyPenaltyView,
     AdminStandingsRecalculateView,
+    # Battle Royale Views
+    AdminBattleRoyaleTournamentView,
+    BattleRoyaleBracketView,
+    BattleRoyaleActiveView,
+    AdminBattleRoyaleAdvanceView,
+    AdminBattleRoyaleResetView,
+    BattleRoyaleScheduleView,
 )
 
 urlpatterns = [
@@ -98,5 +105,17 @@ urlpatterns = [
     path('matches/admin/standings/manual-edit/', AdminStandingsManualEditView.as_view(), name='admin-standings-manual-edit'),
     path('matches/admin/standings/apply-penalty/', AdminStandingsApplyPenaltyView.as_view(), name='admin-standings-apply-penalty'),
     path('matches/admin/standings/recalculate/', AdminStandingsRecalculateView.as_view(), name='admin-standings-recalculate'),
+
+    # Battle Royale (Double Elimination) Endpoints
+    path('matches/battle-royale/active/', BattleRoyaleActiveView.as_view(), name='battle-royale-active'),
+    path('battle-royale/active/', BattleRoyaleActiveView.as_view(), name='battle-royale-active-direct'),
+    path('matches/battle-royale/<int:tournament_id>/bracket/', BattleRoyaleBracketView.as_view(), name='battle-royale-bracket'),
+    path('battle-royale/<int:tournament_id>/bracket/', BattleRoyaleBracketView.as_view(), name='battle-royale-bracket-direct'),
+    path('matches/battle-royale/<int:tournament_id>/schedule/', BattleRoyaleScheduleView.as_view(), name='battle-royale-schedule'),
+    path('battle-royale/<int:tournament_id>/schedule/', BattleRoyaleScheduleView.as_view(), name='battle-royale-schedule-direct'),
+    path('matches/admin/battle-royale/', AdminBattleRoyaleTournamentView.as_view(), name='admin-battle-royale'),
+    path('matches/admin/battle-royale/<int:tournament_id>/', AdminBattleRoyaleTournamentView.as_view(), name='admin-battle-royale-detail'),
+    path('matches/admin/battle-royale/reset/', AdminBattleRoyaleResetView.as_view(), name='admin-battle-royale-reset'),
+    path('matches/admin/battle-royale/<int:match_id>/advance/', AdminBattleRoyaleAdvanceView.as_view(), name='admin-battle-royale-advance'),
 ]
 

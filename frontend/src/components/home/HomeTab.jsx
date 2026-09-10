@@ -14,11 +14,13 @@ import {
   Zap,
   Shield,
   Gift,
+  Swords,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { matchApi, notificationApi, seasonPassApi } from '../../services/api';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import Toast from '../common/Toast';
+import TransferCountdownBanner from '../common/TransferCountdownBanner';
 
 function formatMatchDate(dateString) {
   if (!dateString) return { dateStr: '۳۰ مرداد ۱۴۰۵', timeStr: '۱۴:۰۰' };
@@ -205,6 +207,42 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
             {formatTime(timeLeft.hours)}:{formatTime(timeLeft.minutes)}:{formatTime(timeLeft.seconds)}
           </span>
         </button>
+      </motion.div>
+
+      {/* Transfer Market Window Live Countdown Banner */}
+      <TransferCountdownBanner compact={true} />
+
+      {/* Battle Royale Tournament Showcase Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.03 }}
+        onClick={() => onNavigateTab?.('battle_royale')}
+        className="fc-card-elevated p-3.5 sm:p-4 rounded-3xl border border-amber-500/40 bg-gradient-to-r from-[#1c1204]/90 via-[#0e172e]/90 to-[#0a0e1a]/95 flex items-center justify-between cursor-pointer group hover:border-amber-400/70 transition-all shadow-[0_8px_30px_rgba(245,158,11,0.15)] relative overflow-hidden active:scale-[0.99]"
+      >
+        <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full filter blur-2xl pointer-events-none"></div>
+        <div className="flex items-center gap-3 relative z-10">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-amber-500 to-rose-500 p-0.5 shadow-[0_0_20px_rgba(245,158,11,0.4)] flex items-center justify-center text-slate-950 shrink-0">
+            <Swords size={22} className="group-hover:rotate-12 transition-transform duration-300" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs sm:text-sm font-black text-white group-hover:text-amber-300 transition-colors">
+                ⚔️ تورنمنت نبرد رویال (Double Elimination)
+              </span>
+              <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/40 font-bold">
+                فرمت جدید
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              مشاهده درخت حذفی دوطرفه، جدول برندگان و بازندگان و فینال بزرگ با ریست براکت
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 text-xs font-black text-amber-400 group-hover:text-amber-300 shrink-0 z-10">
+          <span className="hidden sm:inline">مشاهده براکت</span>
+          <ChevronLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+        </div>
       </motion.div>
 
       {/* Next Match & Arena Clash Face-Off Card */}

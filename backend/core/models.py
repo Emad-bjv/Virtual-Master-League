@@ -79,6 +79,26 @@ class GlobalSettings(models.Model):
         default=48, verbose_name="مدت زمان لیستینگ (ساعت)", 
         help_text="هر لیستینگ بازیکن بعد از این مدت (ساعت) خودکار منقضی می‌شود."
     )
+    transfer_market_auto_schedule = models.BooleanField(
+        default=True, verbose_name="زمان‌بندی خودکار پنجره نقل‌وانتقالات",
+        help_text="باز شدن خودکار بازار در روزهای استراحت (ساعت ۰۰:۰۰ تا ۱۸:۰۰)"
+    )
+    transfer_window_open_hour = models.PositiveIntegerField(
+        default=0, verbose_name="ساعت شروع بازار (روز استراحت)"
+    )
+    transfer_window_close_hour = models.PositiveIntegerField(
+        default=18, verbose_name="ساعت پایان بازار (روز استراحت)"
+    )
+    transfer_manual_override = models.CharField(
+        max_length=15,
+        choices=[
+            ('AUTO', 'خودکار طبق تقویم'),
+            ('FORCE_OPEN', 'اجباراً باز'),
+            ('FORCE_CLOSED', 'اجباراً بسته'),
+        ],
+        default='AUTO',
+        verbose_name="حالت پنجره نقل و انتقالات"
+    )
 
     # Match Settings
     half_duration_minutes = models.PositiveIntegerField(

@@ -16,9 +16,11 @@ from .views import (
     SignFreeAgentAPIView,
     TeamTransferAuditAPIView,
     AdminRollbackTransferAPIView,
+    MarketStatusAPIView,
 )
 
 urlpatterns = [
+    path('transfers/market-status/', MarketStatusAPIView.as_view(), name='transfer-market-status'),
     path('transfers/market/', TransferMarketListView.as_view(), name='transfer-market'),
     path('transfers/list/', CreateListingView.as_view(), name='transfer-create-listing'),
     path('transfers/buy/', BuyPlayerDirectView.as_view(), name='transfer-buy-direct'),

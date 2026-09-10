@@ -138,3 +138,45 @@ def update_standings_and_rewards(sender, instance, **kwargs):
         # Mark as processed — prevent duplicate runs
         match.standings_processed = True
         match.save(update_fields=['standings_processed'])
+
+
+@receiver(post_save, sender=Match)
+def auto_advance_battle_royale_match(sender, instance, **kwargs):
+    """
+    Auto-advances winners and losers when a BATTLE_ROYALE match finishes.
+    """
+    if instance.status != 'FINISHED':
+        return
+    if not instance.tournament or instance.tournament.tournament_type != 'BATTLE_ROYALE':
+        return
+    if instance.standings_processed:
+        return
+    if not instance.home_team or not instance.away_team:
+        return
+
+    from .battle_royale_engine import advance_battle_royale_winner
+    try:
+        with transaction.atomic():
+            match = Match.objects.select_for_update().get(pk=instance.pk)
+            if match.standings_processed:
+                return
+
+            res = advance_battle_royale_winner(match)
+
+            match.standings_processed = True
+            match.save(update_fields=['standings_processed'])
+
+            # Broadcast update event if realtime is available
+            try:
+                from realtime.events import broadcast_global_event
+                broadcast_global_event('battle_royale_bracket_updated', {
+                    'tournament_id': match.tournament_id,
+                    'match_id': match.id,
+                    'result': res
+                })
+            except Exception:
+                pass
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[Signal] Battle Royale auto-advance failed for match {instance.id}: {e}")
+

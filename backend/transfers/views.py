@@ -13,6 +13,7 @@ from .services import (
     finalize_auction,
     auto_release_overflow_players
 )
+from .market_window import is_market_open_for_request, get_market_status_info
 
 
 class TransferMarketListView(generics.ListAPIView):
@@ -45,6 +46,10 @@ class CreateListingView(views.APIView):
     Lists a player for sale (fixed price or auction).
     """
     def post(self, request):
+        is_open, err_msg = is_market_open_for_request(request)
+        if not is_open:
+            return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
+
         if not hasattr(request.user, 'team') or request.user.team is None:
             return Response({'error': 'You must have a team to list players.'}, status=status.HTTP_403_FORBIDDEN)
         team_id = request.user.team.id
@@ -73,6 +78,10 @@ class BuyPlayerDirectView(views.APIView):
     Buys a listed player directly at the fixed asking price.
     """
     def post(self, request):
+        is_open, err_msg = is_market_open_for_request(request)
+        if not is_open:
+            return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
+
         if not hasattr(request.user, 'team') or request.user.team is None:
             return Response({'error': 'You must have a team to buy players.'}, status=status.HTTP_403_FORBIDDEN)
         buyer_team_id = request.user.team.id
@@ -99,6 +108,10 @@ class PlaceBidView(views.APIView):
     throttle_scope = 'transfer_bid'
     
     def post(self, request):
+        is_open, err_msg = is_market_open_for_request(request)
+        if not is_open:
+            return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
+
         if not hasattr(request.user, 'team') or request.user.team is None:
             return Response({'error': 'You must have a team to place bids.'}, status=status.HTTP_403_FORBIDDEN)
         bidder_team_id = request.user.team.id
@@ -174,6 +187,10 @@ def get_authenticated_user_team(request):
 
 class TransferOfferCreateView(views.APIView):
     def post(self, request):
+        is_open, err_msg = is_market_open_for_request(request)
+        if not is_open:
+            return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
+
         user_team = get_authenticated_user_team(request)
         if not user_team:
             return Response({'error': 'تیم شما مشخص نیست. لطفاً مجدداً وارد حساب کاربری خود شوید.'}, status=status.HTTP_403_FORBIDDEN)
@@ -654,4 +671,40 @@ class AdminRollbackTransferAPIView(views.APIView):
                 })
         except Exception as e:
             return Response({'error': f'خطای سیستمی در ابطال معامله: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class MarketStatusAPIView(views.APIView):
+    """
+    Returns current transfer market window status, mode, countdown timer, and schedule.
+    Admin can POST to update override mode or window open/close hours.
+    """
+    def get(self, request):
+        return Response(get_market_status_info(), status=status.HTTP_200_OK)
+
+    def post(self, request):
+        if not (request.user.is_staff or request.user.is_superuser or getattr(request.user, 'role', '') == 'admin'):
+            return Response({'error': 'دسترسی فقط برای ادمین مجاز است.'}, status=status.HTTP_403_FORBIDDEN)
+
+        from core.models import GlobalSettings
+        settings = GlobalSettings.objects.first()
+        if not settings:
+            settings = GlobalSettings.objects.create()
+
+        mode = request.data.get('mode')
+        if mode in ['AUTO', 'FORCE_OPEN', 'FORCE_CLOSED']:
+            settings.transfer_manual_override = mode
+        if 'open_hour' in request.data:
+            settings.transfer_window_open_hour = int(request.data['open_hour'])
+        if 'close_hour' in request.data:
+            settings.transfer_window_close_hour = int(request.data['close_hour'])
+        if 'feature_transfer_market' in request.data:
+            settings.feature_transfer_market = bool(request.data['feature_transfer_market'])
+
+        settings.save()
+        return Response({
+            'success': True,
+            'message': 'تنظیمات پنجره نقل‌وانتقالات با موفقیت به‌روزرسانی شد.',
+            'status': get_market_status_info()
+        }, status=status.HTTP_200_OK)
+
 

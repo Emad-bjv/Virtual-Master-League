@@ -145,6 +145,8 @@ export const transferApi = {
   getLogs: () => api.get('/transfers/logs/'),
   getAudit: (teamId) => api.get('/transfers/audit/', { params: teamId ? { team_id: teamId } : {} }),
   rollbackTransfer: (data) => api.post('/transfers/rollback/', data),
+  getMarketStatus: () => api.get('/transfers/market-status/'),
+  updateMarketStatus: (data) => api.post('/transfers/market-status/', data),
 };
 
 export const economyApi = {
@@ -228,6 +230,20 @@ export const adminApi = {
   manualEditStanding: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/standings/manual-edit/', data); },
   applyStandingPenalty: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/standings/apply-penalty/', data); },
   recalculateStandings: (data = {}) => { clearApiCache('/matches/'); return api.post('/matches/admin/standings/recalculate/', data); },
+
+  // Battle Royale Tournament Management
+  getBattleRoyaleTournaments: () => cachedGet('/matches/admin/battle-royale/', {}, 20000),
+  createBattleRoyale: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/battle-royale/', data); },
+  deleteBattleRoyale: (tournamentId) => { clearApiCache('/matches/'); return api.delete(`/matches/admin/battle-royale/${tournamentId}/`); },
+  resetBattleRoyale: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/battle-royale/reset/', data); },
+  getBattleRoyaleBracket: (tournamentId) => cachedGet(`/matches/admin/battle-royale/${tournamentId}/bracket/`, {}, 20000),
+  advanceBattleRoyaleWinner: (matchId, data = {}) => { clearApiCache('/matches/'); return api.post(`/matches/admin/battle-royale/${matchId}/advance/`, data); },
+};
+
+export const battleRoyaleApi = {
+  getActive: () => api.get('/matches/battle-royale/active/'),
+  getBracket: (tournamentId) => cachedGet(`/matches/battle-royale/${tournamentId}/bracket/`, {}, 20000),
+  getSchedule: (tournamentId) => cachedGet(`/matches/battle-royale/${tournamentId}/schedule/`, {}, 20000),
 };
 
 export const coreApi = {

@@ -1,10 +1,11 @@
 import React from 'react';
-import { Home, Users, Building2, ArrowLeftRight, ShoppingCart, Tv } from 'lucide-react';
+import { Home, Users, Building2, ArrowLeftRight, ShoppingCart, Tv, Swords } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const NAV_ITEMS = [
   { id: 'home', label: 'خانه', icon: Home, flag: null },
   { id: 'team', label: 'تیم', icon: Users, flag: null },
+  { id: 'battle_royale', label: 'نبرد رویال', icon: Swords, flag: null },
   { id: 'live', label: 'پخش زنده', icon: Tv, isLive: true, flag: 'feature_live_broadcast' },
   { id: 'club', label: 'باشگاه', icon: Building2, flag: 'feature_club_facilities' },
   { id: 'market', label: 'بازار', icon: ArrowLeftRight, flag: 'feature_transfer_market' },
@@ -18,7 +19,7 @@ export default function BottomNav({ activeTab, onTabChange, featureFlags = {} })
   });
 
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-6xl xl:max-w-7xl z-50 bg-[#080c14]/90 rounded-t-3xl sm:rounded-2xl border-t border-slate-700/60 px-3 pt-2 pb-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.85)]">
+    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-6xl xl:max-w-7xl z-50 bg-[#080c14]/90 rounded-t-3xl sm:rounded-2xl border-t border-slate-700/60 px-2 sm:px-3 pt-2 pb-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.85)]">
       <div className="flex items-center justify-around">
         {visibleNavItems.map((item) => {
 
@@ -29,7 +30,7 @@ export default function BottomNav({ activeTab, onTabChange, featureFlags = {} })
             <button
               key={item.id}
               onClick={() => onTabChange(item.id)}
-              className={`relative flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all duration-200 min-w-[50px] min-h-[50px] touch-manipulation group ${
+              className={`relative flex flex-col items-center justify-center py-1 sm:py-1.5 px-1 sm:px-2.5 rounded-2xl transition-all duration-200 min-w-[42px] sm:min-w-[50px] min-h-[48px] touch-manipulation group ${
                 isActive
                   ? 'text-cyan-400 font-black'
                   : 'text-slate-400 hover:text-slate-200'

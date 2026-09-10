@@ -20,11 +20,12 @@ class Tournament(models.Model):
     TYPES = [
         ('LEAGUE', 'لیگ'),
         ('CUP', 'جام حذفی'),
+        ('BATTLE_ROYALE', 'نبرد رویال'),
     ]
 
     name = models.CharField(max_length=100, verbose_name="نام تورنمنت")
     tournament_type = models.CharField(
-        max_length=10, choices=TYPES, default='LEAGUE', verbose_name="نوع مسابقات"
+        max_length=20, choices=TYPES, default='LEAGUE', verbose_name="نوع مسابقات"
     )
     season = models.ForeignKey(Season, on_delete=models.SET_NULL, null=True, blank=True, related_name="tournaments", verbose_name="فصل")
     is_active = models.BooleanField(default=True, verbose_name="فعال است؟")
@@ -104,6 +105,35 @@ class Match(models.Model):
     next_match = models.ForeignKey(
         'self', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='previous_matches', verbose_name="بازی بعدی (براکت)"
+    )
+    BRACKET_SIDE_CHOICES = [
+        ('', 'بدون براکت'),
+        ('WINNERS', 'براکت برنده‌ها'),
+        ('LOSERS', 'براکت بازنده‌ها'),
+        ('GRAND_FINAL', 'فینال بزرگ'),
+    ]
+    bracket_side = models.CharField(
+        max_length=15, choices=BRACKET_SIDE_CHOICES,
+        blank=True, default='', db_index=True,
+        verbose_name="سمت براکت"
+    )
+    loser_next_match = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='loser_previous_matches',
+        verbose_name="بازی بعدی بازنده (براکت بازنده‌ها)"
+    )
+    has_extra_time = models.BooleanField(
+        default=False,
+        verbose_name="وقت اضافه فعال؟",
+        help_text="فقط برای مراحل پایانی (LB-R3+, WB Semi+)"
+    )
+    bracket_round = models.PositiveIntegerField(
+        null=True, blank=True,
+        verbose_name="شماره دور در براکت"
+    )
+    is_reset_match = models.BooleanField(
+        default=False,
+        verbose_name="بازی ریست فینال بزرگ؟"
     )
     importance_multiplier = models.FloatField(
         default=1.0, verbose_name="ضریب اهمیت بازی",

@@ -8,8 +8,9 @@ import {
   Users, Zap, ShieldAlert, X, RotateCcw, SlidersHorizontal, Layers, Flame,
   Edit3, Scale, Gavel, FileEdit, Hash, HelpCircle, CheckSquare, Save
 } from 'lucide-react';
-import { adminApi, matchApi, teamApi, clearApiCache } from '../../services/api';
+import { adminApi, matchApi, teamApi, battleRoyaleApi, transferApi, clearApiCache } from '../../services/api';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
+import BattleRoyaleBracket from '../BattleRoyaleBracket';
 import axios from 'axios';
 
 const TIME_SLOT_PRESET_TEMPLATES = [
@@ -204,6 +205,27 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
   const [newCupTeamCount, setNewCupTeamCount] = useState(16);
   const [newCupDaysBetween, setNewCupDaysBetween] = useState(3);
 
+  // Battle Royale State
+  const [brTournamentsList, setBrTournamentsList] = useState([]);
+  const [selectedBrId, setSelectedBrId] = useState(null);
+  const [newBrName, setNewBrName] = useState('نبرد رویال مستر لیگ');
+  const [newBrStartDate, setNewBrStartDate] = useState(
+    new Date(Date.now() + 86400000).toISOString().split('T')[0]
+  );
+  const [newBrTeamCount, setNewBrTeamCount] = useState(16);
+  const [selectedBrTeamIds, setSelectedBrTeamIds] = useState([]);
+  const [brTeamSearch, setBrTeamSearch] = useState('');
+  const [brShuffleDraw, setBrShuffleDraw] = useState(true);
+  const [marketStatus, setMarketStatus] = useState(null);
+  const [brMatchEditModal, setBrMatchEditModal] = useState({
+    isOpen: false,
+    match: null,
+    homeScore: 0,
+    awayScore: 0,
+    homePenalties: '',
+    awayPenalties: '',
+  });
+
   // Sync State
   const [syncInterval, setSyncInterval] = useState(4);
 
@@ -346,7 +368,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
     }
     setLoading(true);
     try {
-      const [teamsRes, gwRes, matchesRes, cupsRes, standingsRes] = await Promise.all([
+      const [teamsRes, gwRes, matchesRes, cupsRes, standingsRes, brRes, marketRes] = await Promise.all([
         teamApi.getTeams().catch(async (err) => {
           console.warn('teamApi.getTeams failed, trying direct axios fallback:', err);
           try {
@@ -361,6 +383,8 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         adminApi.getMatches().catch(() => ({ data: [] })),
         adminApi.getCups().catch(() => ({ data: [] })),
         matchApi.getLeagueStandings().catch(() => ({ data: [] })),
+        adminApi.getBattleRoyaleTournaments().catch(() => ({ data: [] })),
+        transferApi.getMarketStatus().catch(() => ({ data: null })),
       ]);
 
       const rawTeams = Array.isArray(teamsRes.data) ? teamsRes.data : (teamsRes.data?.results || []);
@@ -375,6 +399,12 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         if (activeIds.length >= 4) return activeIds.slice(0, 4);
         return activeIds;
       });
+      setSelectedBrTeamIds(prev => {
+        if (prev.length > 0) return prev;
+        if (activeIds.length >= 16) return activeIds.slice(0, 16);
+        if (activeIds.length >= 8) return activeIds.slice(0, 8);
+        return activeIds;
+      });
 
       setGameweekStatus(gwRes.data || null);
       if (gwRes.data?.active_gameweek) {
@@ -382,6 +412,15 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
       }
       setLeagueMatches(matchesRes.data || []);
       setStandingsList(standingsRes.data || []);
+      if (marketRes?.data) {
+        setMarketStatus(marketRes.data);
+      }
+
+      const brList = brRes.data || [];
+      setBrTournamentsList(brList);
+      if (brList.length > 0) {
+        setSelectedBrId(prev => prev || brList[0].id);
+      }
       
       const cups = cupsRes.data || [];
       setCupsList(cups);
@@ -468,8 +507,17 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
     return foundRound?.matches || [];
   }, [cupBracketData, selectedCupStage]);
 
-  // Quick Team Selection Helpers
   const activeTeams = useMemo(() => (teams || []).filter(t => t.is_active !== false), [teams]);
+
+  const filteredBrTeams = useMemo(() => {
+    if (!brTeamSearch.trim()) return activeTeams;
+    const q = brTeamSearch.toLowerCase();
+    return (activeTeams || []).filter(
+      (t) =>
+        t.name?.toLowerCase().includes(q) ||
+        t.manager?.username?.toLowerCase().includes(q)
+    );
+  }, [activeTeams, brTeamSearch]);
 
   const handleToggleLeagueTeam = (teamId) => {
     setSelectedLeagueTeamIds(prev =>
@@ -510,6 +558,139 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
   const handleCopyLeagueTeamsToCup = () => {
     setSelectedCupTeamIds([...selectedLeagueTeamIds]);
     notify(`لیست ${selectedLeagueTeamIds.length} تیم منتخب لیگ با موفقیت در جام حذفی کپی شد.`, 'success');
+  };
+
+  // Battle Royale Team Selection Helpers
+  const handleToggleBrTeam = (teamId) => {
+    setSelectedBrTeamIds(prev =>
+      prev.includes(teamId) ? prev.filter(id => id !== teamId) : [...prev, teamId]
+    );
+  };
+
+  const handleSelectAllBrTeams = () => {
+    setSelectedBrTeamIds(activeTeams.map(t => t.id));
+  };
+
+  const handleDeselectAllBrTeams = () => {
+    setSelectedBrTeamIds([]);
+  };
+
+  const handleSelectTopBrTeams = (count) => {
+    setSelectedBrTeamIds(activeTeams.slice(0, count).map(t => t.id));
+  };
+
+  const handleCopyLeagueTeamsToBr = () => {
+    setSelectedBrTeamIds([...selectedLeagueTeamIds]);
+    notify(`لیست ${selectedLeagueTeamIds.length} تیم منتخب لیگ با موفقیت در نبرد رویال کپی شد.`, 'success');
+  };
+
+  const fetchBattleRoyaleData = async () => {
+    try {
+      const [brRes, marketRes] = await Promise.all([
+        adminApi.getBattleRoyaleTournaments().catch(() => ({ data: [] })),
+        transferApi.getMarketStatus().catch(() => ({ data: null })),
+      ]);
+      const list = brRes.data || [];
+      setBrTournamentsList(list);
+      if (list.length > 0 && !selectedBrId) {
+        setSelectedBrId(list[0].id);
+      }
+      if (marketRes?.data) {
+        setMarketStatus(marketRes.data);
+      }
+    } catch (e) {
+      console.warn('Failed to load Battle Royale data', e);
+    }
+  };
+
+  const handleGenerateBattleRoyale = async () => {
+    if (selectedBrTeamIds.length < 4 || !Number.isInteger(Math.log2(selectedBrTeamIds.length))) {
+      notify('تعداد تیم‌های نبرد رویال باید توانی از ۲ باشد (مثلاً ۸، ۱۶ یا ۳۲ تیم).', 'error');
+      return;
+    }
+    if (!window.confirm(`آیا از ایجاد مسابقات نبرد رویال با ${selectedBrTeamIds.length} تیم منتخب اطمینان دارید؟`)) {
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await adminApi.createBattleRoyale({
+        name: newBrName,
+        start_date: newBrStartDate,
+        team_ids: selectedBrTeamIds,
+        shuffle_draw: brShuffleDraw,
+      });
+      notify(res.data?.message || 'تورنمنت نبرد رویال با موفقیت ایجاد شد.', 'success');
+      await fetchBattleRoyaleData();
+      if (res.data?.tournament_id) {
+        setSelectedBrId(res.data.tournament_id);
+      }
+    } catch (err) {
+      notify(err.response?.data?.error || 'خطا در ایجاد مسابقات نبرد رویال', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleResetBattleRoyale = async () => {
+    if (!window.confirm('⚠️ آیا از پاکسازی و ریست کامل تمام مسابقات نبرد رویال اطمینان دارید؟ سیستم به صورت خام تحویل داده می‌شود.')) {
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const res = await adminApi.resetBattleRoyale({ tournament_id: selectedBrId });
+      notify(res.data?.message || 'مسابقات نبرد رویال با موفقیت پاکسازی شدند.', 'success');
+      setSelectedBrId(null);
+      await fetchBattleRoyaleData();
+    } catch (err) {
+      notify(err.response?.data?.error || 'خطا در پاکسازی نبرد رویال', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleUpdateMarketMode = async (mode) => {
+    setActionLoading(true);
+    try {
+      const res = await transferApi.updateMarketStatus({ mode });
+      notify(res.data?.message || 'تنظیمات پنجره نقل‌وانتقالات ذخیره شد.', 'success');
+      if (res.data?.status) setMarketStatus(res.data.status);
+    } catch (err) {
+      notify('خطا در به‌روزرسانی پنجره نقل‌وانتقالات', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleOpenBrMatchEdit = (match) => {
+    setBrMatchEditModal({
+      isOpen: true,
+      match,
+      homeScore: match.home_score || 0,
+      awayScore: match.away_score || 0,
+      homePenalties: match.home_penalties ?? '',
+      awayPenalties: match.away_penalties ?? '',
+    });
+  };
+
+  const handleSaveBrMatchAdvance = async () => {
+    if (!brMatchEditModal.match) return;
+    setActionLoading(true);
+    try {
+      const res = await adminApi.advanceBattleRoyaleWinner(brMatchEditModal.match.id, {
+        home_score: brMatchEditModal.homeScore,
+        away_score: brMatchEditModal.awayScore,
+        home_penalties: brMatchEditModal.homePenalties !== '' ? brMatchEditModal.homePenalties : null,
+        away_penalties: brMatchEditModal.awayPenalties !== '' ? brMatchEditModal.awayPenalties : null,
+      });
+      notify(res.data?.message || 'مسابقه با موفقیت پایان یافت و نتایج براکت اعمال شد.', 'success');
+      setBrMatchEditModal({ isOpen: false, match: null, homeScore: 0, awayScore: 0, homePenalties: '', awayPenalties: '' });
+      await fetchBattleRoyaleData();
+      window.dispatchEvent(new Event('battle_royale_bracket_updated'));
+    } catch (err) {
+      notify(err.response?.data?.error || 'خطا در صعود برنده مسابقه', 'error');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Handle Complete League Reset (Purge all fixtures and standings)
@@ -875,6 +1056,21 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
             >
               <Trophy className="w-4 h-4" />
               جام حذفی و براکت
+            </button>
+
+            <button
+              onClick={() => {
+                setHubTab('battle_royale');
+                fetchBattleRoyaleData();
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                hubTab === 'battle_royale'
+                  ? 'bg-gradient-to-r from-orange-600 via-amber-600 to-yellow-500 text-slate-950 font-black shadow-lg shadow-orange-600/30'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              <Flame className="w-4 h-4 text-orange-400" />
+              نبرد رویال (حذفی دوطرفه)
             </button>
 
             <button
@@ -2688,6 +2884,433 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
               هنوز هیچ تورنمنت جام حذفی فعالی ایجاد نشده است. از فرم بالا برای ایجاد اولین جام حذفی استفاده نمایید.
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB: BATTLE ROYALE (DOUBLE ELIMINATION) */}
+      {hubTab === 'battle_royale' && (
+        <div className="space-y-6">
+          {/* Transfer Market Quick Management Banner */}
+          <div className="bg-slate-900/90 border border-amber-500/20 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <ArrowLeftRight className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    مدیریت پنجره نقل‌وانتقالات تورنمنت
+                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                      marketStatus?.is_open
+                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                        : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+                    }`}>
+                      {marketStatus?.is_open ? 'هم‌اکنون باز' : 'هم‌اکنون بسته'}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {String(marketStatus?.message || 'قوانین: بازار در روزهای استراحت (شنبه و دوشنبه) از ساعت ۰۰:۰۰ تا ۱۸:۰۰ خودکار باز است.')}
+                  </p>
+                </div>
+              </div>
+
+              {/* Mode Switchers */}
+              <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handleUpdateMarketMode('AUTO')}
+                  disabled={actionLoading}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                    marketStatus?.mode === 'AUTO'
+                      ? 'bg-indigo-600 border-indigo-400 text-white shadow-md shadow-indigo-600/30'
+                      : 'bg-slate-950 border-white/10 text-gray-400 hover:text-white'
+                  }`}
+                  title="باز و بسته شدن خودکار طبق تقویم استراحت تورنمنت"
+                >
+                  ⚡ حالت خودکار (AUTO)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleUpdateMarketMode('FORCE_OPEN')}
+                  disabled={actionLoading}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                    marketStatus?.mode === 'FORCE_OPEN'
+                      ? 'bg-emerald-600 border-emerald-400 text-white shadow-md shadow-emerald-600/30'
+                      : 'bg-slate-950 border-white/10 text-gray-400 hover:text-white'
+                  }`}
+                  title="اجباراً باز کردن پنجره نقل و انتقالات"
+                >
+                  🔓 اجباراً باز (FORCE_OPEN)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleUpdateMarketMode('FORCE_CLOSED')}
+                  disabled={actionLoading}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                    marketStatus?.mode === 'FORCE_CLOSED'
+                      ? 'bg-rose-600 border-rose-400 text-white shadow-md shadow-rose-600/30'
+                      : 'bg-slate-950 border-white/10 text-gray-400 hover:text-white'
+                  }`}
+                  title="اجباراً بستن پنجره نقل و انتقالات"
+                >
+                  🔒 اجباراً بسته (FORCE_CLOSED)
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Generator Card */}
+          <div className="bg-slate-900/90 border border-white/10 rounded-3xl p-6 shadow-xl space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <Flame className="w-6 h-6 text-orange-400" />
+                <div>
+                  <h2 className="text-lg font-bold text-white">برگزاری و ایجاد تورنمنت نبرد رویال (حذفی دوطرفه)</h2>
+                  <p className="text-xs text-gray-400">Winners Bracket + Losers Bracket + فینال بزرگ با ریست براکت</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleResetBattleRoyale}
+                  disabled={actionLoading || brTournamentsList.length === 0}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-red-300 bg-red-950/50 hover:bg-red-900/60 border border-red-500/40 transition-all shadow-md shadow-red-950/40 disabled:opacity-40"
+                  title="پاکسازی کامل تمام مسابقات نبرد رویال و بازگرداندن سیستم به حالت خام"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>پاکسازی و ریست نبرد رویال</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleGenerateBattleRoyale}
+                  disabled={actionLoading}
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-orange-600 via-amber-600 to-yellow-600 hover:from-orange-500 hover:to-yellow-500 shadow-lg shadow-orange-600/30 transition-all disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${actionLoading ? 'animate-spin' : ''}`} />
+                  <span>تولید و ثبت مسابقات نبرد رویال</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Inputs Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-300 block mb-1.5">نام تورنمنت نبرد رویال</label>
+                <input
+                  type="text"
+                  value={newBrName}
+                  onChange={(e) => setNewBrName(e.target.value)}
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-300 block mb-1.5">تاریخ شروع مسابقات (میلادی)</label>
+                <input
+                  type="date"
+                  value={newBrStartDate}
+                  onChange={(e) => setNewBrStartDate(e.target.value)}
+                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-300 block mb-1.5">تعداد تیم‌های حاضر (توان ۲)</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[8, 16, 32].map((cnt) => (
+                    <button
+                      key={cnt}
+                      type="button"
+                      onClick={() => {
+                        setNewBrTeamCount(cnt);
+                        handleSelectTopBrTeams(cnt);
+                      }}
+                      className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                        newBrTeamCount === cnt
+                          ? 'bg-amber-600 border-amber-400 text-white shadow-md'
+                          : 'bg-slate-950 border-white/10 text-gray-400 hover:text-white'
+                      }`}
+                    >
+                      {cnt} تیم
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-300 block mb-1.5">قرعه‌کشی رسمی</label>
+                <label className="flex items-center gap-2 p-2.5 bg-slate-950 border border-white/10 rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={brShuffleDraw}
+                    onChange={(e) => setBrShuffleDraw(e.target.checked)}
+                    className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 bg-slate-900 border-white/20"
+                  />
+                  <span className="text-xs text-gray-200">قرعه‌کشی تصادفی (Shuffle Draw)</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Participating Teams Selector Grid */}
+            <div className="bg-slate-950/85 border border-amber-500/30 rounded-2xl p-4 sm:p-5 space-y-4 shadow-inner">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                      <span>انتخاب تیم‌های حاضر در نبرد رویال</span>
+                      <span className="text-[11px] font-black bg-amber-950 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded-full shadow-sm">
+                        {selectedBrTeamIds.length} از {newBrTeamCount} تیم منتخب
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
+                      {selectedBrTeamIds.length === newBrTeamCount ? (
+                        <span className="text-emerald-400 font-bold">
+                          ✓ تعداد تیم‌ها دقیقاً با ساختار براکت {newBrTeamCount} تیمی تطابق دارد.
+                        </span>
+                      ) : (
+                        <span className="text-amber-400 font-bold">
+                          ⚠️ لطفاً دقیقاً {newBrTeamCount} تیم برای تشکیل براکت متقارن انتخاب نمایید.
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Team Selection Action Buttons */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleCopyLeagueTeamsToBr}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-500/40 transition-all flex items-center gap-1"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>کپی از لیگ ({selectedLeagueTeamIds.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTopBrTeams(16)}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-500/30 transition-all"
+                  >
+                    ۱۶ تیم 🏆
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTopBrTeams(8)}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-orange-950/80 hover:bg-orange-900 text-orange-300 border border-orange-500/30 transition-all"
+                  >
+                    ۸ تیم ⭐
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSelectAllBrTeams}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-slate-300 border border-white/10 transition-all"
+                  >
+                    همه ({activeTeams.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeselectAllBrTeams}
+                    className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-white/10 transition-all"
+                  >
+                    لغو همه
+                  </button>
+                </div>
+              </div>
+
+              {/* Search Bar for Teams */}
+              {activeTeams.length > 8 && (
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="جستجوی نام تیم یا مربی..."
+                    value={brTeamSearch}
+                    onChange={(e) => setBrTeamSearch(e.target.value)}
+                    className="w-full bg-slate-900/90 border border-white/10 rounded-xl px-3.5 py-1.5 text-xs text-white placeholder:text-gray-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              )}
+
+              {/* Teams Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2.5 max-h-72 overflow-y-auto p-1 custom-scrollbar">
+                {(filteredBrTeams || []).map((team) => {
+                  const isSelected = selectedBrTeamIds.includes(team.id);
+                  return (
+                    <button
+                      key={team.id}
+                      type="button"
+                      onClick={() => handleToggleBrTeam(team.id)}
+                      className={`p-2.5 rounded-2xl border text-right transition-all flex flex-col items-center gap-1.5 ${
+                        isSelected
+                          ? 'bg-amber-950/60 border-amber-500/60 text-white shadow-md shadow-amber-950/40'
+                          : 'bg-slate-900/80 border-white/5 text-gray-400 hover:border-white/15'
+                      }`}
+                    >
+                      <div className="relative">
+                        <img
+                          src={getTeamLogoUrl(team.logo)}
+                          alt=""
+                          className="w-8 h-8 object-contain"
+                        />
+                        {isSelected && (
+                          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-400 flex items-center justify-center text-[9px] text-slate-950 font-black">
+                            ✓
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-[11px] font-bold truncate max-w-full text-center">
+                        {String(team.name || '')}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Existing Battle Royale Tournaments Selector */}
+          {brTournamentsList.length > 0 && (
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              <span className="text-xs font-bold text-gray-400 shrink-0">تورنمنت‌های نبرد رویال:</span>
+              {brTournamentsList.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setSelectedBrId(t.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all shrink-0 ${
+                    selectedBrId === t.id
+                      ? 'bg-amber-600 border-amber-400 text-white shadow-md'
+                      : 'bg-slate-900 border-white/10 text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {String(t.name || `تورنمنت #${t.id}`)}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Bracket Component Display */}
+          <div className="mt-4">
+            <BattleRoyaleBracket
+              tournamentId={selectedBrId}
+              isAdmin={true}
+              onMatchClick={handleOpenBrMatchEdit}
+            />
+          </div>
+
+          {/* Admin Match Edit & Manual Advance Modal (via createPortal) */}
+          {typeof document !== 'undefined' &&
+            createPortal(
+              <AnimatePresence>
+                {brMatchEditModal.isOpen && brMatchEditModal.match && (
+                  <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+                    <div
+                      className="fixed inset-0"
+                      onClick={() => setBrMatchEditModal({ isOpen: false, match: null, homeScore: 0, awayScore: 0, homePenalties: '', awayPenalties: '' })}
+                    />
+                    <motion.div
+                      initial={{ scale: 0.95, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.95, opacity: 0 }}
+                      className="relative z-10 bg-slate-950 border border-white/15 rounded-3xl w-full max-w-lg my-auto p-6 shadow-2xl space-y-5"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Flame className="w-5 h-5 text-amber-400" />
+                          <h4 className="text-base font-black text-white">
+                            کنترل داوری و صعود: {String(brMatchEditModal.match.round_name || '')}
+                          </h4>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setBrMatchEditModal({ isOpen: false, match: null, homeScore: 0, awayScore: 0, homePenalties: '', awayPenalties: '' })}
+                          className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      {/* Score Inputs Grid */}
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="p-3 bg-slate-900/90 rounded-2xl border border-white/10 text-center space-y-2">
+                            <span className="text-xs font-black text-white block truncate">
+                              {String(brMatchEditModal.match.home_team_name || 'میزبان (TBD)')}
+                            </span>
+                            <label className="text-[10px] text-gray-400 block">گل‌های بازی</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={brMatchEditModal.homeScore}
+                              onChange={(e) => setBrMatchEditModal(prev => ({ ...prev, homeScore: Number(e.target.value) }))}
+                              className="w-20 mx-auto text-center bg-slate-950 border border-white/20 rounded-xl py-1 text-lg font-mono font-black text-white"
+                            />
+                            <label className="text-[10px] text-amber-400 block pt-1">پنالتی (در صورت تساوی)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="-"
+                              value={brMatchEditModal.homePenalties}
+                              onChange={(e) => setBrMatchEditModal(prev => ({ ...prev, homePenalties: e.target.value }))}
+                              className="w-20 mx-auto text-center bg-slate-950 border border-amber-500/30 rounded-xl py-1 text-sm font-mono font-bold text-amber-300"
+                            />
+                          </div>
+
+                          <div className="p-3 bg-slate-900/90 rounded-2xl border border-white/10 text-center space-y-2">
+                            <span className="text-xs font-black text-white block truncate">
+                              {String(brMatchEditModal.match.away_team_name || 'میهمان (TBD)')}
+                            </span>
+                            <label className="text-[10px] text-gray-400 block">گل‌های بازی</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={brMatchEditModal.awayScore}
+                              onChange={(e) => setBrMatchEditModal(prev => ({ ...prev, awayScore: Number(e.target.value) }))}
+                              className="w-20 mx-auto text-center bg-slate-950 border border-white/20 rounded-xl py-1 text-lg font-mono font-black text-white"
+                            />
+                            <label className="text-[10px] text-amber-400 block pt-1">پنالتی (در صورت تساوی)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="-"
+                              value={brMatchEditModal.awayPenalties}
+                              onChange={(e) => setBrMatchEditModal(prev => ({ ...prev, awayPenalties: e.target.value }))}
+                              className="w-20 mx-auto text-center bg-slate-950 border border-amber-500/30 rounded-xl py-1 text-sm font-mono font-bold text-amber-300"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          type="button"
+                          onClick={handleSaveBrMatchAdvance}
+                          disabled={actionLoading}
+                          className="flex-1 py-2.5 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white rounded-xl text-xs font-black shadow-lg shadow-amber-600/30 transition-all cursor-pointer"
+                        >
+                          ثبت نتیجه و صعود خودکار برنده در براکت
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBrMatchEditModal({ isOpen: false, match: null, homeScore: 0, awayScore: 0, homePenalties: '', awayPenalties: '' })}
+                          className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-gray-300 rounded-xl text-xs font-bold transition-all"
+                        >
+                          انصراف
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>,
+              document.body
+            )}
         </div>
       )}
 

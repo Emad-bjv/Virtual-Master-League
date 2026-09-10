@@ -85,43 +85,48 @@ class TournamentAdmin(admin.ModelAdmin):
 @admin.register(Match)
 class MatchAdmin(admin.ModelAdmin):
     list_display = (
-        'tournament', 'round_name', 'home_team', 'home_score', 
-        'away_score', 'away_team', 'status', 'is_knockout'
+        'tournament', 'round_name', 'bracket_side', 'bracket_round',
+        'home_team', 'home_score', 'away_score', 'away_team', 'status', 'is_knockout'
     )
-    list_filter = ('status', 'tournament', 'is_knockout', 'fatigue_applied')
+    list_filter = ('status', 'tournament', 'is_knockout', 'bracket_side', 'has_extra_time', 'fatigue_applied')
     inlines = [MatchEventInline, PlayerMatchStatInline]
     actions = ['action_run_growth_evaluation', 'action_advance_winners']
     
     fieldsets = (
         ('اطلاعات پایه مسابقه', {
-            'fields': ('tournament', 'round_name', 'is_knockout', 'date', 'status', 'stream_url')
+            'fields': ('tournament', 'round_name', 'bracket_side', 'bracket_round', 'is_knockout', 'has_extra_time', 'is_reset_match', 'date', 'status', 'stream_url')
         }),
         ('تیم‌ها و نتیجه', {
             'fields': ('home_team', 'away_team', 'home_score', 'away_score')
         }),
-        ('ضربات پنالتی (جام حذفی)', {
-            'fields': ('home_penalties', 'away_penalties', 'next_match'),
+        ('ضربات پنالتی و لینک‌های براکت', {
+            'fields': ('home_penalties', 'away_penalties', 'next_match', 'loser_next_match'),
             'classes': ('collapse',),
-            'description': 'فقط در صورتی که مسابقه حذفی در وقت قانونی مساوی شود.'
+            'description': 'تنظیمات پنالتی و مسیر صعود/سقوط در براکت حذفی یا نبرد رویال.'
         }),
     )
 
-    @admin.action(description="صعود برنده‌ها به مرحله بعد (جام حذفی)")
+    @admin.action(description="صعود برنده‌ها به مرحله بعد (حذفی / نبرد رویال)")
     def action_advance_winners(self, request, queryset):
         from .cup_engine import advance_winner
+        from .battle_royale_engine import advance_battle_royale_winner
         
         processed = 0
         errors = 0
         
         for match in queryset:
-            result = advance_winner(match)
-            if result['success']:
+            if match.tournament and match.tournament.tournament_type == 'BATTLE_ROYALE':
+                result = advance_battle_royale_winner(match)
+            else:
+                result = advance_winner(match)
+
+            if result.get('success'):
                 processed += 1
                 if 'winner' in result:
                      messages.success(request, f"تیم {result['winner']} به مرحله بعد صعود کرد.")
             else:
                 errors += 1
-                messages.error(request, f"خطا در بازی {match}: {result['error']}")
+                messages.error(request, f"خطا در بازی {match}: {result.get('error')}")
                 
         if processed:
             messages.success(request, f"{processed} عملیات صعود با موفقیت انجام شد.")
