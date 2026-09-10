@@ -6,6 +6,7 @@ import {
   User, Sparkles, HeartPulse, Zap, X, DollarSign, Check, Edit3, ShieldCheck
 } from 'lucide-react';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
+import PackPlayerCard, { isPackPlayer, getPackTierConfig } from '../common/PackPlayerCard';
 import { playerApi } from '../../services/api';
 
 // Position colors matching authentic PES / eFootball UI
@@ -346,43 +347,68 @@ export default function PlayerOverallRecords({
                     >
                       {/* Player Col: Photo Thumbnail + Position Badge + Name */}
                       <td className="py-2.5 px-3.5">
-                        <div className="flex items-center gap-2.5">
-                          {/* Player Photo Frame */}
-                          <div className="w-8 h-9 rounded-lg overflow-hidden border border-slate-700 bg-slate-900 shrink-0 shadow-sm flex items-center justify-center relative">
-                            {photoUrl ? (
-                              <img
-                                src={photoUrl}
-                                alt={p.name}
-                                className="w-full h-full object-cover object-top"
-                                onError={(e) => {
-                                  e.target.onerror = null;
-                                  e.target.src = '/team-logos/default.png';
-                                }}
-                              />
-                            ) : (
-                              <User size={16} className="text-slate-400" />
-                            )}
-                          </div>
+                        {(() => {
+                          const isPack = isPackPlayer(p);
+                          const packConfig = isPack ? getPackTierConfig(p.pack_tier || p.rarity) : null;
 
-                          {/* Position Badge */}
-                          {(() => {
-                            const natPos = p.naturalPosition || p.position;
-                            const hasTacticalDiff = p.tacticalPosition && p.tacticalPosition !== natPos;
-                            return (
-                              <span 
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-black border tracking-wider shadow-sm shrink-0 min-w-[34px] text-center ${getPesPositionColor(natPos)}`}
-                                title={`پست اصلی: ${natPos}${hasTacticalDiff ? ` (پست در چمن: ${p.tacticalPosition})` : ''}`}
-                              >
-                                {natPos}
-                              </span>
-                            );
-                          })()}
+                          return (
+                            <div className="flex items-center gap-2.5">
+                              {/* Player Photo Frame */}
+                              <div className={`w-8 h-9 rounded-lg overflow-hidden shrink-0 shadow-sm flex items-center justify-center relative ${
+                                isPack ? `${packConfig.borderColor} border-2 ${packConfig.glowShadow} bg-slate-950` : 'border border-slate-700 bg-slate-900'
+                              }`}>
+                                {isPack && (
+                                  <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
+                                    <div
+                                      className="absolute -inset-[100%] w-[300%] h-[300%] bg-gradient-to-r from-transparent via-white/25 to-transparent rotate-45 animate-pulse"
+                                      style={{ animationDuration: '2.5s' }}
+                                    />
+                                  </div>
+                                )}
+                                {photoUrl ? (
+                                  <img
+                                    src={photoUrl}
+                                    alt={p.name}
+                                    className="w-full h-full object-cover object-top"
+                                    onError={(e) => {
+                                      e.target.onerror = null;
+                                      e.target.src = '/team-logos/default.png';
+                                    }}
+                                  />
+                                ) : (
+                                  <User size={16} className="text-slate-400" />
+                                )}
+                              </div>
 
-                          {/* Player Name */}
-                          <span className="font-extrabold text-[12.5px] sm:text-[13px] tracking-tight truncate max-w-[150px] sm:max-w-[210px]">
-                            {p.name}
-                          </span>
-                        </div>
+                              {/* Position Badge */}
+                              {(() => {
+                                const natPos = p.naturalPosition || p.position;
+                                const hasTacticalDiff = p.tacticalPosition && p.tacticalPosition !== natPos;
+                                return (
+                                  <span 
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-black border tracking-wider shadow-sm shrink-0 min-w-[34px] text-center ${getPesPositionColor(natPos)}`}
+                                    title={`پست اصلی: ${natPos}${hasTacticalDiff ? ` (پست در چمن: ${p.tacticalPosition})` : ''}`}
+                                  >
+                                    {natPos}
+                                  </span>
+                                );
+                              })()}
+
+                              {/* Player Name + Optional Pack Badge */}
+                              <div className="flex items-center gap-1.5 truncate max-w-[150px] sm:max-w-[210px]">
+                                <span className={`font-extrabold text-[12.5px] sm:text-[13px] tracking-tight truncate ${isPack ? 'text-amber-900 drop-shadow-sm' : ''}`}>
+                                  {p.name}
+                                </span>
+                                {isPack && (
+                                  <span className={`text-[8px] font-sport font-black px-1.5 py-0.2 rounded-full shadow-sm shrink-0 flex items-center gap-0.5 ${packConfig.badgeBg}`}>
+                                    <span>✨</span>
+                                    <span>{packConfig.badgeName}</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Appearances */}
@@ -505,6 +531,17 @@ export default function PlayerOverallRecords({
                   <X size={20} />
                 </button>
               </div>
+
+              {/* Special Pack Player Card Showcase */}
+              {isPackPlayer(selectedPlayer) && (
+                <div className="flex flex-col items-center justify-center p-3 bg-gradient-to-b from-slate-900/90 via-slate-950 to-slate-900/90 rounded-2xl border border-amber-500/30 shadow-xl">
+                  <div className="text-[11px] font-black text-amber-300 mb-2 flex items-center gap-1.5 font-sport">
+                    <Sparkles size={13} className="text-amber-400" />
+                    <span>کارت رسمی التیمیت استخراج‌شده از پک‌های فروشگاه</span>
+                  </div>
+                  <PackPlayerCard player={selectedPlayer} size="md" interactive={false} />
+                </div>
+              )}
 
               {/* Tournament Stat Breakdown (Overall, League, Cup, Friendly) */}
               <div className="space-y-2 text-xs">

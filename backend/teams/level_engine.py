@@ -705,6 +705,8 @@ def admin_get_pes_skills_overview(team_id: int = None) -> dict:
                 'pes_ovr_applied': pes_ovr_applied,
                 'shirt_number': p.shirt_number,
                 'photo_url': custom_photo_url,
+                'is_from_pack': ('packs/' in (custom_photo_url or '')) or (hasattr(p, 'from_pack_session') and p.from_pack_session.exists()),
+                'pack_tier': p.rarity if p.rarity in ['LEGENDARY', 'EPIC', 'RARE'] else 'LEGENDARY',
                 'has_pending': has_pending,
                 'pending_count': player_pending_count,
                 'pending_ovr_count': pending_ovr_count,

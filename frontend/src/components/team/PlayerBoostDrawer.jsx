@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronUp, Layers, Flame, Target, ShieldCheck, Clock
 } from 'lucide-react';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
+import { isPackPlayer, getPackTierConfig } from '../common/PackPlayerCard';
 import { playerApi } from '../../services/api';
 
 const POSITION_COLORS = {
@@ -269,17 +270,33 @@ export default function PlayerBoostDrawer({
                   const isSuspended = Boolean((player.suspension_matches > 0) || player.is_suspended);
                   const natPos = (player.naturalPosition || player.position || 'CMF').toUpperCase();
                   const photo = getPlayerPhotoUrl(player);
+                  const isPack = isPackPlayer(player);
+                  const packConfig = isPack ? getPackTierConfig(player.pack_tier || player.rarity) : null;
                   const isLoading = actionLoading === player.id || actionLoading === player.id.toString();
 
                   return (
                     <div
                       key={player.id}
-                      className="p-3.5 rounded-2xl bg-gradient-to-r from-[#0c1424] via-[#090f1c] to-[#060a14] border border-slate-700/60 hover:border-purple-500/50 transition-all shadow-md space-y-3 group"
+                      className={`p-3.5 rounded-2xl transition-all shadow-md space-y-3 group ${
+                        isPack
+                          ? `bg-gradient-to-r from-[#111827] via-[#0b1020] to-[#070b14] border-2 ${packConfig.borderColor} ${packConfig.glowShadow} hover:scale-[1.01]`
+                          : 'bg-gradient-to-r from-[#0c1424] via-[#090f1c] to-[#060a14] border border-slate-700/60 hover:border-purple-500/50'
+                      }`}
                     >
                       {/* Top Row: Photo + Name + OVR Evolution */}
                       <div className="flex items-center justify-between gap-2.5">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-12 h-14 rounded-xl overflow-hidden bg-slate-900 border border-slate-700 shrink-0 relative flex items-center justify-center shadow-inner">
+                          <div className={`w-12 h-14 rounded-xl overflow-hidden shrink-0 relative flex items-center justify-center shadow-inner ${
+                            isPack ? `bg-slate-950 border-2 ${packConfig.borderColor} ${packConfig.glowShadow}` : 'bg-slate-900 border border-slate-700'
+                          }`}>
+                            {isPack && (
+                              <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
+                                <div
+                                  className="absolute -inset-[100%] w-[300%] h-[300%] bg-gradient-to-r from-transparent via-white/20 to-transparent rotate-45 animate-pulse"
+                                  style={{ animationDuration: '2.5s' }}
+                                />
+                              </div>
+                            )}
                             {photo ? (
                               <img
                                 src={photo}
@@ -302,9 +319,15 @@ export default function PlayerBoostDrawer({
                               <span className={`text-[9px] font-black px-1.5 py-0.2 rounded shadow ${POSITION_COLORS[natPos] || 'bg-purple-600 text-white'}`}>
                                 {natPos}
                               </span>
-                              <h3 className="text-xs sm:text-sm font-black text-white font-sans truncate">
+                              <h3 className={`text-xs sm:text-sm font-black font-sans truncate ${isPack ? packConfig.accentText : 'text-white'}`}>
                                 {player.name}
                               </h3>
+                              {isPack && (
+                                <span className={`text-[8px] font-sport font-black px-1.5 py-0.2 rounded-full shadow-sm flex items-center gap-0.5 ${packConfig.badgeBg}`}>
+                                  <span>✨</span>
+                                  <span>{packConfig.badgeName}</span>
+                                </span>
+                              )}
                               {player.is_starting && (
                                 <span className="text-[9px] bg-emerald-950 text-[#00ff87] px-1.5 py-0.2 rounded font-black border border-emerald-500/30">
                                   ترکیب اصلی
@@ -318,7 +341,11 @@ export default function PlayerBoostDrawer({
                         <div className="text-left font-sport shrink-0">
                           <div className="text-[10px] text-slate-400">قدرت کلی:</div>
                           <div className="flex items-center gap-1 text-sm font-black">
-                            <span className="text-amber-300 bg-amber-950/80 px-2.5 py-0.5 rounded-lg border border-amber-500/40">
+                            <span className={`px-2.5 py-0.5 rounded-lg border ${
+                              isPack
+                                ? `${packConfig.accentText} bg-slate-950 border ${packConfig.borderColor} ${packConfig.glowShadow}`
+                                : 'text-amber-300 bg-amber-950/80 border-amber-500/40'
+                            }`}>
                               {player.overall}
                             </span>
                           </div>

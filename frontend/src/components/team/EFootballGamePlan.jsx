@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import CustomSelect from '../common/CustomSelect';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
+import { isPackPlayer, getPackTierConfig } from '../common/PackPlayerCard';
 import { playerApi } from '../../services/api';
 import { useTeam } from '../../context/TeamContext';
 import ConfirmModal from '../common/ConfirmModal';
@@ -1358,6 +1359,8 @@ export default function EFootballGamePlan({
                   : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]';
 
               const photoUrl = getPlayerPhotoUrl(player);
+              const isPack = isPackPlayer(player);
+              const packConfig = isPack ? getPackTierConfig(player.pack_tier || player.rarity) : null;
 
               return (
                 <motion.div
@@ -1481,6 +1484,16 @@ export default function EFootballGamePlan({
                       </span>
                     )}
 
+                    {/* Pack Player Special Sparkle Indicator */}
+                    {isPack && !isOutOfPosition && !hasStarRating && (
+                      <span
+                        className="absolute -top-1.5 -left-1.5 z-40 text-[11px] sm:text-[13px] drop-shadow-[0_0_8px_rgba(245,158,11,0.9)] pointer-events-none animate-pulse"
+                        title={`بازیکن ویژه استخراج‌شده از ${packConfig?.name || 'پک التیمیت'} ✨`}
+                      >
+                        ✨
+                      </span>
+                    )}
+
                     {/* Out of Position Warning Badge */}
                     {isOutOfPosition && (
                       <span
@@ -1518,8 +1531,20 @@ export default function EFootballGamePlan({
                         ? 'border-cyan-400 bg-cyan-900/70 ring-2 ring-cyan-400 shadow-[0_0_20px_rgba(0,243,255,0.6)]'
                         : ((isLiveMode || isAdminMode) && (player.in_match_goals || player.goals) > 0)
                         ? 'border-emerald-400 ring-2 ring-emerald-400/60 bg-emerald-950/80'
+                        : isPack
+                        ? `${packConfig.borderColor} ${packConfig.ringColor} ring-2 ${packConfig.glowShadow} bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950`
                         : 'border-slate-400/60 bg-gradient-to-b from-[#0d162a] to-[#05080e] group-hover:border-cyan-400 group-hover:shadow-[0_0_15px_rgba(0,243,255,0.4)]'
                     }`}>
+                      {/* Holographic sweep sheen for pack players */}
+                      {isPack && (
+                        <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
+                          <div
+                            className="absolute -inset-[100%] w-[300%] h-[300%] bg-gradient-to-r from-transparent via-white/25 to-transparent rotate-45 animate-pulse"
+                            style={{ animationDuration: '2.5s' }}
+                          />
+                        </div>
+                      )}
+
                       {photoUrl ? (
                         <img
                           src={photoUrl}
@@ -1637,13 +1662,21 @@ export default function EFootballGamePlan({
                     >
                       {posCode}
                     </span>
-                    <span className="text-[9px] sm:text-[10.5px] md:text-xs font-black text-amber-300 bg-amber-950/90 border border-amber-400/50 px-0.5 sm:px-1 rounded-md drop-shadow font-sport tracking-wide">
+                    <span className={`text-[9px] sm:text-[10.5px] md:text-xs font-black px-0.5 sm:px-1 rounded-md drop-shadow font-sport tracking-wide ${
+                      isPack
+                        ? `${packConfig.accentText} bg-slate-950/95 border ${packConfig.borderColor} ${packConfig.glowShadow}`
+                        : 'text-amber-300 bg-amber-950/90 border border-amber-400/50'
+                    }`}>
                       {player.overall}
                     </span>
                   </div>
 
                   {/* Player Name Tag */}
-                  <span className="text-[7.5px] sm:text-[8.5px] md:text-[10px] font-black text-white tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] text-center whitespace-nowrap leading-none mt-0.5 max-w-[60px] sm:max-w-[74px] md:max-w-[90px] truncate bg-[#05080e]/85 px-1 sm:px-1.5 py-0.5 rounded-md border border-white/10">
+                  <span className={`text-[7.5px] sm:text-[8.5px] md:text-[10px] font-black tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] text-center whitespace-nowrap leading-none mt-0.5 max-w-[60px] sm:max-w-[74px] md:max-w-[90px] truncate px-1 sm:px-1.5 py-0.5 rounded-md border ${
+                    isPack
+                      ? `${packConfig.accentText} bg-[#05080e]/95 border-amber-400/60 shadow-[0_0_8px_rgba(245,158,11,0.3)]`
+                      : 'text-white bg-[#05080e]/85 border-white/10'
+                  }`}>
                     {player.isCaptain && (
                       <span className="bg-amber-400 text-black font-black text-[6.5px] sm:text-[7.5px] px-0.5 ml-0.5 rounded">
                         C
@@ -1802,6 +1835,8 @@ export default function EFootballGamePlan({
                 const isDimmed = !selectedBenchPlayerId && Boolean(targetPos && !isSelected && !isPosMatch);
                 const isOut = sub.isSubbedOut;
                 const isSuspended = Boolean((sub.suspension_matches > 0) || sub.is_suspended || sub.isSuspended);
+                const isSubPack = isPackPlayer(sub);
+                const subPackConfig = isSubPack ? getPackTierConfig(sub.pack_tier || sub.rarity) : null;
                 const subStamina = Math.max(5, Math.min(100, Math.round(Number(sub.stamina ?? sub.virtual_stamina ?? 90))));
                 const subStaminaColor =
                   subStamina >= 80
@@ -1827,6 +1862,8 @@ export default function EFootballGamePlan({
                         ? 'bg-emerald-950/70 border-2 border-emerald-400 scale-105 shadow-[0_0_15px_rgba(52,211,153,0.5)] ring-2 ring-emerald-400'
                         : isSelected
                         ? 'bg-gradient-to-r from-cyan-950 to-purple-950 border-2 border-cyan-400 scale-105 shadow-[0_0_15px_rgba(0,243,255,0.4)] ring-2 ring-cyan-400'
+                        : isSubPack
+                        ? `bg-gradient-to-b from-[#111827] via-[#0b1020] to-[#070b14] border-2 ${subPackConfig.borderColor} ${subPackConfig.glowShadow} hover:scale-105`
                         : 'bg-[#0f172a]/80 border-slate-700/60 hover:border-cyan-400/60 hover:bg-slate-800'
                     }`}
                   >
@@ -1916,6 +1953,11 @@ export default function EFootballGamePlan({
                         ⭐
                       </span>
                     )}
+                    {isSubPack && !isPosMatch && (
+                      <span className="absolute top-1 left-1 text-amber-300 text-[11px] drop-shadow-[0_0_6px_#f59e0b] z-20 animate-pulse pointer-events-none" title={`بازیکن ویژه استخراج‌شده از ${subPackConfig.name}`}>
+                        ✨
+                      </span>
+                    )}
                     {isSuspended && (
                       <span className="absolute top-1 right-1 text-[7px] font-black bg-red-600 text-white px-1 py-0.2 rounded-full flex items-center gap-0.5 shadow z-10 font-sport">
                         🟥 محروم
@@ -1932,7 +1974,18 @@ export default function EFootballGamePlan({
                       </span>
                     )}
 
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center border border-slate-600 mb-1 bg-[#05080e] relative overflow-hidden shadow-inner">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1 bg-[#05080e] relative overflow-hidden shadow-inner ${
+                      isSubPack ? `${subPackConfig.borderColor} border-2 ${subPackConfig.glowShadow}` : 'border border-slate-600'
+                    }`}>
+                      {/* Holographic sweep sheen */}
+                      {isSubPack && (
+                        <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
+                          <div
+                            className="absolute -inset-[100%] w-[300%] h-[300%] bg-gradient-to-r from-transparent via-white/20 to-transparent rotate-45 animate-pulse"
+                            style={{ animationDuration: '2.5s' }}
+                          />
+                        </div>
+                      )}
                       {getPlayerPhotoUrl(sub) ? (
                         <img
                           src={getPlayerPhotoUrl(sub)}
@@ -1952,7 +2005,9 @@ export default function EFootballGamePlan({
                       )}
                     </div>
 
-                    <span className={`font-black text-[9px] leading-tight w-full truncate max-w-[70px] ${isOut ? 'line-through text-slate-400' : 'text-white'}`}>
+                    <span className={`font-black text-[9px] leading-tight w-full truncate max-w-[70px] ${
+                      isOut ? 'line-through text-slate-400' : isSubPack ? `${subPackConfig.accentText} drop-shadow` : 'text-white'
+                    }`}>
                       {sub.name}
                     </span>
 
@@ -1962,7 +2017,9 @@ export default function EFootballGamePlan({
                       >
                         {natPos}
                       </span>
-                      <span className="font-sport text-[10.5px] font-black text-amber-300">{sub.overall}</span>
+                      <span className={`font-sport text-[10.5px] font-black ${isSubPack ? subPackConfig.accentText : 'text-amber-300'}`}>
+                        {sub.overall}
+                      </span>
                     </div>
 
                     {/* FotMob Style Badges for Sub */}
@@ -2026,6 +2083,8 @@ export default function EFootballGamePlan({
                     const isExactMatch = Boolean(targetPos && isPlayerExactPosition(res, targetPos));
                     const isDimmed = !selectedBenchPlayerId && Boolean(targetPos && !isSelected && !isPosMatch);
                     const isSuspended = Boolean((res.suspension_matches > 0) || res.is_suspended || res.isSuspended);
+                    const isResPack = isPackPlayer(res);
+                    const resPackConfig = isResPack ? getPackTierConfig(res.pack_tier || res.rarity) : null;
                     const resStamina = Math.max(5, Math.min(100, Math.round(Number(res.stamina ?? res.virtual_stamina ?? 90))));
 
                     return (
@@ -2041,6 +2100,8 @@ export default function EFootballGamePlan({
                             ? 'bg-emerald-950/70 border-2 border-emerald-400 shadow-lg ring-2 ring-emerald-400 scale-[1.02]'
                             : isSelected
                             ? 'bg-cyan-950/80 border-2 border-cyan-400 shadow-lg ring-2 ring-cyan-400 animate-pulse'
+                            : isResPack
+                            ? `bg-gradient-to-r from-[#111827] via-[#0b1020] to-[#070b14] border-2 ${resPackConfig.borderColor} ${resPackConfig.glowShadow} text-white`
                             : 'bg-slate-950/70 border-slate-800 hover:border-slate-600 text-slate-300'
                         }`}
                       >
@@ -2048,6 +2109,11 @@ export default function EFootballGamePlan({
                           {isPosMatch && (
                             <span className="text-amber-300 text-[12px] drop-shadow-[0_0_6px_#f59e0b] animate-bounce pointer-events-none" title={isExactMatch ? 'پست تخصصی اصلی ⭐' : 'پست سازگار و قابل بازی ⭐'}>
                               ⭐
+                            </span>
+                          )}
+                          {isResPack && !isPosMatch && (
+                            <span className="text-amber-300 text-[10px] animate-pulse pointer-events-none" title={`بازیکن ویژه استخراج‌شده از ${resPackConfig.name}`}>
+                              ✨
                             </span>
                           )}
                           {isSuspended && (
@@ -2060,7 +2126,9 @@ export default function EFootballGamePlan({
                               🩹
                             </span>
                           )}
-                          <div className="w-6 h-6 rounded-lg flex items-center justify-center border border-slate-700 bg-[#05080e] relative overflow-hidden shrink-0 shadow-inner">
+                          <div className={`w-6 h-6 rounded-lg flex items-center justify-center bg-[#05080e] relative overflow-hidden shrink-0 shadow-inner ${
+                            isResPack ? `${resPackConfig.borderColor} border` : 'border border-slate-700'
+                          }`}>
                             {getPlayerPhotoUrl(res) ? (
                               <img
                                 src={getPlayerPhotoUrl(res)}
@@ -2082,11 +2150,11 @@ export default function EFootballGamePlan({
                           >
                             {natPos}
                           </span>
-                          <span className="font-bold text-[10px] sm:text-[11px] truncate max-w-[90px]">{res.name}</span>
+                          <span className={`font-bold text-[10px] sm:text-[11px] truncate max-w-[90px] ${isResPack ? resPackConfig.accentText : ''}`}>{res.name}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-[9px] font-sport text-cyan-300 font-bold">{resStamina}%</span>
-                          <span className="font-sport text-[11px] font-black text-amber-300">{res.overall}</span>
+                          <span className={`font-sport text-[11px] font-black ${isResPack ? resPackConfig.accentText : 'text-amber-300'}`}>{res.overall}</span>
                         </div>
                       </div>
                     );

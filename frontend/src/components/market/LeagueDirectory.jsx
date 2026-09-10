@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { transferApi } from '../../services/api';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
+import { isPackPlayer, getPackTierConfig } from '../common/PackPlayerCard';
 import StarRating from '../common/StarRating';
 import Pagination from '../common/Pagination';
 
@@ -496,25 +497,35 @@ export default function LeagueDirectory({ currentTeamId, onPlayerSelect }) {
                 const estValue = Number(player.market_value || (player.wage || 100) * 50);
                 const potGap = (player.potential_ovr || player.overall) - player.overall;
                 const isHighPotential = (player.potential_ovr || 0) >= 90;
+                const isPack = isPackPlayer(player);
+                const packConfig = isPack ? getPackTierConfig(player.pack_tier || player.rarity) : null;
 
                 return (
                   <motion.div
                     key={player.id}
                     whileHover={{ scale: 1.02, y: -2 }}
                     className={`p-3 rounded-2xl border transition-all shadow-md flex flex-col justify-between gap-2.5 group ${
-                      player.rarity === 'LEGENDARY'
+                      isPack
+                        ? `border-2 ${packConfig.borderColor} ${packConfig.glowShadow} bg-gradient-to-b from-[#111827] via-[#0b1020] to-[#070b14] hover:scale-[1.03]`
+                        : player.rarity === 'LEGENDARY'
                         ? 'border-amber-500/40 bg-gradient-to-b from-[#141208] via-[#0d162a] to-[#05080e] hover:border-amber-400'
                         : player.rarity === 'EPIC'
                         ? 'border-purple-500/40 bg-gradient-to-b from-[#12081c] via-[#0d162a] to-[#05080e] hover:border-purple-400'
                         : 'border-slate-700/60 bg-gradient-to-b from-[#080c14] via-[#0a0f1e] to-[#05080e] hover:border-cyan-400/60'
                     }`}
                   >
-                    {/* Top Row: OVR, Position, Shirt #, Starter */}
+                    {/* Top Row: OVR, Position, Shirt #, Starter, Pack Badge */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className={`text-[11px] font-sport font-black px-2 py-0.5 rounded-lg border ${posStyle}`}>
                           {player.position}
                         </span>
+                        {isPack && (
+                          <span className={`text-[8.5px] font-sport font-black px-1.5 py-0.2 rounded-full shadow-sm flex items-center gap-0.5 ${packConfig.badgeBg}`}>
+                            <span>✨</span>
+                            <span>{packConfig.badgeName}</span>
+                          </span>
+                        )}
                         {player.shirt_number != null && (
                           <span className="text-[10px] font-sport font-black text-slate-400 bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-800">
                             #{player.shirt_number}
@@ -543,7 +554,11 @@ export default function LeagueDirectory({ currentTeamId, onPlayerSelect }) {
                             POT {player.potential_ovr || player.overall}
                           </span>
                         )}
-                        <div className={`w-8 h-8 rounded-xl bg-gradient-to-tr ${ovrColor} flex items-center justify-center font-sport font-black text-xs shrink-0`}>
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-sport font-black text-xs shrink-0 ${
+                          isPack
+                            ? `${packConfig.borderColor} border-2 ${packConfig.accentText} bg-slate-950 ${packConfig.glowShadow}`
+                            : `bg-gradient-to-tr ${ovrColor}`
+                        }`}>
                           {player.overall}
                         </div>
                       </div>
@@ -551,7 +566,19 @@ export default function LeagueDirectory({ currentTeamId, onPlayerSelect }) {
 
                     {/* Middle Row: Player Portrait Photo, Name & Details */}
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-14 rounded-2xl overflow-hidden border border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e] shrink-0 flex items-center justify-center relative shadow-inner">
+                      <div className={`w-12 h-14 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner ${
+                        isPack
+                          ? `border-2 ${packConfig.borderColor} ${packConfig.glowShadow} bg-slate-950`
+                          : 'border border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e]'
+                      }`}>
+                        {isPack && (
+                          <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
+                            <div
+                              className="absolute -inset-[100%] w-[300%] h-[300%] bg-gradient-to-r from-transparent via-white/20 to-transparent rotate-45 animate-pulse"
+                              style={{ animationDuration: '2.5s' }}
+                            />
+                          </div>
+                        )}
                         {getPlayerPhotoUrl(player) ? (
                           <img
                             src={getPlayerPhotoUrl(player)}
@@ -566,7 +593,9 @@ export default function LeagueDirectory({ currentTeamId, onPlayerSelect }) {
                         )}
                       </div>
                       <div className="space-y-0.5 truncate flex-1">
-                        <h4 className="text-xs sm:text-sm font-black text-white truncate group-hover:text-cyan-300 transition-colors">
+                        <h4 className={`text-xs sm:text-sm font-black truncate transition-colors ${
+                          isPack ? `${packConfig.accentText} drop-shadow` : 'text-white group-hover:text-cyan-300'
+                        }`}>
                           {player.name}
                         </h4>
                         <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400 font-sport">

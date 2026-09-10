@@ -4,6 +4,7 @@ import { History, User, Sparkles, UserPlus, FileText, Search } from 'lucide-reac
 import { motion, AnimatePresence } from 'framer-motion';
 import { transferApi } from '../../services/api';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
+import { isPackPlayer, getPackTierConfig } from '../common/PackPlayerCard';
 import Toast from '../common/Toast';
 import LeagueDirectory from './LeagueDirectory';
 import PlayerProfileModal from './PlayerProfileModal';
@@ -238,15 +239,32 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {paginatedFreeAgents.map((p) => {
                       const estValue = Number(p.market_value || (p.wage ? p.wage * 50 : 1000000));
+                      const isPack = isPackPlayer(p);
+                      const packConfig = isPack ? getPackTierConfig(p.pack_tier || p.rarity) : null;
+
                       return (
                         <div
                           key={p.id}
-                          className="flex flex-col justify-between p-3 rounded-2xl border border-slate-700/60 bg-gradient-to-b from-[#080c14] via-[#0d162a] to-[#05080e] hover:border-cyan-400/60 transition-all shadow-md gap-3"
+                          className={`flex flex-col justify-between p-3 rounded-2xl transition-all shadow-md gap-3 ${
+                            isPack
+                              ? `border-2 ${packConfig.borderColor} ${packConfig.glowShadow} bg-gradient-to-b from-[#111827] via-[#0b1020] to-[#070b14] hover:scale-[1.02]`
+                              : 'border border-slate-700/60 bg-gradient-to-b from-[#080c14] via-[#0d162a] to-[#05080e] hover:border-cyan-400/60'
+                          }`}
                         >
                           {/* Top: Photo, Details, Badges */}
                           <div className="flex items-center gap-3">
                             {/* Portrait Photo */}
-                            <div className="w-13 h-15 rounded-2xl overflow-hidden border border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e] shrink-0 flex items-center justify-center relative shadow-inner">
+                            <div className={`w-13 h-15 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner ${
+                              isPack ? `border-2 ${packConfig.borderColor} ${packConfig.glowShadow} bg-slate-950` : 'border border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e]'
+                            }`}>
+                              {isPack && (
+                                <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
+                                  <div
+                                    className="absolute -inset-[100%] w-[300%] h-[300%] bg-gradient-to-r from-transparent via-white/20 to-transparent rotate-45 animate-pulse"
+                                    style={{ animationDuration: '2.5s' }}
+                                  />
+                                </div>
+                              )}
                               {getPlayerPhotoUrl(p) ? (
                                 <img
                                   src={getPlayerPhotoUrl(p)}
@@ -263,20 +281,28 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
 
                             {/* Info */}
                             <div className="space-y-0.5 truncate flex-1 font-sport">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="text-[10px] font-black text-emerald-300 bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-500/40">
                                   {p.position}
                                 </span>
-                                <span className="text-[10px] font-black text-amber-300 bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-500/40">
+                                <span className={`text-[10px] font-black px-1.5 py-0.2 rounded border ${
+                                  isPack ? `${packConfig.accentText} bg-slate-950 border ${packConfig.borderColor}` : 'text-amber-300 bg-amber-950/80 border-amber-500/40'
+                                }`}>
                                   OVR {p.overall}
                                 </span>
+                                {isPack && (
+                                  <span className={`text-[8.5px] font-sport font-black px-1.5 py-0.2 rounded-full shadow-sm flex items-center gap-0.5 ${packConfig.badgeBg}`}>
+                                    <span>✨</span>
+                                    <span>{packConfig.badgeName}</span>
+                                  </span>
+                                )}
                                 {p.potential_ovr && p.potential_ovr > p.overall && (
                                   <span className="text-[9.5px] font-black text-cyan-300 bg-cyan-950/80 px-1.5 py-0.2 rounded border border-cyan-500/40">
                                     POT {p.potential_ovr}
                                   </span>
                                 )}
                               </div>
-                              <h4 className="text-xs sm:text-sm font-black text-white truncate font-sans">
+                              <h4 className={`text-xs sm:text-sm font-black truncate font-sans ${isPack ? packConfig.accentText : 'text-white'}`}>
                                 {p.name}
                               </h4>
                               <div className="text-[10px] text-slate-400">
@@ -343,15 +369,32 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {paginatedReleasePlayers.map((p) => {
                   const estValue = Number(p.market_value || (p.wage ? p.wage * 50 : 1000000));
+                  const isPack = isPackPlayer(p);
+                  const packConfig = isPack ? getPackTierConfig(p.pack_tier || p.rarity) : null;
+
                   return (
                     <div
                       key={p.id}
-                      className="flex flex-col justify-between p-3 rounded-2xl border border-slate-700/50 bg-[#05080e]/80 hover:border-cyan-400/40 transition-all shadow-md gap-3"
+                      className={`flex flex-col justify-between p-3 rounded-2xl transition-all shadow-md gap-3 ${
+                        isPack
+                          ? `border-2 ${packConfig.borderColor} ${packConfig.glowShadow} bg-gradient-to-b from-[#111827] via-[#0b1020] to-[#070b14] hover:scale-[1.02]`
+                          : 'border border-slate-700/50 bg-[#05080e]/80 hover:border-cyan-400/40'
+                      }`}
                     >
                       {/* Top: Photo & Info */}
                       <div className="flex items-center gap-3">
                         {/* Portrait Photo */}
-                        <div className="w-13 h-15 rounded-2xl overflow-hidden border border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e] shrink-0 flex items-center justify-center relative shadow-inner">
+                        <div className={`w-13 h-15 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner ${
+                          isPack ? `border-2 ${packConfig.borderColor} ${packConfig.glowShadow} bg-slate-950` : 'border border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e]'
+                        }`}>
+                          {isPack && (
+                            <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
+                              <div
+                                className="absolute -inset-[100%] w-[300%] h-[300%] bg-gradient-to-r from-transparent via-white/20 to-transparent rotate-45 animate-pulse"
+                                style={{ animationDuration: '2.5s' }}
+                              />
+                            </div>
+                          )}
                           {getPlayerPhotoUrl(p) ? (
                             <img
                               src={getPlayerPhotoUrl(p)}
@@ -368,20 +411,28 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
 
                         {/* Player Details */}
                         <div className="space-y-0.5 truncate flex-1 font-sport">
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-[10px] font-black text-cyan-300 bg-cyan-950/80 px-1.5 py-0.2 rounded border border-cyan-500/40">
                               {p.position}
                             </span>
-                            <span className="text-[10px] font-black text-amber-300 bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-500/40">
+                            <span className={`text-[10px] font-black px-1.5 py-0.2 rounded border ${
+                              isPack ? `${packConfig.accentText} bg-slate-950 border ${packConfig.borderColor}` : 'text-amber-300 bg-amber-950/80 border-amber-500/40'
+                            }`}>
                               OVR {p.overall}
                             </span>
+                            {isPack && (
+                              <span className={`text-[8.5px] font-sport font-black px-1.5 py-0.2 rounded-full shadow-sm flex items-center gap-0.5 ${packConfig.badgeBg}`}>
+                                <span>✨</span>
+                                <span>{packConfig.badgeName}</span>
+                              </span>
+                            )}
                             {p.potential_ovr && (
                               <span className="text-[9.5px] font-bold text-slate-300 bg-slate-900/90 px-1.5 py-0.2 rounded border border-slate-700/60">
                                 POT {p.potential_ovr}
                               </span>
                             )}
                           </div>
-                          <h4 className="text-xs sm:text-sm font-black text-white truncate font-sans">
+                          <h4 className={`text-xs sm:text-sm font-black truncate font-sans ${isPack ? packConfig.accentText : 'text-white'}`}>
                             {p.name}
                           </h4>
                           <div className="text-[10px] text-slate-400">

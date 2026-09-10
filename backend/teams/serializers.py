@@ -59,6 +59,9 @@ class PlayerSerializer(serializers.ModelSerializer):
     next_level_target_ovr = serializers.SerializerMethodField()
     records_by_tab = serializers.SerializerMethodField()
     skills_breakdown = serializers.SerializerMethodField()
+    is_from_pack = serializers.SerializerMethodField()
+    pack_tier = serializers.SerializerMethodField()
+    pack_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Player
@@ -168,6 +171,52 @@ class PlayerSerializer(serializers.ModelSerializer):
             return obj.get_skills_breakdown()
         except Exception:
             return []
+
+    def _get_pack_session(self, obj):
+        if hasattr(obj, '_cached_pack_session'):
+            return obj._cached_pack_session
+        sess = None
+        try:
+            if hasattr(obj, '_prefetched_objects_cache') and 'from_pack_session' in obj._prefetched_objects_cache:
+                sess = next(iter(obj.from_pack_session.all()), None)
+            elif hasattr(obj, 'from_pack_session'):
+                sess = obj.from_pack_session.select_related('pack').first()
+        except Exception:
+            sess = None
+        obj._cached_pack_session = sess
+        return sess
+
+    def get_is_from_pack(self, obj):
+        sess = self._get_pack_session(obj)
+        if sess is not None:
+            return True
+        custom_p = str(getattr(obj, 'custom_photo', '') or '')
+        if 'packs/' in custom_p:
+            return True
+        return False
+
+    def get_pack_tier(self, obj):
+        sess = self._get_pack_session(obj)
+        if sess and sess.pack:
+            tier = (sess.pack.tier or 'LEGENDARY').upper()
+            if tier == 'SILVER':
+                return 'EPIC'
+            if tier == 'BRONZE':
+                return 'RARE'
+            return tier
+        r = getattr(obj, 'rarity', 'REGULAR')
+        if r in ['LEGENDARY', 'EPIC', 'RARE']:
+            return r
+        custom_p = str(getattr(obj, 'custom_photo', '') or '')
+        if 'packs/' in custom_p:
+            return 'LEGENDARY'
+        return 'REGULAR'
+
+    def get_pack_name(self, obj):
+        sess = self._get_pack_session(obj)
+        if sess and sess.pack:
+            return sess.pack.name
+        return None
 
     def _compute_stats_for_filter(self, obj, match_q=None):
         from matches.models import PlayerMatchStat, MatchEvent

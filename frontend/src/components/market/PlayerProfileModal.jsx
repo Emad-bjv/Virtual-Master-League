@@ -3,11 +3,14 @@ import { createPortal } from 'react-dom';
 import { X, User, Activity, DollarSign, Crosshair, ArrowRightLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useBodyScrollLock from '../../hooks/useBodyScrollLock';
+import PackPlayerCard, { isPackPlayer } from '../common/PackPlayerCard';
 
 export default function PlayerProfileModal({ player, team, onClose, onMakeOffer }) {
   useBodyScrollLock(true);
 
   if (!player) return null;
+
+  const isPack = isPackPlayer(player);
 
   return createPortal(
     <div className="fixed inset-0 w-screen h-screen z-[9999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
@@ -17,21 +20,29 @@ export default function PlayerProfileModal({ player, team, onClose, onMakeOffer 
         exit={{ opacity: 0, scale: 0.95 }}
         className="w-full max-w-md max-h-[90vh] overflow-y-auto custom-scrollbar glass-panel p-5 rounded-2xl border border-cyan-500/30 shadow-2xl relative my-auto"
       >
-        <button onClick={onClose} className="absolute left-4 top-4 text-slate-400 hover:text-white transition-colors">
+        <button onClick={onClose} className="absolute left-4 top-4 text-slate-400 hover:text-white transition-colors z-40">
           <X size={20} />
         </button>
 
         <div className="flex flex-col items-center mb-6">
-          <div className="w-20 h-20 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-full p-1 mb-3">
-            <div className="w-full h-full bg-slate-900 rounded-full flex flex-col items-center justify-center">
-              <span className="text-2xl font-black text-cyan-400 leading-none">{player.overall}</span>
-              {player.potential_ovr && (
-                <span className="text-[10px] text-amber-400 font-bold leading-none mt-0.5">POT: {player.potential_ovr}</span>
-              )}
+          {isPack ? (
+            <div className="mb-3">
+              <PackPlayerCard player={player} size="md" interactive={false} />
             </div>
-          </div>
-          <h2 className="text-xl font-black text-white">{player.name}</h2>
-          <span className="text-sm text-cyan-400 font-bold">{player.position}</span>
+          ) : (
+            <>
+              <div className="w-20 h-20 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-full p-1 mb-3">
+                <div className="w-full h-full bg-slate-900 rounded-full flex flex-col items-center justify-center">
+                  <span className="text-2xl font-black text-cyan-400 leading-none">{player.overall}</span>
+                  {player.potential_ovr && (
+                    <span className="text-[10px] text-amber-400 font-bold leading-none mt-0.5">POT: {player.potential_ovr}</span>
+                  )}
+                </div>
+              </div>
+              <h2 className="text-xl font-black text-white">{player.name}</h2>
+              <span className="text-sm text-cyan-400 font-bold">{player.position}</span>
+            </>
+          )}
           <span className="text-[11px] text-slate-400 mt-1">تیم فعلی: {team?.name || 'بازیکن آزاد'}</span>
         </div>
 
