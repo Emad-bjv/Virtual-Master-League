@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Shield, Flame, Trophy, Clock, ArrowLeftRight, 
+import {
+  Shield, Flame, Trophy, Clock, ArrowLeftRight,
   Sparkles, RefreshCw, Zap, UserCheck, ArrowRight,
   ArrowDown, CheckCircle2, XCircle, Play, RotateCcw,
   HelpCircle, Heart, HeartOff, ChevronLeft, Swords, Info
@@ -221,8 +221,8 @@ export default function BattleRoyaleGuideView() {
 
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-3xl">
             در مسابقات سنتی حذفی، یک باخت اتفاقی همه چیز را نابود می‌کند. اما در <strong className="text-amber-400">نبرد رویال</strong>، مسابقات به دو طبقه تقسیم می‌شوند:
-            <span className="text-emerald-400 font-bold"> جدول برندگان</span> و 
-            <span className="text-amber-400 font-bold"> جدول بازندگان</span>. با اولین باخت، سقوط می‌کنید اما حذف نمی‌شوید؛ تنها تیمی حذف می‌شود که 
+            <span className="text-emerald-400 font-bold"> جدول برندگان</span> و
+            <span className="text-amber-400 font-bold"> جدول بازندگان</span>. با اولین باخت، سقوط می‌کنید اما حذف نمی‌شوید؛ تنها تیمی حذف می‌شود که
             <span className="text-rose-400 font-bold"> ۲ بار شکست بخورد</span>!
           </p>
 
@@ -321,15 +321,14 @@ export default function BattleRoyaleGuideView() {
                 </div>
               </div>
 
-              <span className={`text-xs px-2.5 py-1 rounded-xl font-bold ${
-                simStatus === 'CHAMPION' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' :
-                simStatus === 'ELIMINATED' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' :
-                simLives === 2 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' :
-                'bg-orange-500/20 text-orange-300 border border-orange-500/40'
-              }`}>
+              <span className={`text-xs px-2.5 py-1 rounded-xl font-bold ${simStatus === 'CHAMPION' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' :
+                  simStatus === 'ELIMINATED' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' :
+                    simLives === 2 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' :
+                      'bg-orange-500/20 text-orange-300 border border-orange-500/40'
+                }`}>
                 {simStatus === 'CHAMPION' ? '🏆 قهرمان مسابقات' :
-                 simStatus === 'ELIMINATED' ? '💀 حذف شده' :
-                 simLives === 2 ? 'در جدول برندگان (امن)' : 'در جدول بازندگان (خطر حذف)'}
+                  simStatus === 'ELIMINATED' ? '💀 حذف شده' :
+                    simLives === 2 ? 'در جدول برندگان (امن)' : 'در جدول بازندگان (خطر حذف)'}
               </span>
             </div>
           </div>
@@ -347,11 +346,10 @@ export default function BattleRoyaleGuideView() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Node WB_R1 */}
-                <div className={`p-3 rounded-xl border text-center transition-all ${
-                  simStatus === 'WB_R1'
+                <div className={`p-3 rounded-xl border text-center transition-all ${simStatus === 'WB_R1'
                     ? 'bg-cyan-600/30 border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.4)] scale-102'
                     : 'bg-slate-900/60 border-slate-800 opacity-60'
-                }`}>
+                  }`}>
                   <span className="text-[10px] text-slate-400 block">دور اول برندگان</span>
                   <span className="text-xs font-bold text-white">مسابقه افتتاحیه</span>
                   {simStatus === 'WB_R1' && (
@@ -362,11 +360,10 @@ export default function BattleRoyaleGuideView() {
                 </div>
 
                 {/* Node WB_FINAL */}
-                <div className={`p-3 rounded-xl border text-center transition-all ${
-                  simStatus === 'WB_FINAL'
+                <div className={`p-3 rounded-xl border text-center transition-all ${simStatus === 'WB_FINAL'
                     ? 'bg-cyan-600/30 border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.4)] scale-102'
                     : 'bg-slate-900/60 border-slate-800 opacity-60'
-                }`}>
+                  }`}>
                   <span className="text-[10px] text-slate-400 block">نیمه‌نهایی / فینال برندگان</span>
                   <span className="text-xs font-bold text-white">گام نهایی برندگان</span>
                   {simStatus === 'WB_FINAL' && (
@@ -377,11 +374,10 @@ export default function BattleRoyaleGuideView() {
                 </div>
 
                 {/* Node GF_M1_WB */}
-                <div className={`p-3 rounded-xl border text-center transition-all ${
-                  simStatus === 'GF_M1' && simLives === 2
+                <div className={`p-3 rounded-xl border text-center transition-all ${simStatus === 'GF_M1' && simLives === 2
                     ? 'bg-amber-600/30 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.4)] scale-102'
                     : 'bg-slate-900/60 border-slate-800 opacity-60'
-                }`}>
+                  }`}>
                   <span className="text-[10px] text-slate-400 block">فینال بزرگ</span>
                   <span className="text-xs font-bold text-white">صعود به عنوان تیم بدون باخت</span>
                   {simStatus === 'GF_M1' && simLives === 2 && (
@@ -413,11 +409,10 @@ export default function BattleRoyaleGuideView() {
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Node LB_R1 */}
-                <div className={`p-3 rounded-xl border text-center transition-all ${
-                  simStatus === 'LB_R1'
+                <div className={`p-3 rounded-xl border text-center transition-all ${simStatus === 'LB_R1'
                     ? 'bg-amber-600/30 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.4)] scale-102'
                     : 'bg-slate-900/60 border-slate-800 opacity-60'
-                }`}>
+                  }`}>
                   <span className="text-[10px] text-slate-400 block">دور اول بازندگان</span>
                   <span className="text-xs font-bold text-white">نبرد بقای اول</span>
                   {simStatus === 'LB_R1' && (
@@ -428,11 +423,10 @@ export default function BattleRoyaleGuideView() {
                 </div>
 
                 {/* Node LB_FINAL */}
-                <div className={`p-3 rounded-xl border text-center transition-all ${
-                  simStatus === 'LB_FINAL'
+                <div className={`p-3 rounded-xl border text-center transition-all ${simStatus === 'LB_FINAL'
                     ? 'bg-amber-600/30 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.4)] scale-102'
                     : 'bg-slate-900/60 border-slate-800 opacity-60'
-                }`}>
+                  }`}>
                   <span className="text-[10px] text-slate-400 block">فینال بازندگان</span>
                   <span className="text-xs font-bold text-white">بلیط فینال بزرگ</span>
                   {simStatus === 'LB_FINAL' && (
@@ -443,11 +437,10 @@ export default function BattleRoyaleGuideView() {
                 </div>
 
                 {/* Node GF_M1_LB */}
-                <div className={`p-3 rounded-xl border text-center transition-all ${
-                  (simStatus === 'GF_M1' && simLives === 1) || simStatus === 'GF_RESET'
+                <div className={`p-3 rounded-xl border text-center transition-all ${(simStatus === 'GF_M1' && simLives === 1) || simStatus === 'GF_RESET'
                     ? 'bg-purple-600/30 border-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.4)] scale-102'
                     : 'bg-slate-900/60 border-slate-800 opacity-60'
-                }`}>
+                  }`}>
                   <span className="text-[10px] text-slate-400 block">فینال بزرگ + ریست</span>
                   <span className="text-xs font-bold text-white">مصاف دو قهرمان</span>
                   {(simStatus === 'GF_M1' && simLives === 1) && (
@@ -514,14 +507,13 @@ export default function BattleRoyaleGuideView() {
             <span className="text-[10px] text-slate-500 font-bold block mb-1">گزارش زنده حرکت تیم:</span>
             <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
               {simHistory.map((item, idx) => (
-                <div key={idx} className={`flex items-center gap-2 ${
-                  item.type === 'win' ? 'text-emerald-300' :
-                  item.type === 'loss' ? 'text-amber-300' :
-                  item.type === 'champion' ? 'text-yellow-300 font-black' :
-                  item.type === 'reset' ? 'text-purple-300 font-black' :
-                  item.type === 'eliminated' ? 'text-rose-400 font-bold' :
-                  'text-slate-300'
-                }`}>
+                <div key={idx} className={`flex items-center gap-2 ${item.type === 'win' ? 'text-emerald-300' :
+                    item.type === 'loss' ? 'text-amber-300' :
+                      item.type === 'champion' ? 'text-yellow-300 font-black' :
+                        item.type === 'reset' ? 'text-purple-300 font-black' :
+                          item.type === 'eliminated' ? 'text-rose-400 font-bold' :
+                            'text-slate-300'
+                  }`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
                   <span>{item.text}</span>
                 </div>
@@ -753,7 +745,7 @@ export default function BattleRoyaleGuideView() {
             <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
               <span className="text-emerald-400 font-bold block mb-1">روزهای استراحت (شنبه، دوشنبه، چهارشنبه):</span>
               <span className="leading-relaxed block">
-                پنجره نقل و انتقالات فقط در روزهای استراحت از ساعت <strong>۱۲:۰۰ بامداد تا ۱۸:۰۰ غروب همان روز</strong> باز می‌شود و تایمر شمارش معکوس زنده در بالای صفحه بازار فعال می‌باشد.
+                پنجره نقل و انتقالات فقط در روزهای استراحت از ساعت <strong>۰۰:۰۰ بامداد تا ۱۸:۰۰ غروب همان روز</strong> باز می‌شود و تایمر شمارش معکوس زنده در بالای صفحه بازار فعال می‌باشد.
               </span>
             </div>
             <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
