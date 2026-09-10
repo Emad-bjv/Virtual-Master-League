@@ -41,6 +41,7 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [playerToRelease, setPlayerToRelease] = useState(null);
+  const [marketStatus, setMarketStatus] = useState(null);
   const [playerToSign, setPlayerToSign] = useState(null);
   const [isReleasing, setIsReleasing] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
@@ -155,7 +156,7 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
   return (
     <div className="space-y-4 pb-20">
       <Toast message={actionMessage} isVisible={!!actionMessage} type="success" />
-      <TransferCountdownBanner />
+      <TransferCountdownBanner onStatusChange={setMarketStatus} />
       <SubNav items={MARKET_SUBNAV} activeId={activeSub} onChange={setActiveSub} />
 
       {activeSub === 'scout' && (
@@ -293,13 +294,23 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
                               </span>
                             </div>
 
-                            <button
-                              onClick={() => setPlayerToSign(p)}
-                              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer"
-                            >
-                              <UserPlus size={13} className="text-slate-950" />
-                              <span>جذب بازیکن ⚡</span>
-                            </button>
+                            {marketStatus && !marketStatus.is_open ? (
+                              <button
+                                disabled={true}
+                                className="bg-slate-900 border border-slate-700/80 text-slate-500 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-not-allowed shadow-inner"
+                                title="پنجره نقل‌وانتقالات قفل است. امکان جذب در زمان بسته بودن پنجره وجود ندارد."
+                              >
+                                <span>🔒 پنجره بسته</span>
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setPlayerToSign(p)}
+                                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer"
+                              >
+                                <UserPlus size={13} className="text-slate-950" />
+                                <span>جذب بازیکن ⚡</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
@@ -385,12 +396,22 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
                           بازگشت مالی: <strong className="text-emerald-400">+${Math.round(estValue * 0.2).toLocaleString()}</strong>
                         </span>
 
-                        <button 
-                          onClick={() => setPlayerToRelease(p)}
-                          className="bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white px-3 py-1.5 rounded-xl text-[10.5px] font-black transition-all border border-rose-500/30 cursor-pointer"
-                        >
-                          فسخ قرارداد 📄
-                        </button>
+                        {marketStatus && !marketStatus.is_open ? (
+                          <button
+                            disabled={true}
+                            className="bg-slate-900 border border-slate-700/80 text-slate-500 px-3 py-1.5 rounded-xl text-[10.5px] font-bold cursor-not-allowed shadow-inner"
+                            title="پنجره نقل‌وانتقالات قفل است. فسخ قرارداد در زمان بسته بودن پنجره مجاز نیست."
+                          >
+                            🔒 پنجره بسته
+                          </button>
+                        ) : (
+                          <button 
+                            onClick={() => setPlayerToRelease(p)}
+                            className="bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white px-3 py-1.5 rounded-xl text-[10.5px] font-black transition-all border border-rose-500/30 cursor-pointer"
+                          >
+                            فسخ قرارداد 📄
+                          </button>
+                        )}
                       </div>
                     </div>
                   );

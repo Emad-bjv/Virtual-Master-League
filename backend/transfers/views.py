@@ -13,7 +13,7 @@ from .services import (
     finalize_auction,
     auto_release_overflow_players
 )
-from .market_window import is_market_open_for_request, get_market_status_info
+from .market_window import is_market_open_for_request, is_final_action_allowed, get_market_status_info
 
 
 class TransferMarketListView(generics.ListAPIView):
@@ -78,7 +78,7 @@ class BuyPlayerDirectView(views.APIView):
     Buys a listed player directly at the fixed asking price.
     """
     def post(self, request):
-        is_open, err_msg = is_market_open_for_request(request)
+        is_open, err_msg = is_final_action_allowed(request)
         if not is_open:
             return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -108,7 +108,7 @@ class PlaceBidView(views.APIView):
     throttle_scope = 'transfer_bid'
     
     def post(self, request):
-        is_open, err_msg = is_market_open_for_request(request)
+        is_open, err_msg = is_final_action_allowed(request)
         if not is_open:
             return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -187,10 +187,8 @@ def get_authenticated_user_team(request):
 
 class TransferOfferCreateView(views.APIView):
     def post(self, request):
-        is_open, err_msg = is_market_open_for_request(request)
-        if not is_open:
-            return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
-
+        # NOTE: Offers and negotiations are permitted even when transfer window is closed.
+        # Only final actions (accepting/signing/buying) are locked until the window opens.
         user_team = get_authenticated_user_team(request)
         if not user_team:
             return Response({'error': 'تیم شما مشخص نیست. لطفاً مجدداً وارد حساب کاربری خود شوید.'}, status=status.HTTP_403_FORBIDDEN)
@@ -241,6 +239,9 @@ class TransferOfferActionView(views.APIView):
             
         team_id = user_team.id
         if action == 'accept':
+            is_allowed, err_msg = is_final_action_allowed(request)
+            if not is_allowed:
+                return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
             result = accept_transfer_offer(pk, team_id)
         elif action == 'reject':
             result = reject_transfer_offer(pk, team_id)
@@ -253,6 +254,10 @@ class TransferOfferActionView(views.APIView):
 
 class PlayerReleaseAPIView(views.APIView):
     def post(self, request, pk):
+        is_allowed, err_msg = is_final_action_allowed(request)
+        if not is_allowed:
+            return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
+
         user_team = get_authenticated_user_team(request)
         if not user_team:
             return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
@@ -287,6 +292,10 @@ class SignFreeAgentAPIView(views.APIView):
     Signs a free agent player to the user's club.
     """
     def post(self, request, pk):
+        is_allowed, err_msg = is_final_action_allowed(request)
+        if not is_allowed:
+            return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
+
         user_team = get_authenticated_user_team(request)
         if not user_team:
             return Response({'error': 'باشگاه شما مشخص نیست. لطفاً وارد شوید.'}, status=status.HTTP_403_FORBIDDEN)
@@ -693,6 +702,7 @@ class MarketStatusAPIView(views.APIView):
         mode = request.data.get('mode')
         if mode in ['AUTO', 'FORCE_OPEN', 'FORCE_CLOSED']:
             settings.transfer_manual_override = mode
+            settings.feature_transfer_market = True
         if 'open_hour' in request.data:
             settings.transfer_window_open_hour = int(request.data['open_hour'])
         if 'close_hour' in request.data:
@@ -701,6 +711,15 @@ class MarketStatusAPIView(views.APIView):
             settings.feature_transfer_market = bool(request.data['feature_transfer_market'])
 
         settings.save()
+
+        try:
+            from realtime.events import broadcast_global_event
+            broadcast_global_event('market_status_updated', {
+                'status': get_market_status_info()
+            })
+        except Exception:
+            pass
+
         return Response({
             'success': True,
             'message': 'تنظیمات پنجره نقل‌وانتقالات با موفقیت به‌روزرسانی شد.',

@@ -27,10 +27,26 @@ export default function TransferCountdownBanner({ onStatusChange, compact = fals
 
   useEffect(() => {
     fetchStatus();
-    // Poll status every 60 seconds to keep synced with server
+
+    const handleUpdate = (e) => {
+      if (e?.detail) {
+        setStatusData(e.detail);
+        setSecondsRemaining(Math.max(0, parseInt(e.detail.seconds_remaining || 0, 10)));
+        if (onStatusChange) {
+          onStatusChange(e.detail);
+        }
+      } else {
+        fetchStatus();
+      }
+    };
+
+    window.addEventListener('vml_market_status_updated', handleUpdate);
     const pollInterval = setInterval(fetchStatus, 60000);
-    return () => clearInterval(pollInterval);
-  }, []);
+    return () => {
+      window.removeEventListener('vml_market_status_updated', handleUpdate);
+      clearInterval(pollInterval);
+    };
+  }, [onStatusChange]);
 
   // Tick countdown locally every second
   useEffect(() => {

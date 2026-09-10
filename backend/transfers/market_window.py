@@ -22,18 +22,7 @@ def get_market_status_info() -> dict:
     if not settings:
         settings = GlobalSettings.objects.create()
 
-    # 1. Feature Flag Check
-    if not settings.feature_transfer_market:
-        return {
-            'is_open': False,
-            'mode': 'DISABLED',
-            'seconds_remaining': 0,
-            'next_change': None,
-            'status_label': 'غیرفعال',
-            'message': 'بازار نقل و انتقالات در حال حاضر به دستور مدیریت غیرفعال است.',
-        }
-
-    # 2. Manual Override Check
+    # 1. Manual Override Check (Admin priority)
     override_mode = getattr(settings, 'transfer_manual_override', 'AUTO') or 'AUTO'
 
     if override_mode == 'FORCE_OPEN':
@@ -54,6 +43,17 @@ def get_market_status_info() -> dict:
             'next_change': None,
             'status_label': 'اجباراً بسته',
             'message': 'پنجره نقل‌وانتقالات با دستور مستقیم مدیریت بسته است.',
+        }
+
+    # 2. Feature Flag Check (Applies to AUTO mode)
+    if not settings.feature_transfer_market:
+        return {
+            'is_open': False,
+            'mode': 'DISABLED',
+            'seconds_remaining': 0,
+            'next_change': None,
+            'status_label': 'غیرفعال',
+            'message': 'بازار نقل و انتقالات در حال حاضر به دستور مدیریت غیرفعال است.',
         }
 
     # 3. Automated Calendar Schedule
@@ -92,7 +92,6 @@ def get_market_status_info() -> dict:
             # After closing on a rest day -> Find next rest day
             is_open = False
             status_label = 'بسته'
-            # Look ahead for next rest day
             check_d = (now + timedelta(days=1)).replace(hour=open_hour, minute=0, second=0, microsecond=0)
             while check_d.weekday() not in REST_WEEKDAYS:
                 check_d += timedelta(days=1)
@@ -103,7 +102,6 @@ def get_market_status_info() -> dict:
         # Today is a match day!
         is_open = False
         status_label = 'روز مسابقه (بسته)'
-        # Find next rest day
         check_d = (now + timedelta(days=1)).replace(hour=open_hour, minute=0, second=0, microsecond=0)
         while check_d.weekday() not in REST_WEEKDAYS:
             check_d += timedelta(days=1)
@@ -140,4 +138,24 @@ def is_market_open_for_request(request) -> tuple[bool, str]:
     info = get_market_status_info()
     if not info['is_open']:
         return False, info['message']
+    return True, ""
+
+
+def is_final_action_allowed(request) -> tuple[bool, str]:
+    """
+    Checks if a final, irreversible transfer market action (accepting offer,
+    direct buy, free agent signing, contract termination) is permitted.
+    Staff/superusers are always permitted.
+    """
+    user = getattr(request, 'user', None)
+    if user and (user.is_staff or user.is_superuser or getattr(user, 'role', '') == 'admin'):
+        return True, ""
+
+    info = get_market_status_info()
+    if not info['is_open']:
+        msg = (
+            'پنجره نقل‌وانتقالات در حال حاضر بسته است. ثبت و بررسی پیشنهادها مجاز است، '
+            'اما پذیرش نهایی، خرید یا آزادسازی بازیکن تنها در زمان باز بودن پنجره امکان‌پذیر می‌باشد.'
+        )
+        return False, msg
     return True, ""

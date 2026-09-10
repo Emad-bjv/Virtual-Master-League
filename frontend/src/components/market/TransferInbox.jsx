@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Mail, Check, X, ArrowRightLeft, Clock, AlertCircle, 
   Handshake, Users, Calendar, ShieldCheck, RefreshCw, Send, User,
-  CheckCircle2, XCircle, ArrowUpRight, ArrowDownLeft, Sparkles, Inbox
+  CheckCircle2, XCircle, ArrowUpRight, ArrowDownLeft, Sparkles, Inbox, Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { transferApi } from '../../services/api';
@@ -32,8 +32,27 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
     isCancelOutgoing: false,
   });
 
+  const [marketStatus, setMarketStatus] = useState(null);
+
   useEffect(() => {
     loadInbox();
+
+    transferApi.getMarketStatus()
+      .then((res) => {
+        if (res.data) setMarketStatus(res.data);
+      })
+      .catch(() => {});
+
+    const handleMarketUpdate = (e) => {
+      if (e?.detail) {
+        setMarketStatus(e.detail);
+      } else {
+        transferApi.getMarketStatus().then((r) => setMarketStatus(r.data || null)).catch(() => {});
+      }
+    };
+
+    window.addEventListener('vml_market_status_updated', handleMarketUpdate);
+    return () => window.removeEventListener('vml_market_status_updated', handleMarketUpdate);
   }, []);
 
   const loadInbox = () => {
@@ -543,14 +562,27 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
         {isMyTurnToDecide && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-sport">
             {/* 1. Accept */}
-            <button
-              onClick={() => setConfirmDialog({ isOpen: true, offer, action: 'accept', isCancelOutgoing: false })}
-              disabled={actionInProgressId === offer.id}
-              className="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
-            >
-              <Check size={14} />
-              <span>قبول و نهایی‌سازی</span>
-            </button>
+            {marketStatus && !marketStatus.is_open ? (
+              <button
+                type="button"
+                disabled={true}
+                className="bg-slate-900/90 border border-slate-700/80 text-slate-400 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-not-allowed select-none shadow-inner"
+                title={`پنجره نقل‌وانتقالات قفل است. ${marketStatus.message || ''}`}
+              >
+                <Lock size={13} className="text-amber-400" />
+                <span>🔒 قفل تا بازگشایی بازار</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDialog({ isOpen: true, offer, action: 'accept', isCancelOutgoing: false })}
+                disabled={actionInProgressId === offer.id}
+                className="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                <Check size={14} />
+                <span>قبول و نهایی‌سازی</span>
+              </button>
+            )}
 
             {/* 2. Reject */}
             <button

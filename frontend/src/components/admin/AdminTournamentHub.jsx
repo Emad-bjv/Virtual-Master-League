@@ -244,6 +244,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
   const [editAwayPenalties, setEditAwayPenalties] = useState('');
   const [editHomeTeamId, setEditHomeTeamId] = useState('');
   const [editAwayTeamId, setEditAwayTeamId] = useState('');
+  const [marketModeLoading, setMarketModeLoading] = useState(null); // 'AUTO' | 'FORCE_OPEN' | 'FORCE_CLOSED'
 
   // Cup Stage Navigation State
   const [selectedCupStage, setSelectedCupStage] = useState('');
@@ -658,15 +659,18 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
   };
 
   const handleUpdateMarketMode = async (mode) => {
-    setActionLoading(true);
+    setMarketModeLoading(mode);
     try {
       const res = await transferApi.updateMarketStatus({ mode });
       notify(res.data?.message || 'تنظیمات پنجره نقل‌وانتقالات ذخیره شد.', 'success');
-      if (res.data?.status) setMarketStatus(res.data.status);
+      if (res.data?.status) {
+        setMarketStatus(res.data.status);
+        window.dispatchEvent(new CustomEvent('vml_market_status_updated', { detail: res.data.status }));
+      }
     } catch (err) {
-      notify('خطا در به‌روزرسانی پنجره نقل‌وانتقالات', 'error');
+      notify(err.response?.data?.error || 'خطا در به‌روزرسانی پنجره نقل‌وانتقالات', 'error');
     } finally {
-      setActionLoading(false);
+      setMarketModeLoading(null);
     }
   };
 
@@ -2999,16 +3003,17 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                 <div>
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     مدیریت پنجره نقل‌وانتقالات تورنمنت
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${
+                    <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${
                       marketStatus?.is_open
-                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-                        : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+                        ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 shadow-sm shadow-emerald-500/20'
+                        : 'bg-rose-500/20 border-rose-500/40 text-rose-300 shadow-sm shadow-rose-500/20'
                     }`}>
-                      {marketStatus?.is_open ? 'هم‌اکنون باز' : 'هم‌اکنون بسته'}
+                      <span className={`w-2 h-2 rounded-full ${marketStatus?.is_open ? 'bg-emerald-400 animate-ping' : 'bg-rose-500'}`} />
+                      {marketStatus?.is_open ? 'هم‌اکنون باز 🔓' : 'هم‌اکنون بسته 🔒'}
                     </span>
                   </h3>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    {String(marketStatus?.message || 'قوانین: بازار در روزهای استراحت (شنبه و دوشنبه) از ساعت ۰۰:۰۰ تا ۱۸:۰۰ خودکار باز است.')}
+                    {String(marketStatus?.message || 'قوانین: بازار در روزهای استراحت (شنبه، دوشنبه و چهارشنبه) از ساعت ۰۰:۰۰ تا ۱۸:۰۰ خودکار باز است.')}
                   </p>
                 </div>
               </div>
@@ -3018,43 +3023,58 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                 <button
                   type="button"
                   onClick={() => handleUpdateMarketMode('AUTO')}
-                  disabled={actionLoading}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                  disabled={Boolean(marketModeLoading)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
                     marketStatus?.mode === 'AUTO'
-                      ? 'bg-indigo-600 border-indigo-400 text-white shadow-md shadow-indigo-600/30'
-                      : 'bg-slate-950 border-white/10 text-gray-400 hover:text-white'
-                  }`}
+                      ? 'bg-indigo-600 border-indigo-400 text-white shadow-lg shadow-indigo-600/40 ring-2 ring-indigo-400/50'
+                      : 'bg-slate-950 border-white/10 text-gray-400 hover:text-white hover:border-indigo-500/40'
+                  } ${marketModeLoading === 'AUTO' ? 'opacity-75' : ''}`}
                   title="باز و بسته شدن خودکار طبق تقویم استراحت تورنمنت"
                 >
-                  ⚡ حالت خودکار (AUTO)
+                  {marketModeLoading === 'AUTO' ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                  ) : (
+                    <span>⚡</span>
+                  )}
+                  <span>حالت خودکار (AUTO)</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleUpdateMarketMode('FORCE_OPEN')}
-                  disabled={actionLoading}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                  disabled={Boolean(marketModeLoading)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
                     marketStatus?.mode === 'FORCE_OPEN'
-                      ? 'bg-emerald-600 border-emerald-400 text-white shadow-md shadow-emerald-600/30'
-                      : 'bg-slate-950 border-white/10 text-gray-400 hover:text-white'
-                  }`}
+                      ? 'bg-emerald-600 border-emerald-400 text-white shadow-lg shadow-emerald-600/40 ring-2 ring-emerald-400/50'
+                      : 'bg-slate-950 border-white/10 text-gray-400 hover:text-white hover:border-emerald-500/40'
+                  } ${marketModeLoading === 'FORCE_OPEN' ? 'opacity-75' : ''}`}
                   title="اجباراً باز کردن پنجره نقل و انتقالات"
                 >
-                  🔓 اجباراً باز (FORCE_OPEN)
+                  {marketModeLoading === 'FORCE_OPEN' ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                  ) : (
+                    <span>🔓</span>
+                  )}
+                  <span>اجباراً باز (FORCE_OPEN)</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => handleUpdateMarketMode('FORCE_CLOSED')}
-                  disabled={actionLoading}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
+                  disabled={Boolean(marketModeLoading)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center gap-1.5 ${
                     marketStatus?.mode === 'FORCE_CLOSED'
-                      ? 'bg-rose-600 border-rose-400 text-white shadow-md shadow-rose-600/30'
-                      : 'bg-slate-950 border-white/10 text-gray-400 hover:text-white'
-                  }`}
+                      ? 'bg-rose-600 border-rose-400 text-white shadow-lg shadow-rose-600/40 ring-2 ring-rose-400/50'
+                      : 'bg-slate-950 border-white/10 text-gray-400 hover:text-white hover:border-rose-500/40'
+                  } ${marketModeLoading === 'FORCE_CLOSED' ? 'opacity-75' : ''}`}
                   title="اجباراً بستن پنجره نقل و انتقالات"
                 >
-                  🔒 اجباراً بسته (FORCE_CLOSED)
+                  {marketModeLoading === 'FORCE_CLOSED' ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                  ) : (
+                    <span>🔒</span>
+                  )}
+                  <span>اجباراً بسته (FORCE_CLOSED)</span>
                 </button>
               </div>
             </div>
