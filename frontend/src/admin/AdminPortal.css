@@ -331,3 +331,79 @@ body {
 .badge-danger { background: rgba(244, 63, 94, 0.2); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.4); }
 .badge-warning { background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.4); }
 .badge-info { background: rgba(0, 243, 255, 0.2); color: #00f3ff; border: 1px solid rgba(0, 243, 255, 0.4); }
+
+/* Mobile & Tablet Responsive Media Queries */
+@media (max-width: 1024px) {
+  .admin-portal {
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  .admin-sidebar {
+    width: 280px;
+    max-width: 85vw;
+    box-shadow: -15px 0 35px rgba(0, 0, 0, 0.85);
+  }
+
+  .admin-content {
+    padding: 1rem 0.75rem;
+    gap: 1.25rem;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+
+  .admin-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .admin-header h1 {
+    font-size: 1.35rem;
+  }
+
+  .admin-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .stat-card {
+    padding: 1.1rem;
+  }
+
+  .stat-card .value {
+    font-size: 1.85rem;
+  }
+
+  .modal-content {
+    width: 95%;
+    max-width: 100%;
+    padding: 1.25rem;
+    margin: auto;
+  }
+
+  .admin-table-container {
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-btn {
+    padding: 0.6rem 1rem;
+    font-size: 0.8rem;
+  }
+
+  .modal-header h3 {
+    font-size: 1.1rem;
+  }
+}
+

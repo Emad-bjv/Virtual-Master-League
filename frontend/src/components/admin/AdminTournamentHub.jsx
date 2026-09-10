@@ -1109,29 +1109,29 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
           </div>
 
           {/* Action Hub Tabs */}
-          <div className="flex items-center bg-slate-950/80 p-1.5 rounded-2xl border border-white/10 self-start md:self-auto">
+          <div className="flex items-center gap-1.5 bg-slate-950/80 p-1.5 rounded-2xl border border-white/10 overflow-x-auto max-w-full scrollbar-none no-scrollbar flex-nowrap sm:flex-wrap self-stretch sm:self-auto">
             <button
               onClick={() => setHubTab('league')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 whitespace-nowrap cursor-pointer ${
                 hubTab === 'league'
                   ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-600/30'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
               <Calendar className="w-4 h-4" />
-              مدیریت و برنامه‌ریزی لیگ
+              <span>مدیریت و برنامه‌ریزی لیگ</span>
             </button>
 
             <button
               onClick={() => setHubTab('cup')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 whitespace-nowrap cursor-pointer ${
                 hubTab === 'cup'
                   ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white shadow-lg shadow-amber-600/30'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
               <Trophy className="w-4 h-4" />
-              جام حذفی و براکت
+              <span>جام حذفی و براکت</span>
             </button>
 
             <button
@@ -1139,26 +1139,26 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                 setHubTab('battle_royale');
                 fetchBattleRoyaleData();
               }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 whitespace-nowrap cursor-pointer ${
                 hubTab === 'battle_royale'
                   ? 'bg-gradient-to-r from-orange-600 via-amber-600 to-yellow-500 text-slate-950 font-black shadow-lg shadow-orange-600/30'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
               <Flame className="w-4 h-4 text-orange-400" />
-              نبرد رویال (حذفی دوطرفه)
+              <span>نبرد رویال (حذفی دوطرفه)</span>
             </button>
 
             <button
               onClick={() => setHubTab('sync')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 whitespace-nowrap cursor-pointer ${
                 hubTab === 'sync'
                   ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-600/30'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
               <ArrowLeftRight className="w-4 h-4" />
-              تقویم تلفیقی و سینک
+              <span>تقویم تلفیقی و سینک</span>
             </button>
 
             <button
@@ -1166,14 +1166,14 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                 setHubTab('standings');
                 fetchStandingsList();
               }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+              className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 whitespace-nowrap cursor-pointer ${
                 hubTab === 'standings'
                   ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black shadow-lg shadow-amber-500/30'
                   : 'text-gray-400 hover:text-white'
               }`}
             >
               <Award className="w-4 h-4" />
-              مدیریت جدول و جریمه‌ها
+              <span>مدیریت جدول و جریمه‌ها</span>
             </button>
           </div>
         </div>

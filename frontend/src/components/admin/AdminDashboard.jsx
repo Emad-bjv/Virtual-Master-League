@@ -5762,7 +5762,7 @@ export default function AdminDashboard({
 
               {/* 4-TAB REFEREE DESK NAVIGATION BAR */}
               {!showPostMatchCardView && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
                   {REFEREE_DESK_TABS.map((tab) => {
                     const Icon = tab.icon;
                     const isActive = refereeDeskTab === tab.id;
@@ -5772,16 +5772,16 @@ export default function AdminDashboard({
                       <button
                         key={tab.id}
                         onClick={() => setRefereeDeskTab(tab.id)}
-                        className={`p-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 relative cursor-pointer ${
+                        className={`p-2.5 sm:p-3 rounded-xl text-[11px] sm:text-xs font-black transition-all flex items-center justify-center gap-1.5 sm:gap-2 relative cursor-pointer text-center ${
                           isActive
                             ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-950/50 border border-cyan-400/50 scale-[1.02]'
                             : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                         }`}
                       >
-                        <Icon size={16} className={isActive ? 'text-white' : 'text-slate-400'} />
+                        <Icon size={15} className={`shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`} />
                         <span className="truncate">{tab.label}</span>
                         {hasPending && (
-                          <span className="w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-sport flex items-center justify-center animate-bounce shadow-md">
+                          <span className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-rose-500 text-white text-[9px] sm:text-[10px] font-sport flex items-center justify-center animate-bounce shadow-md shrink-0">
                             {totalPendingChanges}
                           </span>
                         )}
@@ -5797,10 +5797,10 @@ export default function AdminDashboard({
               {!showPostMatchCardView && refereeDeskTab === 'live_desk' && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                   {/* AUTHORITATIVE REFEREE MATCH PERIOD CONTROLLER */}
-                  <div className="glass-panel p-5 rounded-3xl border border-rose-500/50 bg-gradient-to-r from-rose-950/80 via-slate-900 to-purple-950/80 shadow-2xl space-y-4">
+                  <div className="glass-panel p-4 sm:p-5 rounded-3xl border border-rose-500/50 bg-gradient-to-r from-rose-950/80 via-slate-900 to-purple-950/80 shadow-2xl space-y-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-3">
                       <div className="flex items-center gap-2">
-                        <Radio size={20} className="text-rose-400 animate-pulse" />
+                        <Radio size={20} className="text-rose-400 animate-pulse shrink-0" />
                         <div>
                           <h4 className="font-black text-white text-sm sm:text-base">پنل رسمی داوری و هدایت زمان بازی</h4>
                           <p className="text-[11px] text-slate-300 font-sport">
@@ -5811,12 +5811,12 @@ export default function AdminDashboard({
                     </div>
 
                     {/* Referee Master Buttons (Darkened/Disabled when already executed) */}
-                    <div className={`grid gap-2.5 ${selectedLiveMatch.is_knockout ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
+                    <div className={`grid gap-2 sm:gap-2.5 ${selectedLiveMatch.is_knockout ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'}`}>
                       {/* Button 1: Start 1st Half */}
                       <button
                         onClick={() => handleRefereeControlAction('START_MATCH', { minute: 1 })}
                         disabled={is1stHalfStarted}
-                        className={`p-3 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg ${
+                        className={`p-2.5 sm:p-3 rounded-2xl font-black text-[11px] sm:text-xs min-h-[44px] transition-all flex items-center justify-center gap-1.5 shadow-lg ${
                           is1stHalfStarted
                             ? 'bg-slate-900 border border-slate-800 text-slate-500 opacity-50 cursor-not-allowed'
                             : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white cursor-pointer active:scale-95 animate-pulse'
@@ -5830,7 +5830,7 @@ export default function AdminDashboard({
                       <button
                         onClick={() => handleRefereeControlAction('TRIGGER_HALF_TIME')}
                         disabled={halfStatus !== '1ST_HALF' || !isMatchLive}
-                        className={`p-3 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg ${
+                        className={`p-2.5 sm:p-3 rounded-2xl font-black text-[11px] sm:text-xs min-h-[44px] transition-all flex items-center justify-center gap-1.5 shadow-lg ${
                           isHalfTimeReached
                             ? 'bg-slate-900 border border-slate-800 text-amber-500/60 opacity-50 cursor-not-allowed'
                             : halfStatus === '1ST_HALF' && isMatchLive
@@ -5846,7 +5846,7 @@ export default function AdminDashboard({
                       <button
                         onClick={() => handleRefereeControlAction('START_SECOND_HALF', { minute: 46 })}
                         disabled={halfStatus !== 'HALF_TIME'}
-                        className={`p-3 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg ${
+                        className={`p-2.5 sm:p-3 rounded-2xl font-black text-[11px] sm:text-xs min-h-[44px] transition-all flex items-center justify-center gap-1.5 shadow-lg ${
                           is2ndHalfStarted
                             ? 'bg-slate-900 border border-slate-800 text-cyan-500/60 opacity-50 cursor-not-allowed'
                             : halfStatus === 'HALF_TIME'
@@ -5867,7 +5867,7 @@ export default function AdminDashboard({
                               setShowPenaltyModal(true);
                             }}
                             disabled={halfStatus !== '2ND_HALF' && halfStatus !== 'EXTRA_TIME'}
-                            className={`p-3 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg ${
+                            className={`p-2.5 sm:p-3 rounded-2xl font-black text-[11px] sm:text-xs min-h-[44px] transition-all flex items-center justify-center gap-1.5 shadow-lg ${
                               halfStatus === 'EXTRA_TIME'
                                 ? 'bg-slate-900 border border-slate-800 text-indigo-400 opacity-80'
                                 : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 text-white cursor-pointer active:scale-95'
@@ -5884,7 +5884,7 @@ export default function AdminDashboard({
                               setShowPenaltyModal(true);
                             }}
                             disabled={halfStatus !== 'EXTRA_TIME' && halfStatus !== '2ND_HALF' && halfStatus !== 'PENALTIES'}
-                            className={`p-3 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg ${
+                            className={`p-2.5 sm:p-3 rounded-2xl font-black text-[11px] sm:text-xs min-h-[44px] transition-all flex items-center justify-center gap-1.5 shadow-lg ${
                               halfStatus === 'PENALTIES'
                                 ? 'bg-slate-900 border border-slate-800 text-orange-400 opacity-80'
                                 : 'bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 text-white cursor-pointer active:scale-95'
@@ -5898,7 +5898,7 @@ export default function AdminDashboard({
                           <button
                             type="button"
                             onClick={() => setShowPenaltyModal(true)}
-                            className="p-3 rounded-2xl font-black text-xs bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 transition-all flex items-center justify-center gap-1.5 shadow-lg border border-amber-300 cursor-pointer active:scale-95"
+                            className="p-2.5 sm:p-3 rounded-2xl font-black text-[11px] sm:text-xs min-h-[44px] bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 transition-all flex items-center justify-center gap-1.5 shadow-lg border border-amber-300 cursor-pointer active:scale-95"
                             title="باز کردن پنجره ثبت هوشمند ضربات پنالتی"
                           >
                             <Trophy size={16} className="text-slate-950 animate-bounce" />
@@ -5911,7 +5911,7 @@ export default function AdminDashboard({
                       <button
                         onClick={() => handleRefereeControlAction('CONCLUDE_FULL_TIME')}
                         disabled={!['2ND_HALF', 'EXTRA_TIME', 'PENALTIES'].includes(halfStatus) || isMatchFinished}
-                        className={`p-3 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg ${
+                        className={`p-2.5 sm:p-3 rounded-2xl font-black text-[11px] sm:text-xs min-h-[44px] transition-all flex items-center justify-center gap-1.5 shadow-lg ${
                           isMatchConcluded
                             ? 'bg-slate-900 border border-slate-800 text-slate-500 opacity-50 cursor-not-allowed'
                             : ['2ND_HALF', 'EXTRA_TIME', 'PENALTIES'].includes(halfStatus)
@@ -6079,8 +6079,8 @@ export default function AdminDashboard({
                     </div>
 
                     {/* 14 Tactical Parameters Inspector */}
-                    <div className="glass-panel p-4 rounded-2xl border border-slate-800 space-y-3 mt-3">
-                      <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
+                    <div className="glass-panel p-3 sm:p-4 rounded-2xl border border-slate-800 space-y-3 mt-3">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2.5 border-b border-slate-800 pb-2.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Sliders size={16} className="text-purple-400" />
                           <h5 className="font-bold text-white text-xs sm:text-sm flex items-center gap-2 flex-wrap">
@@ -6097,10 +6097,10 @@ export default function AdminDashboard({
                             })()}
                           </h5>
                         </div>
-                        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-[11px]">
+                        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-[11px] w-full sm:w-auto justify-center">
                           <button
                             onClick={() => setAdminTacticTab('attack')}
-                            className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                            className={`flex-1 sm:flex-none px-3 py-1 rounded-lg font-bold transition-all cursor-pointer text-center ${
                               adminTacticTab === 'attack' ? 'bg-rose-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                             }`}
                           >
@@ -6108,7 +6108,7 @@ export default function AdminDashboard({
                           </button>
                           <button
                             onClick={() => setAdminTacticTab('defense')}
-                            className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                            className={`flex-1 sm:flex-none px-3 py-1 rounded-lg font-bold transition-all cursor-pointer text-center ${
                               adminTacticTab === 'defense' ? 'bg-cyan-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                             }`}
                           >
@@ -6116,7 +6116,7 @@ export default function AdminDashboard({
                           </button>
                           <button
                             onClick={() => setAdminTacticTab('advanced')}
-                            className={`px-3 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+                            className={`flex-1 sm:flex-none px-3 py-1 rounded-lg font-bold transition-all cursor-pointer text-center ${
                               adminTacticTab === 'advanced' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
                             }`}
                           >
@@ -6128,7 +6128,7 @@ export default function AdminDashboard({
                       {/* TAB 1: ATTACK TACTICS */}
                       {adminTacticTab === 'attack' && (
                         <div className="space-y-3">
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
                             <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
                               <span className="text-[10px] text-slate-400 block font-bold">۱. سبک حمله:</span>
                               <strong className="text-rose-300 block">{activeTactics.attacking_style || 'بازی مالکانه'}</strong>
@@ -6151,16 +6151,16 @@ export default function AdminDashboard({
                             </div>
                           </div>
 
-                          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between text-xs">
+                          <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
                             <div>
                               <span className="text-[10px] text-slate-400 font-bold block">۵. محدوده پشتیبانی (Support Range):</span>
                               <span className="text-[10px] text-slate-500">تنظیم فاصله بازیکنان پشتیبان از حامل توپ</span>
                             </div>
-                            <div className="flex items-center gap-2 font-sport">
-                              <div className="w-32 bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-700">
+                            <div className="flex items-center gap-2 font-sport w-full sm:w-auto justify-between sm:justify-end">
+                              <div className="w-full sm:w-32 bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-700">
                                 <div className="bg-rose-500 h-full rounded-full" style={{ width: `${((activeTactics.support_range || 5) / 10) * 100}%` }}></div>
                               </div>
-                              <span className="text-sm font-black text-rose-400 px-2 py-0.5 bg-rose-950/80 rounded-lg border border-rose-500/30">
+                              <span className="text-sm font-black text-rose-400 px-2 py-0.5 bg-rose-950/80 rounded-lg border border-rose-500/30 shrink-0">
                                 {activeTactics.support_range || 5} / ۱۰
                               </span>
                             </div>
@@ -6190,31 +6190,31 @@ export default function AdminDashboard({
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+                            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                               <div>
                                 <span className="text-[10px] text-slate-400 font-bold block">۴. خط دفاعی (Defensive Line):</span>
                                 <span className="text-[10px] text-slate-500">عمق استقرار خط دفاع</span>
                               </div>
-                              <div className="flex items-center gap-2 font-sport">
-                                <div className="w-24 bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-700">
+                              <div className="flex items-center gap-2 font-sport w-full sm:w-auto justify-between sm:justify-end">
+                                <div className="w-full sm:w-24 bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-700">
                                   <div className="bg-cyan-500 h-full rounded-full" style={{ width: `${((activeTactics.defensive_line || 5) / 10) * 100}%` }}></div>
                                 </div>
-                                <span className="text-sm font-black text-cyan-400 px-2 py-0.5 bg-cyan-950/80 rounded-lg border border-cyan-500/30">
+                                <span className="text-sm font-black text-cyan-400 px-2 py-0.5 bg-cyan-950/80 rounded-lg border border-cyan-500/30 shrink-0">
                                   {activeTactics.defensive_line || 5} / ۱۰
                                 </span>
                               </div>
                             </div>
 
-                            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+                            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                               <div>
                                 <span className="text-[10px] text-slate-400 font-bold block">۵. فشردگی و تراکم (Compactness):</span>
                                 <span className="text-[10px] text-slate-500">فاصله بین خطوط تیم</span>
                               </div>
-                              <div className="flex items-center gap-2 font-sport">
-                                <div className="w-24 bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-700">
+                              <div className="flex items-center gap-2 font-sport w-full sm:w-auto justify-between sm:justify-end">
+                                <div className="w-full sm:w-24 bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-700">
                                   <div className="bg-purple-500 h-full rounded-full" style={{ width: `${((activeTactics.compactness || 5) / 10) * 100}%` }}></div>
                                 </div>
-                                <span className="text-sm font-black text-purple-400 px-2 py-0.5 bg-purple-950/80 rounded-lg border border-purple-500/30">
+                                <span className="text-sm font-black text-purple-400 px-2 py-0.5 bg-purple-950/80 rounded-lg border border-purple-500/30 shrink-0">
                                   {activeTactics.compactness || 5} / ۱۰
                                 </span>
                               </div>
@@ -6225,7 +6225,7 @@ export default function AdminDashboard({
 
                       {/* TAB 3: ADVANCED TACTICS */}
                       {adminTacticTab === 'advanced' && (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
                           <div className="p-2.5 rounded-xl bg-slate-950/80 border border-rose-500/30 space-y-1">
                             <span className="text-[10px] text-rose-300 block font-bold">۱. تاکتیک هجومی ۱:</span>
                             <strong className="text-white block">{activeTactics.adv_offense_1 || 'تیکی تاکا'}</strong>
@@ -6315,15 +6315,17 @@ export default function AdminDashboard({
                   )}
 
                   {/* Aparat Stream URL Setting */}
-                  <div className="glass-panel p-4 rounded-3xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2">
-                      <Tv size={16} className="text-cyan-400 shrink-0" />
-                      <span>آدرس پخش زنده آپارات:</span>
+                  <div className="glass-panel p-3.5 sm:p-4 rounded-3xl border border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Tv size={16} className="text-cyan-400 shrink-0" />
+                        <span className="font-bold">آدرس پخش زنده آپارات:</span>
+                      </div>
                       <input
                         type="text"
                         value={streamInput}
                         onChange={(e) => setStreamInput(e.target.value)}
-                        className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-mono text-xs w-64 focus:border-cyan-400 focus:outline-none"
+                        className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-mono text-xs w-full sm:max-w-md focus:border-cyan-400 focus:outline-none"
                       />
                     </div>
                     <button
@@ -6331,7 +6333,7 @@ export default function AdminDashboard({
                         if (setLiveStreamUrl) setLiveStreamUrl(streamInput);
                         showNotification('لینک پخش زنده آپارات به‌روزرسانی شد.');
                       }}
-                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold border border-slate-700 cursor-pointer"
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold border border-slate-700 cursor-pointer text-center w-full sm:w-auto shrink-0 transition-all shadow-sm"
                     >
                       ذخیره و اعمال لینک پخش
                     </button>
@@ -6606,17 +6608,17 @@ export default function AdminDashboard({
                         const aVal = deskTeamStats.away[key] ?? 0;
 
                         return (
-                          <div key={key} className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
-                            <div className="flex justify-between items-center text-xs">
+                          <div key={key} className="p-3 sm:p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
+                            <div className="flex justify-between items-center gap-1 sm:gap-2 text-[11px] sm:text-xs">
                               {/* Home Side Input */}
-                              <div className="flex items-center gap-2 w-1/3 justify-start">
+                              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                                 <button
                                   onClick={() => handleDeskTeamStatsChange('home', key, Math.max(min, hVal - 1))}
                                   className="p-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 cursor-pointer"
                                 >
                                   <Minus size={12} />
                                 </button>
-                                <span className="font-mono font-black text-cyan-400 px-2 py-0.5 bg-slate-900 rounded-lg border border-slate-800">
+                                <span className="font-mono font-black text-cyan-400 px-1.5 sm:px-2 py-0.5 bg-slate-900 rounded-lg border border-slate-800 text-[10.5px] sm:text-xs">
                                   {hVal} {unit}
                                 </span>
                                 <button
@@ -6628,17 +6630,17 @@ export default function AdminDashboard({
                               </div>
 
                               {/* Label */}
-                              <span className="font-bold text-slate-200 text-center">{label}</span>
+                              <span className="font-bold text-slate-200 text-center px-1 text-[11px] sm:text-xs truncate">{label}</span>
 
                               {/* Away Side Input */}
-                              <div className="flex items-center gap-2 w-1/3 justify-end">
+                              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                                 <button
                                   onClick={() => handleDeskTeamStatsChange('away', key, Math.max(min, aVal - 1))}
                                   className="p-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-rose-400 text-slate-300 cursor-pointer"
                                 >
                                   <Minus size={12} />
                                 </button>
-                                <span className="font-mono font-black text-rose-400 px-2 py-0.5 bg-slate-900 rounded-lg border border-slate-800">
+                                <span className="font-mono font-black text-rose-400 px-1.5 sm:px-2 py-0.5 bg-slate-900 rounded-lg border border-slate-800 text-[10.5px] sm:text-xs">
                                   {aVal} {unit}
                                 </span>
                                 <button
@@ -6723,7 +6725,7 @@ export default function AdminDashboard({
                           return (
                             <div
                               key={p.player_id}
-                              className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 shadow-md ${
+                              className={`p-3 rounded-2xl border transition-all flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-md ${
                                 isMOTM
                                   ? 'bg-amber-950/40 border-amber-500/80 ring-2 ring-amber-400/40'
                                   : 'bg-slate-950/90 border-slate-800'
@@ -6744,8 +6746,8 @@ export default function AdminDashboard({
                                     <User size={18} className="text-slate-400" />
                                   )}
                                 </div>
-                                <div className="truncate">
-                                  <div className="flex items-center gap-1.5">
+                                <div className="truncate flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
                                     <span className="font-black text-white text-xs truncate">{p.name}</span>
                                     <span className="text-[10px] text-cyan-300 bg-cyan-950 px-1.5 rounded font-sport font-bold">
                                       {p.position || 'MID'}
@@ -6770,9 +6772,9 @@ export default function AdminDashboard({
                               </div>
 
                               {/* Minutes & Rating Inputs */}
-                              <div className="flex items-center gap-2.5 shrink-0 font-sport">
-                                <div className="text-left">
-                                  <span className="text-[9px] text-slate-400 block text-right font-sans">دقایق بازی</span>
+                              <div className="flex items-center justify-between sm:justify-end gap-2.5 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/60 font-sport">
+                                <div className="text-left flex items-center gap-1.5 sm:block">
+                                  <span className="text-[10px] text-slate-400 block text-right font-sans">دقایق بازی:</span>
                                   <input
                                     type="number"
                                     min="0"
@@ -6790,8 +6792,8 @@ export default function AdminDashboard({
                                   />
                                 </div>
 
-                                <div className="text-left">
-                                  <span className="text-[9px] text-slate-400 block text-right font-sans">نمره (Rating)</span>
+                                <div className="text-left flex items-center gap-1.5 sm:block">
+                                  <span className="text-[10px] text-slate-400 block text-right font-sans">نمره (Rating):</span>
                                   <input
                                     type="number"
                                     min="1.0"
