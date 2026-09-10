@@ -693,6 +693,71 @@ def serialize_battle_royale_bracket(tournament: Tournament) -> dict:
             if main_gf['home_score'] > main_gf['away_score'] or (main_gf['home_penalties'] or 0) > (main_gf['away_penalties'] or 0):
                 champion = {'id': main_gf['home_team_id'], 'name': main_gf['home_team_name'], 'logo': main_gf['home_team_logo']}
 
+    # Calculate lives and survival status for all participating teams
+    team_losses = {}
+    team_names = {}
+    team_logos = {}
+
+    for m in matches:
+        if m.home_team_id:
+            team_losses.setdefault(m.home_team_id, 0)
+            team_names[m.home_team_id] = m.home_team.name if m.home_team else ''
+            logo_val = ''
+            if m.home_team and getattr(m.home_team, 'logo', None):
+                logo_val = m.home_team.logo.url if hasattr(m.home_team.logo, 'url') else str(m.home_team.logo)
+            team_logos[m.home_team_id] = logo_val
+
+        if m.away_team_id:
+            team_losses.setdefault(m.away_team_id, 0)
+            team_names[m.away_team_id] = m.away_team.name if m.away_team else ''
+            logo_val = ''
+            if m.away_team and getattr(m.away_team, 'logo', None):
+                logo_val = m.away_team.logo.url if hasattr(m.away_team.logo, 'url') else str(m.away_team.logo)
+            team_logos[m.away_team_id] = logo_val
+
+        if m.status == 'FINISHED':
+            h_score = m.home_score if m.home_score is not None else 0
+            a_score = m.away_score if m.away_score is not None else 0
+            h_pen = m.home_penalties if m.home_penalties is not None else 0
+            a_pen = m.away_penalties if m.away_penalties is not None else 0
+
+            if h_score > a_score or (h_score == a_score and h_pen > a_pen):
+                if m.away_team_id:
+                    team_losses[m.away_team_id] = team_losses.get(m.away_team_id, 0) + 1
+            elif a_score > h_score or (h_score == a_score and a_pen > h_pen):
+                if m.home_team_id:
+                    team_losses[m.home_team_id] = team_losses.get(m.home_team_id, 0) + 1
+
+    team_statuses = {}
+    for tid, losses in team_losses.items():
+        lives = max(0, 2 - losses)
+        is_eliminated = (lives == 0)
+        is_champ = bool(champion and champion.get('id') == tid)
+        if is_champ:
+            status_label = 'قهرمان نبرد رویال 🏆'
+            bracket_loc = 'CHAMPION'
+        elif is_eliminated:
+            status_label = 'حذف شده 💔'
+            bracket_loc = 'ELIMINATED'
+        elif lives == 2:
+            status_label = 'جدول برندگان (فرصت کامل) 🛡️'
+            bracket_loc = 'WINNERS'
+        else:
+            status_label = 'جدول بازندگان (لبه تیغ) 🔥'
+            bracket_loc = 'LOSERS'
+
+        team_statuses[tid] = {
+            'team_id': tid,
+            'team_name': team_names.get(tid, ''),
+            'team_logo': team_logos.get(tid, ''),
+            'losses': losses,
+            'lives': lives,
+            'is_eliminated': is_eliminated,
+            'is_champion': is_champ,
+            'current_bracket': bracket_loc,
+            'status_label': status_label,
+        }
+
     total_m = len(matches)
     finished_m = sum(1 for m in matches if m.status == 'FINISHED')
 
@@ -708,6 +773,7 @@ def serialize_battle_royale_bracket(tournament: Tournament) -> dict:
         'losers_bracket': sorted_lb,
         'grand_final': gf_matches,
         'champion': champion,
+        'team_statuses': team_statuses,
         'stats': {
             'total_matches': total_m,
             'finished_matches': finished_m,

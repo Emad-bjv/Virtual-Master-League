@@ -46,6 +46,7 @@ from .views import (
     AdminBattleRoyaleAdvanceView,
     AdminBattleRoyaleResetView,
     BattleRoyaleScheduleView,
+    AdminTournamentToggleStatusView,
 )
 
 urlpatterns = [
@@ -117,5 +118,6 @@ urlpatterns = [
     path('matches/admin/battle-royale/<int:tournament_id>/', AdminBattleRoyaleTournamentView.as_view(), name='admin-battle-royale-detail'),
     path('matches/admin/battle-royale/reset/', AdminBattleRoyaleResetView.as_view(), name='admin-battle-royale-reset'),
     path('matches/admin/battle-royale/<int:match_id>/advance/', AdminBattleRoyaleAdvanceView.as_view(), name='admin-battle-royale-advance'),
+    path('matches/admin/tournaments/<int:tournament_id>/toggle-status/', AdminTournamentToggleStatusView.as_view(), name='admin-tournament-toggle-status'),
 ]
 

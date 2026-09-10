@@ -78,6 +78,11 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
   const [leagueTeamSearch, setLeagueTeamSearch] = useState('');
   const [cupTeamSearch, setCupTeamSearch] = useState('');
 
+  // League Status & Suspension State
+  const [leagueInfo, setLeagueInfo] = useState(null);
+  const [isSuspendingLeague, setIsSuspendingLeague] = useState(false);
+  const [isToggleConfirmModalOpen, setIsToggleConfirmModalOpen] = useState(false);
+
   // Time Slots State & Persistence
   const [timeSlots, setTimeSlots] = useState(() => {
     try {
@@ -368,7 +373,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
     }
     setLoading(true);
     try {
-      const [teamsRes, gwRes, matchesRes, cupsRes, standingsRes, brRes, marketRes] = await Promise.all([
+      const [teamsRes, gwRes, matchesRes, cupsRes, standingsRes, brRes, marketRes, leagueInfoRes] = await Promise.all([
         teamApi.getTeams().catch(async (err) => {
           console.warn('teamApi.getTeams failed, trying direct axios fallback:', err);
           try {
@@ -385,6 +390,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
         matchApi.getLeagueStandings().catch(() => ({ data: [] })),
         adminApi.getBattleRoyaleTournaments().catch(() => ({ data: [] })),
         transferApi.getMarketStatus().catch(() => ({ data: null })),
+        adminApi.getLeagueInfo().catch(() => ({ data: null })),
       ]);
 
       const rawTeams = Array.isArray(teamsRes.data) ? teamsRes.data : (teamsRes.data?.results || []);
@@ -414,6 +420,9 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
       setStandingsList(standingsRes.data || []);
       if (marketRes?.data) {
         setMarketStatus(marketRes.data);
+      }
+      if (leagueInfoRes?.data) {
+        setLeagueInfo(leagueInfoRes.data);
       }
 
       const brList = brRes.data || [];
@@ -712,6 +721,32 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
       notify(err.response?.data?.error || 'خطا در پاک‌سازی مسابقات لیگ', 'error');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // Handle Safe Suspension / Resumption of League Tournament
+  const handleToggleLeagueStatus = async () => {
+    if (!leagueInfo?.id) {
+      notify('اطلاعات لیگ برای تغییر وضعیت یافت نشد.', 'error');
+      return;
+    }
+    setIsSuspendingLeague(true);
+    try {
+      const nextActive = !leagueInfo.is_active;
+      const res = await adminApi.toggleTournamentStatus(leagueInfo.id, nextActive);
+      notify(res.data?.message || 'وضعیت لیگ با موفقیت به‌روزرسانی شد.', 'success');
+      setLeagueInfo((prev) => (prev ? { ...prev, is_active: nextActive } : null));
+      setIsToggleConfirmModalOpen(false);
+      try {
+        window.dispatchEvent(new CustomEvent('vml_league_schedule_updated'));
+        window.dispatchEvent(new CustomEvent('tournament_status_updated'));
+        localStorage.setItem('vml_last_schedule_update', Date.now().toString());
+      } catch (_e) {}
+      await loadData(true);
+    } catch (err) {
+      notify(err.response?.data?.error || 'خطا در تغییر وضعیت لیگ', 'error');
+    } finally {
+      setIsSuspendingLeague(false);
     }
   };
 
@@ -1106,6 +1141,70 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
       {/* TAB 1: LEAGUE MANAGEMENT */}
       {hubTab === 'league' && (
         <div className="space-y-6">
+          {/* Tournament Active / Suspended State Banner & Toggle Control */}
+          <div
+            className={`rounded-3xl p-5 border transition-all ${
+              leagueInfo?.is_active === false
+                ? 'bg-amber-950/40 border-amber-500/40 shadow-[0_0_25px_rgba(245,158,11,0.15)]'
+                : 'bg-emerald-950/30 border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.1)]'
+            }`}
+          >
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div
+                  className={`p-3 rounded-2xl shrink-0 ${
+                    leagueInfo?.is_active === false
+                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                      : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  }`}
+                >
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-sm sm:text-base font-black text-white">
+                      {leagueInfo?.is_active === false
+                        ? 'وضعیت فرمت لیگ: معلق (آرشیو شده در دیتابیس)'
+                        : 'وضعیت فرمت لیگ: فعال در حال برگزاری'}
+                    </h3>
+                    <span
+                      className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
+                        leagueInfo?.is_active === false
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      }`}
+                    >
+                      {leagueInfo?.is_active === false ? '⏸️ معلق' : '🟢 فعال'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                    {leagueInfo?.is_active === false
+                      ? 'مسابقات لیگ برتر در حال حاضر موقتاً به تعلیق درآمده و فرمت فعال پلتفرم به «نبرد رویال» سوییچ شده است. تمامی ۳۰۶ مسابقه و امتیازات جدول کاملاً محفوظند و بدون هیچ‌گونه حذف اطلاعاتی باقی مانده‌اند.'
+                      : 'مسابقات لیگ در وضعیت فعال قرار دارد و بازی‌های آن در تقویم مربیان، بازی بعدی و یادآورها نمایش داده می‌شود.'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsToggleConfirmModalOpen(true)}
+                disabled={isSuspendingLeague || !leagueInfo?.id}
+                className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-lg ${
+                  leagueInfo?.is_active === false
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-emerald-600/30'
+                    : 'bg-amber-950/60 hover:bg-amber-900/80 border border-amber-500/40 text-amber-300 hover:text-amber-100 shadow-amber-950/40'
+                }`}
+              >
+                <RotateCcw className={`w-4 h-4 ${isSuspendingLeague ? 'animate-spin' : ''}`} />
+                <span>
+                  {leagueInfo?.is_active === false
+                    ? '▶️ راه‌اندازی مجدد لیگ برتر'
+                    : '⏸️ تعلیق لیگ و سوییچ به نبرد رویال'}
+                </span>
+              </button>
+            </div>
+          </div>
+
           {/* Quick Stats Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="bg-slate-900/80 border border-white/5 rounded-2xl p-4 flex items-center justify-between">
@@ -3908,6 +4007,75 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                     className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-gray-300 rounded-xl text-xs font-bold transition-all border border-white/5"
                   >
                     انصراف
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* Confirmation Modal for Suspending / Resuming League */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isToggleConfirmModalOpen && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+              <div className="fixed inset-0" onClick={() => setIsToggleConfirmModalOpen(false)} />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="relative z-10 bg-slate-950 border border-white/10 rounded-3xl w-full max-w-lg my-auto p-6 shadow-2xl space-y-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-3 border-b border-white/10 pb-3">
+                  <div
+                    className={`p-2.5 rounded-2xl ${
+                      leagueInfo?.is_active === false
+                        ? 'bg-emerald-500/20 text-emerald-400'
+                        : 'bg-amber-500/20 text-amber-400'
+                    }`}
+                  >
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-white">
+                      {leagueInfo?.is_active === false ? 'تأیید راه‌اندازی مجدد لیگ' : 'تأیید تعلیق لیگ برتر'}
+                    </h3>
+                    <span className="text-xs text-gray-400">
+                      {leagueInfo?.is_active === false
+                        ? 'فعال‌سازی دوباره مسابقات لیگ'
+                        : 'حفظ ۱۰۰٪ داده‌ها و سوییچ به نبرد رویال'}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {leagueInfo?.is_active === false
+                    ? 'با راه‌اندازی مجدد، مسابقات و جدول لیگ برتر مجدداً در داشبورد عمومی و برنامه هفتگی مربیان فعال خواهند شد.'
+                    : 'با تعلیق لیگ برتر، هیچ اطلاعاتی پاک نمی‌شود. جدول رده‌بندی و تمامی ۳۰۶ مسابقه کاملاً در دیتابیس محفوظ می‌مانند اما در داشبورد عمومی مربیان پنهان شده و پلتفرم به صورت کامل بر فرمت نبرد رویال متمرکز می‌گردد.'}
+                </p>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsToggleConfirmModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-gray-400 hover:text-white bg-slate-900 border border-white/10 transition-colors"
+                  >
+                    انصراف
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleToggleLeagueStatus}
+                    disabled={isSuspendingLeague}
+                    className={`px-5 py-2.5 rounded-xl text-xs font-bold text-white transition-all shadow-lg ${
+                      leagueInfo?.is_active === false
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500'
+                        : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500'
+                    }`}
+                  >
+                    {isSuspendingLeague ? 'در حال اعمال...' : 'تأیید و اعمال وضعیت'}
                   </button>
                 </div>
               </motion.div>

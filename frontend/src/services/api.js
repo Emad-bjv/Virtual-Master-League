@@ -211,6 +211,8 @@ export const adminApi = {
   executeReset: (action, confirmation) => { clearApiCache('/matches/'); return api.post(`/admin/reset/${action}/`, { confirmation }); },
 
   // League & Cup Tournament Management
+  getLeagueInfo: () => cachedGet('/matches/admin/league/configure/', {}, 20000),
+  toggleTournamentStatus: (tournamentId, isActive) => { clearApiCache('/matches/'); return api.post(`/matches/admin/tournaments/${tournamentId}/toggle-status/`, isActive !== undefined ? { is_active: isActive } : {}); },
   configureLeague: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/league/configure/', data); },
   resetLeague: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/league/reset/', data); },
   gameweekAction: (data) => { clearApiCache('/matches/'); return api.post('/matches/admin/gameweek-action/', data); },

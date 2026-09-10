@@ -4,16 +4,17 @@ import EFootballGamePlan, { getGemBoostCost } from './EFootballGamePlan';
 import SimpleTacticsModal, { autoSelectOptimalLineup } from './SimpleTacticsModal';
 import PlayerBoostDrawer from './PlayerBoostDrawer';
 import LeagueStandingsTable from './LeagueStandingsTable';
+import BattleRoyaleBracket from '../BattleRoyaleBracket';
 import MatchDetailModal from './MatchDetailModal';
 import PlayerOverallRecords from './PlayerOverallRecords';
 import MatchSummaryView from './MatchSummaryView';
 import { 
   Search, CheckCircle, AlertTriangle, XCircle, Save, Sliders, 
   Calendar, Info, X, User, Users, Zap, HeartPulse, Gem, Sparkles, 
-  ArrowRight, ArrowLeft, Clock, Home, Plane, RefreshCw, ChevronRight, Shield, Flame
+  ArrowRight, ArrowLeft, Clock, Home, Plane, RefreshCw, ChevronRight, Shield, Flame, Trophy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { teamApi, matchApi, playerApi } from '../../services/api';
+import { teamApi, matchApi, playerApi, battleRoyaleApi } from '../../services/api';
 import { useTeam } from '../../context/TeamContext';
 import CustomSelect from '../common/CustomSelect';
 import Toast from '../common/Toast';
@@ -23,7 +24,7 @@ import { getTeamLogoUrl } from '../../utils/teamLogos';
 const TEAM_SUBNAV = [
   { id: 'matches', label: 'برنامه بازی‌ها و ترکیب', color: 'text-cyan-400' },
   { id: 'players', label: 'عملکرد بازیکنان' },
-  { id: 'table', label: 'جدول لیگ' },
+  { id: 'table', label: 'جدول و براکت مسابقات' },
 ];
 
 function formatMatchDateTime(dateString) {
@@ -113,6 +114,27 @@ export default function TeamTab({
 
   // Live data: league standings
   const [leagueTable, setLeagueTable] = useState([]);
+
+  // Subtab 3: Tournament Format (Battle Royale Bracket vs Archived League Table)
+  const [bracketTab, setBracketTab] = useState('bracket'); // 'bracket' | 'league_standings'
+  const [hasActiveBattleRoyale, setHasActiveBattleRoyale] = useState(false);
+
+  useEffect(() => {
+    battleRoyaleApi.getActive()
+      .then((res) => {
+        if (res.data?.active) {
+          setHasActiveBattleRoyale(true);
+          setBracketTab('bracket');
+        } else {
+          setHasActiveBattleRoyale(false);
+          setBracketTab('league_standings');
+        }
+      })
+      .catch(() => {
+        setHasActiveBattleRoyale(false);
+        setBracketTab('league_standings');
+      });
+  }, []);
 
   const currentGems = team?.gems ?? teamData?.gems ?? 0;
 
@@ -472,9 +494,17 @@ export default function TeamTab({
   const filteredScheduleMatches = useMemo(() => {
     return scheduleMatches.filter((m) => {
       const isHome = m.home_team === teamId;
-      const isCup = Boolean(m.is_knockout || m.tournament_name?.includes('حذفی') || m.tournament?.tournament_type === 'CUP');
-      if (scheduleFilter === 'LEAGUE') return !isCup;
+      const isCup = Boolean(m.tournament?.tournament_type === 'CUP' || m.tournament_name?.includes('جام حذفی'));
+      const isBr = Boolean(
+        m.tournament?.tournament_type === 'BATTLE_ROYALE' ||
+        m.tournament_name?.includes('نبرد رویال') ||
+        m.round_name?.includes('برنده‌ها') ||
+        m.round_name?.includes('بازنده‌ها') ||
+        m.round_name?.includes('فینال بزرگ')
+      );
+      if (scheduleFilter === 'LEAGUE') return !isCup && !isBr;
       if (scheduleFilter === 'CUP') return isCup;
+      if (scheduleFilter === 'BATTLE_ROYALE') return isBr;
       if (scheduleFilter === 'UPCOMING') return m.status === 'SCHEDULED' || m.status === 'LIVE';
       if (scheduleFilter === 'FINISHED') return m.status === 'FINISHED';
       if (scheduleFilter === 'HOME') return isHome;
@@ -483,18 +513,26 @@ export default function TeamTab({
     });
   }, [scheduleMatches, scheduleFilter, teamId]);
 
-  const totalMatches = scheduleMatches.length || 30;
-  const leagueCount = scheduleMatches.filter((m) => !m.is_knockout && !m.tournament_name?.includes('حذفی') && m.tournament?.tournament_type !== 'CUP').length;
-  const cupCount = scheduleMatches.filter((m) => Boolean(m.is_knockout || m.tournament_name?.includes('حذفی') || m.tournament?.tournament_type === 'CUP')).length;
+  const totalMatches = scheduleMatches.length || 0;
+  const brCount = scheduleMatches.filter((m) =>
+    Boolean(
+      m.tournament?.tournament_type === 'BATTLE_ROYALE' ||
+      m.tournament_name?.includes('نبرد رویال') ||
+      m.round_name?.includes('برنده‌ها') ||
+      m.round_name?.includes('بازنده‌ها') ||
+      m.round_name?.includes('فینال بزرگ')
+    )
+  ).length;
+  const cupCount = scheduleMatches.filter((m) => Boolean(m.tournament?.tournament_type === 'CUP' || m.tournament_name?.includes('جام حذفی'))).length;
+  const leagueCount = scheduleMatches.filter((m) => !m.is_knockout && m.tournament?.tournament_type !== 'CUP' && m.tournament?.tournament_type !== 'BATTLE_ROYALE' && !m.tournament_name?.includes('حذفی') && !m.tournament_name?.includes('نبرد')).length;
   const finishedCount = scheduleMatches.filter((m) => m.status === 'FINISHED').length;
   const upcomingCount = scheduleMatches.filter((m) => m.status === 'SCHEDULED' || m.status === 'LIVE').length;
 
   const SCHEDULE_FILTERS = [
     { id: 'ALL', label: `همه (${totalMatches})` },
-    ...(cupCount > 0 ? [
-      { id: 'LEAGUE', label: `⚽ لیگ برتر (${leagueCount})` },
-      { id: 'CUP', label: `🏆 جام حذفی (${cupCount})` },
-    ] : []),
+    ...(brCount > 0 ? [{ id: 'BATTLE_ROYALE', label: `🔥 نبرد رویال (${brCount})` }] : []),
+    ...(leagueCount > 0 ? [{ id: 'LEAGUE', label: `⚽ لیگ برتر (${leagueCount})` }] : []),
+    ...(cupCount > 0 ? [{ id: 'CUP', label: `🏆 جام حذفی (${cupCount})` }] : []),
     { id: 'UPCOMING', label: `پیش‌رو (${upcomingCount})` },
     { id: 'FINISHED', label: `پایان‌یافته (${finishedCount})` },
     { id: 'HOME', label: 'میزبان (خانگی)' },
@@ -1461,9 +1499,58 @@ export default function TeamTab({
         </motion.div>
       )}
 
-      {/* Subtab 3: League Table */}
+      {/* Subtab 3: Tournament Format (Battle Royale Bracket & Archived League Table) */}
       {activeSub === 'table' && (
-        <LeagueStandingsTable userTeamId={teamId} />
+        <div className="space-y-4">
+          {/* Format Switcher Header */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 border border-white/10 p-2.5 rounded-2xl shadow-md">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setBracketTab('bracket')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  bracketTab === 'bracket'
+                    ? 'bg-gradient-to-r from-orange-600 via-amber-600 to-yellow-500 text-slate-950 font-black shadow-lg shadow-orange-600/30'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <Flame className="w-4 h-4 text-orange-400" />
+                <span>درخت براکت نبرد رویال</span>
+                {hasActiveBattleRoyale && (
+                  <span className="text-[9px] bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded-md font-black">
+                    فعال
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setBracketTab('league_standings')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                  bracketTab === 'league_standings'
+                    ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-600/30'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                <Trophy className="w-4 h-4 text-blue-400" />
+                <span>جدول رده‌بندی لیگ</span>
+                <span className="text-[9px] bg-slate-800 text-slate-400 border border-slate-700 px-1.5 py-0.5 rounded-md font-black">
+                  آرشیو
+                </span>
+              </button>
+            </div>
+
+            <span className="text-[11px] text-gray-400 font-medium px-2">
+              {bracketTab === 'bracket' ? 'سیستم حذفی دوطرفه (دابل الیمینیشن)' : 'اطلاعات مسابقات لیگ برتر'}
+            </span>
+          </div>
+
+          {bracketTab === 'bracket' ? (
+            <BattleRoyaleBracket />
+          ) : (
+            <LeagueStandingsTable userTeamId={teamId} />
+          )}
+        </div>
       )}
 
       {/* Simple Tactics Modal */}

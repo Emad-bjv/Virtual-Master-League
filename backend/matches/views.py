@@ -128,7 +128,12 @@ class UpcomingMatchesView(generics.ListAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        return Match.objects.filter(status='SCHEDULED').select_related('home_team', 'away_team', 'tournament').order_by('date', 'id')[:10]
+        from django.db.models import Q
+        return Match.objects.filter(
+            status='SCHEDULED'
+        ).filter(
+            Q(tournament__isnull=True) | Q(tournament__is_active=True)
+        ).select_related('home_team', 'away_team', 'tournament').order_by('date', 'id')[:10]
 
 
 class MatchHistoryView(generics.ListAPIView):
@@ -136,7 +141,12 @@ class MatchHistoryView(generics.ListAPIView):
     permission_classes = [AllowAny]
 
     def get_queryset(self):
-        return Match.objects.filter(status='FINISHED').select_related('home_team', 'away_team', 'tournament').order_by('-date', '-id')[:10]
+        from django.db.models import Q
+        return Match.objects.filter(
+            status='FINISHED'
+        ).filter(
+            Q(tournament__isnull=True) | Q(tournament__is_active=True)
+        ).select_related('home_team', 'away_team', 'tournament').order_by('-date', '-id')[:10]
 
 
 class LeagueStandingsView(generics.GenericAPIView):
@@ -904,12 +914,12 @@ class TeamScheduleView(generics.ListAPIView):
             t_type = self.request.query_params.get('tournament_type').upper()
             qs = Match.objects.filter(tournament__tournament_type=t_type)
         else:
-            # Return all matches from active tournaments (both League and Cup)
+            # Return all matches from active tournaments (both League, Cup, and Battle Royale)
             active_tourneys = Tournament.objects.filter(is_active=True, matches__isnull=False).distinct()
             if active_tourneys.exists():
                 qs = Match.objects.filter(tournament__in=active_tourneys)
             else:
-                qs = Match.objects.all()
+                qs = Match.objects.none()
 
         qs = qs.select_related(
             'home_team__manager', 'away_team__manager',
@@ -984,9 +994,10 @@ class ActiveLiveMatchContextView(APIView):
         from django.utils import timezone
         from django.db.models import Q
         now = timezone.now()
-        active_match = Match.objects.filter(status='LIVE').select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('date', 'id').first()
-        next_match = Match.objects.filter(status='SCHEDULED').select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('date', 'id').first()
-        recent_finished_match = Match.objects.filter(status='FINISHED').select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('-date', '-id').first()
+        active_tourneys_filter = Q(tournament__isnull=True) | Q(tournament__is_active=True)
+        active_match = Match.objects.filter(status='LIVE').filter(active_tourneys_filter).select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('date', 'id').first()
+        next_match = Match.objects.filter(status='SCHEDULED').filter(active_tourneys_filter).select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('date', 'id').first()
+        recent_finished_match = Match.objects.filter(status='FINISHED').filter(active_tourneys_filter).select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('-date', '-id').first()
 
         time_to_kickoff = None
         is_within_reminder = False
@@ -1015,17 +1026,17 @@ class ActiveLiveMatchContextView(APIView):
             team_active_match = Match.objects.filter(
                 Q(home_team=user_team) | Q(away_team=user_team),
                 status='LIVE'
-            ).select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('date', 'id').first()
+            ).filter(active_tourneys_filter).select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('date', 'id').first()
 
             team_next_match = Match.objects.filter(
                 Q(home_team=user_team) | Q(away_team=user_team),
                 status='SCHEDULED'
-            ).select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('date', 'id').first()
+            ).filter(active_tourneys_filter).select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('date', 'id').first()
 
             team_recent_finished_match = Match.objects.filter(
                 Q(home_team=user_team) | Q(away_team=user_team),
                 status='FINISHED'
-            ).select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('-date', '-id').first()
+            ).filter(active_tourneys_filter).select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('-date', '-id').first()
 
             if team_next_match and team_next_match.date:
                 team_diff = (team_next_match.date - now).total_seconds()
@@ -1956,6 +1967,26 @@ class AdminLeagueConfigureView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
 
+    def get(self, request):
+        tourneys = Tournament.objects.filter(tournament_type='LEAGUE').order_by('-created_at')
+        t = tourneys.first()
+        if not t:
+            return Response({'active': False, 'exists': False, 'tournaments': []}, status=status.HTTP_200_OK)
+        return Response({
+            'exists': True,
+            'id': t.id,
+            'name': t.name,
+            'is_active': t.is_active,
+            'matches_count': t.matches.count(),
+            'finished_matches': t.matches.filter(status='FINISHED').count(),
+            'tournaments': [{
+                'id': item.id,
+                'name': item.name,
+                'is_active': item.is_active,
+                'matches_count': item.matches.count()
+            } for item in tourneys]
+        }, status=status.HTTP_200_OK)
+
     def post(self, request):
         from .fixture_engine import generate_league_fixtures, DEFAULT_START_DATE
         import datetime
@@ -2855,6 +2886,47 @@ class BattleRoyaleScheduleView(APIView):
             'tournament_name': tournament.name,
             'schedule': [{'date': k, 'matches': v} for k, v in schedule_by_date.items()]
         }, status=status.HTTP_200_OK)
+
+
+class AdminTournamentToggleStatusView(APIView):
+    """
+    Admin endpoint to toggle is_active status of any tournament (LEAGUE, CUP, BATTLE_ROYALE).
+    Allows suspending and resuming tournaments safely without any data loss.
+    """
+    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+
+    def post(self, request, tournament_id):
+        tournament = get_object_or_404(Tournament, id=tournament_id)
+        is_active = request.data.get('is_active')
+        if is_active is None:
+            tournament.is_active = not tournament.is_active
+        else:
+            if isinstance(is_active, str):
+                is_active = is_active.lower() in ['true', '1', 'yes']
+            tournament.is_active = bool(is_active)
+
+        tournament.save(update_fields=['is_active'])
+
+        try:
+            from realtime.events import broadcast_global_event
+            broadcast_global_event('tournament_status_updated', {
+                'tournament_id': tournament.id,
+                'name': tournament.name,
+                'tournament_type': tournament.tournament_type,
+                'is_active': tournament.is_active
+            })
+        except Exception:
+            pass
+
+        state_str = 'فعال' if tournament.is_active else 'معلق (غیرفعال)'
+        return Response({
+            'status': 'success',
+            'message': f'وضعیت تورنمنت «{tournament.name}» با موفقیت به «{state_str}» تغییر یافت.',
+            'tournament_id': tournament.id,
+            'tournament_type': tournament.tournament_type,
+            'is_active': tournament.is_active
+        }, status=status.HTTP_200_OK)
+
 
 
 

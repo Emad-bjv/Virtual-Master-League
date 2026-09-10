@@ -15,9 +15,12 @@ import {
   Shield,
   Gift,
   Swords,
+  ChevronDown,
+  ChevronUp,
+  Award,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { matchApi, notificationApi, seasonPassApi } from '../../services/api';
+import { matchApi, notificationApi, seasonPassApi, battleRoyaleApi } from '../../services/api';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import Toast from '../common/Toast';
 import TransferCountdownBanner from '../common/TransferCountdownBanner';
@@ -48,6 +51,10 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
   const [taskToast, setTaskToast] = useState('');
   const [claimingTaskId, setClaimingTaskId] = useState(null);
   const [_loadingData, setLoadingData] = useState(true);
+
+  // Battle Royale format state
+  const [activeBattleRoyale, setActiveBattleRoyale] = useState(null);
+  const [showArchivedStandings, setShowArchivedStandings] = useState(false);
 
   const teamId = teamData?.id;
   const teamName = teamData?.name || 'تیم شما';
@@ -126,6 +133,18 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
         } catch (passErr) {
           console.error('Failed to load season pass tasks:', passErr);
         }
+
+        // 6. Fetch Active Battle Royale Tournament
+        try {
+          const brRes = await battleRoyaleApi.getActive();
+          if (brRes.data?.active) {
+            setActiveBattleRoyale(brRes.data);
+          } else {
+            setActiveBattleRoyale(null);
+          }
+        } catch (_brErr) {
+          setActiveBattleRoyale(null);
+        }
       } catch (err) {
         console.error('Failed to load dashboard home data:', err);
       } finally {
@@ -135,6 +154,16 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
 
     loadDashboardData();
   }, [teamId]);
+
+  // Compute coach's survival and lives status in Battle Royale
+  const myBrStatus = useMemo(() => {
+    if (!activeBattleRoyale?.team_statuses) return null;
+    if (teamId && activeBattleRoyale.team_statuses[teamId]) {
+      return activeBattleRoyale.team_statuses[teamId];
+    }
+    const all = Object.values(activeBattleRoyale.team_statuses);
+    return all.find((s) => s.team_name === teamName) || null;
+  }, [activeBattleRoyale, teamId, teamName]);
 
   // Compute 3-row mini standings: (Top neighbor, My Team, Bottom neighbor)
   const miniStandings = useMemo(() => {
@@ -533,7 +562,105 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
 
       <Toast message={taskToast} type="success" isVisible={Boolean(taskToast)} />
 
-      {/* League Standings Summary (Championship Leaderboard Format) */}
+      {/* Active Battle Royale Survival Status Card */}
+      {activeBattleRoyale && (
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="fc-card-elevated p-4 sm:p-5 rounded-3xl border border-orange-500/40 bg-gradient-to-r from-orange-950/60 via-amber-950/40 to-slate-950 shadow-[0_8px_30px_rgba(249,115,22,0.2)] space-y-4 relative overflow-hidden"
+        >
+          <div className="absolute -top-10 -right-10 w-40 h-40 bg-orange-500/10 rounded-full filter blur-3xl pointer-events-none" />
+
+          <div className="flex items-center justify-between border-b border-white/10 pb-3 relative z-10">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-gradient-to-tr from-orange-600 to-amber-500 text-slate-950 shadow-md">
+                <Flame size={18} className="animate-pulse" />
+              </div>
+              <div>
+                <span className="text-xs sm:text-sm font-black text-white block">
+                  وضعیت بقا در نبرد رویال (دابل الیمینیشن)
+                </span>
+                <span className="text-[11px] text-orange-300 font-medium">
+                  {activeBattleRoyale.tournament?.name || 'تورنمنت نبرد رویال مستر لیگ'}
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => onNavigateTab?.('battle_royale')}
+              className="text-xs bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/40 px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 transition-all shadow-sm"
+            >
+              <span>مشاهده درخت براکت</span>
+              <ChevronLeft size={14} />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 relative z-10">
+            {/* Lives Status */}
+            <div className="bg-slate-900/80 border border-white/5 rounded-2xl p-3.5 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-gray-400 block mb-1">فرصت‌ها (جان‌های باقی‌مانده)</span>
+                <div className="flex items-center gap-1.5 text-base sm:text-lg">
+                  {myBrStatus?.lives === 2 && (
+                    <>
+                      <span className="text-rose-400 animate-bounce">❤️</span>
+                      <span className="text-rose-400 animate-bounce">❤️</span>
+                      <span className="text-xs font-black text-emerald-400 mr-2">۲ جان (فرصت کامل)</span>
+                    </>
+                  )}
+                  {myBrStatus?.lives === 1 && (
+                    <>
+                      <span className="text-rose-400 animate-pulse">❤️</span>
+                      <span className="text-slate-600">💔</span>
+                      <span className="text-xs font-black text-amber-400 mr-2">۱ جان (لبه تیغ)</span>
+                    </>
+                  )}
+                  {myBrStatus?.lives === 0 && (
+                    <>
+                      <span className="text-slate-600">💔</span>
+                      <span className="text-slate-600">💔</span>
+                      <span className="text-xs font-black text-rose-500 mr-2">حذف شده از مسابقات</span>
+                    </>
+                  )}
+                  {!myBrStatus && (
+                    <>
+                      <span className="text-rose-400">❤️</span>
+                      <span className="text-rose-400">❤️</span>
+                      <span className="text-xs font-black text-emerald-400 mr-2">۲ جان در شروع مسابقات</span>
+                    </>
+                  )}
+                </div>
+              </div>
+              <Shield className="w-7 h-7 text-orange-400/40" />
+            </div>
+
+            {/* Current Bracket Tier */}
+            <div className="bg-slate-900/80 border border-white/5 rounded-2xl p-3.5 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-gray-400 block mb-1">موقعیت فعلی در جدول مسابقات</span>
+                <span className="text-xs sm:text-sm font-black text-white block truncate max-w-[180px]">
+                  {myBrStatus?.status_label || 'جدول برندگان (دور اول) 🛡️'}
+                </span>
+              </div>
+              <Award className="w-7 h-7 text-amber-400/40" />
+            </div>
+
+            {/* Total Tournament Progress */}
+            <div className="bg-slate-900/80 border border-white/5 rounded-2xl p-3.5 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-gray-400 block mb-1">پیشرفت نبرد رویال</span>
+                <span className="text-xs sm:text-sm font-black text-orange-400 font-sport">
+                  {activeBattleRoyale.stats?.finished_matches || 0} / {activeBattleRoyale.stats?.total_matches || 0} BATTLES
+                </span>
+              </div>
+              <CheckCircle2 className="w-7 h-7 text-emerald-400/40" />
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* League Standings Summary / Archived Drawer */}
       <motion.div
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
@@ -543,93 +670,122 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
         <div className="flex items-center justify-between border-b border-slate-700/50 pb-2">
           <div className="flex items-center gap-2 text-xs font-black text-white">
             <Trophy size={16} className="text-amber-400" />
-            <span>وضعیت و جایگاه در جدول لیگ برتر</span>
+            <span>
+              {activeBattleRoyale
+                ? 'آرشیو جدول لیگ برتر (اطلاعات محفوظ)'
+                : 'وضعیت و جایگاه در جدول لیگ برتر'}
+            </span>
+            {activeBattleRoyale && (
+              <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full border border-slate-700">
+                فرمت معلق
+              </span>
+            )}
           </div>
-          <button
-            onClick={() => onNavigateTab?.('team', 'table')}
-            className="text-[11px] text-cyan-300 hover:text-cyan-200 flex items-center gap-1 transition-colors font-bold"
-          >
-            <span>مشاهده جدول کامل (۱۶ تیم)</span>
-            <ChevronLeft size={14} />
-          </button>
+
+          <div className="flex items-center gap-2">
+            {activeBattleRoyale && (
+              <button
+                onClick={() => setShowArchivedStandings((prev) => !prev)}
+                className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors font-bold px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20"
+              >
+                <span>{showArchivedStandings ? 'بستن جدول' : 'مشاهده جدول لیگ'}</span>
+                {showArchivedStandings ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              </button>
+            )}
+            <button
+              onClick={() => onNavigateTab?.('team', 'table')}
+              className="text-[11px] text-cyan-300 hover:text-cyan-200 flex items-center gap-1 transition-colors font-bold"
+            >
+              <span>مشاهده کامل</span>
+              <ChevronLeft size={14} />
+            </button>
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead>
-              <tr className="text-slate-400 border-b border-slate-700/60 text-[10.5px] font-sport">
-                <th className="pb-2 text-center w-12">رتبه</th>
-                <th className="pb-2 pr-2">باشگاه</th>
-                <th className="pb-2 text-center w-12">بازی</th>
-                <th className="pb-2 text-center w-12">تفاضل</th>
-                <th className="pb-2 text-center w-14 font-black">امتیاز</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {miniStandings.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-4 text-center text-slate-500 text-xs">
-                    جدول در حال بارگذاری است...
-                  </td>
+        {(!activeBattleRoyale || showArchivedStandings) && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-xs">
+              <thead>
+                <tr className="text-slate-400 border-b border-slate-700/60 text-[10.5px] font-sport">
+                  <th className="pb-2 text-center w-12">رتبه</th>
+                  <th className="pb-2 pr-2">باشگاه</th>
+                  <th className="pb-2 text-center w-12">بازی</th>
+                  <th className="pb-2 text-center w-12">تفاضل</th>
+                  <th className="pb-2 text-center w-14 font-black">امتیاز</th>
                 </tr>
-              ) : (
-                miniStandings.map((row) => {
-                  const isMyTeam = row.team_id === teamId || row.name === teamName;
-                  return (
-                    <tr
-                      key={row.team_id || row.name}
-                      className={`transition-all ${
-                        isMyTeam
-                          ? 'bg-gradient-to-r from-cyan-950/60 to-purple-950/60 text-white font-bold border-l-2 border-cyan-400 shadow-inner'
-                          : 'text-slate-300 hover:bg-slate-900/50'
-                      }`}
-                    >
-                      <td className="py-2.5 text-center font-sport font-black">
-                        <span
-                          className={`inline-flex items-center justify-center w-6 h-6 rounded-lg text-xs ${
-                            row.rank === 1
-                              ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black shadow-[0_0_10px_rgba(245,158,11,0.5)]'
-                              : row.rank <= 4
-                              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                              : 'bg-slate-800/80 text-slate-400'
-                          }`}
-                        >
-                          {row.rank}
-                        </span>
-                      </td>
-                      <td className="py-2.5 pr-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-xl team-crest-badge flex items-center justify-center overflow-hidden p-0.5 shrink-0 shadow-sm relative">
-                            {getTeamLogoUrl(row) ? (
-                              <img src={getTeamLogoUrl(row)} alt={row.name} className="w-full h-full object-contain" />
-                            ) : (
-                              <span className="text-[9px] font-black text-slate-800 font-sport">{(row.name || 'FC').slice(0, 2).toUpperCase()}</span>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {miniStandings.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-4 text-center text-slate-500 text-xs">
+                      جدول در حال بارگذاری است...
+                    </td>
+                  </tr>
+                ) : (
+                  miniStandings.map((row) => {
+                    const isMyTeam = row.team_id === teamId || row.name === teamName;
+                    return (
+                      <tr
+                        key={row.team_id || row.name}
+                        className={`transition-all ${
+                          isMyTeam
+                            ? 'bg-gradient-to-r from-cyan-950/60 to-purple-950/60 text-white font-bold border-l-2 border-cyan-400 shadow-inner'
+                            : 'text-slate-300 hover:bg-slate-900/50'
+                        }`}
+                      >
+                        <td className="py-2.5 text-center font-sport font-black">
+                          <span
+                            className={`inline-flex items-center justify-center w-6 h-6 rounded-lg text-xs ${
+                              row.rank === 1
+                                ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black shadow-[0_0_10px_rgba(245,158,11,0.5)]'
+                                : row.rank <= 4
+                                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                                : 'bg-slate-800/80 text-slate-400'
+                            }`}
+                          >
+                            {row.rank}
+                          </span>
+                        </td>
+                        <td className="py-2.5 pr-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-xl team-crest-badge flex items-center justify-center overflow-hidden p-0.5 shrink-0 shadow-sm relative">
+                              {getTeamLogoUrl(row) ? (
+                                <img src={getTeamLogoUrl(row)} alt={row.name} className="w-full h-full object-contain" />
+                              ) : (
+                                <span className="text-[9px] font-black text-slate-800 font-sport">
+                                  {(row.name || 'FC').slice(0, 2).toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <span className="font-bold text-xs truncate max-w-[130px] sm:max-w-[200px]">
+                              {row.name}
+                            </span>
+                            {isMyTeam && (
+                              <span className="text-[9px] bg-cyan-500/25 text-cyan-300 px-1.5 py-0.5 rounded-md border border-cyan-400/40 shrink-0 font-black font-sport">
+                                YOUR CLUB
+                              </span>
                             )}
                           </div>
-                          <span className="font-bold text-xs truncate max-w-[130px] sm:max-w-[200px]">
-                            {row.name}
-                          </span>
-                          {isMyTeam && (
-                            <span className="text-[9px] bg-cyan-500/25 text-cyan-300 px-1.5 py-0.5 rounded-md border border-cyan-400/40 shrink-0 font-black font-sport">
-                              YOUR CLUB
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-2.5 text-center font-sport font-bold text-slate-300">{row.played ?? 0}</td>
-                      <td className="py-2.5 text-center font-sport font-bold text-slate-300">
-                        {row.gd != null ? row.gd : (row.goals_for != null && row.goals_against != null ? row.goals_for - row.goals_against : 0)}
-                      </td>
-                      <td className="py-2.5 text-center font-sport font-black text-amber-300 text-sm">
-                        {row.points ?? row.pts ?? 0}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                        </td>
+                        <td className="py-2.5 text-center font-sport font-bold text-slate-300">{row.played ?? 0}</td>
+                        <td className="py-2.5 text-center font-sport font-bold text-slate-300">
+                          {row.gd != null
+                            ? row.gd
+                            : row.goals_for != null && row.goals_against != null
+                            ? row.goals_for - row.goals_against
+                            : 0}
+                        </td>
+                        <td className="py-2.5 text-center font-sport font-black text-amber-300 text-sm">
+                          {row.points ?? row.pts ?? 0}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </motion.div>
 
       {/* 5 Recent Games Form Guide */}
