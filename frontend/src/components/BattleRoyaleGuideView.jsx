@@ -750,13 +750,17 @@ export default function BattleRoyaleGuideView() {
             <span>پنجره نقل و انتقالات و روزهای استراحت</span>
           </div>
           <div className="space-y-2.5 text-xs text-slate-300">
-            <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
-              <span className="text-white font-bold block mb-1">روزهای برگزاری مسابقات:</span>
-              <span>در روزهای بازی (یکشنبه، سه‌شنبه، چهارشنبه، پنج‌شنبه، جمعه) بازار نقل و انتقالات به صورت کامل بسته است تا تمرکز روی مسابقات حفظ شود.</span>
+            <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
+              <span className="text-emerald-400 font-bold block mb-1">روزهای استراحت (شنبه، دوشنبه، چهارشنبه):</span>
+              <span className="leading-relaxed block">
+                پنجره نقل و انتقالات فقط در روزهای استراحت از ساعت <strong>۱۲:۰۰ بامداد تا ۱۸:۰۰ غروب همان روز</strong> باز می‌شود و تایمر شمارش معکوس زنده در بالای صفحه بازار فعال می‌باشد.
+              </span>
             </div>
-            <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800">
-              <span className="text-white font-bold block mb-1">روزهای استراحت (شنبه‌ها و دوشنبه‌ها):</span>
-              <span>بازار از ساعت <strong>۰۰:۰۰ بامداد تا ۱۸:۰۰ عصر</strong> باز است و تایمر شمارش معکوس زنده در بالای صفحه بازار فعال می‌باشد.</span>
+            <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800">
+              <span className="text-rose-400 font-bold block mb-1">روزهای برگزاری مسابقات (یکشنبه، سه‌شنبه، پنج‌شنبه، جمعه):</span>
+              <span className="leading-relaxed block">
+                در روزهای مسابقه و همچنین پس از ساعت ۱۸:۰۰ غروب روزهای استراحت، بازار نقل و انتقالات به صورت کامل بسته است تا تمرکز مربیان بر روی مسابقات حفظ شود.
+              </span>
             </div>
           </div>
         </motion.div>

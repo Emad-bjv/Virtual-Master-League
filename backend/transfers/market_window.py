@@ -57,9 +57,10 @@ def get_market_status_info() -> dict:
         }
 
     # 3. Automated Calendar Schedule
-    # REST DAYS: Saturday (5) and Monday (0)
-    # MATCH DAYS: Sunday (6), Tuesday (1), Wednesday (2), Thursday (3), Friday (4)
-    REST_WEEKDAYS = [0, 5]  # Monday and Saturday
+    # REST DAYS: Saturday (5), Monday (0), Wednesday (2)
+    # MATCH DAYS: Sunday (6), Tuesday (1), Thursday (3), Friday (4)
+    REST_WEEKDAYS = [0, 2, 5]  # Monday, Wednesday, Saturday
+    WEEKDAY_NAMES_FA = {5: "شنبه", 0: "دوشنبه", 2: "چهارشنبه"}
 
     now = timezone.localtime(timezone.now())
     open_hour = getattr(settings, 'transfer_window_open_hour', 0)
@@ -80,13 +81,13 @@ def get_market_status_info() -> dict:
             is_open = False
             next_change_dt = today_open_dt
             status_label = 'بسته تا بامداد'
-            message = f'امروز روز استراحت است. بازار رأس ساعت {open_hour:02d}:00 باز می‌شود.'
+            message = f'امروز روز استراحت است. بازار رأس ساعت ۱۲:۰۰ بامداد باز می‌شود.'
         elif today_open_dt <= now < today_close_dt:
             # Inside the open window on a rest day
             is_open = True
             next_change_dt = today_close_dt
             status_label = 'باز'
-            message = f'پنجره نقل‌وانتقالات باز است. مهلت فعالیت تا ساعت {close_hour:02d}:00 امروز.'
+            message = f'پنجره نقل‌وانتقالات باز است. مهلت فعالیت تا ساعت ۱۸:۰۰ غروب امروز.'
         else:
             # After closing on a rest day -> Find next rest day
             is_open = False
@@ -96,8 +97,8 @@ def get_market_status_info() -> dict:
             while check_d.weekday() not in REST_WEEKDAYS:
                 check_d += timedelta(days=1)
             next_change_dt = check_d
-            weekday_name_fa = "شنبه" if check_d.weekday() == 5 else "دوشنبه"
-            message = f'بازار امروز به پایان رسید. بازگشایی بعدی: {weekday_name_fa} ساعت {open_hour:02d}:00.'
+            weekday_name_fa = WEEKDAY_NAMES_FA.get(check_d.weekday(), "شنبه")
+            message = f'بازار امروز به پایان رسید. بازگشایی بعدی: {weekday_name_fa} ساعت ۱۲:۰۰ بامداد.'
     else:
         # Today is a match day!
         is_open = False
@@ -107,8 +108,8 @@ def get_market_status_info() -> dict:
         while check_d.weekday() not in REST_WEEKDAYS:
             check_d += timedelta(days=1)
         next_change_dt = check_d
-        weekday_name_fa = "شنبه" if check_d.weekday() == 5 else "دوشنبه"
-        message = f'امروز روز برگزاری مسابقات است و بازار قفل است. بازگشایی بعدی: {weekday_name_fa} ساعت {open_hour:02d}:00.'
+        weekday_name_fa = WEEKDAY_NAMES_FA.get(check_d.weekday(), "شنبه")
+        message = f'امروز روز مسابقه است و پنجره بسته می‌باشد. بازگشایی بعدی: {weekday_name_fa} ساعت ۱۲:۰۰ بامداد.'
 
     seconds_remaining = 0
     if next_change_dt:

@@ -63,12 +63,12 @@ def get_persian_round_names(team_count: int) -> dict:
 def calculate_tournament_schedule(team_count: int, start_date: datetime.date) -> dict:
     """
     Calculates calendar dates for every round in Battle Royale.
-    Match days: Sunday (6), Tuesday (1), Wednesday (2), Thursday (3), Friday (4).
-    Rest days: Saturday (5), Monday (0).
+    Match days: Sunday (6), Tuesday (1), Thursday (3), Friday (4).
+    Rest days: Saturday (5), Monday (0), Wednesday (2).
     Max 4 matches per day.
     """
     # Allowed match weekdays in Python datetime (0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri, 5=Sat, 6=Sun)
-    MATCH_WEEKDAYS = [6, 1, 2, 3, 4]  # Sun, Tue, Wed, Thu, Fri
+    MATCH_WEEKDAYS = [6, 1, 3, 4]  # Sun, Tue, Thu, Fri
 
     def next_match_day(curr_date: datetime.date) -> datetime.date:
         d = curr_date
