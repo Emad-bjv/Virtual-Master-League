@@ -705,7 +705,147 @@ export default function BattleRoyaleGuideView() {
         </div>
       </motion.div>
 
-      {/* 4. Extra Time & Transfer Market Rules */}
+      {/* 4. Text Explanation & Real Example Scenario (توضیحات متنی خلاصه، مفید و سناریوی واقعی) */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.07 }}
+        className="p-5 sm:p-7 rounded-3xl bg-slate-900/90 border border-slate-700/60 shadow-xl space-y-6"
+      >
+        <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+          <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-md">
+            <UserCheck size={22} />
+          </div>
+          <div>
+            <h3 className="text-base sm:text-lg font-black text-white">توضیح مرحله‌به‌مرحله با یک مثال واقعی و ملموس</h3>
+            <p className="text-xs text-slate-400">داستان نبرد پرسپولیس و استقلال در مسیر جام نبرد رویال</p>
+          </div>
+        </div>
+
+        {/* 5-Step Story */}
+        <div className="space-y-3 text-xs">
+          {/* Step 1 */}
+          <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 flex items-start gap-3">
+            <span className="w-6 h-6 rounded-full bg-cyan-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-md">
+              ۱
+            </span>
+            <div className="space-y-1 flex-1">
+              <div className="font-bold text-white flex items-center justify-between">
+                <span>دور اول برندگان: دربی تهران (استقلال ۱ - ۰ پرسپولیس)</span>
+                <span className="text-[10px] text-cyan-400 font-bold">شکست اول = عدم حذف</span>
+              </div>
+              <p className="text-slate-300 text-[11.5px] leading-relaxed">
+                استقلال برنده می‌شود و در جدول برندگان به نیمه‌نهایی می‌رود. پرسپولیس <strong>حذف نمی‌شود</strong>، بلکه ۱ جان از دست می‌دهد و با ۱ جان باقی‌مانده به جدول بازندگان سقوط می‌کند تا از فرصت دوم خود استفاده کند.
+              </p>
+            </div>
+          </div>
+
+          {/* Step 2 */}
+          <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 flex items-start gap-3">
+            <span className="w-6 h-6 rounded-full bg-amber-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-md">
+              ۲
+            </span>
+            <div className="space-y-1 flex-1">
+              <div className="font-bold text-white flex items-center justify-between">
+                <span>جنگ بقا در جدول بازندگان: پرسپولیس در دره مرگ</span>
+                <span className="text-[10px] text-amber-300 font-bold">صعود نفس‌گیر</span>
+              </div>
+              <p className="text-slate-300 text-[11.5px] leading-relaxed">
+                پرسپولیس در جدول بازندگان با سپاهان و تراکتور بازی می‌کند. هر بازی برای پرسپولیس حکم مرگ و زندگی دارد (باخت دوم = حذف). پرسپولیس تمام رقبای خود را در جدول بازندگان شکست می‌دهد و به فینال بزرگ می‌رسد!
+              </p>
+            </div>
+          </div>
+
+          {/* Step 3 */}
+          <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-slate-800 flex items-start gap-3">
+            <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-md">
+              ۳
+            </span>
+            <div className="space-y-1 flex-1">
+              <div className="font-bold text-white flex items-center justify-between">
+                <span>استقلال در جدول برندگان: پرواز تا فینال بدون شکست</span>
+                <span className="text-[10px] text-emerald-400 font-bold">۲ جان کامل</span>
+              </div>
+              <p className="text-slate-300 text-[11.5px] leading-relaxed">
+                در طرف دیگر، استقلال تمامی بازی‌های جدول برندگان را می‌برد و بدون حتی ۱ باخت، با ۲ جان دست‌نخورده به عنوان قهرمان جدول برندگان راهی فینال بزرگ می‌شود.
+              </p>
+            </div>
+          </div>
+
+          {/* Step 4 */}
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-950/40 to-slate-950/80 border border-purple-500/40 flex items-start gap-3">
+            <span className="w-6 h-6 rounded-full bg-purple-600 text-white font-black text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-md">
+              ۴
+            </span>
+            <div className="space-y-1 flex-1">
+              <div className="font-bold text-purple-200 flex items-center justify-between">
+                <span>فینال اول: پرسپولیس ۲ - ۱ استقلال (ریست براکت!)</span>
+                <span className="text-[10px] text-purple-300 font-black">فعال‌شدن بازی دوم⚡</span>
+              </div>
+              <p className="text-slate-300 text-[11.5px] leading-relaxed">
+                پرسپولیس مسابقه اول فینال را می‌برد! اما استقلال بلافاصله جام را از دست نمی‌دهد؛ زیرا این اولین باخت استقلال در کل جام بود و استقلال هم مانند پرسپولیس حق ۱ باخت داشت. اکنون هر دو تیم ۱ باخت دارند و بازی دوم (ریست براکت) فعال می‌شود.
+              </p>
+            </div>
+          </div>
+
+          {/* Step 5 */}
+          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-950/50 to-slate-950/80 border border-amber-500/50 flex items-start gap-3">
+            <span className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-md">
+              ۵
+            </span>
+            <div className="space-y-1 flex-1">
+              <div className="font-bold text-amber-300 flex items-center justify-between">
+                <span>فینال دوم (مسابقه مرگ و زندگی): تعیین قهرمان نهایی</span>
+                <span className="text-[10px] text-amber-400 font-black">جام زرین 🏆</span>
+              </div>
+              <p className="text-slate-300 text-[11.5px] leading-relaxed">
+                مسابقه سرنوشت‌ساز دوم آغاز می‌شود؛ برنده این بازی دوم مستقیماً مدال طلای نبرد رویال را بالای سر می‌برد و بازنده به عنوان نایب‌قهرمان به کار خود پایان می‌دهد.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* 4 Golden Rules Summary Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+          <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
+            <span className="text-xs font-black text-emerald-400 flex items-center gap-1.5">
+              <Shield size={14} /> ۱. قانون ۲ باخت (Two Lives)
+            </span>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              با اولین باخت هرگز نگران نباشید؛ شما شانس دوم دارید. تنها تیمی از جام حذف می‌شود که ۲ بار شکست بخورد.
+            </p>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
+            <span className="text-xs font-black text-amber-400 flex items-center gap-1.5">
+              <RefreshCw size={14} /> ۲. فلسفه ریست براکت (Bracket Reset)
+            </span>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              تیم بدون باخت جدول برندگان شایسته شانس برابر است؛ اگر در فینال ببازد، بازی دوم برگزار می‌شود تا حق فرصت دوم آن تیم هم حفظ شود.
+            </p>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
+            <span className="text-xs font-black text-cyan-400 flex items-center gap-1.5">
+              <Clock size={14} /> ۳. سرعت و استقامت در مراحل ابتدایی
+            </span>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              دورهای اولیه در صورت تساوی مستقیماً پنالتی دارند تا بازیکنان خسته نشوند. وقت اضافه فقط در دورهای نیمه‌نهایی به بعد فعال است.
+            </p>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
+            <span className="text-xs font-black text-purple-400 flex items-center gap-1.5">
+              <ArrowLeftRight size={14} /> ۴. تمرکز کامل در روزهای مسابقه
+            </span>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              بازار نقل و انتقالات در روزهای مسابقه کاملاً قفل است و فقط در روزهای استراحت (شنبه، دوشنبه، چهارشنبه) از ساعت ۱۲ بامداد تا ۱۸ غروب باز می‌شود.
+            </p>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* 5. Extra Time & Transfer Market Rules */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Extra Time Rules */}
         <motion.div
