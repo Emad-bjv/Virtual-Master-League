@@ -392,7 +392,7 @@ export default function MainDashboard() {
             />
 
             {/* Responsive Content Area */}
-            <main className="flex-1 p-3 sm:p-5 md:p-6 pb-28 sm:pb-32 overflow-y-auto relative">
+            <main className="flex-1 p-3 sm:p-5 md:p-6 pb-36 sm:pb-44 overflow-y-auto relative">
               <ErrorBoundary>
                 <Suspense
                   fallback={

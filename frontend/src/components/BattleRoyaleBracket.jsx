@@ -119,7 +119,7 @@ export default function BattleRoyaleBracket({ tournamentId, isAdmin = false, onM
 
   if (!tournament.id && (!bracketData || bracketData.active === false)) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 pb-28 sm:pb-36">
         <div className="bg-slate-900/60 border border-white/10 rounded-3xl p-6 sm:p-8 text-center space-y-3">
           <Swords className="w-12 h-12 text-amber-400 mx-auto opacity-70" />
           <h3 className="text-lg font-black text-white">هیچ تورنمنت نبرد رویال فعالی در جریان نیست</h3>
@@ -133,7 +133,7 @@ export default function BattleRoyaleBracket({ tournamentId, isAdmin = false, onM
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-28 sm:pb-36">
       {/* 1. Header & Stats Bar */}
       <div className="bg-slate-900/90 border border-amber-500/20 rounded-3xl p-5 sm:p-6 shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
