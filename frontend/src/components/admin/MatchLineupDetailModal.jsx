@@ -261,9 +261,9 @@ export default function MatchLineupDetailModal({
                   <span>ترکیب اختصاصی ارسال شده توسط سرمربی ({coachName})</span>
                 </span>
               ) : (
-                <span className="px-2.5 py-1 rounded-xl bg-amber-950 text-amber-300 border border-amber-500/40 font-bold flex items-center gap-1.5 shadow-sm">
-                  <Clock size={14} className="text-amber-400" />
-                  <span>ترکیب پیش‌فرض باشگاه (هنوز ترکیب اختصاصی ارسال نشده)</span>
+                <span className="px-2.5 py-1 rounded-xl bg-cyan-950 text-cyan-300 border border-cyan-500/40 font-bold flex items-center gap-1.5 shadow-sm">
+                  <Clock size={14} className="text-cyan-400" />
+                  <span>ترکیب پایه و دائمی سرمربی ({coachName})</span>
                 </span>
               )}
 
@@ -537,9 +537,9 @@ export default function MatchLineupDetailModal({
                           <span className="text-[10px] text-slate-500 block leading-tight">{TACTICAL_GUIDES[activeGp.containment_area || 'میانه']}</span>
                         </div>
                         <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
-                          <span className="text-[10px] text-slate-400 block font-bold">پرسینگ (Pressing):</span>
-                          <strong className="text-teal-300 block">{activeGp.pressing || 'تدافعی'}</strong>
-                          <span className="text-[10px] text-slate-500 block leading-tight">{TACTICAL_GUIDES[activeGp.pressing || 'تدافعی']}</span>
+                          <span className="text-[10px] text-slate-400 block font-bold">شدت پرس (Pressing):</span>
+                          <strong className="text-teal-300 block">{activeGp.pressing || 'تهاجمی'}</strong>
+                          <span className="text-[10px] text-slate-500 block leading-tight">{TACTICAL_GUIDES[activeGp.pressing || 'تهاجمی'] || TACTICAL_GUIDES['تهاجمی']}</span>
                         </div>
                         <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
                           <div className="flex items-center justify-between">

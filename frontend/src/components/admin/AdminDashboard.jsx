@@ -58,6 +58,12 @@ const TACTICAL_GUIDES = {
   'همه دفاع': 'عقب‌نشینی منظم تمام تیم به زمین خودی و بستن فضاهای نفوذ.',
   'میانه': 'هدایت حریف به مرکز زمین و ایجاد تله‌های پرسینگ متراکم.',
   'کناره‌ها': 'بستن مرکز و هدایت حملات حریف به سمت خطوط طولی.',
+  'کناره_دفاع': 'موقع دفاع، وقتی بازیکن صاحب توپ حریف به کناره‌ها می‌ره با تعداد نفرات بالا دفاع کنیم.',
+  'تهاجمی': 'اولین مدافع وارد عمل شده و مهاجمان حریف را برای بازپس‌گیری سریع توپ می‌بندد.',
+  'محافظه‌کار': 'اولین مدافع با حفظ فاصله و مهار فضا به جای درگیری مستقیم، ریسک ضدحمله را به حداقل می‌رساند.',
+  'محافظه کار': 'اولین مدافع با حفظ فاصله و مهار فضا به جای درگیری مستقیم، ریسک ضدحمله را به حداقل می‌رساند.',
+  'aggressive': 'اولین مدافع وارد عمل شده و مهاجمان حریف را برای بازپس‌گیری سریع توپ می‌بندد.',
+  'conservative': 'اولین مدافع با حفظ فاصله و مهار فضا به جای درگیری مستقیم، ریسک ضدحمله را به حداقل می‌رساند.',
   'لنگر انداختن': 'حفظ موقعیت ثابت مهاجم نوک در مرکز بدون متمایل شدن به کناره‌ها.',
   'بال غلط': 'نفوذ وینگرها به داخل محوطه جریمه حریف به عنوان مهاجم دوم.',
   'تدافعی': 'عقب نشستن یکی از هافبک‌ها به عنوان مدافع میانی سوم در فاز دفاع.',
@@ -1146,6 +1152,7 @@ export default function AdminDashboard({
             data.type === 'event_deleted' ||
             data.type === 'substitution' ||
             data.type === 'coach_tactics_submitted' ||
+            data.type === 'coach_tactics_updated' ||
             data.type === 'coach_tactics_applied' ||
             data.type === 'gameplan_submitted' ||
             data.type === 'live_tactics_updated' ||
@@ -5570,12 +5577,12 @@ export default function AdminDashboard({
                             {isSubmitted ? (
                               <>
                                 <CheckCircle size={13} className="text-[#00ff87]" />
-                                <span>ترکیب ارسال شده ✓</span>
+                                <span>ترکیب اختصاصی ارسال شده ✓</span>
                               </>
                             ) : (
                               <>
-                                <Clock size={13} className="text-amber-300" />
-                                <span>ترکیب پیش‌فرض</span>
+                                <Clock size={13} className="text-cyan-300" />
+                                <span>ترکیب دائمی مربی (پیش‌فرض)</span>
                               </>
                             )}
                           </span>
@@ -5612,7 +5619,7 @@ export default function AdminDashboard({
                       <div className={`p-3 rounded-2xl border flex flex-col gap-2 text-xs transition-all ${
                         isSubmitted
                           ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.15)]'
-                          : 'bg-amber-950/60 border-amber-500/40 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.15)]'
+                          : 'bg-slate-900/90 border-cyan-500/40 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.15)]'
                       }`}>
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
@@ -5629,17 +5636,17 @@ export default function AdminDashboard({
                           <span className={`text-[11px] font-black px-2.5 py-1 rounded-xl border shrink-0 flex items-center gap-1 font-sport ${
                             isSubmitted
                               ? 'bg-emerald-900/90 border-emerald-400 text-emerald-200 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
-                              : 'bg-amber-900/90 border-amber-400 text-amber-200 animate-pulse'
+                              : 'bg-cyan-950/90 border-cyan-400 text-cyan-200'
                           }`}>
                             {isSubmitted ? (
                               <>
                                 <CheckCircle size={13} className="text-[#00ff87]" />
-                                <span>ترکیب ارسال شده ✓</span>
+                                <span>ترکیب اختصاصی ارسال شده ✓</span>
                               </>
                             ) : (
                               <>
-                                <Clock size={13} className="text-amber-300" />
-                                <span>ترکیب پیش‌فرض</span>
+                                <Clock size={13} className="text-cyan-300" />
+                                <span>ترکیب دائمی مربی (پیش‌فرض)</span>
                               </>
                             )}
                           </span>
@@ -6088,7 +6095,7 @@ export default function AdminDashboard({
                       {/* TAB 2: DEFENSE TACTICS */}
                       {adminTacticTab === 'defense' && (
                         <div className="space-y-3">
-                          <div className="grid grid-cols-2 sm:grid-cols-2 gap-2.5 text-xs">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
                             <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
                               <span className="text-[10px] text-slate-400 block font-bold">۱. سبک‌های دفاعی:</span>
                               <strong className="text-cyan-300 block">{activeTactics.defensive_style || 'فشار خط مقدم'}</strong>
@@ -6099,12 +6106,17 @@ export default function AdminDashboard({
                               <strong className="text-purple-300 block">{activeTactics.containment_area || 'میانه'}</strong>
                               <span className="text-[10px] text-slate-500 block leading-tight">{TACTICAL_GUIDES[activeTactics.containment_area || 'میانه']}</span>
                             </div>
+                            <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+                              <span className="text-[10px] text-slate-400 block font-bold">۳. شدت پرس (Pressing):</span>
+                              <strong className="text-teal-300 block">{activeTactics.pressing || 'تهاجمی'}</strong>
+                              <span className="text-[10px] text-slate-500 block leading-tight">{TACTICAL_GUIDES[activeTactics.pressing || 'تهاجمی'] || TACTICAL_GUIDES['تهاجمی']}</span>
+                            </div>
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
                             <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
                               <div>
-                                <span className="text-[10px] text-slate-400 font-bold block">۳. خط دفاعی (Defensive Line):</span>
+                                <span className="text-[10px] text-slate-400 font-bold block">۴. خط دفاعی (Defensive Line):</span>
                                 <span className="text-[10px] text-slate-500">عمق استقرار خط دفاع</span>
                               </div>
                               <div className="flex items-center gap-2 font-sport">
@@ -6119,7 +6131,7 @@ export default function AdminDashboard({
 
                             <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
                               <div>
-                                <span className="text-[10px] text-slate-400 font-bold block">۴. فشردگی و تراکم (Compactness):</span>
+                                <span className="text-[10px] text-slate-400 font-bold block">۵. فشردگی و تراکم (Compactness):</span>
                                 <span className="text-[10px] text-slate-500">فاصله بین خطوط تیم</span>
                               </div>
                               <div className="flex items-center gap-2 font-sport">

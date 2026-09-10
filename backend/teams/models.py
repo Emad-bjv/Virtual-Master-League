@@ -470,6 +470,8 @@ class TeamGamePlan(models.Model):
     preset_name = models.CharField(max_length=100, blank=True, default='', verbose_name="سبک تاکتیک ساده")
     has_custom_player_edits = models.BooleanField(default=False, verbose_name="دارای جابجایی دستی بازیکنان")
 
+    players_data = models.JSONField(default=list, blank=True, verbose_name="چیدمان بازیکنان در ترکیب پیش‌فرض")
+
     is_submitted = models.BooleanField(default=False, verbose_name="تایید و ارسال شده به ادمین")
     submitted_at = models.DateTimeField(auto_now=True, verbose_name="زمان ثبت و ارسال")
 

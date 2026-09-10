@@ -200,6 +200,32 @@ export default function TeamTab({
           adv_defense_1: gp.adv_defense_1 || prev.adv_defense_1,
           adv_defense_2: gp.adv_defense_2 || prev.adv_defense_2,
         }));
+
+        // Load coach's permanent player lineup if available
+        if (Array.isArray(gp.players_data) && gp.players_data.length > 0) {
+          const playersDataMap = new Map();
+          gp.players_data.forEach((item) => {
+            const pid = item.player_id || item.id;
+            if (pid) playersDataMap.set(String(pid), item);
+          });
+
+          setPlayers((prev) =>
+            (prev || []).map((p) => {
+              const custom = playersDataMap.get(String(p.id));
+              if (custom) {
+                return {
+                  ...p,
+                  is_starting: custom.is_starting !== undefined ? Boolean(custom.is_starting) : p.is_starting,
+                  x_coord: custom.x_coord != null ? custom.x_coord : p.x_coord,
+                  y_coord: custom.y_coord != null ? custom.y_coord : p.y_coord,
+                  tacticalPosition: custom.position || null,
+                  position: custom.position || p.position,
+                };
+              }
+              return p;
+            })
+          );
+        }
       }
     }).catch(() => {});
   }, [teamId]);
@@ -258,8 +284,8 @@ export default function TeamTab({
         }));
         setIsSubmittedForSelectedMatch(Boolean(gp.is_submitted));
 
-        // If this match already has custom saved lineup data, apply it to the workbench
-        if (gp.is_submitted && Array.isArray(gp.players_data) && gp.players_data.length > 0) {
+        // If this match has custom or inherited standing lineup data, apply it to the workbench
+        if (Array.isArray(gp.players_data) && gp.players_data.length > 0) {
           const playersDataMap = new Map();
           gp.players_data.forEach((item) => {
             const pid = item.player_id || item.id;
@@ -276,6 +302,7 @@ export default function TeamTab({
                   x_coord: custom.x_coord != null ? custom.x_coord : p.x_coord,
                   y_coord: custom.y_coord != null ? custom.y_coord : p.y_coord,
                   tacticalPosition: custom.position || null,
+                  position: custom.position || p.position,
                 };
               }
               return p;
@@ -547,41 +574,52 @@ export default function TeamTab({
   useEffect(() => {
     const rawList = (contextPlayers && contextPlayers.length > 0) ? contextPlayers : (initialPlayers || []);
     if (rawList && rawList.length > 0) {
-      // Map players with suspension status
-      const mapped = rawList.map((p, idx) => ({
-        ...p,
-        id: p.id.toString(),
-        naturalPosition: p.naturalPosition || p.position,
-        position: p.naturalPosition || p.position,
-        shirt_number: p.shirt_number || (idx + 1),
-        is_starting: Boolean(p.is_starting),
-        stamina: Number(p.virtual_stamina) || 90,
-        virtual_stamina: 100,
-        status: (p.suspension_matches > 0 || p.is_suspended) ? 'محروم' : (p.is_injured || (p.injury_matches > 0)) ? 'مصدوم' : 'سالم',
-        trend: '▲',
-        age: p.age || 26,
-        consecutive_games: 0,
-        base_stamina: 100,
-        position_group: p.position_group || 'CMF',
-      }));
+      setPlayers((prev) => {
+        const prevMap = new Map((prev || []).map((p) => [String(p.id), p]));
+        const hasPrev = prev && prev.length > 0;
 
-      // Check if any starter is suspended or injured
-      const isPlayerIneligibleStarter = (p) => Boolean(
-        (p?.suspension_matches > 0) || p?.is_suspended || p?.isSuspended || p?.is_injured || (p?.injury_matches > 0)
-      );
-      let starters = mapped.filter((p) => p.is_starting && !isPlayerIneligibleStarter(p));
-      let nonStarters = mapped.filter((p) => !p.is_starting || isPlayerIneligibleStarter(p)).map((p) => isPlayerIneligibleStarter(p) ? { ...p, is_starting: false } : p);
+        // Map players preserving existing custom positions and starters if already set
+        const mapped = rawList.map((p, idx) => {
+          const existing = prevMap.get(String(p.id));
+          return {
+            ...p,
+            id: p.id.toString(),
+            naturalPosition: p.naturalPosition || p.position,
+            position: existing?.position || existing?.tacticalPosition || p.naturalPosition || p.position,
+            tacticalPosition: existing?.tacticalPosition || p.tacticalPosition || null,
+            shirt_number: p.shirt_number || (idx + 1),
+            is_starting: hasPrev && existing && existing.is_starting !== undefined ? Boolean(existing.is_starting) : Boolean(p.is_starting),
+            x_coord: hasPrev && existing && existing.x_coord != null ? existing.x_coord : p.x_coord,
+            y_coord: hasPrev && existing && existing.y_coord != null ? existing.y_coord : p.y_coord,
+            stamina: Number(p.virtual_stamina) || 90,
+            virtual_stamina: 100,
+            status: (p.suspension_matches > 0 || p.is_suspended) ? 'محروم' : (p.is_injured || (p.injury_matches > 0)) ? 'مصدوم' : 'سالم',
+            trend: '▲',
+            age: p.age || 26,
+            consecutive_games: 0,
+            base_stamina: 100,
+            position_group: p.position_group || 'CMF',
+          };
+        });
 
-      if (starters.length < 11 && nonStarters.length > 0 && mapped.length >= 11) {
-        const needed = 11 - starters.length;
-        const eligibleBench = nonStarters.filter((p) => !isPlayerIneligibleStarter(p));
-        const promoted = eligibleBench.slice(0, needed);
-        starters = [...starters, ...promoted.map((p) => ({ ...p, is_starting: true }))];
-        const promotedIds = new Set(promoted.map((p) => p.id));
-        nonStarters = nonStarters.map((p) => promotedIds.has(p.id) ? { ...p, is_starting: true } : { ...p, is_starting: false });
-      }
+        // Check if any starter is suspended or injured
+        const isPlayerIneligibleStarter = (p) => Boolean(
+          (p?.suspension_matches > 0) || p?.is_suspended || p?.isSuspended || p?.is_injured || (p?.injury_matches > 0)
+        );
+        let starters = mapped.filter((p) => p.is_starting && !isPlayerIneligibleStarter(p));
+        let nonStarters = mapped.filter((p) => !p.is_starting || isPlayerIneligibleStarter(p)).map((p) => isPlayerIneligibleStarter(p) ? { ...p, is_starting: false } : p);
 
-      setPlayers([...starters, ...nonStarters.filter((p) => !starters.some((s) => s.id === p.id))]);
+        if (starters.length < 11 && nonStarters.length > 0 && mapped.length >= 11) {
+          const needed = 11 - starters.length;
+          const eligibleBench = nonStarters.filter((p) => !isPlayerIneligibleStarter(p));
+          const promoted = eligibleBench.slice(0, needed);
+          starters = [...starters, ...promoted.map((p) => ({ ...p, is_starting: true }))];
+          const promotedIds = new Set(promoted.map((p) => p.id));
+          nonStarters = nonStarters.map((p) => promotedIds.has(p.id) ? { ...p, is_starting: true } : { ...p, is_starting: false });
+        }
+
+        return [...starters, ...nonStarters.filter((p) => !starters.some((s) => s.id === p.id))];
+      });
     }
   }, [contextPlayers, initialPlayers]);
 

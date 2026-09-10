@@ -188,11 +188,55 @@ class TeamViewSet(viewsets.ModelViewSet):
             match_gameplan.adv_defense_2 = default_gameplan.adv_defense_2
             match_gameplan.preset_name = default_gameplan.preset_name
             match_gameplan.has_custom_player_edits = default_gameplan.has_custom_player_edits
+            if default_gameplan.players_data:
+                match_gameplan.players_data = default_gameplan.players_data
+
+        # If default_gameplan has no players_data yet, populate from current team starters
+        if not default_gameplan.players_data:
+            existing_players = Player.objects.filter(team=team)
+            if existing_players.filter(is_starting=True).exists():
+                default_gameplan.players_data = [
+                    {
+                        'player_id': p.id,
+                        'id': str(p.id),
+                        'x_coord': p.x_coord,
+                        'y_coord': p.y_coord,
+                        'position': p.position,
+                        'is_starting': p.is_starting,
+                    }
+                    for p in existing_players
+                ]
+                default_gameplan.save(update_fields=['players_data'])
+                if match_gameplan and not match_gameplan.is_submitted:
+                    match_gameplan.players_data = default_gameplan.players_data
 
         active_gameplan = match_gameplan if match_gameplan else default_gameplan
 
         if request.method == 'POST':
-            tactics = request.data.get('tactics', {})
+            raw_tactics = request.data.get('tactics')
+            if isinstance(raw_tactics, dict):
+                tactics = dict(raw_tactics)
+            else:
+                tactics = {}
+
+            # Ensure all tactical parameters (including pressing) from request.data are captured
+            for field_name in [
+                'formation', 'attacking_style', 'build_up', 'attacking_area',
+                'positioning', 'support_range', 'defensive_style', 'containment_area',
+                'pressing', 'defensive_line', 'compactness', 'adv_offense_1',
+                'adv_offense_2', 'adv_defense_1', 'adv_defense_2'
+            ]:
+                if field_name in request.data and field_name not in tactics:
+                    tactics[field_name] = request.data[field_name]
+
+            # Normalize pressing value
+            if 'pressing' in tactics and tactics['pressing']:
+                press_val = str(tactics['pressing']).strip()
+                if press_val in ['محافظه کار', 'محافظه‌کار', 'conservative', 'Conservative']:
+                    tactics['pressing'] = 'محافظه‌کار'
+                elif press_val in ['تهاجمی', 'aggressive', 'Aggressive']:
+                    tactics['pressing'] = 'تهاجمی'
+
             players_data = request.data.get('players', [])
             preset_name = request.data.get('preset_name') or tactics.get('preset_name', '')
             has_custom_player_edits = request.data.get('has_custom_player_edits', False) or tactics.get('has_custom_player_edits', False)
@@ -200,10 +244,12 @@ class TeamViewSet(viewsets.ModelViewSet):
             tactics['preset_name'] = preset_name
             tactics['has_custom_player_edits'] = has_custom_player_edits
 
-            # Update default template permanently as the team's standing gameplan
+            # Update default template permanently as the team's standing master gameplan
             default_gameplan.is_submitted = True
             default_gameplan.preset_name = preset_name
             default_gameplan.has_custom_player_edits = has_custom_player_edits
+            if players_data:
+                default_gameplan.players_data = players_data
             if 'formation' in tactics and tactics['formation']:
                 default_gameplan.formation = tactics['formation']
             def_serializer = TeamGamePlanSerializer(default_gameplan, data=tactics, partial=True)
@@ -281,6 +327,7 @@ class TeamViewSet(viewsets.ModelViewSet):
                         'message': f'سرمربی تیم {team.name} ترکیب {active_gameplan.formation}{preset_tag}{custom_tag} را ارسال کرد ⚡'
                     })
 
+                serialized_tactics_dict = MatchGamePlanSerializer(active_gameplan).data if isinstance(active_gameplan, MatchGamePlan) else TeamGamePlanSerializer(active_gameplan).data
                 notify_admin({
                     'type': 'coach_tactics_submitted',
                     'title': f'درخواست تغییرات تاکتیکی: {team.name}',
@@ -292,11 +339,23 @@ class TeamViewSet(viewsets.ModelViewSet):
                     'has_custom_player_edits': active_gameplan.has_custom_player_edits,
                     'players': players_data,
                     'match_id': target_match.id if target_match else None,
+                    'tactics': serialized_tactics_dict,
                 })
             except Exception as e:
                 print("Failed to broadcast tactical change:", e)
 
-            serialized_gp = MatchGamePlanSerializer(active_gameplan).data if isinstance(active_gameplan, MatchGamePlan) else TeamGamePlanSerializer(active_gameplan).data
+            def get_serialized_gp(plan):
+                if isinstance(plan, MatchGamePlan):
+                    d = MatchGamePlanSerializer(plan).data
+                    if not d.get('players_data') and default_gameplan.players_data:
+                        d['players_data'] = default_gameplan.players_data
+                    return d
+                d = TeamGamePlanSerializer(plan).data
+                if not d.get('players_data') and default_gameplan.players_data:
+                    d['players_data'] = default_gameplan.players_data
+                return d
+
+            serialized_gp = get_serialized_gp(active_gameplan)
             return Response({
                 'status': 'ترکیب و تاکتیک‌ها با موفقیت در بک‌اند ثبت شد و به پنل ادمین ارسال گردید.',
                 'gameplan': serialized_gp,
@@ -305,7 +364,18 @@ class TeamViewSet(viewsets.ModelViewSet):
                 'team': TeamSerializer(team).data
             })
 
-        serialized_gp = MatchGamePlanSerializer(active_gameplan).data if isinstance(active_gameplan, MatchGamePlan) else TeamGamePlanSerializer(active_gameplan).data
+        def get_serialized_gp(plan):
+            if isinstance(plan, MatchGamePlan):
+                d = MatchGamePlanSerializer(plan).data
+                if not d.get('players_data') and default_gameplan.players_data:
+                    d['players_data'] = default_gameplan.players_data
+                return d
+            d = TeamGamePlanSerializer(plan).data
+            if not d.get('players_data') and default_gameplan.players_data:
+                d['players_data'] = default_gameplan.players_data
+            return d
+
+        serialized_gp = get_serialized_gp(active_gameplan)
         return Response({
             'gameplan': serialized_gp,
             'target_match_id': target_match.id if target_match else None,

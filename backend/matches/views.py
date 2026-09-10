@@ -105,15 +105,46 @@ class LiveMatchTacticsUpdateView(APIView):
         
         # Find active match for this team if any
         match_id = data.get('match_id')
-        if not match_id and team_name:
-            active_m = Match.objects.filter(status='LIVE').filter(Q(home_team=team_name) | Q(away_team=team_name)).first()
-            if active_m:
-                match_id = active_m.id
+        target_match = None
+        if match_id:
+            target_match = Match.objects.filter(id=match_id).first()
+        elif team_name:
+            target_match = Match.objects.filter(status='LIVE').filter(Q(home_team=team_name) | Q(away_team=team_name)).first()
+            if target_match:
+                match_id = target_match.id
+
+        # Persist tactics in MatchGamePlan so admin desk reloads accurate data
+        if target_match and team_name:
+            tactics_dict = data.get('tactics', {})
+            if isinstance(tactics_dict, dict) and tactics_dict:
+                from matches.models import MatchGamePlan
+                mgp, _ = MatchGamePlan.objects.get_or_create(match=target_match, team=team_name)
+                if formation:
+                    mgp.formation = formation
+                for field in [
+                    'attacking_style', 'build_up', 'attacking_area',
+                    'positioning', 'support_range', 'defensive_style', 'containment_area',
+                    'pressing', 'defensive_line', 'compactness', 'adv_offense_1',
+                    'adv_offense_2', 'adv_defense_1', 'adv_defense_2'
+                ]:
+                    if field in tactics_dict and tactics_dict[field] is not None:
+                        val = tactics_dict[field]
+                        if field == 'pressing':
+                            if str(val).strip() in ['محافظه کار', 'محافظه‌کار', 'conservative', 'Conservative']:
+                                val = 'محافظه‌کار'
+                            elif str(val).strip() in ['تهاجمی', 'aggressive', 'Aggressive']:
+                                val = 'تهاجمی'
+                        setattr(mgp, field, val)
+                mgp.is_submitted = True
+                from django.utils import timezone
+                mgp.submitted_at = timezone.now()
+                mgp.save()
                 
         if match_id:
             broadcast_match_event(match_id, {
                 'type': 'coach_tactics_updated',
                 'team_name': team_name_str,
+                'team_id': team_name.id if team_name else None,
                 'formation': formation,
                 'data': data
             })

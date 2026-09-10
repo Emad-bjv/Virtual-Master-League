@@ -393,14 +393,53 @@ export function TeamProvider({ children }) {
         trend: '▲',
       }));
 
-      // Check if starting players need pitch coordinate auto-alignment
+      // Check if saved gameplan has custom players_data from coach
+      const gpPlayersData = rawTeamData.gameplan?.players_data;
+      if (Array.isArray(gpPlayersData) && gpPlayersData.length > 0) {
+        const gpMap = new Map();
+        gpPlayersData.forEach((item) => {
+          const pid = item.player_id || item.id;
+          if (pid) gpMap.set(String(pid), item);
+        });
+
+        const customHydrated = hydrated.map((p) => {
+          const custom = gpMap.get(String(p.id));
+          if (custom) {
+            return {
+              ...p,
+              is_starting: custom.is_starting !== undefined ? Boolean(custom.is_starting) : p.is_starting,
+              x_coord: custom.x_coord != null ? Number(custom.x_coord) : p.x_coord,
+              y_coord: custom.y_coord != null ? Number(custom.y_coord) : p.y_coord,
+              tacticalPosition: custom.position || p.tacticalPosition || null,
+              position: custom.position || p.position,
+            };
+          }
+          return p;
+        });
+
+        const customStarters = customHydrated.filter((p) => p.is_starting);
+        if (customStarters.length === 11) {
+          setPlayers(customHydrated);
+          return;
+        }
+      }
+
+      // Check if starting players exist
       const starters = hydrated.filter((p) => p.is_starting);
       const preset = FORMATION_PRESETS[resolvedForm];
 
-      if (starters.length === 11 && starters.every((p) => p.x_coord != null && p.y_coord != null && (p.x_coord !== 0 || p.y_coord !== 0))) {
-        setPlayers(hydrated);
+      // If the coach already selected 11 starters, NEVER replace them with arbitrary bench players
+      if (starters.length === 11) {
+        if (starters.every((p) => p.x_coord != null && p.y_coord != null && (p.x_coord !== 0 || p.y_coord !== 0))) {
+          setPlayers(hydrated);
+        } else {
+          // Keep the coach's EXACT 11 starters, aligning coordinates to formation preset
+          const mappedStarters = matchPlayersToFormationSlots(starters, preset);
+          const benchAndReserves = hydrated.filter((p) => !p.is_starting);
+          setPlayers([...mappedStarters, ...benchAndReserves]);
+        }
       } else {
-        // Auto-assign top 11 players to the starting formation slots
+        // Fallback only if no 11 starters exist at all (e.g. newly initialized team)
         const sorted = [...hydrated].sort((a, b) => b.overall - a.overall);
         const autoStarters = sorted.slice(0, 11);
         const mappedStarters = matchPlayersToFormationSlots(autoStarters, preset);
