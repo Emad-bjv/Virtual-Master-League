@@ -8,10 +8,10 @@ import {
   ChevronDown, ChevronRight, Eye, Flag, Trash2, Zap, Clock, Shield, Sparkles, Send,
   Plus, Minus, ArrowLeftRight, Bell, CheckCircle, BarChart2, Award, User, X,
   CreditCard, Gem, FileImage, UploadCloud, XCircle, Filter, Image, CheckCheck,
-  Edit2, Package, ToggleLeft, ToggleRight, Layers, Tag, Gift, Users
+  Edit2, Package, ToggleLeft, ToggleRight, Layers, Tag, Gift, Users, Flame, Swords, Crown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import api, { adminApi, matchApi, teamApi, economyApi } from '../../services/api';
+import api, { adminApi, matchApi, teamApi, economyApi, battleRoyaleApi } from '../../services/api';
 import EFootballGamePlan from '../team/EFootballGamePlan';
 import ErrorBoundary from '../common/ErrorBoundary';
 import CustomSelect from '../common/CustomSelect';
@@ -141,8 +141,11 @@ export default function AdminDashboard({
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [allTeams, setAllTeams] = useState([]);
 
+  // Tournament & Mode Management State inside live_admin
+  const [tournamentMode, setTournamentMode] = useState('league'); // 'league' | 'cup' | 'battle_royale'
+  const [leagueInfo, setLeagueInfo] = useState(null);
+
   // Cup Tournament & Match Management State inside live_admin
-  const [tournamentMode, setTournamentMode] = useState('league'); // 'league' | 'cup'
   const [cupSubTab, setCupSubTab] = useState('matches'); // 'matches' | 'bracket' | 'create_draw'
   const [selectedCupStage, setSelectedCupStage] = useState('یک‌هشتم نهایی');
   const [cupMatches, setCupMatches] = useState([]);
@@ -151,6 +154,17 @@ export default function AdminDashboard({
   const [loadingCupMatches, setLoadingCupMatches] = useState(false);
   const [cupBracketData, setCupBracketData] = useState(null);
   const [loadingBracket, setLoadingBracket] = useState(false);
+
+  // Battle Royale (Double Elimination) State inside live_admin
+  const [allBrTournaments, setAllBrTournaments] = useState([]);
+  const [selectedBrTournamentId, setSelectedBrTournamentId] = useState(null);
+  const [brSubTab, setBrSubTab] = useState('winners'); // 'winners' | 'losers' | 'grand_final' | 'schedule'
+  const [selectedBrWbRound, setSelectedBrWbRound] = useState('');
+  const [selectedBrLbRound, setSelectedBrLbRound] = useState('');
+  const [brMatches, setBrMatches] = useState([]);
+  const [brBracketData, setBrBracketData] = useState(null);
+  const [loadingBrMatches, setLoadingBrMatches] = useState(false);
+  const [loadingBrBracket, setLoadingBrBracket] = useState(false);
 
   // In-Place Match Editing & Bracket Slot Assignment State
   const [editingMatchId, setEditingMatchId] = useState(null);
@@ -190,11 +204,12 @@ export default function AdminDashboard({
   const loadMatchesAndWeeks = async () => {
     setLoadingMatches(true);
     try {
-      const [statsRes, weeksRes, scheduleRes, teamsRes] = await Promise.allSettled([
+      const [statsRes, weeksRes, scheduleRes, teamsRes, leagueInfoRes] = await Promise.allSettled([
         adminApi.getOverviewStats(),
         matchApi.getGameweeksStatus(),
         matchApi.getLeagueSchedule({ status: 'ALL' }),
         teamApi.getTeams ? teamApi.getTeams() : Promise.resolve({ data: [] }),
+        adminApi.getLeagueInfo ? adminApi.getLeagueInfo() : Promise.resolve({ data: null }),
       ]);
 
       if (statsRes.status === 'fulfilled') setRealStats(statsRes.value.data);
@@ -211,6 +226,12 @@ export default function AdminDashboard({
       }
       if (teamsRes.status === 'fulfilled' && teamsRes.value.data) {
         setAllTeams(teamsRes.value.data.results || teamsRes.value.data || []);
+      }
+      if (leagueInfoRes.status === 'fulfilled' && leagueInfoRes.value.data) {
+        setLeagueInfo(leagueInfoRes.value.data);
+        if (leagueInfoRes.value.data.is_active === false) {
+          setTournamentMode((prev) => (prev === 'league' ? 'battle_royale' : prev));
+        }
       }
     } catch (err) {
       console.warn('Failed to load admin matches:', err);
@@ -276,6 +297,66 @@ export default function AdminDashboard({
     }
   };
 
+  // Fetch Battle Royale Bracket Tree Data
+  const fetchBattleRoyaleBracket = useCallback(async (targetBrId = null) => {
+    const bId = targetBrId || selectedBrTournamentId;
+    if (!bId) return;
+    setLoadingBrBracket(true);
+    try {
+      const res = await battleRoyaleApi.getBracket(bId);
+      setBrBracketData(res.data || null);
+    } catch (err) {
+      console.warn('Failed to load battle royale bracket:', err);
+    } finally {
+      setLoadingBrBracket(false);
+    }
+  }, [selectedBrTournamentId]);
+
+  // Fetch Battle Royale Tournaments and Matches
+  const loadBattleRoyaleMatches = useCallback(async (targetBrId = null) => {
+    setLoadingBrMatches(true);
+    try {
+      const brsRes = await adminApi.getBattleRoyaleTournaments();
+      const brsList = brsRes.data || [];
+      setAllBrTournaments(brsList);
+
+      const activeBr = targetBrId
+        ? brsList.find((b) => b.id === targetBrId)
+        : (brsList.find((b) => b.is_active) || brsList[0]);
+      const currentBrId = activeBr?.id || targetBrId || null;
+      if (currentBrId) {
+        setSelectedBrTournamentId(currentBrId);
+        fetchBattleRoyaleBracket(currentBrId);
+      }
+
+      const params = { tournament_type: 'BATTLE_ROYALE' };
+      if (currentBrId) params.tournament_id = currentBrId;
+      const res = await adminApi.getMatches(params);
+      const matchesData = res.data?.results || res.data || [];
+      setBrMatches(matchesData);
+    } catch (err) {
+      console.warn('Failed to load battle royale matches in dashboard:', err);
+    } finally {
+      setLoadingBrMatches(false);
+    }
+  }, [fetchBattleRoyaleBracket]);
+
+  const handleBattleRoyaleForfeit = async (matchId, winnerSide) => {
+    if (!window.confirm(`آیا از ثبت باخت فنی ۳-۰ به نفع تیم ${winnerSide === 'HOME' ? 'میزبان' : 'میهمان'} در نبرد رویال اطمینان دارید؟`)) return;
+    try {
+      const res = await adminApi.forfeitMatch(matchId, { forfeit_winner: winnerSide });
+      showNotification(res.data?.message || 'باخت فنی ثبت و برنده مسابقه به مرحله بعد صعود کرد.', 'success');
+      loadBattleRoyaleMatches(selectedBrTournamentId);
+      if (selectedBrTournamentId) fetchBattleRoyaleBracket(selectedBrTournamentId);
+      try {
+        window.dispatchEvent(new Event('battle_royale_bracket_updated'));
+      } catch (_e) {}
+      loadMatchesAndWeeks();
+    } catch (err) {
+      showNotification(err.response?.data?.error || 'خطا در ثبت باخت فنی', 'error');
+    }
+  };
+
   // In-Place Manual Match Configuration Handlers
   const handleStartEditMatch = (m) => {
     let dStr = '';
@@ -333,6 +414,13 @@ export default function AdminDashboard({
       setEditingMatchId(null);
       await loadCupMatches(selectedCupTournamentId);
       if (selectedCupTournamentId) await fetchCupBracket(selectedCupTournamentId);
+      if (selectedBrTournamentId) {
+        await loadBattleRoyaleMatches(selectedBrTournamentId);
+        await fetchBattleRoyaleBracket(selectedBrTournamentId);
+        try {
+          window.dispatchEvent(new Event('battle_royale_bracket_updated'));
+        } catch (_e) {}
+      }
       loadMatchesAndWeeks();
     } catch (err) {
       showNotification(err.response?.data?.error || 'خطا در ویرایش مسابقه', 'error');
@@ -471,17 +559,21 @@ export default function AdminDashboard({
   useEffect(() => {
     loadMatchesAndWeeks();
     loadCupMatches();
+    loadBattleRoyaleMatches();
     const handleSync = () => {
       loadMatchesAndWeeks();
       loadCupMatches();
+      loadBattleRoyaleMatches();
     };
     window.addEventListener('vml_league_schedule_updated', handleSync);
+    window.addEventListener('battle_royale_bracket_updated', handleSync);
     window.addEventListener('storage', handleSync);
     return () => {
       window.removeEventListener('vml_league_schedule_updated', handleSync);
+      window.removeEventListener('battle_royale_bracket_updated', handleSync);
       window.removeEventListener('storage', handleSync);
     };
-  }, [loadCupMatches]);
+  }, [loadCupMatches, loadBattleRoyaleMatches]);
 
   // -------------------------------------------------------------
   // R1: DIRECT MATCH CONTROL NAVIGATION
@@ -554,6 +646,55 @@ export default function AdminDashboard({
       return m.status === matchFilter;
     });
   }, [cupMatches, selectedCupStage, matchFilter]);
+
+  // Battle Royale Bracket & Round Memos
+  const brWbRounds = useMemo(() => brBracketData?.winners_bracket || [], [brBracketData]);
+  const brLbRounds = useMemo(() => brBracketData?.losers_bracket || [], [brBracketData]);
+  const brGfMatches = useMemo(() => brBracketData?.grand_final || [], [brBracketData]);
+  const brChampion = useMemo(() => brBracketData?.champion || null, [brBracketData]);
+  const brStats = useMemo(() => brBracketData?.stats || { total_matches: 0, finished_matches: 0, remaining_matches: 0 }, [brBracketData]);
+
+  // Sync active selected round if empty
+  useEffect(() => {
+    if (brWbRounds.length > 0 && (!selectedBrWbRound || !brWbRounds.some((r) => r.name === selectedBrWbRound))) {
+      setSelectedBrWbRound(brWbRounds[0].name);
+    }
+  }, [brWbRounds, selectedBrWbRound]);
+
+  useEffect(() => {
+    if (brLbRounds.length > 0 && (!selectedBrLbRound || !brLbRounds.some((r) => r.name === selectedBrLbRound))) {
+      setSelectedBrLbRound(brLbRounds[0].name);
+    }
+  }, [brLbRounds, selectedBrLbRound]);
+
+  const currentBrWbMatches = useMemo(() => {
+    const round = brWbRounds.find((r) => r.name === selectedBrWbRound) || brWbRounds[0];
+    return round?.matches || [];
+  }, [brWbRounds, selectedBrWbRound]);
+
+  const currentBrLbMatches = useMemo(() => {
+    const round = brLbRounds.find((r) => r.name === selectedBrLbRound) || brLbRounds[0];
+    return round?.matches || [];
+  }, [brLbRounds, selectedBrLbRound]);
+
+  const allBrMatchesChronological = useMemo(() => {
+    if (brMatches && brMatches.length > 0) {
+      return [...brMatches].sort((a, b) => (a.id || 0) - (b.id || 0));
+    }
+    const list = [];
+    (brWbRounds || []).forEach((r) => (r.matches || []).forEach((m) => list.push(m)));
+    (brLbRounds || []).forEach((r) => (r.matches || []).forEach((m) => list.push(m)));
+    (brGfMatches || []).forEach((m) => list.push(m));
+    return list.sort((a, b) => (a.id || 0) - (b.id || 0));
+  }, [brMatches, brWbRounds, brLbRounds, brGfMatches]);
+
+  const filteredBrScheduleMatches = useMemo(() => {
+    return (allBrMatchesChronological || []).filter((m) => {
+      if (!m) return false;
+      if (matchFilter === 'ALL') return true;
+      return m.status === matchFilter;
+    });
+  }, [allBrMatchesChronological, matchFilter]);
 
   // -------------------------------------------------------------
   // 2. REFEREE CONTROL ROOM STATE & 4-MODULAR TABS (R5)
@@ -3136,9 +3277,9 @@ export default function AdminDashboard({
           {!selectedLiveMatch ? (
             /* --- DUAL TOURNAMENT BROWSER (LEAGUE & HAZFI CUP) --- */
             <div className="space-y-4">
-              {/* Dual Tournament Switcher Bar */}
+              {/* Multi-Tournament Switcher Bar (League, Cup, Battle Royale) */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-950/90 p-2.5 rounded-2xl border border-slate-800 shadow-xl">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={() => setTournamentMode('league')}
                     className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
@@ -3150,6 +3291,15 @@ export default function AdminDashboard({
                     <span>⚽</span>
                     <span>مسابقات لیگ برتر</span>
                     <span className="text-[10px] opacity-75 font-sport">({(allMatches || []).length})</span>
+                    {leagueInfo?.is_active === false ? (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-950/80 text-amber-400 border border-amber-500/30 font-bold">
+                        معلق
+                      </span>
+                    ) : (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 font-bold">
+                        فعال
+                      </span>
+                    )}
                   </button>
                   <button
                     onClick={() => {
@@ -3165,6 +3315,33 @@ export default function AdminDashboard({
                     <span>🏆</span>
                     <span>مسابقات جام حذفی</span>
                     <span className="text-[10px] opacity-75 font-sport">({(cupMatches || []).length})</span>
+                    {allCupTournaments?.find((c) => c.id === selectedCupTournamentId)?.is_active === false ? (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-950/80 text-amber-400 border border-amber-500/30 font-bold">
+                        معلق
+                      </span>
+                    ) : (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 font-bold">
+                        فعال
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTournamentMode('battle_royale');
+                      loadBattleRoyaleMatches(selectedBrTournamentId);
+                    }}
+                    className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                      tournamentMode === 'battle_royale'
+                        ? 'bg-gradient-to-r from-rose-500 via-purple-600 to-amber-500 text-white shadow-lg shadow-rose-950/50 border border-rose-400/40 scale-[1.02]'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
+                    }`}
+                  >
+                    <Swords size={14} className={tournamentMode === 'battle_royale' ? 'text-amber-300' : 'text-slate-400'} />
+                    <span>نبرد رویال (دابل الیمینیشن)</span>
+                    <span className="text-[10px] opacity-75 font-sport">({(allBrMatchesChronological || []).length})</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 font-bold">
+                      فعال
+                    </span>
                   </button>
                 </div>
 
@@ -3182,6 +3359,25 @@ export default function AdminDashboard({
                     >
                       {allCupTournaments.map((c) => (
                         <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {tournamentMode === 'battle_royale' && (allBrTournaments || []).length > 1 && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-slate-400">تورنمنت نبرد رویال:</span>
+                    <select
+                      value={selectedBrTournamentId || ''}
+                      onChange={(e) => {
+                        const bid = Number(e.target.value);
+                        setSelectedBrTournamentId(bid);
+                        loadBattleRoyaleMatches(bid);
+                      }}
+                      className="bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-rose-300 font-bold focus:outline-none"
+                    >
+                      {allBrTournaments.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
                       ))}
                     </select>
                   </div>
@@ -4562,6 +4758,728 @@ export default function AdminDashboard({
                       </form>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ============================================================== */}
+              {/* MODE 3: BATTLE ROYALE (DOUBLE ELIMINATION) REFEREE MANAGEMENT   */}
+              {/* ============================================================== */}
+              {tournamentMode === 'battle_royale' && (
+                <div className="space-y-4">
+                  {/* Tournament Header & Stats Ribbon */}
+                  <div className="glass-panel p-4 rounded-3xl border border-rose-500/40 bg-gradient-to-r from-slate-950 via-slate-900 to-rose-950/40 space-y-3 shadow-2xl">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-gradient-to-br from-rose-500 to-amber-600 rounded-2xl text-slate-950 shadow-lg shadow-rose-950/50">
+                          <Swords size={22} className="text-slate-950" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h2 className="text-base sm:text-lg font-black text-white">
+                              اتاق داوری و مدیریت نبرد رویال (Double Elimination)
+                            </h2>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/40">
+                              فرمت فعال
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            مدیریت براکت برندگان، بازندگان، فینال نهایی، تنظیم دستی بازی‌ها و ثبت نتایج زنده
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* BR Stats & Refresh CTA */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 bg-slate-950/80 px-3 py-1.5 rounded-2xl border border-slate-800 text-xs font-sport">
+                          <span className="text-slate-400 text-[11px]">کل مسابقات:</span>
+                          <span className="text-rose-400 font-bold">{brStats.total_matches || (allBrMatchesChronological || []).length}</span>
+                          <span className="text-slate-600">|</span>
+                          <span className="text-slate-400 text-[11px]">پایان‌یافته:</span>
+                          <span className="text-emerald-400 font-bold">{brStats.finished_matches || (allBrMatchesChronological || []).filter((m) => m.status === 'FINISHED').length}</span>
+                          <span className="text-slate-600">|</span>
+                          <span className="text-slate-400 text-[11px]">باقی‌مانده:</span>
+                          <span className="text-amber-400 font-bold">{brStats.remaining_matches || (allBrMatchesChronological || []).filter((m) => m.status !== 'FINISHED').length}</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            loadBattleRoyaleMatches(selectedBrTournamentId);
+                            if (selectedBrTournamentId) fetchBattleRoyaleBracket(selectedBrTournamentId);
+                          }}
+                          disabled={loadingBrMatches || loadingBrBracket}
+                          className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-rose-300 border border-slate-700 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                          title="به‌روزرسانی براکت و بازی‌ها"
+                        >
+                          <RefreshCw size={15} className={(loadingBrMatches || loadingBrBracket) ? 'animate-spin' : ''} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Champion Banner (if decided) */}
+                    {brChampion && (
+                      <div className="p-3 bg-gradient-to-r from-amber-500/20 via-yellow-500/10 to-transparent border border-amber-500/40 rounded-2xl flex items-center justify-between gap-3 animate-pulse">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400/50 p-1 flex items-center justify-center">
+                            <Crown size={22} className="text-amber-400" />
+                          </div>
+                          <div>
+                            <span className="text-[11px] text-amber-300 font-black block">👑 قهرمان نهایی تورنمنت نبرد رویال مشخص شد</span>
+                            <span className="text-sm font-black text-white">{brChampion.name}</span>
+                          </div>
+                        </div>
+                        <span className="text-xs text-amber-300 font-bold bg-amber-950/80 px-3 py-1 rounded-xl border border-amber-500/30">
+                          تیم قهرمان VML 🏆
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Battle Royale 4-SubTab Selector Ribbon */}
+                  <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-950/90 rounded-2xl border border-slate-800 shadow-xl">
+                    <button
+                      type="button"
+                      onClick={() => setBrSubTab('winners')}
+                      className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                        brSubTab === 'winners'
+                          ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-950/50 scale-[1.02] border border-cyan-400/40'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
+                      }`}
+                    >
+                      <Trophy size={14} />
+                      <span>جدول برندگان (Winners Bracket)</span>
+                      <span className="text-[10px] opacity-75 font-sport">
+                        ({(brWbRounds || []).reduce((acc, r) => acc + (r.matches || []).length, 0)})
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setBrSubTab('losers')}
+                      className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                        brSubTab === 'losers'
+                          ? 'bg-gradient-to-r from-orange-500 to-rose-600 text-white shadow-md shadow-rose-950/50 scale-[1.02] border border-rose-400/40'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
+                      }`}
+                    >
+                      <Flame size={14} />
+                      <span>جدول بازندگان (Losers Bracket)</span>
+                      <span className="text-[10px] opacity-75 font-sport">
+                        ({(brLbRounds || []).reduce((acc, r) => acc + (r.matches || []).length, 0)})
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setBrSubTab('grand_final')}
+                      className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                        brSubTab === 'grand_final'
+                          ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 shadow-md shadow-amber-950/50 scale-[1.02] border border-amber-400/40'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
+                      }`}
+                    >
+                      <Crown size={14} />
+                      <span>فینال نهایی (Grand Final)</span>
+                      <span className="text-[10px] opacity-75 font-sport">({(brGfMatches || []).length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setBrSubTab('schedule')}
+                      className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                        brSubTab === 'schedule'
+                          ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-950/50 scale-[1.02] border border-purple-400/40'
+                          : 'text-slate-400 hover:text-white hover:bg-slate-900 border border-transparent'
+                      }`}
+                    >
+                      <Calendar size={14} />
+                      <span>تقویم و لیست مسابقات (Schedule)</span>
+                      <span className="text-[10px] opacity-75 font-sport">({(allBrMatchesChronological || []).length})</span>
+                    </button>
+                  </div>
+
+                  {/* Battle Royale Match Card Renderer */}
+                  {(() => {
+                    const renderBrMatchCard = (m, extraBadge = null) => {
+                      if (!m) return null;
+                      const isEditing = editingMatchId === m.id;
+                      const homeName = m.home_team_name || m.home || 'نامشخص';
+                      const awayName = m.away_team_name || m.away || 'نامشخص';
+                      const homeLogo = getTeamLogoUrl(m.home_team_logo || homeName);
+                      const awayLogo = getTeamLogoUrl(m.away_team_logo || awayName);
+                      const isLive = m.status === 'LIVE';
+                      const isFinished = m.status === 'FINISHED';
+                      const hasPenalties = m.home_penalties != null && m.away_penalties != null;
+
+                      let timeStr = '۱۸:۰۰';
+                      if (m.date) {
+                        try {
+                          const dt = new Date(m.date);
+                          timeStr = dt.toLocaleTimeString('fa-IR', { timeZone: 'Asia/Tehran', hour: '2-digit', minute: '2-digit', hour12: false });
+                        } catch (_e) {}
+                      }
+
+                      return (
+                        <div
+                          key={m.id}
+                          className={`glass-panel p-4 rounded-3xl border transition-all shadow-xl relative overflow-hidden ${
+                            isLive
+                              ? 'border-rose-500/70 bg-gradient-to-br from-rose-950/40 via-slate-900 to-slate-950 shadow-rose-950/40'
+                              : isFinished
+                              ? 'border-slate-800/80 bg-slate-900/60'
+                              : 'border-slate-800 bg-slate-900/80'
+                          }`}
+                        >
+                          {/* Status Badge & Stage */}
+                          <div className="flex justify-between items-center mb-3">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] text-rose-300 font-sport bg-rose-950/80 px-2.5 py-0.5 rounded-lg border border-rose-500/30 flex items-center gap-1">
+                                <Swords size={11} className="text-rose-400" />
+                                <span>بازی #{m.id} • {m.round_name || 'مرحله نبرد رویال'}</span>
+                              </span>
+                              {extraBadge}
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isEditing) {
+                                    setEditingMatchId(null);
+                                  } else {
+                                    handleStartEditMatch(m);
+                                  }
+                                }}
+                                className="px-2.5 py-1 rounded-xl bg-slate-950 hover:bg-slate-800 text-rose-300 border border-rose-500/30 text-[10.5px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-sm"
+                                title="تنظیم دستی تیم‌ها، تاریخ، زمان و نتیجه"
+                              >
+                                <Edit2 size={11} />
+                                <span>{isEditing ? 'بستن فرم' : 'تنظیم دستی'}</span>
+                              </button>
+
+                              <span
+                                className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border flex items-center gap-1 font-sport ${
+                                  isLive
+                                    ? 'bg-rose-950 text-rose-300 border-rose-500 animate-pulse'
+                                    : isFinished
+                                    ? 'bg-slate-950 text-slate-400 border-slate-700'
+                                    : 'bg-amber-950 text-amber-300 border-amber-500/40'
+                                }`}
+                              >
+                                {isLive && <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>}
+                                {isLive ? 'در حال برگزاری (LIVE)' : isFinished ? 'پایان یافته' : `ساعت ${timeStr}`}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* IN-PLACE MANUAL MATCH EDITING PANEL */}
+                          {isEditing ? (
+                            <div className="p-4 bg-slate-950/95 rounded-2xl border border-rose-400/60 space-y-3 shadow-2xl animate-fadeIn">
+                              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                                <span className="text-xs font-black text-rose-300 flex items-center gap-1.5">
+                                  <Edit2 size={13} />
+                                  <span>تنظیم دستی مسابقه #{m.id} و اسلات براکت نبرد رویال</span>
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-sport">مرحله: {m.round_name}</span>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                                {/* Home Team Select */}
+                                <div className="space-y-1">
+                                  <label className="text-[10.5px] font-bold text-slate-300 block">تیم میزبان:</label>
+                                  <select
+                                    value={editingMatchForm.home_team_id}
+                                    onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, home_team_id: e.target.value }))}
+                                    className="w-full bg-slate-900 border border-slate-700 focus:border-rose-400 rounded-xl px-2 py-1.5 text-white font-bold focus:outline-none"
+                                  >
+                                    <option value="">-- اسلات نامشخص (TBD) --</option>
+                                    {(allTeams || []).map((t) => (
+                                      <option key={t.id} value={t.id}>{t.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {/* Away Team Select */}
+                                <div className="space-y-1">
+                                  <label className="text-[10.5px] font-bold text-slate-300 block">تیم میهمان:</label>
+                                  <select
+                                    value={editingMatchForm.away_team_id}
+                                    onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, away_team_id: e.target.value }))}
+                                    className="w-full bg-slate-900 border border-slate-700 focus:border-rose-400 rounded-xl px-2 py-1.5 text-white font-bold focus:outline-none"
+                                  >
+                                    <option value="">-- اسلات نامشخص (TBD) --</option>
+                                    {(allTeams || []).map((t) => (
+                                      <option key={t.id} value={t.id}>{t.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {/* Date Input */}
+                                <div className="space-y-1">
+                                  <label className="text-[10.5px] font-bold text-slate-300 block">تاریخ مسابقه:</label>
+                                  <input
+                                    type="date"
+                                    value={editingMatchForm.date}
+                                    onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, date: e.target.value }))}
+                                    className="w-full bg-slate-900 border border-slate-700 focus:border-rose-400 rounded-xl px-2 py-1 text-white font-sport focus:outline-none"
+                                  />
+                                </div>
+
+                                {/* Time Input */}
+                                <div className="space-y-1">
+                                  <label className="text-[10.5px] font-bold text-slate-300 block">ساعت شروع:</label>
+                                  <input
+                                    type="time"
+                                    value={editingMatchForm.time}
+                                    onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, time: e.target.value }))}
+                                    className="w-full bg-slate-900 border border-slate-700 focus:border-rose-400 rounded-xl px-2 py-1 text-white font-sport focus:outline-none"
+                                  />
+                                </div>
+
+                                {/* Status Select */}
+                                <div className="space-y-1">
+                                  <label className="text-[10.5px] font-bold text-slate-300 block">وضعیت مسابقه:</label>
+                                  <select
+                                    value={editingMatchForm.status}
+                                    onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, status: e.target.value }))}
+                                    className="w-full bg-slate-900 border border-slate-700 focus:border-rose-400 rounded-xl px-2 py-1.5 text-rose-300 font-bold focus:outline-none"
+                                  >
+                                    <option value="SCHEDULED">برنامه‌ریزی شده (SCHEDULED)</option>
+                                    <option value="LIVE">در حال برگزاری (LIVE)</option>
+                                    <option value="FINISHED">پایان یافته (FINISHED)</option>
+                                    <option value="CANCELLED">لغو شده (CANCELLED)</option>
+                                  </select>
+                                </div>
+
+                                {/* Scores */}
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] text-slate-400 block font-bold">گل میزبان:</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={editingMatchForm.home_score}
+                                      onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, home_score: e.target.value }))}
+                                      className="w-full bg-slate-900 border border-slate-700 focus:border-rose-400 rounded-xl px-2 py-1.5 text-center text-white font-bold font-sport focus:outline-none"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] text-slate-400 block font-bold">گل میهمان:</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={editingMatchForm.away_score}
+                                      onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, away_score: e.target.value }))}
+                                      className="w-full bg-slate-900 border border-slate-700 focus:border-rose-400 rounded-xl px-2 py-1.5 text-center text-white font-bold font-sport focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Penalty Inputs */}
+                                <div className="col-span-1 sm:col-span-2 grid grid-cols-2 gap-2 p-2.5 bg-rose-950/40 rounded-xl border border-rose-500/25">
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] text-rose-300 block font-bold">پنالتی میزبان (در صورت تساوی):</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="خالی"
+                                      value={editingMatchForm.home_penalties}
+                                      onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, home_penalties: e.target.value }))}
+                                      className="w-full bg-slate-900 border border-slate-700 focus:border-rose-400 rounded-xl px-2 py-1 text-center text-rose-300 font-bold font-sport focus:outline-none"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] text-rose-300 block font-bold">پنالتی میهمان (در صورت تساوی):</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="خالی"
+                                      value={editingMatchForm.away_penalties}
+                                      onChange={(e) => setEditingMatchForm((prev) => ({ ...prev, away_penalties: e.target.value }))}
+                                      className="w-full bg-slate-900 border border-slate-700 focus:border-rose-400 rounded-xl px-2 py-1 text-center text-rose-300 font-bold font-sport focus:outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingMatchId(null)}
+                                  disabled={savingMatchEdit}
+                                  className="px-4 py-1.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 text-xs font-bold transition-colors cursor-pointer"
+                                >
+                                  انصراف
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveMatchEdit(m.id)}
+                                  disabled={savingMatchEdit}
+                                  className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 text-white font-black text-xs shadow-md hover:from-rose-400 hover:to-amber-400 transition-all flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  {savingMatchEdit ? <RefreshCw size={13} className="animate-spin" /> : <Check size={13} />}
+                                  <span>{savingMatchEdit ? 'در حال ذخیره...' : 'ثبت و ذخیره تغییرات'}</span>
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {/* Teams & Score Display */}
+                              <div className="flex items-center justify-between gap-3 my-2 px-2">
+                                {/* Home */}
+                                <div className="flex items-center gap-2.5 w-[42%] justify-start">
+                                  <div className="w-10 h-10 rounded-2xl bg-slate-950 border border-slate-700 p-1.5 shrink-0 flex items-center justify-center shadow-md">
+                                    {homeLogo ? (
+                                      <img src={homeLogo} alt={homeName} className="w-full h-full object-contain" />
+                                    ) : (
+                                      <span className="text-xs font-black text-slate-400">{(homeName || 'T').slice(0, 2)}</span>
+                                    )}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <span className="text-xs sm:text-sm font-black text-white truncate block">{homeName}</span>
+                                    <span className="text-[10px] text-slate-400 block truncate">
+                                      مربی: {m.home_coach_name || 'ثبت نشده'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Score Badge */}
+                                <div className="flex flex-col items-center justify-center shrink-0">
+                                  <div className="px-3.5 py-1 rounded-2xl bg-slate-950 border border-slate-700 font-sport font-black text-base sm:text-lg text-white shadow-inner flex items-center gap-1.5">
+                                    <span className={m.home_score > m.away_score ? 'text-rose-400' : 'text-white'}>
+                                      {m.home_score != null ? m.home_score : '-'}
+                                    </span>
+                                    <span className="text-slate-500 text-xs">:</span>
+                                    <span className={m.away_score > m.home_score ? 'text-rose-400' : 'text-white'}>
+                                      {m.away_score != null ? m.away_score : '-'}
+                                    </span>
+                                  </div>
+                                  {hasPenalties && (
+                                    <span className="text-[10px] text-amber-300 font-sport font-bold mt-1 bg-amber-950/80 px-2 py-0.2 rounded-md border border-amber-500/30">
+                                      پنالتی: {m.home_penalties} - {m.away_penalties}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Away */}
+                                <div className="flex items-center gap-2.5 w-[42%] justify-end text-left">
+                                  <div className="min-w-0 text-right">
+                                    <span className="text-xs sm:text-sm font-black text-white truncate block">{awayName}</span>
+                                    <span className="text-[10px] text-slate-400 block truncate">
+                                      مربی: {m.away_coach_name || 'ثبت نشده'}
+                                    </span>
+                                  </div>
+                                  <div className="w-10 h-10 rounded-2xl bg-slate-950 border border-slate-700 p-1.5 shrink-0 flex items-center justify-center shadow-md">
+                                    {awayLogo ? (
+                                      <img src={awayLogo} alt={awayName} className="w-full h-full object-contain" />
+                                    ) : (
+                                      <span className="text-xs font-black text-slate-400">{(awayName || 'T').slice(0, 2)}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Lineup & Tactic Status */}
+                              <div className="flex flex-col gap-1.5 text-[10.5px] py-1.5 px-1 mt-1 border-t border-slate-800/50">
+                                <div className="flex items-center justify-between">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setLineupModalDefaultSide('home');
+                                      setLineupModalMatch(m);
+                                    }}
+                                    className="flex items-center gap-1.5 flex-wrap hover:opacity-85 cursor-pointer text-right"
+                                    title="مشاهده جزئیات ترکیب میزبان"
+                                  >
+                                    <span className="text-slate-400">میزبان:</span>
+                                    <span className={`font-bold flex items-center gap-0.5 ${m.home_lineup_ready ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                      {m.home_lineup_ready ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
+                                    </span>
+                                    {m.home_preset_name && (
+                                      <span className="bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1.5 py-0.2 rounded text-[9px] font-black">
+                                        ⚡ {m.home_preset_name}
+                                      </span>
+                                    )}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setLineupModalDefaultSide('away');
+                                      setLineupModalMatch(m);
+                                    }}
+                                    className="flex items-center gap-1.5 flex-wrap hover:opacity-85 cursor-pointer text-left"
+                                    title="مشاهده جزئیات ترکیب میهمان"
+                                  >
+                                    <span className="text-slate-400">میهمان:</span>
+                                    <span className={`font-bold flex items-center gap-0.5 ${m.away_lineup_ready ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                      {m.away_lineup_ready ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
+                                    </span>
+                                    {m.away_preset_name && (
+                                      <span className="bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1.5 py-0.2 rounded text-[9px] font-black">
+                                        ⚡ {m.away_preset_name}
+                                      </span>
+                                    )}
+                                  </button>
+                                </div>
+
+                                {/* Full Lineup Inspection Button & Forfeits */}
+                                <div className="pt-1 border-t border-slate-800/40 flex items-center justify-between">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setLineupModalDefaultSide('home');
+                                      setLineupModalMatch(m);
+                                    }}
+                                    className="px-2.5 py-1 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/40 text-rose-300 font-bold text-[10.5px] flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                                  >
+                                    <Eye size={12} />
+                                    <span>مشاهده زمین چمن و تاکتیک مربیان</span>
+                                  </button>
+
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleBattleRoyaleForfeit(m.id, 'HOME');
+                                      }}
+                                      className="px-2 py-0.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-500/30 text-rose-300 text-[9.5px] font-bold transition-all cursor-pointer"
+                                      title="ثبت باخت فنی ۳-۰ به نفع میزبان"
+                                    >
+                                      باخت فنی میهمان
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleBattleRoyaleForfeit(m.id, 'AWAY');
+                                      }}
+                                      className="px-2 py-0.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-500/30 text-rose-300 text-[9.5px] font-bold transition-all cursor-pointer"
+                                      title="ثبت باخت فنی ۳-۰ به نفع میهمان"
+                                    >
+                                      باخت فنی میزبان
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Action CTA to Referee Room */}
+                              <div
+                                onClick={() => {
+                                  setSelectedLiveMatch(m);
+                                  setRefereeDeskTab('live_desk');
+                                }}
+                                className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs cursor-pointer group hover:bg-slate-950/40 p-1 rounded-xl transition-all"
+                              >
+                                <span className="text-[11px] text-slate-400">سرمربیان: {String(m.home_team_name || '').split(' ')[0]} vs {String(m.away_team_name || '').split(' ')[0]}</span>
+                                <span className="text-rose-400 group-hover:text-rose-300 font-bold flex items-center gap-1">
+                                  <span>ورود به میز داوری و کنترل مسابقه</span>
+                                  <ChevronLeftIcon />
+                                </span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    };
+
+                    return (
+                      <div className="space-y-4">
+                        {/* Sub-Tab 1: Winners Bracket */}
+                        {brSubTab === 'winners' && (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                              {(brWbRounds || []).map((r) => {
+                                const isSelected = (selectedBrWbRound || brWbRounds[0]?.name) === r.name;
+                                return (
+                                  <button
+                                    key={r.name}
+                                    type="button"
+                                    onClick={() => setSelectedBrWbRound(r.name)}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer flex items-center gap-2 ${
+                                      isSelected
+                                        ? 'bg-cyan-600 text-white shadow-md shadow-cyan-950/50 scale-[1.02] border border-cyan-400/40'
+                                        : 'bg-slate-950/80 text-slate-400 hover:text-slate-200 border border-slate-800'
+                                    }`}
+                                  >
+                                    <span>{r.name}</span>
+                                    <span className="text-[10px] font-sport opacity-75">({(r.matches || []).length})</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {loadingBrBracket ? (
+                              <div className="glass-panel p-12 text-center rounded-3xl border border-slate-800 space-y-3">
+                                <RefreshCw size={28} className="animate-spin text-rose-500 mx-auto" />
+                                <p className="text-slate-400 text-xs font-bold">در حال بارگذاری جدول برندگان نبرد رویال...</p>
+                              </div>
+                            ) : currentBrWbMatches.length === 0 ? (
+                              <div className="glass-panel p-10 text-center rounded-3xl border border-slate-800 space-y-2">
+                                <Trophy size={30} className="text-slate-600 mx-auto" />
+                                <p className="text-slate-400 text-xs font-bold">هیچ مسابقه‌ای در این مرحله از جدول برندگان وجود ندارد.</p>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                {currentBrWbMatches.map((m) => renderBrMatchCard(m))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Sub-Tab 2: Losers Bracket */}
+                        {brSubTab === 'losers' && (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                              {(brLbRounds || []).map((r) => {
+                                const isSelected = (selectedBrLbRound || brLbRounds[0]?.name) === r.name;
+                                return (
+                                  <button
+                                    key={r.name}
+                                    type="button"
+                                    onClick={() => setSelectedBrLbRound(r.name)}
+                                    className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer flex items-center gap-2 ${
+                                      isSelected
+                                        ? 'bg-orange-600 text-white shadow-md shadow-orange-950/50 scale-[1.02] border border-orange-400/40'
+                                        : 'bg-slate-950/80 text-slate-400 hover:text-slate-200 border border-slate-800'
+                                    }`}
+                                  >
+                                    <Flame size={12} className={isSelected ? 'text-amber-300' : 'text-slate-500'} />
+                                    <span>{r.name}</span>
+                                    <span className="text-[10px] font-sport opacity-75">({(r.matches || []).length})</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {loadingBrBracket ? (
+                              <div className="glass-panel p-12 text-center rounded-3xl border border-slate-800 space-y-3">
+                                <RefreshCw size={28} className="animate-spin text-rose-500 mx-auto" />
+                                <p className="text-slate-400 text-xs font-bold">در حال بارگذاری جدول بازندگان نبرد رویال...</p>
+                              </div>
+                            ) : currentBrLbMatches.length === 0 ? (
+                              <div className="glass-panel p-10 text-center rounded-3xl border border-slate-800 space-y-2">
+                                <Flame size={30} className="text-slate-600 mx-auto" />
+                                <p className="text-slate-400 text-xs font-bold">هیچ مسابقه‌ای در این مرحله از جدول بازندگان وجود ندارد.</p>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                {currentBrLbMatches.map((m) => renderBrMatchCard(m))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Sub-Tab 3: Grand Final */}
+                        {brSubTab === 'grand_final' && (
+                          <div className="space-y-4">
+                            <div className="p-3.5 bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-transparent border border-amber-500/30 rounded-2xl flex items-start gap-3">
+                              <Crown size={22} className="text-amber-400 shrink-0 mt-0.5" />
+                              <div className="text-xs text-amber-200/90 leading-relaxed">
+                                <span className="font-bold block text-amber-300 mb-0.5">قانون فینال دابل الیمینیشن (Grand Final & Reset):</span>
+                                بازی اول فینال بین قهرمان جدول برندگان و قهرمان جدول بازندگان برگزار می‌شود. در صورت پیروزی قهرمان جدول برندگان، وی مستقیماً قهرمان مسابقات خواهد شد. در صورتی که قهرمان جدول بازندگان پیروز شود، بازی دوم ریست فینال (Bracket Reset) برگزار می‌شود تا قهرمان قطعی تعیین گردد.
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Game 1 */}
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-xs font-black text-amber-400">
+                                  <Trophy size={14} />
+                                  <span>فینال اول (Game 1) - قهرمان برندگان vs قهرمان بازندگان</span>
+                                </div>
+                                {brGfMatches[0] ? (
+                                  renderBrMatchCard(brGfMatches[0], (
+                                    <span className="text-[9.5px] px-2 py-0.2 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
+                                      فینال اصلی
+                                    </span>
+                                  ))
+                                ) : (
+                                  <div className="glass-panel p-8 text-center rounded-3xl border border-slate-800 text-xs text-slate-400">
+                                    در انتظار پایان مراحل حذفی و تعیین قهرمانان دو جدول
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Game 2 (Reset Match) */}
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2 text-xs font-black text-rose-400">
+                                  <Swords size={14} />
+                                  <span>بازی ریست فینال (Game 2 - Bracket Reset)</span>
+                                </div>
+                                {brGfMatches[1] ? (
+                                  renderBrMatchCard(brGfMatches[1], (
+                                    <span className={`text-[9.5px] px-2 py-0.2 rounded-full font-bold border ${
+                                      brGfMatches[1].status === 'SCHEDULED' || brGfMatches[1].status === 'LIVE'
+                                        ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse'
+                                        : 'bg-slate-900 text-slate-500 border-slate-800'
+                                    }`}>
+                                      {brGfMatches[1].status === 'SCHEDULED' || brGfMatches[1].status === 'LIVE'
+                                        ? '🔥 بازی ریست فعال شد'
+                                        : 'مشروط به پیروزی قهرمان بازندگان در بازی اول'}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <div className="glass-panel p-8 text-center rounded-3xl border border-slate-800 text-xs text-slate-400">
+                                    این مسابقه تنها در صورت پیروزی قهرمان جدول بازندگان در فینال اول برگزار خواهد شد.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Sub-Tab 4: Schedule */}
+                        {brSubTab === 'schedule' && (
+                          <div className="space-y-3">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-950/80 p-2.5 rounded-2xl border border-slate-800">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs text-slate-400 font-bold ml-1">فیلتر مسابقات:</span>
+                                {[
+                                  { id: 'ALL', label: 'همه مسابقات' },
+                                  { id: 'LIVE', label: '🔴 در حال برگزاری' },
+                                  { id: 'SCHEDULED', label: '⏳ برنامه‌ریزی‌شده' },
+                                  { id: 'FINISHED', label: '✓ پایان‌یافته' },
+                                ].map((f) => (
+                                  <button
+                                    key={f.id}
+                                    type="button"
+                                    onClick={() => setMatchFilter(f.id)}
+                                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                      matchFilter === f.id
+                                        ? 'bg-purple-600 text-white shadow-md shadow-purple-950/50 border border-purple-400/40'
+                                        : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                                    }`}
+                                  >
+                                    {f.label}
+                                  </button>
+                                ))}
+                              </div>
+                              <span className="text-xs text-slate-400 font-sport">
+                                نمایش {filteredBrScheduleMatches.length} از {allBrMatchesChronological.length} مسابقه
+                              </span>
+                            </div>
+
+                            {filteredBrScheduleMatches.length === 0 ? (
+                              <div className="glass-panel p-10 text-center rounded-3xl border border-slate-800 text-xs text-slate-400 font-bold">
+                                هیچ مسابقه‌ای با فیلتر انتخاب شده یافت نشد.
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                {filteredBrScheduleMatches.map((m) => renderBrMatchCard(m))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
             </div>
