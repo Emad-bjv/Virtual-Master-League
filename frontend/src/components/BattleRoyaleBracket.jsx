@@ -3,10 +3,11 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trophy, Flame, Shield, Calendar, Clock, RefreshCw, ChevronLeft, ChevronRight,
-  Sparkles, CheckCircle2, AlertTriangle, Eye, ArrowLeftRight, Swords, Star, Info
+  Sparkles, CheckCircle2, AlertTriangle, Eye, ArrowLeftRight, Swords, Star, Info, BookOpen
 } from 'lucide-react';
 import { battleRoyaleApi, adminApi } from '../services/api';
 import { getTeamLogoUrl } from '../utils/teamLogos';
+import BattleRoyaleGuideView from './BattleRoyaleGuideView';
 
 export default function BattleRoyaleBracket({ tournamentId, isAdmin = false, onMatchClick }) {
   const [bracketData, setBracketData] = useState(null);
@@ -118,12 +119,15 @@ export default function BattleRoyaleBracket({ tournamentId, isAdmin = false, onM
 
   if (!tournament.id && (!bracketData || bracketData.active === false)) {
     return (
-      <div className="bg-slate-900/60 border border-white/10 rounded-3xl p-8 text-center space-y-3">
-        <Swords className="w-12 h-12 text-amber-400 mx-auto opacity-70" />
-        <h3 className="text-lg font-black text-white">هیچ تورنمنت نبرد رویال فعالی وجود ندارد</h3>
-        <p className="text-xs text-gray-400 max-w-md mx-auto">
-          در حال حاضر مسابقات حذفی دوطرفه (نبرد رویال) آغاز نشده است. از پنل ادمین می‌توانید مسابقات جدید تولید کنید.
-        </p>
+      <div className="space-y-6">
+        <div className="bg-slate-900/60 border border-white/10 rounded-3xl p-6 sm:p-8 text-center space-y-3">
+          <Swords className="w-12 h-12 text-amber-400 mx-auto opacity-70" />
+          <h3 className="text-lg font-black text-white">هیچ تورنمنت نبرد رویال فعالی در جریان نیست</h3>
+          <p className="text-xs text-gray-400 max-w-md mx-auto">
+            در حال حاضر مسابقات حذفی دوطرفه (نبرد رویال) آغاز نشده است. می‌توانید راهنما و قوانین کامل این فرمت جذاب را در ادامه مطالعه فرمایید.
+          </p>
+        </div>
+        <BattleRoyaleGuideView />
       </div>
     );
   }
@@ -179,6 +183,16 @@ export default function BattleRoyaleBracket({ tournamentId, isAdmin = false, onM
                 <span className="text-sm font-black text-amber-400">{stats.remaining_matches}</span>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('guide')}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+              title="مشاهده راهنمای تصویری و قوانین مسابقات"
+            >
+              <BookOpen className="w-4 h-4 text-amber-400" />
+              <span className="hidden sm:inline">راهنمای مسابقات</span>
+            </button>
 
             <button
               type="button"
@@ -271,6 +285,19 @@ export default function BattleRoyaleBracket({ tournamentId, isAdmin = false, onM
           >
             <Calendar className="w-4 h-4 text-indigo-300" />
             تقویم و برنامه زمانی بازی‌ها
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('guide')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all shrink-0 ${
+              activeTab === 'guide'
+                ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-lg shadow-cyan-600/30'
+                : 'bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white'
+            }`}
+          >
+            <BookOpen className="w-4 h-4 text-cyan-300" />
+            راهنمای مسابقات و قوانین 📖
           </button>
         </div>
       </div>
@@ -511,6 +538,11 @@ export default function BattleRoyaleBracket({ tournamentId, isAdmin = false, onM
             })}
           </div>
         </div>
+      )}
+
+      {/* TAB E: GUIDE & RULES VIEW */}
+      {activeTab === 'guide' && (
+        <BattleRoyaleGuideView />
       )}
 
       {/* 4. MATCH DETAIL MODAL (React Portal directly to document.body) */}
