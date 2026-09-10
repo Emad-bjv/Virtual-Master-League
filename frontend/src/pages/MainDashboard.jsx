@@ -326,6 +326,16 @@ export default function MainDashboard() {
     handleTabChange(tab);
   }, [handleTabChange]);
 
+  useEffect(() => {
+    const handleNav = (e) => {
+      if (e?.detail?.tab) {
+        handleNavigateWithSub(e.detail.tab, e.detail.sub);
+      }
+    };
+    window.addEventListener('vml_navigate_tab', handleNav);
+    return () => window.removeEventListener('vml_navigate_tab', handleNav);
+  }, [handleNavigateWithSub]);
+
   const handleAvatarClick = useCallback(() => {
     handleTabChange('profile');
   }, [handleTabChange]);

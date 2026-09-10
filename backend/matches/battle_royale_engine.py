@@ -625,9 +625,53 @@ def serialize_battle_royale_bracket(tournament: Tournament) -> dict:
         .order_by('bracket_side', 'bracket_round', 'id')
     )
 
+    # Precompute feeder maps & sequential match numbers
+    feeder_winner_to = {}
+    feeder_loser_to = {}
+    match_num_map = {}
+
+    for idx, m in enumerate(matches):
+        match_num_map[m.id] = idx + 1
+        if m.next_match_id:
+            feeder_winner_to.setdefault(m.next_match_id, []).append(m)
+        if m.loser_next_match_id:
+            feeder_loser_to.setdefault(m.loser_next_match_id, []).append(m)
+
     def serialize_match_node(m: Match):
+        home_feeder = None
+        away_feeder = None
+
+        if not m.home_team_id:
+            if m.bracket_side == 'GRAND_FINAL':
+                home_feeder = 'قهرمان فینال برنده‌ها'
+            elif m.bracket_side == 'WINNERS':
+                w_f = feeder_winner_to.get(m.id, [])
+                home_feeder = f"برنده بازی {match_num_map.get(w_f[0].id, '')}" if len(w_f) > 0 else "برنده دور قبل"
+            elif m.bracket_side == 'LOSERS':
+                if m.bracket_round == 1:
+                    l_f = feeder_loser_to.get(m.id, [])
+                    home_feeder = f"بازنده بازی {match_num_map.get(l_f[0].id, '')}" if len(l_f) > 0 else "بازنده دور ۱"
+                else:
+                    w_f = feeder_winner_to.get(m.id, [])
+                    home_feeder = f"برنده بازی {match_num_map.get(w_f[0].id, '')}" if len(w_f) > 0 else "صعودکننده بازنده‌ها"
+
+        if not m.away_team_id:
+            if m.bracket_side == 'GRAND_FINAL':
+                away_feeder = 'قهرمان فینال بازنده‌ها'
+            elif m.bracket_side == 'WINNERS':
+                w_f = feeder_winner_to.get(m.id, [])
+                away_feeder = f"برنده بازی {match_num_map.get(w_f[1].id, '')}" if len(w_f) > 1 else "برنده دور قبل"
+            elif m.bracket_side == 'LOSERS':
+                if m.bracket_round == 1:
+                    l_f = feeder_loser_to.get(m.id, [])
+                    away_feeder = f"بازنده بازی {match_num_map.get(l_f[1].id, '')}" if len(l_f) > 1 else "بازنده دور ۱"
+                else:
+                    l_f = feeder_loser_to.get(m.id, [])
+                    away_feeder = f"بازنده بازی {match_num_map.get(l_f[0].id, '')}" if len(l_f) > 0 else "بازنده جدول برندگان"
+
         return {
             'id': m.id,
+            'match_number': match_num_map.get(m.id, 1),
             'round_name': m.round_name,
             'bracket_side': m.bracket_side,
             'bracket_round': m.bracket_round,
@@ -637,9 +681,11 @@ def serialize_battle_royale_bracket(tournament: Tournament) -> dict:
             'home_team_id': m.home_team_id,
             'home_team_name': m.home_team.name if m.home_team else 'مشخص نشده (TBD)',
             'home_team_logo': m.home_team.logo if m.home_team else '',
+            'home_feeder_label': home_feeder,
             'away_team_id': m.away_team_id,
             'away_team_name': m.away_team.name if m.away_team else 'مشخص نشده (TBD)',
             'away_team_logo': m.away_team.logo if m.away_team else '',
+            'away_feeder_label': away_feeder,
             'home_score': m.home_score,
             'away_score': m.away_score,
             'home_penalties': m.home_penalties,
