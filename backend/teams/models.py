@@ -283,7 +283,7 @@ class Player(models.Model):
         Returns the standard list of PES skills for this player's position.
         Handles CMF technical vs physical role resolution.
         """
-        pos = self.position.upper()
+        pos = (self.position or '').upper()
         if pos in ['CF', 'SS']:
             category = 'CF_SS'
         elif pos in ['LWF', 'RWF', 'LMF', 'RMF']:

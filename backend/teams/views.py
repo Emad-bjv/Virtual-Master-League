@@ -371,6 +371,10 @@ class TeamViewSet(viewsets.ModelViewSet):
                     d = MatchGamePlanSerializer(plan).data
                     if not d.get('players_data') and default_gameplan.players_data:
                         d['players_data'] = default_gameplan.players_data
+                    if not d.get('preset_name') and default_gameplan.preset_name:
+                        d['preset_name'] = default_gameplan.preset_name
+                    if not d.get('has_custom_player_edits') and default_gameplan.has_custom_player_edits:
+                        d['has_custom_player_edits'] = default_gameplan.has_custom_player_edits
                     return d
                 d = TeamGamePlanSerializer(plan).data
                 if not d.get('players_data') and default_gameplan.players_data:
@@ -391,6 +395,10 @@ class TeamViewSet(viewsets.ModelViewSet):
                 d = MatchGamePlanSerializer(plan).data
                 if not d.get('players_data') and default_gameplan.players_data:
                     d['players_data'] = default_gameplan.players_data
+                if not d.get('preset_name') and default_gameplan.preset_name:
+                    d['preset_name'] = default_gameplan.preset_name
+                if not d.get('has_custom_player_edits') and default_gameplan.has_custom_player_edits:
+                    d['has_custom_player_edits'] = default_gameplan.has_custom_player_edits
                 return d
             d = TeamGamePlanSerializer(plan).data
             if not d.get('players_data') and default_gameplan.players_data:
@@ -874,6 +882,54 @@ class PlayerViewSet(viewsets.ModelViewSet):
             return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({'success': True, 'message': message, 'overall': new_ovr})
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrDebug])
+    def mark_pes_ovr_applied(self, request):
+        from .level_engine import admin_mark_pes_ovr_applied
+        player_id = request.data.get('player_id')
+        applied = request.data.get('applied', True)
+
+        if not player_id:
+            return Response({'error': 'شناسه بازیکن (player_id) الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        success, message = admin_mark_pes_ovr_applied(player_id, applied=applied)
+        if not success:
+            return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({'success': True, 'message': message})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminOrDebug])
+    def reset_boosts(self, request, pk=None):
+        from .level_engine import admin_reset_player_boosts
+        reset_mode = request.data.get('reset_mode', 'ALL')
+        success, message, refund_amount = admin_reset_player_boosts(pk, reset_mode=reset_mode)
+        if not success:
+            return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'success': True,
+            'message': message,
+            'refund_amount': refund_amount
+        })
+
+    @action(detail=False, methods=['post'], permission_classes=[IsAdminOrDebug])
+    def reset_team_boosts(self, request):
+        from .level_engine import admin_reset_team_boosts
+        team_id = request.data.get('team_id')
+        reset_mode = request.data.get('reset_mode', 'ALL')
+
+        if not team_id:
+            return Response({'error': 'شناسه تیم (team_id) الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        success, message, total_refund = admin_reset_team_boosts(team_id, reset_mode=reset_mode)
+        if not success:
+            return Response({'error': message}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'success': True,
+            'message': message,
+            'total_refund': total_refund
+        })
 
     @action(detail=True, methods=['patch', 'post'])
     def update_market_value(self, request, pk=None):

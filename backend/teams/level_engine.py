@@ -360,25 +360,68 @@ def upgrade_player_pes_skill(player, skill_key: str, role: str = None) -> tuple:
     return True, f"مهارت «{matched_spec['name']}» با موفقیت به لول {new_lvl} ارتقا یافت! ✨", breakdown
 
 
-def admin_mark_pes_skill_applied(player_id: int, skill_key: str = None, all_skills: bool = False) -> tuple:
+def calculate_player_level_boost_gems(player) -> int:
     """
-    Marks a single skill or all skills of a player as applied in PES.
+    Calculates total gems spent to bring a player from level 1 to current player.level.
     """
+    current_lvl = getattr(player, 'level', 1) or 1
+    if current_lvl <= 1:
+        return 0
+    return sum(GEM_BOOST_TIER_COSTS.get(lvl, 880) for lvl in range(1, current_lvl))
+
+
+def calculate_player_skills_boost_gems(player) -> int:
+    """
+    Calculates total gems spent on specialized skills in player.skills_data.
+    """
+    skills_data = dict(getattr(player, 'skills_data', {}) or {})
+    total = 0
+    for k, item in skills_data.items():
+        if k.startswith('__') or not isinstance(item, dict):
+            continue
+        skill_lvl = item.get('level', 0)
+        for lvl in range(skill_lvl):
+            total += get_pes_skill_upgrade_cost(lvl)
+    return total
+
+
+def admin_mark_pes_ovr_applied(player_id: int, applied: bool = True) -> tuple:
+    """
+    Marks the player's overall (OVR) gem boost as applied or pending in PES.
+    """
+    from teams.models import Player
     try:
         player = Player.objects.get(id=player_id)
     except Player.DoesNotExist:
         return False, "بازیکن یافت نشد."
 
     skills_data = dict(player.skills_data or {})
-    if not skills_data:
-        return False, "هیچ مهارتی برای این بازیکن ثبت نشده است."
+    skills_data['__pes_ovr_applied__'] = bool(applied)
+    player.skills_data = skills_data
+    player.save(update_fields=['skills_data'])
+    return True, "وضعیت اعمال اورال در بازی PES با موفقیت به‌روزرسانی شد."
+
+
+def admin_mark_pes_skill_applied(player_id: int, skill_key: str = None, all_skills: bool = False) -> tuple:
+    """
+    Marks a single skill or all skills (plus OVR boost) of a player as applied in PES.
+    """
+    from teams.models import Player
+    try:
+        player = Player.objects.get(id=player_id)
+    except Player.DoesNotExist:
+        return False, "بازیکن یافت نشد."
+
+    skills_data = dict(player.skills_data or {})
 
     if all_skills:
-        for k in skills_data:
-            skills_data[k]['pes_applied'] = True
-            skills_data[k]['applied_at'] = timezone.now().isoformat()
+        for k, v in skills_data.items():
+            if isinstance(v, dict):
+                v['pes_applied'] = True
+                v['applied_at'] = timezone.now().isoformat()
+        skills_data['__pes_ovr_applied__'] = True
     elif skill_key:
-        if skill_key not in skills_data:
+        if skill_key not in skills_data or not isinstance(skills_data[skill_key], dict):
             return False, f"مهارت {skill_key} یافت نشد."
         skills_data[skill_key]['pes_applied'] = True
         skills_data[skill_key]['applied_at'] = timezone.now().isoformat()
@@ -394,6 +437,7 @@ def admin_update_player_ovr(player_id: int, new_ovr: int) -> tuple:
     """
     Allows the admin to set the new OVR calculated by PES edit mode.
     """
+    from teams.models import Player
     if new_ovr < 40 or new_ovr > 99:
         return False, "اورال باید عددی بین ۴۰ تا ۹۹ باشد."
 
@@ -415,13 +459,187 @@ def admin_update_player_ovr(player_id: int, new_ovr: int) -> tuple:
     return True, f"اورال {player.name} از {old_ovr} به {new_ovr} با موفقیت به‌روزرسانی شد."
 
 
-def admin_get_pes_skills_overview(team_id: int = None) -> dict:
+def admin_reset_player_boosts(player_id: int, reset_mode: str = 'ALL') -> tuple:
     """
-    Returns teams categorized with their players who have upgraded skills,
-    along with pending vs applied counters for the admin dashboard.
+    Resets boosts for a player and atomically refunds the exact spent gems to their club wallet.
+    reset_mode: 'ALL' (default) | 'SKILLS_ONLY' | 'LEVEL_ONLY'
+    Returns (success: bool, message: str, refund_amount: int)
+    """
+    from teams.models import Player
+    from economy.services import process_atomic_wallet_update
+    from notifications.models import Notification
+
+    try:
+        player = Player.objects.select_related('team').get(id=player_id)
+    except Player.DoesNotExist:
+        return False, "بازیکن یافت نشد.", 0
+
+    team = player.team
+    if not team:
+        return False, "بازیکن در حال حاضر عضو تیمی نیست.", 0
+
+    level_gems = calculate_player_level_boost_gems(player)
+    skills_gems = calculate_player_skills_boost_gems(player)
+
+    if reset_mode == 'LEVEL_ONLY':
+        refund_amount = level_gems
+    elif reset_mode == 'SKILLS_ONLY':
+        refund_amount = skills_gems
+    else:  # 'ALL'
+        refund_amount = level_gems + skills_gems
+
+    if refund_amount < 0:
+        refund_amount = 0
+
+    update_fields = []
+
+    if reset_mode in ['LEVEL_ONLY', 'ALL']:
+        player.level = 1
+        player.xp = 0
+        if player.base_overall:
+            player.overall = player.base_overall
+        update_fields.extend(['level', 'xp', 'overall'])
+
+    if reset_mode in ['SKILLS_ONLY', 'ALL']:
+        player.skills_data = {}
+        update_fields.append('skills_data')
+    elif reset_mode == 'LEVEL_ONLY':
+        skills_data = dict(player.skills_data or {})
+        skills_data.pop('__pes_ovr_applied__', None)
+        player.skills_data = skills_data
+        update_fields.append('skills_data')
+
+    if update_fields:
+        player.save(update_fields=list(set(update_fields)))
+
+    # Refund gems to club wallet atomically
+    if refund_amount > 0:
+        wallet_res = process_atomic_wallet_update(
+            team_id=team.id,
+            amount=refund_amount,
+            currency='GEMS',
+            transaction_type='REFUND',
+            description=f"استرداد {refund_amount} جم بابت ریست تقویت‌های بازیکن {player.name} ({reset_mode})"
+        )
+        if not wallet_res.get('success'):
+            return False, f"خطا در شارژ کیف پول باشگاه: {wallet_res.get('message', 'خطای نامشخص')}", 0
+
+    # Recalculate team star rating
+    try:
+        team.update_star_rating(save=True)
+    except Exception:
+        pass
+
+    # Send Notification to coach
+    try:
+        Notification.objects.create(
+            team=team,
+            category='GENERAL',
+            title=f"💎 استرداد جم: ریست تقویت‌های {player.name}",
+            message=f"تقویت‌های بازیکن {player.name} با موفقیت ریست شد و تعداد {refund_amount} الماس (جم) به خزانه باشگاه {team.name} بازگردانده شد."
+        )
+    except Exception:
+        pass
+
+    return True, f"تقویت‌های بازیکن {player.name} با موفقیت ریست شد و {refund_amount} الماس به حساب باشگاه مسترد گردید.", refund_amount
+
+
+def admin_reset_team_boosts(team_id: int, reset_mode: str = 'ALL') -> tuple:
+    """
+    Resets all boosted players in a team and atomically refunds total spent gems to the club wallet.
+    Returns (success: bool, message: str, total_refund: int)
     """
     from teams.models import Team
-    teams_qs = Team.objects.all().order_by('name')
+    from django.db import transaction
+    from economy.services import process_atomic_wallet_update
+    from notifications.models import Notification
+
+    try:
+        team = Team.objects.prefetch_related('players').get(id=team_id)
+    except Team.DoesNotExist:
+        return False, "تیم یافت نشد.", 0
+
+    boosted_players = []
+    total_refund = 0
+
+    for p in team.players.all():
+        lvl_gems = calculate_player_level_boost_gems(p)
+        skl_gems = calculate_player_skills_boost_gems(p)
+
+        has_lvl = (p.level > 1) or (p.overall > (p.base_overall or p.overall)) or lvl_gems > 0
+        has_skl = len([s for s in (p.skills_data or {}).keys() if not s.startswith('__')]) > 0 or skl_gems > 0
+
+        if reset_mode == 'LEVEL_ONLY' and has_lvl:
+            boosted_players.append((p, lvl_gems))
+            total_refund += lvl_gems
+        elif reset_mode == 'SKILLS_ONLY' and has_skl:
+            boosted_players.append((p, skl_gems))
+            total_refund += skl_gems
+        elif reset_mode == 'ALL' and (has_lvl or has_skl):
+            p_refund = lvl_gems + skl_gems
+            boosted_players.append((p, p_refund))
+            total_refund += p_refund
+
+    if not boosted_players:
+        return False, "هیچ بازیکن تقویت‌شده‌ای با شرایط انتخابی در این تیم یافت نشد.", 0
+
+    with transaction.atomic():
+        for p, _ in boosted_players:
+            update_fields = []
+            if reset_mode in ['LEVEL_ONLY', 'ALL']:
+                p.level = 1
+                p.xp = 0
+                if p.base_overall:
+                    p.overall = p.base_overall
+                update_fields.extend(['level', 'xp', 'overall'])
+
+            if reset_mode in ['SKILLS_ONLY', 'ALL']:
+                p.skills_data = {}
+                update_fields.append('skills_data')
+            elif reset_mode == 'LEVEL_ONLY':
+                s_data = dict(p.skills_data or {})
+                s_data.pop('__pes_ovr_applied__', None)
+                p.skills_data = s_data
+                update_fields.append('skills_data')
+
+            p.save(update_fields=list(set(update_fields)))
+
+        if total_refund > 0:
+            wallet_res = process_atomic_wallet_update(
+                team_id=team.id,
+                amount=total_refund,
+                currency='GEMS',
+                transaction_type='REFUND',
+                description=f"استرداد گروهی {total_refund} جم بابت ریست کلیه بازیکنان تیم {team.name} ({len(boosted_players)} بازیکن)"
+            )
+            if not wallet_res.get('success'):
+                raise Exception(f"خطا در شارژ کیف پول باشگاه: {wallet_res.get('message', 'خطای نامشخص')}")
+
+        try:
+            team.update_star_rating(save=True)
+        except Exception:
+            pass
+
+        try:
+            Notification.objects.create(
+                team=team,
+                category='GENERAL',
+                title=f"💎 استرداد جم گروهی تیم {team.name}",
+                message=f"تقویت‌های {len(boosted_players)} بازیکن تیم ریست شد و مجموعاً {total_refund} الماس به صندوق باشگاه بازگشت."
+            )
+        except Exception:
+            pass
+
+    return True, f"تقویت‌های {len(boosted_players)} بازیکن تیم با موفقیت ریست شد و مجموعاً {total_refund} الماس به حساب باشگاه عودت گردید.", total_refund
+
+
+def admin_get_pes_skills_overview(team_id: int = None) -> dict:
+    """
+    Returns teams categorized with their players who have upgraded skills or level boosts,
+    along with pending vs applied counters and invested gems for the admin dashboard.
+    """
+    from teams.models import Team
+    teams_qs = Team.objects.prefetch_related('players').all().order_by('name')
     if team_id:
         teams_qs = teams_qs.filter(id=team_id)
 
@@ -433,26 +651,64 @@ def admin_get_pes_skills_overview(team_id: int = None) -> dict:
         players = t.players.all().order_by('-overall')
         team_players_data = []
         team_pending_count = 0
+        team_total_gems = 0
 
         for p in players:
-            skills = p.get_skills_breakdown()
-            trained_skills = [s for s in skills if s['level'] > 0]
-            if not trained_skills:
+            try:
+                skills = p.get_skills_breakdown()
+            except Exception:
+                skills = []
+
+            trained_skills = [s for s in skills if s.get('level', 0) > 0]
+            
+            base_ovr = p.base_overall or p.overall
+            is_level_boosted = (p.level > 1) or (p.overall > base_ovr)
+            
+            level_gems = calculate_player_level_boost_gems(p)
+            skills_gems = calculate_player_skills_boost_gems(p)
+            player_total_gems = level_gems + skills_gems
+
+            skills_data = dict(p.skills_data or {})
+            pes_ovr_applied = skills_data.get('__pes_ovr_applied__', not is_level_boosted)
+
+            pending_skills = [s for s in trained_skills if not s.get('pes_applied', False)]
+            pending_ovr_count = 1 if (is_level_boosted and not pes_ovr_applied) else 0
+
+            player_pending_count = len(pending_skills) + pending_ovr_count
+            has_pending = player_pending_count > 0
+
+            # Only include player if they have any boost (Level Gem Boost OR Position Skills)
+            if not (is_level_boosted or len(trained_skills) > 0 or player_total_gems > 0):
                 continue
 
-            pending_skills = [s for s in trained_skills if not s['pes_applied']]
-            team_pending_count += len(pending_skills)
+            team_pending_count += player_pending_count
+            team_total_gems += player_total_gems
+
+            custom_photo_url = None
+            if getattr(p, 'custom_photo', None):
+                try:
+                    custom_photo_url = p.custom_photo.url
+                except Exception:
+                    custom_photo_url = str(p.custom_photo)
 
             team_players_data.append({
                 'id': p.id,
                 'name': p.name,
-                'position': p.position,
+                'position': p.position or '',
                 'overall': p.overall,
-                'base_overall': p.base_overall or p.overall,
+                'base_overall': base_ovr,
+                'level': p.level,
+                'is_level_boosted': is_level_boosted,
+                'level_gems': level_gems,
+                'skills_gems': skills_gems,
+                'total_gems_spent': player_total_gems,
+                'pes_ovr_applied': pes_ovr_applied,
                 'shirt_number': p.shirt_number,
-                'photo_url': p.custom_photo.url if p.custom_photo else None,
-                'has_pending': len(pending_skills) > 0,
-                'pending_count': len(pending_skills),
+                'photo_url': custom_photo_url,
+                'has_pending': has_pending,
+                'pending_count': player_pending_count,
+                'pending_ovr_count': pending_ovr_count,
+                'pending_skills_count': len(pending_skills),
                 'skills': skills,
                 'trained_skills': trained_skills,
             })
@@ -464,9 +720,10 @@ def admin_get_pes_skills_overview(team_id: int = None) -> dict:
         teams_data.append({
             'id': t.id,
             'name': t.name,
-            'logo_url': t.logo.url if t.logo else None,
+            'logo': t.logo,  # CharField string: safe for frontend getTeamLogoUrl
             'pending_count': team_pending_count,
             'players_count': len(team_players_data),
+            'total_gems_invested': team_total_gems,
             'players': team_players_data
         })
 

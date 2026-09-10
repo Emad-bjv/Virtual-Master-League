@@ -125,7 +125,10 @@ export const playerApi = {
   upgradeSkill: (id, skillKey, role) => api.post(`/players/${id}/upgrade_skill/`, { skill_key: skillKey, role }),
   getPESSkillsOverview: (teamId) => api.get('/players/pes_skills_overview/', { params: { team_id: teamId } }),
   markPESSkillApplied: (playerId, skillKey, allSkills = false) => api.post('/players/mark_pes_skill_applied/', { player_id: playerId, skill_key: skillKey, all_skills: allSkills }),
+  markPESOvrApplied: (playerId, applied = true) => api.post('/players/mark_pes_ovr_applied/', { player_id: playerId, applied }),
   updatePlayerOVR: (playerId, overall) => api.post('/players/update_player_ovr/', { player_id: playerId, overall }),
+  resetPlayerBoosts: (playerId, resetMode = 'ALL') => api.post(`/players/${playerId}/reset_boosts/`, { reset_mode: resetMode }),
+  resetTeamBoosts: (teamId, resetMode = 'ALL') => api.post('/players/reset_team_boosts/', { team_id: teamId, reset_mode: resetMode }),
 };
 
 export const transferApi = {

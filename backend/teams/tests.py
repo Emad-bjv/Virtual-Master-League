@@ -262,4 +262,70 @@ class PESSkillsUpgradeTestCase(APITestCase):
         self.player.refresh_from_db()
         self.assertEqual(self.player.overall, 90)
 
+    def test_admin_reset_player_boosts_and_refunds(self):
+        from teams.level_engine import grant_gem_boost, upgrade_player_pes_skill
+        # Give team gems and boost player
+        self.team.gems = 1000
+        self.team.save()
+
+        # Boost level: Level 1 -> 2 (costs 10 gems)
+        success, _ = grant_gem_boost(self.player, self.team)
+        self.assertTrue(success)
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.gems, 990)
+        self.assertEqual(self.player.level, 2)
+
+        # Boost skill: speed level 0 -> 1 (costs 5 gems)
+        upgrade_player_pes_skill(self.player, 'speed')
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.gems, 985)
+
+        # Overview should see this player and invested gems (10 + 5 = 15)
+        res = self.client.get("/api/players/pes_skills_overview/")
+        self.assertEqual(res.status_code, 200)
+        p_data = None
+        for t in res.data['teams']:
+            if t['id'] == self.team.id:
+                for p in t['players']:
+                    if p['id'] == self.player.id:
+                        p_data = p
+        self.assertIsNotNone(p_data)
+        self.assertEqual(p_data['total_gems_spent'], 15)
+        self.assertTrue(p_data['is_level_boosted'])
+
+        # Reset player boosts via API
+        reset_url = f"/api/players/{self.player.id}/reset_boosts/"
+        res = self.client.post(reset_url, {'reset_mode': 'ALL'}, content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['refund_amount'], 15)
+
+        # Verify player is reset to base level 1 and base overall
+        self.player.refresh_from_db()
+        self.assertEqual(self.player.level, 1)
+        self.assertEqual(self.player.overall, self.player.base_overall)
+        self.assertEqual(self.player.skills_data, {})
+
+        # Verify club received 15 gems back: 985 + 15 = 1000 gems!
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.gems, 1000)
+
+    def test_admin_reset_team_boosts(self):
+        from teams.level_engine import grant_gem_boost
+        self.team.gems = 1000
+        self.team.save()
+
+        # Boost level: costs 10
+        grant_gem_boost(self.player, self.team)
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.gems, 990)
+
+        # Reset team boosts via API
+        res = self.client.post("/api/players/reset_team_boosts/", {'team_id': self.team.id, 'reset_mode': 'ALL'}, content_type='application/json')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['total_refund'], 10)
+
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.gems, 1000)
+
+
 
