@@ -6,7 +6,7 @@ import { ToastProvider } from './components/Toast';
 import { 
   LayoutDashboard, Radio, Users, Shield, DollarSign, Settings, 
   FileText, Database, LogOut, ExternalLink, ArrowRight, Newspaper, Gift, ArrowRightLeft, Sparkles, Menu, X,
-  Key, ShieldCheck
+  Key, ShieldCheck, ShieldAlert
 } from 'lucide-react';
 import { hasAdminPermission } from '../utils/adminPermissions';
 
@@ -52,6 +52,28 @@ const AdminLayoutContent = () => {
   }
 
   const isActive = (path) => location.pathname === path ? 'active' : '';
+
+  const isCurrentPathAllowed = () => {
+    if (!adminUser) return true;
+    if (adminUser.is_superuser || adminUser.role === 'superadmin') return true;
+
+    const path = location.pathname;
+    if (path === '/admin' || path === '/admin/') return true;
+    if (path.startsWith('/admin/admins')) return hasAdminPermission(adminUser, 'sensitive_admin_rbac_manage') || hasAdminPermission(adminUser, 'panel_admin_admins');
+    if (path.startsWith('/admin/squad-transfers')) return hasAdminPermission(adminUser, 'panel_admin_squad_transfers');
+    if (path.startsWith('/admin/packs')) return hasAdminPermission(adminUser, 'panel_admin_packs');
+    if (path.startsWith('/admin/pes-skills')) return hasAdminPermission(adminUser, 'panel_admin_pes_skills');
+    if (path.startsWith('/admin/transfer-reports')) return hasAdminPermission(adminUser, 'panel_admin_newsroom');
+    if (path.startsWith('/admin/live-control')) return hasAdminPermission(adminUser, 'panel_admin_live_control');
+    if (path.startsWith('/admin/users')) return hasAdminPermission(adminUser, 'panel_admin_users');
+    if (path.startsWith('/admin/coaches')) return hasAdminPermission(adminUser, 'panel_admin_coaches');
+    if (path.startsWith('/admin/financial')) return hasAdminPermission(adminUser, 'panel_admin_financial');
+    if (path.startsWith('/admin/settings')) return hasAdminPermission(adminUser, 'panel_admin_settings');
+    if (path.startsWith('/admin/audit')) return hasAdminPermission(adminUser, 'panel_admin_audit');
+    if (path.startsWith('/admin/crud')) return hasAdminPermission(adminUser, 'panel_admin_database_crud');
+
+    return true;
+  };
 
   return (
     <div className="admin-portal" style={{fontFamily: 'Vazirmatn, Tahoma, sans-serif'}}>
@@ -249,7 +271,25 @@ const AdminLayoutContent = () => {
       </aside>
 
       <main className="admin-content">
-        <Outlet />
+        {isCurrentPathAllowed() ? (
+          <Outlet />
+        ) : (
+          <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 space-y-4">
+            <div className="w-16 h-16 rounded-3xl bg-rose-950/40 border border-rose-500/40 flex items-center justify-center text-rose-400 shadow-xl shadow-rose-950/40">
+              <ShieldAlert size={32} />
+            </div>
+            <h2 className="text-xl font-black text-white">عدم دسترسی به این بخش</h2>
+            <p className="text-sm text-slate-400 max-w-md leading-relaxed">
+              شما مجوز دسترسی به این صفحه را ندارید. جهت دریافت دسترسی، با مدیر ارشد سامانه (سوپرادمین) تماس حاصل فرمایید.
+            </p>
+            <Link
+              to="/admin"
+              className="px-6 py-2.5 rounded-xl bg-cyan-500 text-slate-950 font-black text-xs shadow-lg shadow-cyan-500/20 hover:bg-cyan-400 transition-all mt-2"
+            >
+              بازگشت به داشبورد اصلی
+            </Link>
+          </div>
+        )}
       </main>
     </div>
   );
