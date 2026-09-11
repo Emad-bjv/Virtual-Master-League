@@ -120,21 +120,23 @@ def get_team_pack_loyalty_status(team: Team, pack: Pack) -> dict:
         }
 
     completed_sessions = PackOpeningSession.objects.filter(
-        team=team, pack=pack, status='COMPLETED'
+        team=team, pack=pack, status='COMPLETED', picked_card__isnull=False
     ).select_related('picked_card').order_by('-id')
 
     consecutive_opens = 0
     for s in completed_sessions:
-        if s.picked_card and s.picked_card.overall >= target_ovr:
+        if not s.picked_card:
+            continue
+        if s.picked_card.overall >= target_ovr:
             break
         consecutive_opens += 1
 
-    is_hard_guaranteed = consecutive_opens >= threshold
-    is_active = consecutive_opens > 0
-    opens_until = max(0, threshold - consecutive_opens)
+    is_hard_guaranteed = bool(consecutive_opens >= threshold and consecutive_opens > 0 and is_enabled)
+    is_active = bool(consecutive_opens > 0 and is_enabled)
+    opens_until = max(0, threshold - consecutive_opens) if is_enabled else 0
 
-    mid_multiplier = round(1.0 + (consecutive_opens * (mid_step_pct / 100.0)), 2)
-    top_multiplier = round(1.0 + (consecutive_opens * (top_step_pct / 100.0)), 2)
+    mid_multiplier = round(1.0 + (consecutive_opens * (mid_step_pct / 100.0)), 2) if is_enabled else 1.0
+    top_multiplier = round(1.0 + (consecutive_opens * (top_step_pct / 100.0)), 2) if is_enabled else 1.0
 
     return {
         'consecutive_opens': consecutive_opens,
@@ -292,6 +294,66 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
                 'error': 'موجودی بازیکنان این پک تمام شده است (کمتر از ۳ بازیکن موجود است).'
             }
 
+        # Auto-expire any stale sessions for this team first
+        stale_sessions = PackOpeningSession.objects.filter(
+            team=team, status='PENDING', expires_at__lt=timezone.now()
+        )
+        for s in stale_sessions:
+            expire_session(s)
+
+        def serialize_card(card: PackPlayer, g_card):
+            return {
+                'id': card.id,
+                'name': card.name,
+                'position': card.position,
+                'compatible_positions': card.compatible_positions,
+                'overall': card.overall,
+                'potential_ovr': card.potential_ovr,
+                'age': card.age,
+                'base_stamina': card.base_stamina,
+                'rarity': card.rarity,
+                'nationality': card.nationality,
+                'prime_club': card.prime_club,
+                'club_logo': card.club_logo.url if card.club_logo else None,
+                'wage': float(card.wage),
+                'market_value': float(card.market_value),
+                'card_image': card.card_image.url if card.card_image else None,
+                'is_pity_guaranteed': (g_card is not None and card.id == g_card.id),
+            }
+
+        # Check for active non-expired pending session on this pack to prevent re-roll exploits or double charge
+        active_session = PackOpeningSession.objects.filter(
+            team=team, pack=pack, status='PENDING', expires_at__gte=timezone.now()
+        ).select_related('card_1', 'card_2', 'card_3', 'guaranteed_card').first()
+
+        if active_session:
+            loyalty_info = get_team_pack_loyalty_status(team, pack)
+            return {
+                'success': True,
+                'is_resumed_session': True,
+                'session_id': active_session.id,
+                'pack': {
+                    'id': pack.id,
+                    'name': pack.name,
+                    'tier': pack.tier,
+                    'cover_image': pack.cover_image.url if pack.cover_image else None,
+                    'ovr_range_text': pack.ovr_range_text,
+                },
+                'cards': [
+                    serialize_card(active_session.card_1, active_session.guaranteed_card),
+                    serialize_card(active_session.card_2, active_session.guaranteed_card),
+                    serialize_card(active_session.card_3, active_session.guaranteed_card),
+                ],
+                'loyalty_status': loyalty_info,
+                'loyalty_boost_applied': loyalty_info.get('is_loyalty_boost_active', False),
+                'loyalty_multiplier': loyalty_info.get('top_multiplier', 1.0),
+                'guaranteed_card_id': active_session.guaranteed_card.id if active_session.guaranteed_card else None,
+                'is_hard_pity_applied': (active_session.guaranteed_card is not None),
+                'is_top_tier_depleted': loyalty_info.get('is_top_tier_depleted', False),
+                'expires_at': active_session.expires_at.isoformat(),
+                'remaining_balance': team.gems if active_session.payment_method == 'GEMS' else float(team.budget)
+            }
+
         # Wallet deduction
         if payment_method == 'GEMS':
             cost = pack.effective_cost_gems
@@ -336,26 +398,6 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
             expires_at=timezone.now() + timedelta(minutes=5)
         )
 
-        def serialize_card(card: PackPlayer):
-            return {
-                'id': card.id,
-                'name': card.name,
-                'position': card.position,
-                'compatible_positions': card.compatible_positions,
-                'overall': card.overall,
-                'potential_ovr': card.potential_ovr,
-                'age': card.age,
-                'base_stamina': card.base_stamina,
-                'rarity': card.rarity,
-                'nationality': card.nationality,
-                'prime_club': card.prime_club,
-                'club_logo': card.club_logo.url if card.club_logo else None,
-                'wage': float(card.wage),
-                'market_value': float(card.market_value),
-                'card_image': card.card_image.url if card.card_image else None,
-                'is_pity_guaranteed': (guaranteed_card is not None and card.id == guaranteed_card.id),
-            }
-
         return {
             'success': True,
             'session_id': session.id,
@@ -367,9 +409,9 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
                 'ovr_range_text': pack.ovr_range_text,
             },
             'cards': [
-                serialize_card(selected_cards[0]),
-                serialize_card(selected_cards[1]),
-                serialize_card(selected_cards[2]),
+                serialize_card(selected_cards[0], guaranteed_card),
+                serialize_card(selected_cards[1], guaranteed_card),
+                serialize_card(selected_cards[2], guaranteed_card),
             ],
             'loyalty_status': loyalty_info,
             'loyalty_boost_applied': loyalty_info.get('is_loyalty_boost_active', False),

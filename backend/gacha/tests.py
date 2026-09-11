@@ -354,4 +354,66 @@ class PackSystemTestCase(TestCase):
         self.assertFalse(liv_pack_data_param['loyalty_status']['is_hard_guaranteed'])
         self.assertEqual(liv_pack_data_param['loyalty_status']['consecutive_opens'], 0)
 
+    def test_expired_session_does_not_count_as_purchase_or_boost(self):
+        from gacha.services import get_team_pack_loyalty_status, expire_session
+        from datetime import timedelta
+        from django.utils import timezone
+
+        initial_gems = self.team.gems
+        # Open pack
+        open_res = open_pack(self.team.id, self.pack.id, payment_method='GEMS')
+        self.assertTrue(open_res['success'])
+        session_id = open_res['session_id']
+
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.gems, initial_gems - self.pack.cost_gems)
+
+        # Simulate 5-minute expiry
+        session = PackOpeningSession.objects.get(id=session_id)
+        session.expires_at = timezone.now() - timedelta(seconds=1)
+        session.save(update_fields=['expires_at'])
+
+        # Expire session (refund occurs)
+        self.assertTrue(expire_session(session))
+
+        self.team.refresh_from_db()
+        # Verify 100% refund
+        self.assertEqual(self.team.gems, initial_gems)
+
+        # Verify session is EXPIRED, not COMPLETED
+        session.refresh_from_db()
+        self.assertEqual(session.status, 'EXPIRED')
+        self.assertIsNone(session.picked_card)
+
+        # CRITICAL TEST: Loyalty status must show 0 consecutive opens, NO boost, NO guarantee!
+        status = get_team_pack_loyalty_status(self.team, self.pack)
+        self.assertEqual(status['consecutive_opens'], 0)
+        self.assertFalse(status['is_hard_guaranteed'])
+        self.assertFalse(status['is_loyalty_boost_active'])
+        self.assertEqual(status['opens_until_boost'], 3)
+        self.assertEqual(status['mid_multiplier'], 1.0)
+        self.assertEqual(status['top_multiplier'], 1.0)
+
+    def test_active_pending_session_resumes_without_double_charging(self):
+        initial_gems = self.team.gems
+        # Open pack first time
+        res1 = open_pack(self.team.id, self.pack.id, payment_method='GEMS')
+        self.assertTrue(res1['success'])
+        self.assertFalse(res1.get('is_resumed_session', False))
+
+        self.team.refresh_from_db()
+        self.assertEqual(self.team.gems, initial_gems - self.pack.cost_gems)
+
+        # Call open_pack second time while session 1 is still active (within 5 min)
+        res2 = open_pack(self.team.id, self.pack.id, payment_method='GEMS')
+        self.assertTrue(res2['success'])
+        self.assertTrue(res2.get('is_resumed_session'))
+        self.assertEqual(res2['session_id'], res1['session_id'])
+        # Cards must be identical
+        self.assertEqual([c['id'] for c in res2['cards']], [c['id'] for c in res1['cards']])
+
+        self.team.refresh_from_db()
+        # Gems must NOT be deducted a second time
+        self.assertEqual(self.team.gems, initial_gems - self.pack.cost_gems)
+
 

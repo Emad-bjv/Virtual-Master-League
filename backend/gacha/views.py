@@ -136,6 +136,9 @@ class ExpireSessionView(views.APIView):
         if not request.user.is_staff and session.team.manager != request.user:
             return Response({'error': 'شما دسترسی به این سشن ندارید.'}, status=status.HTTP_403_FORBIDDEN)
 
+        if not request.user.is_staff and not session.is_expired:
+            return Response({'error': 'مهلت ۵ دقیقه‌ای انتخاب کارت هنوز به پایان نرسیده است.'}, status=status.HTTP_400_BAD_REQUEST)
+
         refunded = expire_session(session)
         team = session.team
         team.refresh_from_db()
