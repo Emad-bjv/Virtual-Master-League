@@ -66,23 +66,41 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
     };
   }, []);
 
-  const loadInbox = () => {
-    setLoading(true);
+  const loadInbox = (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     transferApi.getInbox()
       .then(res => setOffers(res.data || []))
       .catch(err => console.error('Failed to load inbox:', err))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!isSilent) setLoading(false);
+      });
   };
 
   const handleAction = async (offerId, action, payload = {}) => {
     setActionInProgressId(offerId);
+    // Optimistic status update
+    const previousOffers = [...offers];
+    setOffers(prev =>
+      prev.map(o => {
+        if (o.id === offerId) {
+          return {
+            ...o,
+            status: action === 'accept' ? 'ACCEPTED' : 'REJECTED',
+            rejection_reason: payload.rejection_reason || o.rejection_reason,
+          };
+        }
+        return o;
+      })
+    );
     try {
       await transferApi.actionOffer(offerId, action, payload);
       const actionFa = action === 'accept' ? 'قبول پیشنهاد و نهایی‌سازی انتقال' : 'رد / لغو پیشنهاد';
       onStatusMessage(`${actionFa} با موفقیت انجام شد.`);
-      loadInbox();
-      if (onRefreshTeam) onRefreshTeam();
+      loadInbox(true);
+      if (onRefreshTeam) onRefreshTeam({ isSilent: true });
     } catch (err) {
+      // Rollback on server error
+      setOffers(previousOffers);
       onStatusMessage('خطا در انجام عملیات: ' + (err.response?.data?.error || err.message));
     } finally {
       setActionInProgressId(null);
@@ -94,8 +112,8 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
       await transferApi.createOffer(payload);
       onStatusMessage('پیشنهاد متقابل با موفقیت برای مربی تیم حریف ارسال شد! ⚡');
       setSelectedOfferForCounter(null);
-      loadInbox();
-      if (onRefreshTeam) onRefreshTeam();
+      loadInbox(true);
+      if (onRefreshTeam) onRefreshTeam({ isSilent: true });
     } catch (err) {
       throw err;
     }
@@ -299,7 +317,9 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
               <p className="text-[11px] text-slate-500">پیشنهادات خریدی که مربیان دیگر ارسال کنند در این بخش نمایش داده می‌شوند.</p>
             </div>
           ) : (
-            paginatedOffers.map(offer => renderOfferCard(offer, 'INCOMING'))
+            <AnimatePresence mode="popLayout">
+              {paginatedOffers.map(offer => renderOfferCard(offer, 'INCOMING'))}
+            </AnimatePresence>
           )}
         </div>
       )}
@@ -316,7 +336,9 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
               <p className="text-[11px] text-slate-500">از تب «بررسی رقبا» بازیکنان مدنظر خود را انتخاب و پیشنهاد رسمی ارسال فرمایید.</p>
             </div>
           ) : (
-            paginatedOffers.map(offer => renderOfferCard(offer, 'OUTGOING'))
+            <AnimatePresence mode="popLayout">
+              {paginatedOffers.map(offer => renderOfferCard(offer, 'OUTGOING'))}
+            </AnimatePresence>
           )}
         </div>
       )}
@@ -333,7 +355,9 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
               <p className="text-[11px] text-slate-500">هنگامی که شما یا مربی حریف پیشنهاد متقابل ارسال کنید، روند مذاکره در اینجا پیگیری می‌شود.</p>
             </div>
           ) : (
-            paginatedOffers.map(offer => renderOfferCard(offer, 'NEGOTIATION'))
+            <AnimatePresence mode="popLayout">
+              {paginatedOffers.map(offer => renderOfferCard(offer, 'NEGOTIATION'))}
+            </AnimatePresence>
           )}
         </div>
       )}
@@ -348,7 +372,9 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
               موردی در بایگانی موجود نیست.
             </div>
           ) : (
-            paginatedOffers.map(offer => renderOfferCard(offer, 'ARCHIVE'))
+            <AnimatePresence mode="popLayout">
+              {paginatedOffers.map(offer => renderOfferCard(offer, 'ARCHIVE'))}
+            </AnimatePresence>
           )}
         </div>
       )}
@@ -448,8 +474,11 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
     return (
       <motion.div
         key={offer.id}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
+        layout
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9, y: -12 }}
+        transition={{ duration: 0.22 }}
         className={`fc-card p-4 rounded-3xl border transition-all space-y-3 ${
           isMyTurnToDecide
             ? 'border-cyan-500/50 bg-gradient-to-b from-[#0b1426] via-[#080e1c] to-[#05080e] shadow-[0_0_25px_rgba(0,243,255,0.1)]'

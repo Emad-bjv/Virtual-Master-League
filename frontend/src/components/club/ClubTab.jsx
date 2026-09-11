@@ -21,7 +21,7 @@ const CLUB_SUBNAV = [
   { id: 'achievements', label: 'تالار افتخارات' },
 ];
 
-export default function ClubTab({ teamData }) {
+export default function ClubTab({ teamData, onRefreshTeam }) {
   const { team, updateTeamGems } = useTeam();
   const [activeSub, setActiveSub] = useState('budget');
   const [facilities, setFacilities] = useState({
@@ -106,12 +106,14 @@ export default function ClubTab({ teamData }) {
         } else {
           setToastMessage(`امکانات با موفقیت به سطح ${res.data.new_level} ارتقا یافت! (${res.data.gem_cost} جم کسر شد)`);
         }
+        if (onRefreshTeam) onRefreshTeam({ isSilent: true });
       } else {
         setFacilities((prev) => ({
           ...prev,
           [facilityKey]: Math.min(20, (prev[facilityKey] || 1) + 1),
         }));
         setToastMessage('ارتقا انجام شد.');
+        if (onRefreshTeam) onRefreshTeam({ isSilent: true });
       }
     } catch (err) {
       const errMsg = err.response?.data?.error || 'خطا در ارتقای امکانات';

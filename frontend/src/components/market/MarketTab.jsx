@@ -28,6 +28,8 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
   const [freeAgentTab, setFreeAgentTab] = useState('pool'); // 'pool' | 'release'
   const [freeAgentSearch, setFreeAgentSearch] = useState('');
   const [actionMessage, setActionMessage] = useState('');
+  const [actionType, setActionType] = useState('success');
+  const [hiddenPlayerIds, setHiddenPlayerIds] = useState(new Set());
 
   // Pagination states
   const [freeAgentPage, setFreeAgentPage] = useState(1);
@@ -70,8 +72,9 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
       });
   };
 
-  const showNotification = (msg) => {
+  const showNotification = (msg, type = 'success') => {
     setActionMessage(msg);
+    setActionType(type);
     setTimeout(() => setActionMessage(''), 4000);
   };
 
@@ -87,26 +90,40 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
   const handleMakeOffer = async (payload) => {
     try {
       await transferApi.createOffer(payload);
-      showNotification('پیشنهاد با موفقیت ارسال شد و در صندوق خروجی قرار گرفت!');
+      showNotification('پیشنهاد با موفقیت ارسال شد و در صندوق خروجی قرار گرفت!', 'success');
       setShowOfferModal(false);
       setSelectedPlayer(null);
-      if (onRefreshTeam) onRefreshTeam();
+      if (onRefreshTeam) onRefreshTeam({ isSilent: true });
     } catch (err) {
-      showNotification('خطا در ارسال پیشنهاد: ' + (err.response?.data?.error || err.message));
+      showNotification('خطا در ارسال پیشنهاد: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
   const handleReleasePlayerConfirm = async () => {
     if (!playerToRelease) return;
+    const targetPlayer = playerToRelease;
+    const pid = targetPlayer.id;
+
+    // Optimistically hide card from list immediately & close modal
+    setHiddenPlayerIds(prev => new Set(prev).add(pid));
+    setPlayerToRelease(null);
     setIsReleasing(true);
+
     try {
-      await transferApi.releasePlayer(playerToRelease.id);
-      showNotification(`قرارداد ${playerToRelease.name} با موفقیت فسخ شد و به لیست بازیکنان آزاد منتقل گردید.`);
-      setPlayerToRelease(null);
+      await transferApi.releasePlayer(pid);
+      showNotification(`قرارداد ${targetPlayer.name} با موفقیت فسخ شد و به لیست بازیکنان آزاد منتقل گردید.`, 'success');
+      // Optimistically add to free agents pool
+      setFreeAgents(prev => [targetPlayer, ...(prev || []).filter(p => p.id !== pid)]);
       loadFreeAgents();
-      if (onRefreshTeam) onRefreshTeam();
+      if (onRefreshTeam) onRefreshTeam({ isSilent: true });
     } catch (err) {
-      showNotification('خطا در آزادسازی بازیکن: ' + (err.response?.data?.error || err.message));
+      // Auto-Rollback on failure
+      setHiddenPlayerIds(prev => {
+        const next = new Set(prev);
+        next.delete(pid);
+        return next;
+      });
+      showNotification('خطا در آزادسازی بازیکن: ' + (err.response?.data?.error || err.message), 'error');
     } finally {
       setIsReleasing(false);
     }
@@ -114,15 +131,23 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
 
   const handleSignFreeAgentConfirm = async () => {
     if (!playerToSign) return;
+    const targetPlayer = playerToSign;
+    const pid = targetPlayer.id;
+
+    // Optimistically remove from free agents list immediately & close modal
+    setFreeAgents(prev => (prev || []).filter(p => p.id !== pid));
+    setPlayerToSign(null);
     setIsSigning(true);
+
     try {
-      await transferApi.signFreeAgent(playerToSign.id);
-      showNotification(`بازیکن آزاد «${playerToSign.name}» با موفقیت به باشگاه شما پیوست!`);
-      setPlayerToSign(null);
+      await transferApi.signFreeAgent(pid);
+      showNotification(`بازیکن آزاد «${targetPlayer.name}» با موفقیت به باشگاه شما پیوست!`, 'success');
       loadFreeAgents();
-      if (onRefreshTeam) onRefreshTeam();
+      if (onRefreshTeam) onRefreshTeam({ isSilent: true });
     } catch (err) {
-      showNotification('خطا در جذب بازیکن آزاد: ' + (err.response?.data?.error || err.message));
+      // Auto-Rollback on failure
+      setFreeAgents(prev => [targetPlayer, ...(prev || [])]);
+      showNotification('خطا در جذب بازیکن آزاد: ' + (err.response?.data?.error || err.message), 'error');
     } finally {
       setIsSigning(false);
     }
@@ -139,13 +164,16 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
 
   const freeAgentTotalPages = Math.ceil(filteredFreeAgents.length / FREE_AGENTS_PER_PAGE) || 1;
 
-  const paginatedReleasePlayers = useMemo(() => {
-    const list = teamData?.players || [];
-    const start = (releasePage - 1) * RELEASE_PLAYERS_PER_PAGE;
-    return list.slice(start, start + RELEASE_PLAYERS_PER_PAGE);
-  }, [teamData?.players, releasePage]);
+  const currentSquadPlayers = useMemo(() => {
+    return (teamData?.players || []).filter((p) => !hiddenPlayerIds.has(p.id));
+  }, [teamData?.players, hiddenPlayerIds]);
 
-  const releaseTotalPages = Math.ceil((teamData?.players?.length || 0) / RELEASE_PLAYERS_PER_PAGE) || 1;
+  const paginatedReleasePlayers = useMemo(() => {
+    const start = (releasePage - 1) * RELEASE_PLAYERS_PER_PAGE;
+    return currentSquadPlayers.slice(start, start + RELEASE_PLAYERS_PER_PAGE);
+  }, [currentSquadPlayers, releasePage]);
+
+  const releaseTotalPages = Math.ceil(currentSquadPlayers.length / RELEASE_PLAYERS_PER_PAGE) || 1;
 
   const paginatedHistory = useMemo(() => {
     const start = (historyPage - 1) * HISTORY_PER_PAGE;
@@ -156,7 +184,7 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
 
   return (
     <div className="space-y-4 pb-20">
-      <Toast message={actionMessage} isVisible={!!actionMessage} type="success" />
+      <Toast message={actionMessage} isVisible={!!actionMessage} type={actionType} />
       <TransferCountdownBanner onStatusChange={setMarketStatus} />
       <SubNav items={MARKET_SUBNAV} activeId={activeSub} onChange={setActiveSub} />
 
@@ -237,112 +265,119 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
               ) : (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {paginatedFreeAgents.map((p) => {
-                      const estValue = Number(p.market_value || (p.wage ? p.wage * 50 : 1000000));
-                      const isPack = isPackPlayer(p);
-                      const packConfig = isPack ? getPackTierConfig(p.pack_tier || p.rarity) : null;
+                    <AnimatePresence mode="popLayout">
+                      {paginatedFreeAgents.map((p) => {
+                        const estValue = Number(p.market_value || (p.wage ? p.wage * 50 : 1000000));
+                        const isPack = isPackPlayer(p);
+                        const packConfig = isPack ? getPackTierConfig(p.pack_tier || p.rarity) : null;
 
-                      return (
-                        <div
-                          key={p.id}
-                          className={`flex flex-col justify-between p-3 rounded-2xl transition-all shadow-md gap-3 ${
-                            isPack
-                              ? `border-2 ${packConfig.borderColor} ${packConfig.glowShadow} bg-gradient-to-b from-[#111827] via-[#0b1020] to-[#070b14] hover:scale-[1.02]`
-                              : 'border border-slate-700/60 bg-gradient-to-b from-[#080c14] via-[#0d162a] to-[#05080e] hover:border-cyan-400/60'
-                          }`}
-                        >
-                          {/* Top: Photo, Details, Badges */}
-                          <div className="flex items-center gap-3">
-                            {/* Portrait Photo */}
-                            <div className={`w-13 h-15 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner ${
-                              isPack ? `border-2 ${packConfig.borderColor} ${packConfig.glowShadow} bg-slate-950` : 'border border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e]'
-                            }`}>
-                              {isPack && (
-                                <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
-                                  <div
-                                    className="absolute -inset-[100%] w-[300%] h-[300%] bg-gradient-to-r from-transparent via-white/20 to-transparent rotate-45 animate-pulse"
-                                    style={{ animationDuration: '2.5s' }}
-                                  />
-                                </div>
-                              )}
-                              {getPlayerPhotoUrl(p) ? (
-                                <img
-                                  src={getPlayerPhotoUrl(p)}
-                                  alt={p.name}
-                                  loading="lazy"
-                                  decoding="async"
-                                  className="w-full h-full object-cover object-top"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                  }}
-                                />
-                              ) : (
-                                <User size={22} className="text-slate-400 opacity-75" />
-                              )}
-                            </div>
-
-                            {/* Info */}
-                            <div className="space-y-0.5 truncate flex-1 font-sport">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-[10px] font-black text-emerald-300 bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-500/40">
-                                  {p.position}
-                                </span>
-                                <span className={`text-[10px] font-black px-1.5 py-0.2 rounded border ${
-                                  isPack ? `${packConfig.accentText} bg-slate-950 border ${packConfig.borderColor}` : 'text-amber-300 bg-amber-950/80 border-amber-500/40'
-                                }`}>
-                                  OVR {p.overall}
-                                </span>
+                        return (
+                          <motion.div
+                            key={p.id}
+                            layout
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.85, y: -15 }}
+                            transition={{ duration: 0.22 }}
+                            className={`flex flex-col justify-between p-3 rounded-2xl transition-all shadow-md gap-3 ${
+                              isPack
+                                ? `border-2 ${packConfig.borderColor} ${packConfig.glowShadow} bg-gradient-to-b from-[#111827] via-[#0b1020] to-[#070b14] hover:scale-[1.02]`
+                                : 'border border-slate-700/60 bg-gradient-to-b from-[#080c14] via-[#0d162a] to-[#05080e] hover:border-cyan-400/60'
+                            }`}
+                          >
+                            {/* Top: Photo, Details, Badges */}
+                            <div className="flex items-center gap-3">
+                              {/* Portrait Photo */}
+                              <div className={`w-13 h-15 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner ${
+                                isPack ? `border-2 ${packConfig.borderColor} ${packConfig.glowShadow} bg-slate-950` : 'border border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e]'
+                              }`}>
                                 {isPack && (
-                                  <span className={`text-[8.5px] font-sport font-black px-1.5 py-0.2 rounded-full shadow-sm flex items-center gap-0.5 ${packConfig.badgeBg}`}>
-                                    <span>✨</span>
-                                    <span>{packConfig.badgeName}</span>
-                                  </span>
+                                  <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
+                                    <div
+                                      className="absolute -inset-[100%] w-[300%] h-[300%] bg-gradient-to-r from-transparent via-white/20 to-transparent rotate-45 animate-pulse"
+                                      style={{ animationDuration: '2.5s' }}
+                                    />
+                                  </div>
                                 )}
-                                {p.potential_ovr && p.potential_ovr > p.overall && (
-                                  <span className="text-[9.5px] font-black text-cyan-300 bg-cyan-950/80 px-1.5 py-0.2 rounded border border-cyan-500/40">
-                                    POT {p.potential_ovr}
-                                  </span>
+                                {getPlayerPhotoUrl(p) ? (
+                                  <img
+                                    src={getPlayerPhotoUrl(p)}
+                                    alt={p.name}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="w-full h-full object-cover object-top"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                ) : (
+                                  <User size={22} className="text-slate-400 opacity-75" />
                                 )}
                               </div>
-                              <h4 className={`text-xs sm:text-sm font-black truncate font-sans ${isPack ? packConfig.accentText : 'text-white'}`}>
-                                {p.name}
-                              </h4>
-                              <div className="text-[10px] text-slate-400">
-                                سن: <strong className="text-slate-200">{p.age || 25} سال</strong>
+
+                              {/* Info */}
+                              <div className="space-y-0.5 truncate flex-1 font-sport">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="text-[10px] font-black text-emerald-300 bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-500/40">
+                                    {p.position}
+                                  </span>
+                                  <span className={`text-[10px] font-black px-1.5 py-0.2 rounded border ${
+                                    isPack ? `${packConfig.accentText} bg-slate-950 border ${packConfig.borderColor}` : 'text-amber-300 bg-amber-950/80 border-amber-500/40'
+                                  }`}>
+                                    OVR {p.overall}
+                                  </span>
+                                  {isPack && (
+                                    <span className={`text-[8.5px] font-sport font-black px-1.5 py-0.2 rounded-full shadow-sm flex items-center gap-0.5 ${packConfig.badgeBg}`}>
+                                      <span>✨</span>
+                                      <span>{packConfig.badgeName}</span>
+                                    </span>
+                                  )}
+                                  {p.potential_ovr && (
+                                    <span className="text-[9.5px] font-black text-cyan-300 bg-cyan-950/80 px-1.5 py-0.2 rounded border border-cyan-500/40">
+                                      POT {p.potential_ovr}
+                                    </span>
+                                  )}
+                                </div>
+                                <h4 className={`text-xs sm:text-sm font-black truncate font-sans ${isPack ? packConfig.accentText : 'text-white'}`}>
+                                  {p.name}
+                                </h4>
+                                <div className="text-[10px] text-slate-400">
+                                  سن: <strong className="text-slate-200">{p.age || 25} سال</strong>
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          {/* Bottom Action */}
-                          <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2 font-sport">
-                            <div>
-                              <span className="text-[9.5px] text-slate-400 block leading-tight">هزینه جذب</span>
-                              <span className="text-xs font-black text-[#00ff87] dir-ltr block">
-                                €{estValue.toLocaleString()}
-                              </span>
+                            {/* Bottom Action */}
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2 font-sport">
+                              <div>
+                                <span className="text-[9.5px] text-slate-400 block leading-tight">هزینه جذب</span>
+                                <span className="text-xs font-black text-[#00ff87] dir-ltr block">
+                                  €{estValue.toLocaleString()}
+                                </span>
+                              </div>
+
+                              {marketStatus && !marketStatus.is_open ? (
+                                <button
+                                  disabled={true}
+                                  className="bg-slate-900 border border-slate-700/80 text-slate-500 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-not-allowed shadow-inner"
+                                  title="پنجره نقل‌وانتقالات قفل است. امکان جذب در زمان بسته بودن پنجره وجود ندارد."
+                                >
+                                  <span>🔒 پنجره بسته</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleSignFreeAgentClick(p)}
+                                  className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-xs shadow-lg shadow-emerald-500/20 active:scale-95 transition-all flex items-center gap-1 cursor-pointer"
+                                >
+                                  <UserPlus size={14} />
+                                  <span>جذب بازیکن</span>
+                                </button>
+                              )}
                             </div>
-
-                            {marketStatus && !marketStatus.is_open ? (
-                              <button
-                                disabled={true}
-                                className="bg-slate-900 border border-slate-700/80 text-slate-500 font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 cursor-not-allowed shadow-inner"
-                                title="پنجره نقل‌وانتقالات قفل است. امکان جذب در زمان بسته بودن پنجره وجود ندارد."
-                              >
-                                <span>🔒 پنجره بسته</span>
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => setPlayerToSign(p)}
-                                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-xs flex items-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer"
-                              >
-                                <UserPlus size={13} className="text-slate-950" />
-                                <span>جذب بازیکن ⚡</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
                   </div>
 
                   <Pagination
@@ -362,121 +397,128 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
             <div className="fc-card p-4 sm:p-5 rounded-3xl border border-slate-700/60 space-y-3.5 text-xs shadow-xl">
               <h3 className="font-black text-white border-b border-slate-700/60 pb-2 text-sm tracking-tight flex items-center justify-between">
                 <span>لیست بازیکنان باشگاه جهت آزادسازی یا فسخ</span>
-                <span className="text-xs text-amber-400 font-sport">تعداد: {teamData?.players?.length || 0} بازیکن</span>
+                <span className="text-xs text-amber-400 font-sport">تعداد: {currentSquadPlayers.length} بازیکن</span>
               </h3>
               <p className="text-slate-400 text-[11px] mb-3">
                 با آزادسازی هر بازیکن، او به لیست بازیکنان آزاد لیگ منتقل شده و ۲۰٪ ارزش تخمینی او بلافاصله به خزانه باشگاه واریز می‌گردد.
               </p>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {paginatedReleasePlayers.map((p) => {
-                  const estValue = Number(p.market_value || (p.wage ? p.wage * 50 : 1000000));
-                  const isPack = isPackPlayer(p);
-                  const packConfig = isPack ? getPackTierConfig(p.pack_tier || p.rarity) : null;
+                <AnimatePresence mode="popLayout">
+                  {paginatedReleasePlayers.map((p) => {
+                    const estValue = Number(p.market_value || (p.wage ? p.wage * 50 : 1000000));
+                    const isPack = isPackPlayer(p);
+                    const packConfig = isPack ? getPackTierConfig(p.pack_tier || p.rarity) : null;
 
-                  return (
-                    <div
-                      key={p.id}
-                      className={`flex flex-col justify-between p-3 rounded-2xl transition-all shadow-md gap-3 ${
-                        isPack
-                          ? `border-2 ${packConfig.borderColor} ${packConfig.glowShadow} bg-gradient-to-b from-[#111827] via-[#0b1020] to-[#070b14] hover:scale-[1.02]`
-                          : 'border border-slate-700/50 bg-[#05080e]/80 hover:border-cyan-400/40'
-                      }`}
-                    >
-                      {/* Top: Photo & Info */}
-                      <div className="flex items-center gap-3">
-                        {/* Portrait Photo */}
-                        <div className={`w-13 h-15 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner ${
-                          isPack ? `border-2 ${packConfig.borderColor} ${packConfig.glowShadow} bg-slate-950` : 'border border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e]'
-                        }`}>
-                          {isPack && (
-                            <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
-                              <div
-                                className="absolute -inset-[100%] w-[300%] h-[300%] bg-gradient-to-r from-transparent via-white/20 to-transparent rotate-45 animate-pulse"
-                                style={{ animationDuration: '2.5s' }}
-                              />
-                            </div>
-                          )}
-                          {getPlayerPhotoUrl(p) ? (
-                            <img
-                              src={getPlayerPhotoUrl(p)}
-                              alt={p.name}
-                              loading="lazy"
-                              decoding="async"
-                              className="w-full h-full object-cover object-top"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <User size={22} className="text-slate-400 opacity-75" />
-                          )}
-                        </div>
-
-                        {/* Player Details */}
-                        <div className="space-y-0.5 truncate flex-1 font-sport">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] font-black text-cyan-300 bg-cyan-950/80 px-1.5 py-0.2 rounded border border-cyan-500/40">
-                              {p.position}
-                            </span>
-                            <span className={`text-[10px] font-black px-1.5 py-0.2 rounded border ${
-                              isPack ? `${packConfig.accentText} bg-slate-950 border ${packConfig.borderColor}` : 'text-amber-300 bg-amber-950/80 border-amber-500/40'
-                            }`}>
-                              OVR {p.overall}
-                            </span>
+                    return (
+                      <motion.div
+                        key={p.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.85, y: -15 }}
+                        transition={{ duration: 0.22 }}
+                        className={`flex flex-col justify-between p-3 rounded-2xl transition-all shadow-md gap-3 ${
+                          isPack
+                            ? `border-2 ${packConfig.borderColor} ${packConfig.glowShadow} bg-gradient-to-b from-[#111827] via-[#0b1020] to-[#070b14] hover:scale-[1.02]`
+                            : 'border border-slate-700/50 bg-[#05080e]/80 hover:border-cyan-400/40'
+                        }`}
+                      >
+                        {/* Top: Photo & Info */}
+                        <div className="flex items-center gap-3">
+                          {/* Portrait Photo */}
+                          <div className={`w-13 h-15 rounded-2xl overflow-hidden shrink-0 flex items-center justify-center relative shadow-inner ${
+                            isPack ? `border-2 ${packConfig.borderColor} ${packConfig.glowShadow} bg-slate-950` : 'border border-slate-700 bg-gradient-to-b from-[#0f172a] to-[#05080e]'
+                          }`}>
                             {isPack && (
-                              <span className={`text-[8.5px] font-sport font-black px-1.5 py-0.2 rounded-full shadow-sm flex items-center gap-0.5 ${packConfig.badgeBg}`}>
-                                <span>✨</span>
-                                <span>{packConfig.badgeName}</span>
-                              </span>
+                              <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
+                                <div
+                                  className="absolute -inset-[100%] w-[300%] h-[300%] bg-gradient-to-r from-transparent via-white/20 to-transparent rotate-45 animate-pulse"
+                                  style={{ animationDuration: '2.5s' }}
+                                />
+                              </div>
                             )}
-                            {p.potential_ovr && (
-                              <span className="text-[9.5px] font-bold text-slate-300 bg-slate-900/90 px-1.5 py-0.2 rounded border border-slate-700/60">
-                                POT {p.potential_ovr}
-                              </span>
+                            {getPlayerPhotoUrl(p) ? (
+                              <img
+                                src={getPlayerPhotoUrl(p)}
+                                alt={p.name}
+                                loading="lazy"
+                                decoding="async"
+                                className="w-full h-full object-cover object-top"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <User size={22} className="text-slate-400 opacity-75" />
                             )}
                           </div>
-                          <h4 className={`text-xs sm:text-sm font-black truncate font-sans ${isPack ? packConfig.accentText : 'text-white'}`}>
-                            {p.name}
-                          </h4>
-                          <div className="text-[10px] text-slate-400">
-                            ارزش: <strong className="text-[#00ff87]">€{estValue.toLocaleString()}</strong>
+
+                          {/* Player Details */}
+                          <div className="space-y-0.5 truncate flex-1 font-sport">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10px] font-black text-cyan-300 bg-cyan-950/80 px-1.5 py-0.2 rounded border border-cyan-500/40">
+                                {p.position}
+                              </span>
+                              <span className={`text-[10px] font-black px-1.5 py-0.2 rounded border ${
+                                isPack ? `${packConfig.accentText} bg-slate-950 border ${packConfig.borderColor}` : 'text-amber-300 bg-amber-950/80 border-amber-500/40'
+                              }`}>
+                                OVR {p.overall}
+                              </span>
+                              {isPack && (
+                                <span className={`text-[8.5px] font-sport font-black px-1.5 py-0.2 rounded-full shadow-sm flex items-center gap-0.5 ${packConfig.badgeBg}`}>
+                                  <span>✨</span>
+                                  <span>{packConfig.badgeName}</span>
+                                </span>
+                              )}
+                              {p.potential_ovr && (
+                                <span className="text-[9.5px] font-bold text-slate-300 bg-slate-900/90 px-1.5 py-0.2 rounded border border-slate-700/60">
+                                  POT {p.potential_ovr}
+                                </span>
+                              )}
+                            </div>
+                            <h4 className={`text-xs sm:text-sm font-black truncate font-sans ${isPack ? packConfig.accentText : 'text-white'}`}>
+                              {p.name}
+                            </h4>
+                            <div className="text-[10px] text-slate-400">
+                              ارزش: <strong className="text-[#00ff87]">€{estValue.toLocaleString()}</strong>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Bottom Action */}
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2 font-sport">
-                        <span className="text-[10px] text-slate-400">
-                          بازگشت مالی: <strong className="text-emerald-400">+${Math.round(estValue * 0.2).toLocaleString()}</strong>
-                        </span>
+                        {/* Bottom Action */}
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 gap-2 font-sport">
+                          <span className="text-[10px] text-slate-400">
+                            بازگشت مالی: <strong className="text-emerald-400">+${Math.round(estValue * 0.2).toLocaleString()}</strong>
+                          </span>
 
-                        {marketStatus && !marketStatus.is_open ? (
-                          <button
-                            disabled={true}
-                            className="bg-slate-900 border border-slate-700/80 text-slate-500 px-3 py-1.5 rounded-xl text-[10.5px] font-bold cursor-not-allowed shadow-inner"
-                            title="پنجره نقل‌وانتقالات قفل است. فسخ قرارداد در زمان بسته بودن پنجره مجاز نیست."
-                          >
-                            🔒 پنجره بسته
-                          </button>
-                        ) : (
-                          <button 
-                            onClick={() => setPlayerToRelease(p)}
-                            className="bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white px-3 py-1.5 rounded-xl text-[10.5px] font-black transition-all border border-rose-500/30 cursor-pointer"
-                          >
-                            فسخ قرارداد 📄
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+                          {marketStatus && !marketStatus.is_open ? (
+                            <button
+                              disabled={true}
+                              className="bg-slate-900 border border-slate-700/80 text-slate-500 px-3 py-1.5 rounded-xl text-[10.5px] font-bold cursor-not-allowed shadow-inner"
+                              title="پنجره نقل‌وانتقالات قفل است. فسخ قرارداد در زمان بسته بودن پنجره مجاز نیست."
+                            >
+                              🔒 پنجره بسته
+                            </button>
+                          ) : (
+                            <button 
+                              onClick={() => setPlayerToRelease(p)}
+                              className="bg-rose-600/20 text-rose-300 hover:bg-rose-600 hover:text-white px-3 py-1.5 rounded-xl text-[10.5px] font-black transition-all border border-rose-500/30 cursor-pointer"
+                            >
+                              فسخ قرارداد 📄
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
               </div>
 
               <Pagination
                 currentPage={releasePage}
                 totalPages={releaseTotalPages}
-                totalItems={teamData?.players?.length || 0}
+                totalItems={currentSquadPlayers.length}
                 pageSize={RELEASE_PLAYERS_PER_PAGE}
                 onPageChange={setReleasePage}
               />

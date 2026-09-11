@@ -451,8 +451,11 @@ export function TeamProvider({ children }) {
     }
   }, []);
 
-  const fetchTeam = useCallback(async (targetTeamId) => {
-    let id = targetTeamId || team?.id;
+  const fetchTeam = useCallback(async (targetTeamId, options = {}) => {
+    let id = (typeof targetTeamId === 'object' ? null : targetTeamId) || team?.id;
+    const opts = typeof targetTeamId === 'object' ? targetTeamId : options;
+    const isSilent = opts?.isSilent ?? true;
+
     if (!id) {
       try {
         const storedUser = localStorage.getItem('vml_user');
@@ -463,14 +466,14 @@ export function TeamProvider({ children }) {
       } catch (_e) {}
     }
     if (!id) return;
-    setLoading(true);
+    if (!isSilent) setLoading(true);
     try {
       const res = await teamApi.getTeam(id);
       hydrateTeamData(res.data);
     } catch (err) {
       console.error('Failed to fetch team roster:', err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }, [hydrateTeamData, team?.id]);
 

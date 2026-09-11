@@ -183,10 +183,11 @@ export default function MainDashboard() {
     return () => clearInterval(timer);
   }, [isAuthenticated, user?.role, user?.is_superuser, user?.team_id, teamData?.id, isMatchAlertDismissed]);
 
-  const fetchTeamData = useCallback(() => {
+  const fetchTeamData = useCallback((options = {}) => {
+    const isSilent = typeof options === 'boolean' ? options : (options?.isSilent ?? true);
     const targetTeamId = user?.team_id || user?.team?.id;
     if (targetTeamId) {
-      setLoading(true);
+      if (!isSilent) setLoading(true);
       teamApi
         .getTeam(targetTeamId)
         .then((res) => {
@@ -201,12 +202,14 @@ export default function MainDashboard() {
         })
         .catch((err) => {
           console.error('Backend API getTeam failed:', err);
-          setTeamData(null);
-          hydrateTeamData(null);
-          setPlayersData([]);
+          if (!isSilent) {
+            setTeamData(null);
+            hydrateTeamData(null);
+            setPlayersData([]);
+          }
         })
         .finally(() => {
-          setLoading(false);
+          if (!isSilent) setLoading(false);
         });
     } else if (!authLoading) {
       setTeamData(null);
@@ -288,7 +291,7 @@ export default function MainDashboard() {
     localStorage.removeItem('vml_mock_data');
     sessionStorage.removeItem('vml_test_session');
 
-    fetchTeamData();
+    fetchTeamData({ isSilent: false });
 
     const handleSync = (e) => {
       if (e?.detail && e.detail.id) {
