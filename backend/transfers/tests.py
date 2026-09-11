@@ -40,6 +40,8 @@ class TransferMarketTestCase(TestCase):
             base_stamina=90
         )
         self.client = APIClient()
+        from core.models import GlobalSettings
+        GlobalSettings.objects.create(transfer_manual_override='FORCE_OPEN')
 
     def test_list_player_for_sale(self):
         res = list_player_for_sale(self.seller.id, self.player.id, Decimal('200.00'), 'FIXED_PRICE')

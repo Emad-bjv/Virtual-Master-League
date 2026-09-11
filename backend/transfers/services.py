@@ -155,7 +155,6 @@ def buy_player_direct(buyer_team_id: int, listing_id: int) -> dict:
         TransferLog.objects.create(
             event_type='TRANSFER_FINALIZED',
             description=f"خرید مستقیم از مارکت: {player.name} با مبلغ {float(price):,.0f} $ از {seller.name} به تیم {buyer.name} پیوست.",
-            related_listing=listing
         )
         notify_admin(f"🚨 خرید مستقیم نقل‌وانتقالات: {player.name} با پرداخت ${float(price):,.0f} توسط تیم {buyer.name} از مارکت جذب شد.")
 
@@ -299,7 +298,6 @@ def finalize_auction(listing_id: int) -> dict:
         TransferLog.objects.create(
             event_type='TRANSFER_FINALIZED',
             description=f"برنده مزایده مارکت: {player.name} با بالاترین پیشنهاد {float(price):,.0f} $ توسط {buyer.name} از {seller.name} خریداری شد.",
-            related_listing=listing
         )
         notify_admin(f"🔨 پایان مزایده: بازیکن {player.name} با مبلغ نهایی ${float(price):,.0f} به {buyer.name} واگذار گردید.")
 
