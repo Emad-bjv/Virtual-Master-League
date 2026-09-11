@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Handshake, Users, Calendar, AlertCircle, User } from 'lucide-react';
+import { X, Handshake, Users, Calendar, AlertCircle, User, MessageSquare } from 'lucide-react';
 import { motion } from 'framer-motion';
 import useBodyScrollLock from '../../hooks/useBodyScrollLock';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import ConfirmModal from '../common/ConfirmModal';
 import { formatWithCommas, makeFormattedChangeHandler } from '../../utils/formatNumber';
+
+const OFFER_QUICK_CHIPS = [
+  '⚡ پیشنهاد جدی و فوری',
+  '🤝 امکان مذاکره روی مبلغ نقدی وجود دارد',
+  '🔄 در صورت تمایل بازیکن دیگری برای معاوضه انتخاب کنید',
+  '💰 آخرین سقف بودجه باشگاه ماست',
+  '⏳ فقط تا پایان امشب منتظر پاسخ شما هستیم',
+];
 
 export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, onSubmitOffer }) {
   useBodyScrollLock(true);
@@ -14,6 +22,7 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
   const [cashAmount, setCashAmount] = useState('');
   const [selectedSwapPlayers, setSelectedSwapPlayers] = useState([]);
   const [loanDuration, setLoanDuration] = useState('');
+  const [message, setMessage] = useState('');
   const [clientError, setClientError] = useState('');
   const [showConfirm, setShowConfirm] = useState(false);
   const [pendingPayload, setPendingPayload] = useState(null);
@@ -59,6 +68,7 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
       cash_amount: numCash,
       swap_players: activeTab === 'SWAP' ? selectedSwapPlayers : [],
       loan_duration_matches: activeTab === 'LOAN' ? parseInt(loanDuration || 0) : 0,
+      message: (message || '').trim(),
     };
     setPendingPayload(payload);
     setShowConfirm(true);
@@ -245,6 +255,47 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
             </div>
           )}
 
+          {/* Coach Note / Message Section */}
+          <div className="space-y-2 pt-3 border-t border-slate-800/80">
+            <div className="flex items-center justify-between">
+              <label className="text-slate-300 font-bold flex items-center gap-1.5 text-xs">
+                <MessageSquare size={13} className="text-indigo-400" />
+                <span>پیام یا یادداشت مربی (اختیاری)</span>
+              </label>
+              <span className={`text-[10px] font-mono ${message.length > 180 ? 'text-amber-400' : 'text-slate-500'}`}>
+                {message.length} / 200
+              </span>
+            </div>
+
+            {/* Quick Chips */}
+            <div className="flex flex-wrap gap-1.5">
+              {OFFER_QUICK_CHIPS.map((chip, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setMessage(prev => {
+                    if (!prev) return chip;
+                    if (prev.includes(chip)) return prev;
+                    const combined = `${prev} - ${chip}`;
+                    return combined.length <= 200 ? combined : prev;
+                  })}
+                  className="text-[10px] bg-slate-900/90 hover:bg-indigo-950/70 border border-slate-800 hover:border-indigo-500/50 text-slate-400 hover:text-indigo-300 px-2 py-1 rounded-lg transition-all cursor-pointer select-none"
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value.slice(0, 200))}
+              rows={2}
+              maxLength={200}
+              placeholder="پیام یا یادداشتی برای مربی تیم حریف بنویسید (مثلاً: آماده مذاکره بر سر مبلغ نقدی هستیم)..."
+              className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl p-2.5 text-white placeholder-slate-500 text-xs outline-none focus:border-indigo-500 resize-none transition-colors"
+            />
+          </div>
+
           <div className="pt-4 border-t border-slate-800">
             <button 
               type="submit"
@@ -285,6 +336,12 @@ export default function MakeOfferModal({ player, targetTeam, myTeam, onClose, on
               <div className="flex justify-between">
                 <span>مدت قرض:</span>
                 <span className="text-cyan-300 font-bold">{loanDuration} مسابقه</span>
+              </div>
+            )}
+            {pendingPayload?.message && (
+              <div className="flex justify-between items-start gap-2 pt-1 border-t border-slate-800">
+                <span className="shrink-0 text-slate-400">یادداشت مربی:</span>
+                <span className="text-indigo-300 font-sans text-right italic font-normal">«{pendingPayload.message}»</span>
               </div>
             )}
           </div>

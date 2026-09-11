@@ -143,7 +143,7 @@ export const transferApi = {
   signFreeAgent: (playerId) => api.post(`/transfers/free-agents/${playerId}/sign/`),
   createOffer: (data) => api.post('/transfers/offers/', data),
   getInbox: () => api.get('/transfers/inbox/'),
-  actionOffer: (offerId, action) => api.post(`/transfers/offers/${offerId}/${action}/`),
+  actionOffer: (offerId, action, data = {}) => api.post(`/transfers/offers/${offerId}/${action}/`, data),
   releasePlayer: (playerId) => api.post(`/transfers/players/${playerId}/release/`),
   getLogs: () => api.get('/transfers/logs/'),
   getAudit: (teamId) => api.get('/transfers/audit/', { params: teamId ? { team_id: teamId } : {} }),

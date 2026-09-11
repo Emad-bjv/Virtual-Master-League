@@ -154,6 +154,12 @@ class TransferOffer(models.Model):
         'self', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='counter_offers', verbose_name="پیشنهاد مرجع (برای مذاکره متقابل)"
     )
+    message = models.CharField(
+        max_length=255, blank=True, default='', verbose_name="پیام یا یادداشت مربی فرستنده"
+    )
+    rejection_reason = models.CharField(
+        max_length=255, blank=True, default='', verbose_name="دلیل یا یادداشت رد پیشنهاد"
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="زمان ثبت پیشنهاد")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="زمان آخرین تغییر")
 

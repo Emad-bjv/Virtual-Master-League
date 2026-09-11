@@ -244,7 +244,8 @@ class TransferOfferActionView(views.APIView):
                 return Response({'error': err_msg}, status=status.HTTP_400_BAD_REQUEST)
             result = accept_transfer_offer(pk, team_id)
         elif action == 'reject':
-            result = reject_transfer_offer(pk, team_id)
+            rejection_reason = request.data.get('rejection_reason', '')
+            result = reject_transfer_offer(pk, team_id, rejection_reason=rejection_reason)
         else:
             return Response({'error': 'Invalid action'}, status=status.HTTP_400_BAD_REQUEST)
             

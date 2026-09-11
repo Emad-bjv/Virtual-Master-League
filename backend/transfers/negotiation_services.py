@@ -74,6 +74,7 @@ def create_transfer_offer(sender_team_id, receiver_team_id, target_player_id, da
             }
                 
         parent_offer_id = data.get('parent_offer', None)
+        message = str(data.get('message', '') or '').strip()[:250]
         
         with transaction.atomic():
             # Automatically supersede any previous pending offers between these two teams for this player
@@ -91,12 +92,16 @@ def create_transfer_offer(sender_team_id, receiver_team_id, target_player_id, da
                 offer_type=offer_type,
                 cash_amount=cash_amount,
                 loan_duration_matches=loan_duration,
-                status='PENDING'
+                status='PENDING',
+                message=message
             )
             if swap_player_ids:
                 players = Player.objects.filter(id__in=swap_player_ids, team=buyer)
                 offer.swap_players.set(players)
                 
+            msg_suffix = f"\n💬 یادداشت مربی: {message}" if message else ""
+            msg_log = f" | پیام: {message}" if message else ""
+
             if parent_offer_id:
                 parent = TransferOffer.objects.filter(id=parent_offer_id).first()
                 if parent:
@@ -108,35 +113,35 @@ def create_transfer_offer(sender_team_id, receiver_team_id, target_player_id, da
                 swap_names = ""
                 if swap_player_ids and offer.swap_players.exists():
                     swap_names = " + معاوضه: " + "، ".join([p.name for p in offer.swap_players.all()])
-                desc = f"تیم {sender.name} یک پیشنهاد متقابل (مبلغ: {float(cash_amount):,.0f} ${swap_names}) برای {target_player.name} به تیم {receiver.name} ارسال کرد."
+                desc = f"تیم {sender.name} یک پیشنهاد متقابل (مبلغ: {float(cash_amount):,.0f} ${swap_names}) برای {target_player.name} به تیم {receiver.name} ارسال کرد.{msg_suffix}"
                 TransferLog.objects.create(
                     event_type='COUNTER_OFFER',
                     description=desc,
                     related_offer=offer
                 )
-                notify_admin(f"🔄 پیشنهاد متقابل: تیم {sender.name} پیشنهاد جدیدی به ارزش ${float(cash_amount):,.0f}{swap_names} برای {target_player.name} به {receiver.name} فرستاد.")
+                notify_admin(f"🔄 پیشنهاد متقابل: تیم {sender.name} پیشنهاد جدیدی به ارزش ${float(cash_amount):,.0f}{swap_names} برای {target_player.name} به {receiver.name} فرستاد.{msg_log}")
                 create_notification(
                     team=receiver,
                     category='TRANSFER',
                     title='🔄 پیشنهاد متقابل در مذاکرات',
-                    message=f"باشگاه {sender.name} شرایط و پیشنهاد جدیدی به مبلغ ${float(cash_amount):,.0f}{swap_names} برای بازیکن {target_player.name} به شما ارسال کرد."
+                    message=f"باشگاه {sender.name} شرایط و پیشنهاد جدیدی به مبلغ ${float(cash_amount):,.0f}{swap_names} برای بازیکن {target_player.name} به شما ارسال کرد.{msg_suffix}"
                 )
             else:
                 swap_names = ""
                 if swap_player_ids and offer.swap_players.exists():
                     swap_names = " + معاوضه: " + "، ".join([p.name for p in offer.swap_players.all()])
-                desc = f"تیم {sender.name} پیشنهادی به مبلغ {float(cash_amount):,.0f} ${swap_names} برای جذب {target_player.name} به تیم {receiver.name} ارسال کرد."
+                desc = f"تیم {sender.name} پیشنهادی به مبلغ {float(cash_amount):,.0f} ${swap_names} برای جذب {target_player.name} به تیم {receiver.name} ارسال کرد.{msg_suffix}"
                 TransferLog.objects.create(
                     event_type='OFFER_MADE',
                     description=desc,
                     related_offer=offer
                 )
-                notify_admin(f"📢 پیشنهاد جدید: تیم {sender.name} پیشنهاد رسمی به مبلغ ${float(cash_amount):,.0f}{swap_names} برای {target_player.name} به {receiver.name} ارسال کرد.")
+                notify_admin(f"📢 پیشنهاد جدید: تیم {sender.name} پیشنهاد رسمی به مبلغ ${float(cash_amount):,.0f}{swap_names} برای {target_player.name} به {receiver.name} ارسال کرد.{msg_log}")
                 create_notification(
                     team=receiver,
                     category='TRANSFER',
                     title='📩 پیشنهاد رسمی خرید بازیکن',
-                    message=f"باشگاه {sender.name} پیشنهادی رسمی به مبلغ ${float(cash_amount):,.0f}{swap_names} برای جذب {target_player.name} به باشگاه شما فرستاده است."
+                    message=f"باشگاه {sender.name} پیشنهادی رسمی به مبلغ ${float(cash_amount):,.0f}{swap_names} برای جذب {target_player.name} به باشگاه شما فرستاده است.{msg_suffix}"
                 )
                 
         return {'success': True, 'offer_id': offer.id}
@@ -304,7 +309,7 @@ def ensure_team_starting_eleven(team):
             bp.save(update_fields=['is_starting'])
     team.update_star_rating(save=True)
 
-def reject_transfer_offer(offer_id, user_team_id):
+def reject_transfer_offer(offer_id, user_team_id, rejection_reason=None):
     try:
         with transaction.atomic():
             offer = TransferOffer.objects.filter(id=offer_id).first()
@@ -320,23 +325,27 @@ def reject_transfer_offer(offer_id, user_team_id):
                 return {'success': False, 'error': 'شما دسترسی به این پیشنهاد را ندارید.'}
                 
             if is_receiver:
+                clean_reason = str(rejection_reason or '').strip()[:250]
                 offer.status = 'REJECTED'
-                log_desc = f"پیشنهاد تیم {offer.sender_team.name} برای {offer.target_player.name} توسط تیم {offer.receiver_team.name} رد شد."
+                offer.rejection_reason = clean_reason
+                reason_text = f"\n💬 علت رد پیشنهاد: {clean_reason}" if clean_reason else ""
+                reason_log = f" | دلیل رد: {clean_reason}" if clean_reason else ""
+                log_desc = f"پیشنهاد تیم {offer.sender_team.name} برای {offer.target_player.name} توسط تیم {offer.receiver_team.name} رد شد.{reason_text}"
                 event_type = 'OFFER_REJECTED'
-                notify_admin(f"❌ رد پیشنهاد: پیشنهاد انتقال {offer.target_player.name} توسط {offer.receiver_team.name} رد شد.")
+                notify_admin(f"❌ رد پیشنهاد: پیشنهاد انتقال {offer.target_player.name} توسط {offer.receiver_team.name} رد شد.{reason_log}")
                 create_notification(
                     team=offer.sender_team,
                     category='TRANSFER',
                     title='❌ رد پیشنهاد انتقال',
-                    message=f"باشگاه {offer.receiver_team.name} پیشنهاد شما برای جذب بازیکن {offer.target_player.name} را رد کرد."
+                    message=f"باشگاه {offer.receiver_team.name} پیشنهاد شما برای جذب بازیکن {offer.target_player.name} را رد کرد.{reason_text}"
                 )
+                offer.save(update_fields=['status', 'rejection_reason'])
             else:
                 offer.status = 'CANCELLED'
                 log_desc = f"پیشنهاد ثبت شده برای {offer.target_player.name} توسط تیم {offer.sender_team.name} لغو شد."
                 event_type = 'OFFER_CANCELLED'
                 notify_admin(f"🚫 لغو پیشنهاد: پیشنهاد ثبت‌شده برای {offer.target_player.name} توسط {offer.sender_team.name} لغو گردید.")
-                
-            offer.save(update_fields=['status'])
+                offer.save(update_fields=['status'])
             
             TransferLog.objects.create(
                 event_type=event_type,

@@ -153,6 +153,47 @@ class TransferMarketTestCase(TestCase):
         self.assertEqual(can_res['status'], 'CANCELLED')
         self.assertTrue(TransferLog.objects.filter(event_type='OFFER_CANCELLED').exists())
 
+    def test_transfer_offer_messages_and_rejection_reason(self):
+        # 1. Create initial offer with coach note
+        init_data = {
+            'offer_type': 'DIRECT_TRANSFER',
+            'cash_amount': 200.00,
+            'message': 'پیشنهاد فوری همراه با احترام'
+        }
+        res = create_transfer_offer(self.buyer.id, self.seller.id, self.player.id, init_data)
+        self.assertTrue(res['success'])
+        offer1 = TransferOffer.objects.get(id=res['offer_id'])
+        self.assertEqual(offer1.message, 'پیشنهاد فوری همراه با احترام')
+
+        # 2. Seller creates a counter-offer with note
+        counter_data = {
+            'parent_offer': offer1.id,
+            'offer_type': 'DIRECT_TRANSFER',
+            'cash_amount': 450.00,
+            'message': 'قیمت آخر ما ۴۵۰ دلار است'
+        }
+        counter_res = create_transfer_offer(self.seller.id, self.buyer.id, self.player.id, counter_data)
+        self.assertTrue(counter_res['success'])
+        counter_offer = TransferOffer.objects.get(id=counter_res['offer_id'])
+        self.assertEqual(counter_offer.message, 'قیمت آخر ما ۴۵۰ دلار است')
+
+        # Serializer verification
+        serializer = TransferOfferSerializer(counter_offer)
+        self.assertEqual(serializer.data['message'], 'قیمت آخر ما ۴۵۰ دلار است')
+        self.assertEqual(serializer.data['parent_offer_message'], 'پیشنهاد فوری همراه با احترام')
+
+        # 3. Buyer rejects counter offer via API with rejection_reason
+        self.client.force_authenticate(user=self.buyer_manager)
+        reject_response = self.client.post(
+            f'/api/transfers/offers/{counter_offer.id}/reject/',
+            {'rejection_reason': 'مبلغ درخواستی بسیار بالاست'},
+            format='json'
+        )
+        self.assertEqual(reject_response.status_code, status.HTTP_200_OK)
+        counter_offer.refresh_from_db()
+        self.assertEqual(counter_offer.status, 'REJECTED')
+        self.assertEqual(counter_offer.rejection_reason, 'مبلغ درخواستی بسیار بالاست')
+
     def test_release_player_and_sign_free_agent(self):
         # Release player
         rel_res = release_player(self.player.id, self.seller.id)

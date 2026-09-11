@@ -59,6 +59,7 @@ class TransferOfferSerializer(serializers.ModelSerializer):
     buyer_team_id = serializers.SerializerMethodField()
     seller_team_name = serializers.SerializerMethodField()
     buyer_team_name = serializers.SerializerMethodField()
+    parent_offer_message = serializers.CharField(source='parent_offer.message', read_only=True, default=None)
 
     class Meta:
         model = TransferOffer
@@ -70,9 +71,11 @@ class TransferOfferSerializer(serializers.ModelSerializer):
             'target_player_position', 'target_player_wage', 'target_player_market_value', 'target_player_photo',
             'offer_type', 'cash_amount', 'swap_players', 'swap_players_details',
             'sender_players', 'receiver_players',
-            'loan_duration_matches', 'status', 'parent_offer', 'created_at', 'updated_at'
+            'loan_duration_matches', 'status', 'parent_offer', 'parent_offer_message',
+            'message', 'rejection_reason',
+            'created_at', 'updated_at'
         ]
-        read_only_fields = ['status', 'created_at', 'updated_at']
+        read_only_fields = ['status', 'created_at', 'updated_at', 'parent_offer_message']
 
     def get_seller_team_id(self, obj):
         return obj.target_player.team_id if obj.target_player else obj.receiver_team_id

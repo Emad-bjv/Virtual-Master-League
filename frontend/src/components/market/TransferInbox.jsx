@@ -2,11 +2,13 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Mail, Check, X, ArrowRightLeft, Clock, AlertCircle, 
   Handshake, Users, Calendar, ShieldCheck, RefreshCw, Send, User,
-  CheckCircle2, XCircle, ArrowUpRight, ArrowDownLeft, Sparkles, Inbox, Lock
+  CheckCircle2, XCircle, ArrowUpRight, ArrowDownLeft, Sparkles, Inbox, Lock,
+  MessageSquare
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { transferApi } from '../../services/api';
 import CounterOfferModal from './CounterOfferModal';
+import RejectOfferModal from './RejectOfferModal';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import ConfirmModal from '../common/ConfirmModal';
 import Pagination from '../common/Pagination';
@@ -31,6 +33,11 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
     action: null,
     isCancelOutgoing: false,
   });
+  const [rejectModal, setRejectModal] = useState({
+    isOpen: false,
+    offer: null,
+    isCancelOutgoing: false,
+  });
 
   const [marketStatus, setMarketStatus] = useState(null);
 
@@ -52,7 +59,11 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
     };
 
     window.addEventListener('vml_market_status_updated', handleMarketUpdate);
-    return () => window.removeEventListener('vml_market_status_updated', handleMarketUpdate);
+    window.addEventListener('transfer_market_status_changed', handleMarketUpdate);
+    return () => {
+      window.removeEventListener('vml_market_status_updated', handleMarketUpdate);
+      window.removeEventListener('transfer_market_status_changed', handleMarketUpdate);
+    };
   }, []);
 
   const loadInbox = () => {
@@ -63,10 +74,10 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
       .finally(() => setLoading(false));
   };
 
-  const handleAction = async (offerId, action) => {
+  const handleAction = async (offerId, action, payload = {}) => {
     setActionInProgressId(offerId);
     try {
-      await transferApi.actionOffer(offerId, action);
+      await transferApi.actionOffer(offerId, action, payload);
       const actionFa = action === 'accept' ? 'قبول پیشنهاد و نهایی‌سازی انتقال' : 'رد / لغو پیشنهاد';
       onStatusMessage(`${actionFa} با موفقیت انجام شد.`);
       loadInbox();
@@ -356,25 +367,13 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
       )}
 
       {/* ========================================================= */}
-      {/* CONFIRMATION DIALOG (MODAL)                               */}
+      {/* ACCEPT CONFIRMATION DIALOG (MODAL)                        */}
       {/* ========================================================= */}
       {confirmDialog.isOpen && confirmDialog.offer && (
         <ConfirmModal
           isOpen={confirmDialog.isOpen}
-          title={
-            confirmDialog.action === 'accept'
-              ? 'تأیید نهایی و انجام معامله'
-              : confirmDialog.isCancelOutgoing
-              ? 'لغو پیشنهاد ارسالی'
-              : 'رد پیشنهاد'
-          }
-          message={
-            confirmDialog.action === 'accept'
-              ? `آیا از پذیرش این پیشنهاد و انجام نهایی انتقال «${confirmDialog.offer.target_player_name}» اطمینان دارید؟ مبالغ و بازیکنان فوراً جابه‌جا خواهند شد.`
-              : confirmDialog.isCancelOutgoing
-              ? `آیا از لغو این پیشنهاد ارسالی برای «${confirmDialog.offer.target_player_name}» اطمینان دارید؟`
-              : `آیا از رد کردن پیشنهاد باشگاه «${confirmDialog.offer.sender_team_name}» برای بازیکن «${confirmDialog.offer.target_player_name}» اطمینان دارید؟`
-          }
+          title="تأیید نهایی و انجام معامله"
+          message={`آیا از پذیرش این پیشنهاد و انجام نهایی انتقال «${confirmDialog.offer.target_player_name}» اطمینان دارید؟ مبالغ و بازیکنان فوراً جابه‌جا خواهند شد.`}
           details={
             <div className="space-y-1 font-sport text-xs">
               <div className="flex justify-between">
@@ -391,24 +390,38 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
               )}
             </div>
           }
-          confirmText={
-            confirmDialog.action === 'accept'
-              ? 'بله، تایید و انجام معامله'
-              : confirmDialog.isCancelOutgoing
-              ? 'بله، لغو پیشنهاد'
-              : 'بله، رد پیشنهاد'
-          }
+          confirmText="بله، تایید و انجام معامله"
           cancelText="خیر، بازگشت"
-          variant={confirmDialog.action === 'accept' ? 'success' : 'danger'}
+          variant="success"
           isLoading={actionInProgressId === confirmDialog.offer.id}
           onConfirm={() => {
-            const { offer, action } = confirmDialog;
+            const { offer } = confirmDialog;
             setConfirmDialog({ isOpen: false, offer: null, action: null, isCancelOutgoing: false });
-            handleAction(offer.id, action);
+            handleAction(offer.id, 'accept');
           }}
           onCancel={() => setConfirmDialog({ isOpen: false, offer: null, action: null, isCancelOutgoing: false })}
         />
       )}
+
+      {/* ========================================================= */}
+      {/* REJECT / CANCEL MODAL                                     */}
+      {/* ========================================================= */}
+      <RejectOfferModal
+        isOpen={rejectModal.isOpen}
+        offer={rejectModal.offer}
+        isCancelOutgoing={rejectModal.isCancelOutgoing}
+        isLoading={actionInProgressId === rejectModal.offer?.id}
+        onClose={() => setRejectModal({ isOpen: false, offer: null, isCancelOutgoing: false })}
+        onConfirm={(rejectionReason) => {
+          const targetOffer = rejectModal.offer;
+          setRejectModal({ isOpen: false, offer: null, isCancelOutgoing: false });
+          handleAction(
+            targetOffer.id,
+            'reject',
+            rejectionReason ? { rejection_reason: rejectionReason } : {}
+          );
+        }}
+      />
 
       {/* ========================================================= */}
       {/* COUNTER-OFFER MODAL                                       */}
@@ -558,6 +571,60 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
           )}
         </div>
 
+        {/* Manager Notes / Communication Thread */}
+        {(offer.message || offer.parent_offer_message || (offer.status === 'REJECTED' && offer.rejection_reason)) && (
+          <div className="space-y-2 pt-1">
+            {/* 1. If this is a counter offer with a parent message, show previous message */}
+            {offer.parent_offer_message && (
+              <div className="bg-[#0b1426]/90 border border-indigo-500/30 rounded-2xl p-2.5 sm:p-3 relative text-xs shadow-sm">
+                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-indigo-500/20 text-[11px]">
+                  <div className="flex items-center gap-1.5 text-indigo-300 font-bold">
+                    <MessageSquare size={13} className="text-indigo-400" />
+                    <span>پیام پیشنهاد مبدأ ({offer.sender_team === myTeamId ? offer.receiver_team_name : offer.sender_team_name}):</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-sport">مرحله قبل</span>
+                </div>
+                <p className="text-slate-200 font-sans italic text-[11.5px] leading-relaxed pr-1">
+                  «{offer.parent_offer_message}»
+                </p>
+              </div>
+            )}
+
+            {/* 2. Current offer note / message */}
+            {offer.message && (
+              <div className="bg-gradient-to-r from-[#091428] via-[#0b1c36] to-[#091428] border border-cyan-500/40 rounded-2xl p-2.5 sm:p-3 relative text-xs shadow-[0_0_15px_rgba(0,243,255,0.06)]">
+                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-cyan-500/20 text-[11px]">
+                  <div className="flex items-center gap-1.5 text-cyan-300 font-bold">
+                    <MessageSquare size={13} className="text-cyan-400" />
+                    <span>
+                      {offer.parent_offer_message ? 'پاسخ و شرایط جدید مربی' : 'یادداشت مربی'} ({offer.sender_team_name}):
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-cyan-400/80 font-sport bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-500/30">
+                    {offer.sender_team === myTeamId ? 'تیم شما' : 'مربی مقابل'}
+                  </span>
+                </div>
+                <p className="text-slate-100 font-sans font-medium text-[12px] leading-relaxed pr-1">
+                  «{offer.message}»
+                </p>
+              </div>
+            )}
+
+            {/* 3. Rejection Reason (shown if offer was rejected and has reason) */}
+            {offer.status === 'REJECTED' && offer.rejection_reason && (
+              <div className="bg-rose-950/40 border border-rose-500/40 rounded-2xl p-2.5 sm:p-3 text-xs shadow-sm">
+                <div className="flex items-center gap-1.5 text-rose-300 font-bold pb-1 mb-1 border-b border-rose-500/20 text-[11px]">
+                  <X size={13} className="text-rose-400" />
+                  <span>علت رد پیشنهاد توسط مربی {offer.receiver_team_name}:</span>
+                </div>
+                <p className="text-rose-100/90 font-sans italic text-[11.5px] leading-relaxed pr-1">
+                  «{offer.rejection_reason}»
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Action Buttons for Decision Maker */}
         {isMyTurnToDecide && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-sport">
@@ -586,7 +653,7 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
 
             {/* 2. Reject */}
             <button
-              onClick={() => setConfirmDialog({ isOpen: true, offer, action: 'reject', isCancelOutgoing: false })}
+              onClick={() => setRejectModal({ isOpen: true, offer, isCancelOutgoing: false })}
               disabled={actionInProgressId === offer.id}
               className="bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
             >
@@ -610,7 +677,7 @@ export default function TransferInbox({ teamData, onStatusMessage, onRefreshTeam
         {isPending && !isMyTurnToDecide && offer.sender_team === myTeamId && (
           <div className="flex justify-end pt-1">
             <button
-              onClick={() => setConfirmDialog({ isOpen: true, offer, action: 'reject', isCancelOutgoing: true })}
+              onClick={() => setRejectModal({ isOpen: true, offer, isCancelOutgoing: true })}
               disabled={actionInProgressId === offer.id}
               className="text-rose-400 hover:text-rose-300 bg-rose-950/60 hover:bg-rose-900/80 border border-rose-500/40 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer font-sport flex items-center gap-1"
             >

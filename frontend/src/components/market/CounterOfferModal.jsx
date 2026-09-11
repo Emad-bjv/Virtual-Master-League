@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, ArrowRightLeft, Handshake, Users, Calendar, AlertCircle, DollarSign, Check, User } from 'lucide-react';
+import { X, ArrowRightLeft, Handshake, Users, Calendar, AlertCircle, DollarSign, Check, User, MessageSquare } from 'lucide-react';
 import { motion } from 'framer-motion';
 import useBodyScrollLock from '../../hooks/useBodyScrollLock';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import ConfirmModal from '../common/ConfirmModal';
 import { formatWithCommas, makeFormattedChangeHandler } from '../../utils/formatNumber';
+
+const COUNTER_QUICK_CHIPS = [
+  '📉 مبلغ نقدی پیشنهادی شما خیلی کم است',
+  '🔒 این آخرین تخفیف و پیشنهاد نهایی ماست',
+  '🔄 لطفاً بازیکن دیگری برای معاوضه پیشنهاد دهید',
+  '⭐ بازیکن کلیدی ماست و ارزان واگذار نمی‌شود',
+  '🤝 این شرایط را قبول کنید تا انتقال نهایی شود',
+];
 
 /**
  * CounterOfferModal - Role-Locked for the SELLER (owner of target_player)
@@ -24,6 +32,7 @@ export default function CounterOfferModal({ offer, myTeam, onClose, onSubmitCoun
   const [loanDuration, setLoanDuration] = useState(
     offer.loan_duration_matches ? String(offer.loan_duration_matches) : '10'
   );
+  const [message, setMessage] = useState('');
   const [clientError, setClientError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -80,6 +89,7 @@ export default function CounterOfferModal({ offer, myTeam, onClose, onSubmitCoun
       cash_amount: numCash,
       swap_players: activeTab === 'SWAP' ? selectedSwapPlayers : [],
       loan_duration_matches: activeTab === 'LOAN' ? parseInt(loanDuration || 0) : 0,
+      message: (message || '').trim(),
     };
     setPendingPayload(payload);
     setShowConfirm(true);
@@ -397,6 +407,47 @@ export default function CounterOfferModal({ offer, myTeam, onClose, onSubmitCoun
             </div>
           )}
 
+          {/* Coach Note / Message Section */}
+          <div className="space-y-2 pt-3 border-t border-slate-800/80">
+            <div className="flex items-center justify-between">
+              <label className="text-slate-300 font-bold flex items-center gap-1.5 text-xs">
+                <MessageSquare size={13} className="text-cyan-400" />
+                <span>پیام مربی به باشگاه خریدار (اختیاری)</span>
+              </label>
+              <span className={`text-[10px] font-mono ${message.length > 180 ? 'text-amber-400' : 'text-slate-500'}`}>
+                {message.length} / 200
+              </span>
+            </div>
+
+            {/* Quick Chips */}
+            <div className="flex flex-wrap gap-1.5">
+              {COUNTER_QUICK_CHIPS.map((chip, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setMessage(prev => {
+                    if (!prev) return chip;
+                    if (prev.includes(chip)) return prev;
+                    const combined = `${prev} - ${chip}`;
+                    return combined.length <= 200 ? combined : prev;
+                  })}
+                  className="text-[10px] bg-[#05080e] hover:bg-cyan-950/70 border border-slate-800 hover:border-cyan-500/50 text-slate-400 hover:text-cyan-300 px-2 py-1 rounded-lg transition-all cursor-pointer select-none"
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value.slice(0, 200))}
+              rows={2}
+              maxLength={200}
+              placeholder="توضیح یا پیامی برای مربی حریف بنویسید (مثلاً: این آخرین تخفیف ماست)..."
+              className="w-full bg-[#05080e] border border-slate-700/80 rounded-2xl p-2.5 text-white placeholder-slate-500 text-xs outline-none focus:border-cyan-400 resize-none transition-colors"
+            />
+          </div>
+
           {/* Submit Action */}
           <div className="pt-3 border-t border-slate-800 flex gap-2">
             <button
@@ -447,6 +498,12 @@ export default function CounterOfferModal({ offer, myTeam, onClose, onSubmitCoun
               <div className="flex justify-between">
                 <span>مدت قرضی:</span>
                 <span className="text-cyan-300 font-bold">{loanDuration} بازی</span>
+              </div>
+            )}
+            {pendingPayload?.message && (
+              <div className="flex justify-between items-start gap-2 pt-1 border-t border-slate-800">
+                <span className="shrink-0 text-slate-400">یادداشت مربی:</span>
+                <span className="text-cyan-300 font-sans text-right italic font-normal">«{pendingPayload.message}»</span>
               </div>
             )}
           </div>
