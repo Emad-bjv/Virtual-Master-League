@@ -166,6 +166,8 @@ export default function PackPlayerCard({
             <img
               src={photoUrl}
               alt={player.name}
+              loading="lazy"
+              decoding="async"
               className="w-full h-full object-contain object-bottom drop-shadow-[0_10px_15px_rgba(0,0,0,0.85)] filter contrast-105"
               onError={(e) => {
                 e.currentTarget.style.display = 'none';

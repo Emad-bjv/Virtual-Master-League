@@ -1549,6 +1549,8 @@ export default function EFootballGamePlan({
                         <img
                           src={photoUrl}
                           alt={player.name}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover object-top"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
@@ -1990,6 +1992,8 @@ export default function EFootballGamePlan({
                         <img
                           src={getPlayerPhotoUrl(sub)}
                           alt={sub.name}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover object-top"
                           onError={(e) => {
                             e.currentTarget.style.display = 'none';
@@ -2133,6 +2137,8 @@ export default function EFootballGamePlan({
                               <img
                                 src={getPlayerPhotoUrl(res)}
                                 alt={res.name}
+                                loading="lazy"
+                                decoding="async"
                                 className="w-full h-full object-cover object-top"
                                 onError={(e) => {
                                   e.currentTarget.style.display = 'none';
@@ -2279,6 +2285,8 @@ export default function EFootballGamePlan({
                         <img
                           src={getPlayerPhotoUrl(quickSubModal.sourcePlayer)}
                           alt={quickSubModal.sourcePlayer.name}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover"
                           onError={(e) => { e.target.style.display = 'none'; }}
                         />
@@ -2352,6 +2360,8 @@ export default function EFootballGamePlan({
                               <img
                                 src={candPhoto}
                                 alt={candidate.name}
+                                loading="lazy"
+                                decoding="async"
                                 className="w-full h-full object-cover"
                                 onError={(e) => { e.target.style.display = 'none'; }}
                               />

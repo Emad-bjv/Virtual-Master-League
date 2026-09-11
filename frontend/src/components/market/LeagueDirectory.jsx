@@ -583,6 +583,8 @@ export default function LeagueDirectory({ currentTeamId, onPlayerSelect }) {
                           <img
                             src={getPlayerPhotoUrl(player)}
                             alt={player.name}
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover object-top"
                             onError={(e) => {
                               e.currentTarget.style.display = 'none';

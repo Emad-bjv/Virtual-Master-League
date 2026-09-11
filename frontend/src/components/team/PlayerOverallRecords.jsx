@@ -369,6 +369,8 @@ export default function PlayerOverallRecords({
                                   <img
                                     src={photoUrl}
                                     alt={p.name}
+                                    loading="lazy"
+                                    decoding="async"
                                     className="w-full h-full object-cover object-top"
                                     onError={(e) => {
                                       e.target.onerror = null;
@@ -486,6 +488,8 @@ export default function PlayerOverallRecords({
                       <img
                         src={getPlayerPhotoUrl(selectedPlayer)}
                         alt={selectedPlayer.name}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover object-top"
                         onError={(e) => {
                           e.target.onerror = null;

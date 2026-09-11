@@ -1407,7 +1407,7 @@ export default function TeamTab({
                           {/* Opponent Crest */}
                           <div className="w-11 h-11 rounded-2xl team-crest-badge flex items-center justify-center p-1 overflow-hidden shrink-0 shadow-md relative">
                             {getTeamLogoUrl(opponentLogo || opponentName) ? (
-                              <img src={getTeamLogoUrl(opponentLogo || opponentName)} alt={opponentName || 'Opponent'} className="w-full h-full object-contain" />
+                              <img src={getTeamLogoUrl(opponentLogo || opponentName)} alt={opponentName || 'Opponent'} loading="lazy" decoding="async" className="w-full h-full object-contain" />
                             ) : (
                               <span className="text-[10px] font-black text-slate-800 font-sport">
                                 {String(opponentName || 'OP').slice(0, 2).toUpperCase()}

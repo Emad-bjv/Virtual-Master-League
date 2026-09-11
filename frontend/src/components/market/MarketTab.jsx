@@ -269,6 +269,8 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
                                 <img
                                   src={getPlayerPhotoUrl(p)}
                                   alt={p.name}
+                                  loading="lazy"
+                                  decoding="async"
                                   className="w-full h-full object-cover object-top"
                                   onError={(e) => {
                                     e.currentTarget.style.display = 'none';
@@ -399,6 +401,8 @@ export default function MarketTab({ teamData, onRefreshTeam }) {
                             <img
                               src={getPlayerPhotoUrl(p)}
                               alt={p.name}
+                              loading="lazy"
+                              decoding="async"
                               className="w-full h-full object-cover object-top"
                               onError={(e) => {
                                 e.currentTarget.style.display = 'none';

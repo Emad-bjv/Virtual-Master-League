@@ -37,13 +37,19 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            if (id.includes('@sentry')) {
+              return 'vendor-sentry';
+            }
+            if (id.includes('@dnd-kit')) {
+              return 'vendor-dnd';
+            }
             if (id.includes('framer-motion')) {
               return 'vendor-motion';
             }
             if (id.includes('lucide-react')) {
               return 'vendor-icons';
             }
-            if (id.includes('react-router-dom') || id.includes('react-dom') || id.includes('react/')) {
+            if (id.includes('react-router-dom') || id.includes('react-dom') || id.includes('react/') || id.includes('scheduler')) {
               return 'vendor-react';
             }
             return 'vendor-core';

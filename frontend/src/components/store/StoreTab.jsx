@@ -1395,6 +1395,8 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                         <img
                           src={getPlayerPhotoUrl(legend.name)}
                           alt={String(legend.name)}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover object-top"
                           onError={(e) => { e.currentTarget.style.display = 'none'; }}
                         />
@@ -1525,6 +1527,8 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                         <img
                           src={getPlayerPhotoUrl(claimedRewardPopup.legend_player.name)}
                           alt={String(claimedRewardPopup.legend_player.name)}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover object-top"
                         />
                       ) : (
