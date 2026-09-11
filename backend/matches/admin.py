@@ -190,7 +190,7 @@ class LiveSubstitutionRequestAdmin(admin.ModelAdmin):
 
 @admin.register(MatchTeamStat)
 class MatchTeamStatAdmin(admin.ModelAdmin):
-    list_display = ('match', 'team', 'possession_percent', 'shots', 'shots_on_target', 'corners', 'fouls', 'offsides')
+    list_display = ('match', 'team', 'possession_percent', 'shots', 'shots_on_target', 'passes', 'free_kicks', 'corners', 'fouls', 'offsides')
     list_filter = ('match__tournament',)
     search_fields = ('team__name',)
 

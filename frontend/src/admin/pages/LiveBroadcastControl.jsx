@@ -47,10 +47,25 @@ export default function LiveBroadcastControl() {
   const [isClockRunning, setIsClockRunning] = useState(false);
   const [stoppageTime, setStoppageTime] = useState(0);
 
-  // Live Telemetry Stats State
+  // Live Telemetry Stats State (PES 2021 Official 10 Metrics)
+  const DEFAULT_PES_STATS = {
+    possession_percent: 50,
+    shots: 0,
+    shots_on_target: 0,
+    fouls: 0,
+    offsides: 0,
+    corners: 0,
+    free_kicks: 0,
+    passes: 0,
+    passes_completed: 0,
+    crosses: 0,
+    interceptions: 0,
+    tackles: 0,
+    saves: 0,
+  };
   const [liveStats, setLiveStats] = useState({
-    home: { possession_percent: 50, shots: 0, shots_on_target: 0, fouls: 0, corners: 0, offsides: 0, saves: 0 },
-    away: { possession_percent: 50, shots: 0, shots_on_target: 0, fouls: 0, corners: 0, offsides: 0, saves: 0 },
+    home: { ...DEFAULT_PES_STATS },
+    away: { ...DEFAULT_PES_STATS },
   });
   const [isSavingStats, setIsSavingStats] = useState(false);
 
@@ -230,8 +245,14 @@ export default function LiveBroadcastControl() {
               shots: homeStat.shots ?? 0,
               shots_on_target: homeStat.shots_on_target ?? 0,
               fouls: homeStat.fouls ?? 0,
-              corners: homeStat.corners ?? 0,
               offsides: homeStat.offsides ?? 0,
+              corners: homeStat.corners ?? 0,
+              free_kicks: homeStat.free_kicks ?? 0,
+              passes: homeStat.passes ?? 0,
+              passes_completed: homeStat.passes_completed ?? 0,
+              crosses: homeStat.crosses ?? 0,
+              interceptions: homeStat.interceptions ?? 0,
+              tackles: homeStat.tackles ?? 0,
               saves: homeStat.saves ?? 0,
             },
             away: {
@@ -239,8 +260,14 @@ export default function LiveBroadcastControl() {
               shots: awayStat.shots ?? 0,
               shots_on_target: awayStat.shots_on_target ?? 0,
               fouls: awayStat.fouls ?? 0,
-              corners: awayStat.corners ?? 0,
               offsides: awayStat.offsides ?? 0,
+              corners: awayStat.corners ?? 0,
+              free_kicks: awayStat.free_kicks ?? 0,
+              passes: awayStat.passes ?? 0,
+              passes_completed: awayStat.passes_completed ?? 0,
+              crosses: awayStat.crosses ?? 0,
+              interceptions: awayStat.interceptions ?? 0,
+              tackles: awayStat.tackles ?? 0,
               saves: awayStat.saves ?? 0,
             }
           });
@@ -634,11 +661,11 @@ export default function LiveBroadcastControl() {
   };
 
   // -------------------------------------------------------------
-  // 8. Live Telemetry Match Statistics Submission
+  // 8. Live Telemetry Match Statistics Submission (PES 2021)
   // -------------------------------------------------------------
   const handleStatIncrement = (teamSide, statKey, delta) => {
     setLiveStats(prev => {
-      const currentVal = prev[teamSide][statKey] || 0;
+      const currentVal = Number(prev[teamSide]?.[statKey] || 0);
       const nextVal = Math.max(0, currentVal + delta);
       return {
         ...prev,
@@ -650,12 +677,35 @@ export default function LiveBroadcastControl() {
     });
   };
 
-  const handlePossessionChange = (homeVal) => {
-    const homePercent = Math.min(100, Math.max(0, parseInt(homeVal) || 50));
+  const handleStatInputChange = (teamSide, statKey, val) => {
+    if (val === '') {
+      setLiveStats(prev => ({
+        ...prev,
+        [teamSide]: { ...prev[teamSide], [statKey]: '' }
+      }));
+      return;
+    }
+    const cleanNum = Math.max(0, parseInt(val, 10) || 0);
     setLiveStats(prev => ({
       ...prev,
-      home: { ...prev.home, possession_percent: homePercent },
-      away: { ...prev.away, possession_percent: 100 - homePercent },
+      [teamSide]: { ...prev[teamSide], [statKey]: cleanNum }
+    }));
+  };
+
+  const handlePossessionChange = (teamSide, val) => {
+    if (val === '') {
+      setLiveStats(prev => ({
+        ...prev,
+        [teamSide]: { ...prev[teamSide], possession_percent: '' }
+      }));
+      return;
+    }
+    const num = Math.min(100, Math.max(0, parseInt(val, 10) || 0));
+    const otherSide = teamSide === 'home' ? 'away' : 'home';
+    setLiveStats(prev => ({
+      ...prev,
+      [teamSide]: { ...prev[teamSide], possession_percent: num },
+      [otherSide]: { ...prev[otherSide], possession_percent: 100 - num },
     }));
   };
 
@@ -663,8 +713,29 @@ export default function LiveBroadcastControl() {
     if (!selectedMatch) return;
     try {
       setIsSavingStats(true);
-      await matchApi.updateLiveTelemetryStats(selectedMatch.id, liveStats);
-      showToast('آمارهای زنده مسابقه (تله‌متری) ذخیره و مخابره شد 📊', 'success');
+      const sanitize = (s) => ({
+        possession_percent: Math.min(100, Math.max(0, Number(s?.possession_percent) || 50)),
+        shots: Math.max(0, Number(s?.shots) || 0),
+        shots_on_target: Math.max(0, Number(s?.shots_on_target) || 0),
+        fouls: Math.max(0, Number(s?.fouls) || 0),
+        offsides: Math.max(0, Number(s?.offsides) || 0),
+        corners: Math.max(0, Number(s?.corners) || 0),
+        free_kicks: Math.max(0, Number(s?.free_kicks) || 0),
+        passes: Math.max(0, Number(s?.passes) || 0),
+        passes_completed: Math.max(0, Number(s?.passes_completed) || 0),
+        crosses: Math.max(0, Number(s?.crosses) || 0),
+        interceptions: Math.max(0, Number(s?.interceptions) || 0),
+        tackles: Math.max(0, Number(s?.tackles) || 0),
+        saves: Math.max(0, Number(s?.saves) || 0),
+      });
+
+      const payload = {
+        home: sanitize(liveStats.home),
+        away: sanitize(liveStats.away),
+      };
+
+      await matchApi.updateLiveTelemetryStats(selectedMatch.id, payload);
+      showToast('آمارهای ۱۰ گانه مسابقه (منطبق بر PES 2021) با موفقیت ثبت و مخابره شد 📊', 'success');
       fetchSelectedMatchDetails(selectedMatch.id);
     } catch (err) {
       showToast('خطا در بروزرسانی آمار مسابقه', 'error');
@@ -1754,83 +1825,334 @@ export default function LiveBroadcastControl() {
               </div>
             </div>
 
-            {/* 3.6 Live Match Telemetry Statistics Counter Desk */}
-            <div className="glass-panel p-5 rounded-3xl border border-slate-700/80 bg-slate-950/70 shadow-xl space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            {/* 3.6 Official PES 2021 Full Match Statistics Desk */}
+            <div className="glass-panel p-4 sm:p-5 rounded-3xl border border-cyan-500/30 bg-slate-950/80 shadow-2xl space-y-3.5">
+              <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
                 <div className="flex items-center gap-2">
                   <span className="p-1.5 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
                     <Sliders size={16} />
                   </span>
-                  <h3 className="font-bold text-sm text-white">آمار زنده مسابقه (تله‌متری)</h3>
+                  <div>
+                    <h3 className="font-black text-sm text-white flex items-center gap-1.5">
+                      <span>ثبت آمار مسابقه</span>
+                      <span className="text-[10px] px-1.5 py-0.5 bg-blue-900/60 text-cyan-300 rounded border border-cyan-500/40 font-sport">PES 2021</span>
+                    </h3>
+                    <p className="text-[10.5px] text-slate-400">تایپ مستقیم اعداد • ناوبری سریع با Tab • ۱۰ شاخص رسمی</p>
+                  </div>
                 </div>
                 <button
+                  type="button"
                   onClick={handleSaveLiveStats}
                   disabled={isSavingStats}
-                  className="px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow flex items-center gap-1 active:scale-95"
+                  className="px-3 py-1.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-1 active:scale-95 disabled:opacity-60 cursor-pointer"
                 >
                   <Send size={12} />
-                  <span>{isSavingStats ? 'در حال ثبت...' : 'مخابره آمار'}</span>
+                  <span>{isSavingStats ? 'در حال ثبت...' : 'ثبت نهایی'}</span>
                 </button>
               </div>
 
-              {/* Possession Dual Slider */}
-              <div className="space-y-1.5 p-3 rounded-2xl bg-slate-900/60 border border-slate-800">
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-cyan-400">{liveStats.home.possession_percent}% {selectedMatch.home_team_name?.slice(0, 8)}</span>
-                  <span className="text-slate-400">مالکیت توپ</span>
-                  <span className="text-purple-400">{selectedMatch.away_team_name?.slice(0, 8)} {liveStats.away.possession_percent}%</span>
+              {/* Match Header Mirroring PES End-of-Match Screen */}
+              <div className="flex items-center justify-between px-2.5 py-2 rounded-2xl bg-slate-900/70 border border-slate-800 text-xs">
+                <div className="flex items-center gap-2 max-w-[42%] truncate">
+                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 shrink-0"></span>
+                  <span className="font-black text-cyan-400 truncate">{selectedMatch.home_team_name}</span>
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={liveStats.home.possession_percent}
-                  onChange={(e) => handlePossessionChange(e.target.value)}
-                  className="w-full h-2 bg-purple-900 rounded-lg appearance-none cursor-pointer accent-cyan-400"
-                />
+                <span className="font-sport font-black text-[11px] px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                  اتمام وقت
+                </span>
+                <div className="flex items-center gap-2 max-w-[42%] justify-end truncate">
+                  <span className="font-black text-purple-400 truncate">{selectedMatch.away_team_name}</span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-purple-400 shrink-0"></span>
+                </div>
               </div>
 
-              {/* Stepper Counters for Telemetry */}
-              <div className="space-y-2 text-xs">
-                {[
-                  { label: 'ضربات در چارچوب', key: 'shots_on_target' },
-                  { label: 'کل شوت‌ها', key: 'shots' },
-                  { label: 'خطاها', key: 'fouls' },
-                  { label: 'کرنرها', key: 'corners' },
-                  { label: 'آفسایدها', key: 'offsides' },
-                  { label: 'مهارهای دروازه‌بان (Saves)', key: 'saves' },
-                ].map(item => (
-                  <div key={item.key} className="flex items-center justify-between p-2 rounded-xl bg-slate-900/40 border border-slate-800/60">
-                    {/* Home Side +/- */}
-                    <div className="flex items-center gap-1.5">
+              {/* 10 PES Statistical Rows */}
+              <div className="space-y-1.5 text-xs">
+                {/* 1. Possession */}
+                <div className="p-2.5 rounded-2xl bg-slate-900/50 border border-slate-800/80 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    {/* Home Possession Input */}
+                    <div className="flex items-center gap-1">
                       <button 
-                        onClick={() => handleStatIncrement('home', item.key, -1)}
-                        className="w-6 h-6 rounded-lg bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 flex items-center justify-center text-xs"
+                        type="button"
+                        onClick={() => handlePossessionChange('home', (Number(liveStats.home.possession_percent) || 50) - 1)}
+                        className="w-5 h-6 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 text-[11px] flex items-center justify-center font-bold cursor-pointer"
                       >-</button>
-                      <span className="font-sport font-black text-cyan-400 w-5 text-center">{liveStats.home[item.key] || 0}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={liveStats.home.possession_percent}
+                        onChange={(e) => handlePossessionChange('home', e.target.value)}
+                        onFocus={(e) => e.target.select()}
+                        className="w-12 h-7 text-center font-sport font-black text-cyan-400 bg-slate-950 border border-cyan-500/40 rounded-lg text-xs focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none"
+                      />
+                      <span className="text-cyan-400 font-bold text-[11px]">%</span>
                       <button 
-                        onClick={() => handleStatIncrement('home', item.key, 1)}
-                        className="w-6 h-6 rounded-lg bg-cyan-600 text-white font-bold hover:bg-cyan-500 flex items-center justify-center text-xs"
+                        type="button"
+                        onClick={() => handlePossessionChange('home', (Number(liveStats.home.possession_percent) || 50) + 1)}
+                        className="w-5 h-6 rounded bg-cyan-700 text-white hover:bg-cyan-600 text-[11px] flex items-center justify-center font-bold cursor-pointer"
                       >+</button>
                     </div>
 
-                    <span className="text-[11px] text-slate-300 font-medium">{item.label}</span>
+                    <span className="text-[11.5px] text-slate-200 font-bold select-none text-center">مالکیت بازی</span>
 
-                    {/* Away Side +/- */}
-                    <div className="flex items-center gap-1.5">
+                    {/* Away Possession Input */}
+                    <div className="flex items-center gap-1">
                       <button 
-                        onClick={() => handleStatIncrement('away', item.key, 1)}
-                        className="w-6 h-6 rounded-lg bg-purple-600 text-white font-bold hover:bg-purple-500 flex items-center justify-center text-xs"
+                        type="button"
+                        onClick={() => handlePossessionChange('away', (Number(liveStats.away.possession_percent) || 50) + 1)}
+                        className="w-5 h-6 rounded bg-purple-700 text-white hover:bg-purple-600 text-[11px] flex items-center justify-center font-bold cursor-pointer"
                       >+</button>
-                      <span className="font-sport font-black text-purple-400 w-5 text-center">{liveStats.away[item.key] || 0}</span>
+                      <span className="text-purple-400 font-bold text-[11px]">%</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={liveStats.away.possession_percent}
+                        onChange={(e) => handlePossessionChange('away', e.target.value)}
+                        onFocus={(e) => e.target.select()}
+                        className="w-12 h-7 text-center font-sport font-black text-purple-400 bg-slate-950 border border-purple-500/40 rounded-lg text-xs focus:border-purple-400 focus:ring-1 focus:ring-purple-400 outline-none"
+                      />
                       <button 
-                        onClick={() => handleStatIncrement('away', item.key, -1)}
-                        className="w-6 h-6 rounded-lg bg-slate-800 text-slate-300 font-bold hover:bg-slate-700 flex items-center justify-center text-xs"
+                        type="button"
+                        onClick={() => handlePossessionChange('away', (Number(liveStats.away.possession_percent) || 50) - 1)}
+                        className="w-5 h-6 rounded bg-slate-800 text-slate-300 hover:bg-slate-700 text-[11px] flex items-center justify-center font-bold cursor-pointer"
                       >-</button>
+                    </div>
+                  </div>
+
+                  {/* Dual color progress visual */}
+                  <div className="w-full h-1.5 bg-purple-900/60 rounded-full overflow-hidden flex">
+                    <div 
+                      className="h-full bg-cyan-400 transition-all duration-300"
+                      style={{ width: `${liveStats.home.possession_percent}%` }}
+                    />
+                    <div 
+                      className="h-full bg-purple-500 transition-all duration-300"
+                      style={{ width: `${liveStats.away.possession_percent}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Rows 2 to 10 */}
+                {[
+                  {
+                    id: 'shots',
+                    label: 'شوت زده (در چارچوب)',
+                    isDual: true,
+                    mainKey: 'shots',
+                    subKey: 'shots_on_target',
+                    mainPlaceholder: 'شوت',
+                    subPlaceholder: 'هدف',
+                  },
+                  {
+                    id: 'fouls',
+                    label: 'خطا (آفساید)',
+                    isDual: true,
+                    mainKey: 'fouls',
+                    subKey: 'offsides',
+                    mainPlaceholder: 'خطا',
+                    subPlaceholder: 'آفساید',
+                  },
+                  {
+                    id: 'corners',
+                    label: 'کرنر',
+                    isDual: false,
+                    key: 'corners',
+                  },
+                  {
+                    id: 'free_kicks',
+                    label: 'ضربه آزاد',
+                    isDual: false,
+                    key: 'free_kicks',
+                  },
+                  {
+                    id: 'passes',
+                    label: 'پاس (موفق)',
+                    isDual: true,
+                    mainKey: 'passes',
+                    subKey: 'passes_completed',
+                    mainPlaceholder: 'پاس',
+                    subPlaceholder: 'موفق',
+                  },
+                  {
+                    id: 'crosses',
+                    label: 'سانتر',
+                    isDual: false,
+                    key: 'crosses',
+                  },
+                  {
+                    id: 'interceptions',
+                    label: 'سد توپ',
+                    isDual: false,
+                    key: 'interceptions',
+                  },
+                  {
+                    id: 'tackles',
+                    label: 'تکل',
+                    isDual: false,
+                    key: 'tackles',
+                  },
+                  {
+                    id: 'saves',
+                    label: 'شوت گیری دروازبان',
+                    isDual: false,
+                    key: 'saves',
+                  },
+                ].map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-2 rounded-xl bg-slate-900/40 border border-slate-800/60 hover:border-slate-700/80 transition-all">
+                    {/* Home Side Inputs */}
+                    <div className="flex items-center gap-1">
+                      {item.isDual ? (
+                        <>
+                          <button 
+                            type="button"
+                            onClick={() => handleStatIncrement('home', item.mainKey, -1)}
+                            className="w-4 h-6 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 text-[10px] flex items-center justify-center font-bold cursor-pointer"
+                          >-</button>
+                          <input
+                            type="number"
+                            min="0"
+                            title={`میزبان: کل ${item.label}`}
+                            placeholder={item.mainPlaceholder}
+                            value={liveStats.home[item.mainKey]}
+                            onChange={(e) => handleStatInputChange('home', item.mainKey, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            className="w-10 h-7 text-center font-sport font-black text-cyan-400 bg-slate-950 border border-cyan-500/40 rounded-lg text-xs focus:border-cyan-400 outline-none"
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => handleStatIncrement('home', item.mainKey, 1)}
+                            className="w-4 h-6 rounded bg-cyan-800/60 text-cyan-300 hover:bg-cyan-700 text-[10px] flex items-center justify-center font-bold cursor-pointer"
+                          >+</button>
+                          <span className="text-slate-500 font-bold text-xs">(</span>
+                          <input
+                            type="number"
+                            min="0"
+                            title={`میزبان: ${item.subPlaceholder}`}
+                            placeholder={item.subPlaceholder}
+                            value={liveStats.home[item.subKey]}
+                            onChange={(e) => handleStatInputChange('home', item.subKey, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            className="w-9 h-7 text-center font-sport font-bold text-cyan-300 bg-slate-950/80 border border-cyan-700/50 rounded-lg text-[11px] focus:border-cyan-400 outline-none"
+                          />
+                          <span className="text-slate-500 font-bold text-xs">)</span>
+                        </>
+                      ) : (
+                        <>
+                          <button 
+                            type="button"
+                            onClick={() => handleStatIncrement('home', item.key, -1)}
+                            className="w-4 h-6 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 text-[10px] flex items-center justify-center font-bold cursor-pointer"
+                          >-</button>
+                          <input
+                            type="number"
+                            min="0"
+                            title={`میزبان: ${item.label}`}
+                            value={liveStats.home[item.key]}
+                            onChange={(e) => handleStatInputChange('home', item.key, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            className="w-10 h-7 text-center font-sport font-black text-cyan-400 bg-slate-950 border border-cyan-500/40 rounded-lg text-xs focus:border-cyan-400 outline-none"
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => handleStatIncrement('home', item.key, 1)}
+                            className="w-4 h-6 rounded bg-cyan-800/60 text-cyan-300 hover:bg-cyan-700 text-[10px] flex items-center justify-center font-bold cursor-pointer"
+                          >+</button>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Center Metric Name */}
+                    <span className="text-[11px] text-slate-200 font-bold select-none text-center px-1 truncate max-w-[130px]">
+                      {item.label}
+                    </span>
+
+                    {/* Away Side Inputs */}
+                    <div className="flex items-center gap-1">
+                      {item.isDual ? (
+                        <>
+                          <span className="text-slate-500 font-bold text-xs">(</span>
+                          <input
+                            type="number"
+                            min="0"
+                            title={`میهمان: ${item.subPlaceholder}`}
+                            placeholder={item.subPlaceholder}
+                            value={liveStats.away[item.subKey]}
+                            onChange={(e) => handleStatInputChange('away', item.subKey, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            className="w-9 h-7 text-center font-sport font-bold text-purple-300 bg-slate-950/80 border border-purple-700/50 rounded-lg text-[11px] focus:border-purple-400 outline-none"
+                          />
+                          <span className="text-slate-500 font-bold text-xs">)</span>
+                          <button 
+                            type="button"
+                            onClick={() => handleStatIncrement('away', item.mainKey, 1)}
+                            className="w-4 h-6 rounded bg-purple-800/60 text-purple-300 hover:bg-purple-700 text-[10px] flex items-center justify-center font-bold cursor-pointer"
+                          >+</button>
+                          <input
+                            type="number"
+                            min="0"
+                            title={`میهمان: کل ${item.label}`}
+                            placeholder={item.mainPlaceholder}
+                            value={liveStats.away[item.mainKey]}
+                            onChange={(e) => handleStatInputChange('away', item.mainKey, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            className="w-10 h-7 text-center font-sport font-black text-purple-400 bg-slate-950 border border-purple-500/40 rounded-lg text-xs focus:border-purple-400 outline-none"
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => handleStatIncrement('away', item.mainKey, -1)}
+                            className="w-4 h-6 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 text-[10px] flex items-center justify-center font-bold cursor-pointer"
+                          >-</button>
+                        </>
+                      ) : (
+                        <>
+                          <button 
+                            type="button"
+                            onClick={() => handleStatIncrement('away', item.key, 1)}
+                            className="w-4 h-6 rounded bg-purple-800/60 text-purple-300 hover:bg-purple-700 text-[10px] flex items-center justify-center font-bold cursor-pointer"
+                          >+</button>
+                          <input
+                            type="number"
+                            min="0"
+                            title={`میهمان: ${item.label}`}
+                            value={liveStats.away[item.key]}
+                            onChange={(e) => handleStatInputChange('away', item.key, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            className="w-10 h-7 text-center font-sport font-black text-purple-400 bg-slate-950 border border-purple-500/40 rounded-lg text-xs focus:border-purple-400 outline-none"
+                          />
+                          <button 
+                            type="button"
+                            onClick={() => handleStatIncrement('away', item.key, -1)}
+                            className="w-4 h-6 rounded bg-slate-800 text-slate-400 hover:bg-slate-700 text-[10px] flex items-center justify-center font-bold cursor-pointer"
+                          >-</button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
+
+              {/* Submit Button */}
+              <button
+                type="button"
+                onClick={handleSaveLiveStats}
+                disabled={isSavingStats}
+                className="w-full py-2.5 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white rounded-2xl text-xs font-black shadow-lg shadow-cyan-900/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 cursor-pointer"
+              >
+                {isSavingStats ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>در حال ثبت و مخابره به سرور...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={14} />
+                    <span>مخابره و ثبت نهایی آمار بازی (PES 2021)</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

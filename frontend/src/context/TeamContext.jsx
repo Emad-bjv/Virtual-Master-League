@@ -397,9 +397,9 @@ export function TeamProvider({ children }) {
       const gpPlayersData = rawTeamData.gameplan?.players_data;
       if (Array.isArray(gpPlayersData) && gpPlayersData.length > 0) {
         const gpMap = new Map();
-        gpPlayersData.forEach((item) => {
+        gpPlayersData.forEach((item, index) => {
           const pid = item.player_id || item.id;
-          if (pid) gpMap.set(String(pid), item);
+          if (pid) gpMap.set(String(pid), { ...item, _order: item.order !== undefined ? Number(item.order) : index });
         });
 
         const customHydrated = hydrated.map((p) => {
@@ -412,9 +412,25 @@ export function TeamProvider({ children }) {
               y_coord: custom.y_coord != null ? Number(custom.y_coord) : p.y_coord,
               tacticalPosition: custom.position || p.tacticalPosition || null,
               position: custom.position || p.position,
+              _order: custom._order,
             };
           }
-          return p;
+          // Newly signed player not in saved gameplan: assign order based on OVR
+          return {
+            ...p,
+            _order: 1000 - (Number(p.overall) || 75),
+          };
+        });
+
+        // Strictly sort customHydrated by _order so that:
+        // 1. Starters come first (order 0..10)
+        // 2. Substitutes (bench) come next in exact coach order (order 11..21)
+        // 3. Reserves come next in exact coach order (order 22..N)
+        customHydrated.sort((a, b) => {
+          if (a.is_starting !== b.is_starting) {
+            return a.is_starting ? -1 : 1;
+          }
+          return (a._order ?? 999) - (b._order ?? 999);
         });
 
         const customStarters = customHydrated.filter((p) => p.is_starting);
@@ -603,12 +619,14 @@ export function TeamProvider({ children }) {
           formation,
           ...tactics,
         },
-        players: players.map((p) => ({
+        players: players.map((p, idx) => ({
           player_id: parseInt(p.id, 10),
           x_coord: p.x_coord || 50.0,
           y_coord: p.y_coord || 50.0,
           position: p.position,
-          is_starting: p.is_starting,
+          is_starting: Boolean(p.is_starting),
+          is_substitute: !p.is_starting && idx < 22,
+          order: idx,
         })),
       };
       await teamApi.submitGameplan(team.id, payload);

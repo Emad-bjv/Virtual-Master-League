@@ -77,8 +77,14 @@ export default function PostMatchRecapView({
       shots: 0,
       shots_on_target: 0,
       fouls: 0,
-      corners: 0,
       offsides: 0,
+      corners: 0,
+      free_kicks: 0,
+      passes: 0,
+      passes_completed: 0,
+      crosses: 0,
+      interceptions: 0,
+      tackles: 0,
       saves: 0,
     };
   }, [teamStatsList, currentMatch?.home_team, homeName]);
@@ -89,8 +95,14 @@ export default function PostMatchRecapView({
       shots: 0,
       shots_on_target: 0,
       fouls: 0,
-      corners: 0,
       offsides: 0,
+      corners: 0,
+      free_kicks: 0,
+      passes: 0,
+      passes_completed: 0,
+      crosses: 0,
+      interceptions: 0,
+      tackles: 0,
       saves: 0,
     };
   }, [teamStatsList, currentMatch?.away_team, awayName]);
@@ -339,26 +351,32 @@ export default function PostMatchRecapView({
               </div>
             </div>
 
-            {/* Metrics Grid */}
+            {/* Metrics Grid (PES 2021 Official 10 Metrics) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
-                { label: 'شوت در چارچوب (Shots on Target)', h: homeStats.shots_on_target, a: awayStats.shots_on_target },
-                { label: 'کل شوت‌ها (Total Shots)', h: homeStats.shots, a: awayStats.shots },
-                { label: 'خطاها (Fouls)', h: homeStats.fouls, a: awayStats.fouls },
-                { label: 'کرنرها (Corners)', h: homeStats.corners, a: awayStats.corners },
-                { label: 'آفسایدها (Offsides)', h: homeStats.offsides, a: awayStats.offsides },
-                { label: 'سیوهای دروازه‌بان (Saves)', h: homeStats.saves, a: awayStats.saves },
+                { label: 'شوت زده (در چارچوب)', h: homeStats.shots, a: awayStats.shots, hSub: homeStats.shots_on_target, aSub: awayStats.shots_on_target, isDual: true },
+                { label: 'خطا (آفساید)', h: homeStats.fouls, a: awayStats.fouls, hSub: homeStats.offsides, aSub: awayStats.offsides, isDual: true },
+                { label: 'کرنر', h: homeStats.corners, a: awayStats.corners },
+                { label: 'ضربه آزاد', h: homeStats.free_kicks, a: awayStats.free_kicks },
+                { label: 'پاس (موفق)', h: homeStats.passes, a: awayStats.passes, hSub: homeStats.passes_completed, aSub: awayStats.passes_completed, isDual: true },
+                { label: 'سانتر', h: homeStats.crosses, a: awayStats.crosses },
+                { label: 'سد توپ', h: homeStats.interceptions, a: awayStats.interceptions },
+                { label: 'تکل', h: homeStats.tackles, a: awayStats.tackles },
+                { label: 'شوت گیری دروازبان', h: homeStats.saves, a: awayStats.saves },
               ].map((metric, idx) => {
-                const total = (metric.h || 0) + (metric.a || 0) || 1;
-                const hPercent = Math.round(((metric.h || 0) / total) * 100);
+                const total = (Number(metric.h) || 0) + (Number(metric.a) || 0) || 1;
+                const hPercent = Math.round(((Number(metric.h) || 0) / total) * 100);
                 const aPercent = 100 - hPercent;
+
+                const hText = metric.isDual ? `${metric.h || 0} (${metric.hSub || 0})` : `${metric.h || 0}`;
+                const aText = metric.isDual ? `${metric.a || 0} (${metric.aSub || 0})` : `${metric.a || 0}`;
 
                 return (
                   <div key={idx} className="p-3 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1.5">
                     <div className="flex justify-between items-center font-sport font-bold text-xs">
-                      <span className="text-cyan-400 text-xs w-6 text-left">{metric.h || 0}</span>
+                      <span className="text-cyan-400 text-xs text-left font-sport">{hText}</span>
                       <span className="text-slate-300 text-[11px] font-sans font-medium">{metric.label}</span>
-                      <span className="text-purple-400 text-xs w-6 text-right">{metric.a || 0}</span>
+                      <span className="text-purple-400 text-xs text-right font-sport">{aText}</span>
                     </div>
                     <div className="w-full h-2 rounded-full overflow-hidden flex bg-purple-950/60 border border-slate-800">
                       <div

@@ -183,7 +183,9 @@ class MatchTeamStatSerializer(serializers.ModelSerializer):
         model = MatchTeamStat
         fields = ['id', 'match', 'team', 'team_name',
                   'possession_percent', 'shots', 'shots_on_target',
-                  'corners', 'fouls', 'offsides', 'saves']
+                  'corners', 'fouls', 'offsides', 'saves',
+                  'free_kicks', 'passes', 'passes_completed',
+                  'crosses', 'interceptions', 'tackles']
         read_only_fields = ['id']
 
 

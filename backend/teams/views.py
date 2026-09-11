@@ -260,6 +260,16 @@ class TeamViewSet(viewsets.ModelViewSet):
                     tactics['pressing'] = 'تهاجمی'
 
             players_data = request.data.get('players', [])
+            if isinstance(players_data, list):
+                standardized = []
+                for idx, item in enumerate(players_data):
+                    if isinstance(item, dict):
+                        p_dict = dict(item)
+                        if 'order' not in p_dict:
+                            p_dict['order'] = idx
+                        standardized.append(p_dict)
+                players_data = standardized
+
             preset_name = request.data.get('preset_name') or tactics.get('preset_name', '')
             has_custom_player_edits = request.data.get('has_custom_player_edits', False) or tactics.get('has_custom_player_edits', False)
             

@@ -567,14 +567,14 @@ export default function LiveStreamTab({
   const homeStatsObj = useMemo(() => {
     const sList = matchTelemetryStats.length > 0 ? matchTelemetryStats : (activeMatch?.team_stats || []);
     return sList.find(s => s.team === activeMatch?.home_team) || {
-      possession_percent: 50, shots: 0, shots_on_target: 0, fouls: 0, corners: 0, offsides: 0, saves: 0
+      possession_percent: 50, shots: 0, shots_on_target: 0, fouls: 0, offsides: 0, corners: 0, free_kicks: 0, passes: 0, passes_completed: 0, crosses: 0, interceptions: 0, tackles: 0, saves: 0
     };
   }, [matchTelemetryStats, activeMatch?.team_stats, activeMatch?.home_team]);
 
   const awayStatsObj = useMemo(() => {
     const sList = matchTelemetryStats.length > 0 ? matchTelemetryStats : (activeMatch?.team_stats || []);
     return sList.find(s => s.team === activeMatch?.away_team) || {
-      possession_percent: 50, shots: 0, shots_on_target: 0, fouls: 0, corners: 0, offsides: 0, saves: 0
+      possession_percent: 50, shots: 0, shots_on_target: 0, fouls: 0, offsides: 0, corners: 0, free_kicks: 0, passes: 0, passes_completed: 0, crosses: 0, interceptions: 0, tackles: 0, saves: 0
     };
   }, [matchTelemetryStats, activeMatch?.team_stats, activeMatch?.away_team]);
 
@@ -1223,18 +1223,23 @@ export default function LiveStreamTab({
             </div>
           </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Stats Grid (PES 2021) */}
+          <div className="grid grid-cols-2 gap-2.5">
             {[
-              { label: 'شوت در چارچوب', h: homeStatsObj.shots_on_target, a: awayStatsObj.shots_on_target },
-              { label: 'کل شوت‌ها', h: homeStatsObj.shots, a: awayStatsObj.shots },
-              { label: 'خطاها', h: homeStatsObj.fouls, a: awayStatsObj.fouls },
-              { label: 'کرنرها', h: homeStatsObj.corners, a: awayStatsObj.corners },
+              { label: 'شوت (در چارچوب)', h: `${homeStatsObj.shots} (${homeStatsObj.shots_on_target})`, a: `${awayStatsObj.shots} (${awayStatsObj.shots_on_target})` },
+              { label: 'خطا (آفساید)', h: `${homeStatsObj.fouls} (${homeStatsObj.offsides})`, a: `${awayStatsObj.fouls} (${awayStatsObj.offsides})` },
+              { label: 'کرنر', h: homeStatsObj.corners, a: awayStatsObj.corners },
+              { label: 'ضربه آزاد', h: homeStatsObj.free_kicks || 0, a: awayStatsObj.free_kicks || 0 },
+              { label: 'پاس (موفق)', h: `${homeStatsObj.passes || 0} (${homeStatsObj.passes_completed || 0})`, a: `${awayStatsObj.passes || 0} (${awayStatsObj.passes_completed || 0})` },
+              { label: 'سانتر', h: homeStatsObj.crosses || 0, a: awayStatsObj.crosses || 0 },
+              { label: 'سد توپ', h: homeStatsObj.interceptions || 0, a: awayStatsObj.interceptions || 0 },
+              { label: 'تکل', h: homeStatsObj.tackles || 0, a: awayStatsObj.tackles || 0 },
+              { label: 'شوت گیری دروازبان', h: homeStatsObj.saves || 0, a: awayStatsObj.saves || 0 },
             ].map((stat, i) => (
-              <div key={i} className="bg-slate-900/50 p-3 rounded-xl border border-slate-800 flex justify-between items-center">
-                <span className="text-cyan-400 font-black">{stat.h}</span>
-                <span className="text-slate-400 text-[10px]">{stat.label}</span>
-                <span className="text-purple-400 font-black">{stat.a}</span>
+              <div key={i} className="bg-slate-900/50 p-2.5 rounded-xl border border-slate-800 flex justify-between items-center">
+                <span className="text-cyan-400 font-sport font-black text-xs">{stat.h}</span>
+                <span className="text-slate-300 text-[10.5px] font-bold">{stat.label}</span>
+                <span className="text-purple-400 font-sport font-black text-xs">{stat.a}</span>
               </div>
             ))}
           </div>

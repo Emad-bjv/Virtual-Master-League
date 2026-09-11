@@ -364,6 +364,12 @@ class MatchTeamStat(models.Model):
     corners = models.PositiveIntegerField(default=0, verbose_name="کرنر")
     fouls = models.PositiveIntegerField(default=0, verbose_name="خطا")
     offsides = models.PositiveIntegerField(default=0, verbose_name="آفساید")
+    free_kicks = models.PositiveIntegerField(default=0, verbose_name="ضربه آزاد")
+    passes = models.PositiveIntegerField(default=0, verbose_name="پاس کل")
+    passes_completed = models.PositiveIntegerField(default=0, verbose_name="پاس موفق")
+    crosses = models.PositiveIntegerField(default=0, verbose_name="سانتر")
+    interceptions = models.PositiveIntegerField(default=0, verbose_name="سد توپ")
+    tackles = models.PositiveIntegerField(default=0, verbose_name="تکل")
     saves = models.PositiveIntegerField(default=0, verbose_name="مهارها (سیو دروازه‌بان)")
 
     class Meta:

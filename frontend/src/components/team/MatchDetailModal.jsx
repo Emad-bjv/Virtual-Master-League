@@ -126,30 +126,46 @@ export default function MatchDetailModal({ matchId, onClose }) {
                         <span className="font-bold text-amber-400 block mb-1">
                           تیم {stat.team_name}
                         </span>
-                        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 text-center text-[11px]">
-                          <div className="bg-slate-950 p-2 rounded-xl">
-                            <span className="text-slate-400 block text-[10px]">مالکیت</span>
-                            <span className="font-bold text-white">{stat.possession_percent}%</span>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-[11px]">
+                          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800/60">
+                            <span className="text-slate-400 block text-[10px]">مالکیت بازی</span>
+                            <span className="font-bold text-cyan-400 font-sport">{stat.possession_percent}%</span>
                           </div>
-                          <div className="bg-slate-950 p-2 rounded-xl">
-                            <span className="text-slate-400 block text-[10px]">شوت</span>
-                            <span className="font-bold text-white">{stat.shots}</span>
+                          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800/60">
+                            <span className="text-slate-400 block text-[10px]">شوت (در چارچوب)</span>
+                            <span className="font-bold text-white font-sport">{stat.shots} ({stat.shots_on_target})</span>
                           </div>
-                          <div className="bg-slate-950 p-2 rounded-xl">
-                            <span className="text-slate-400 block text-[10px]">در چارچوب</span>
-                            <span className="font-bold text-white">{stat.shots_on_target}</span>
+                          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800/60">
+                            <span className="text-slate-400 block text-[10px]">خطا (آفساید)</span>
+                            <span className="font-bold text-white font-sport">{stat.fouls} ({stat.offsides})</span>
                           </div>
-                          <div className="bg-slate-950 p-2 rounded-xl">
+                          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800/60">
                             <span className="text-slate-400 block text-[10px]">کرنر</span>
-                            <span className="font-bold text-white">{stat.corners}</span>
+                            <span className="font-bold text-white font-sport">{stat.corners}</span>
                           </div>
-                          <div className="bg-slate-950 p-2 rounded-xl">
-                            <span className="text-slate-400 block text-[10px]">خطا</span>
-                            <span className="font-bold text-white">{stat.fouls}</span>
+                          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800/60">
+                            <span className="text-slate-400 block text-[10px]">ضربه آزاد</span>
+                            <span className="font-bold text-white font-sport">{stat.free_kicks || 0}</span>
                           </div>
-                          <div className="bg-slate-950 p-2 rounded-xl">
-                            <span className="text-slate-400 block text-[10px]">آفساید</span>
-                            <span className="font-bold text-white">{stat.offsides}</span>
+                          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800/60">
+                            <span className="text-slate-400 block text-[10px]">پاس (موفق)</span>
+                            <span className="font-bold text-white font-sport">{stat.passes || 0} ({stat.passes_completed || 0})</span>
+                          </div>
+                          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800/60">
+                            <span className="text-slate-400 block text-[10px]">سانتر</span>
+                            <span className="font-bold text-white font-sport">{stat.crosses || 0}</span>
+                          </div>
+                          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800/60">
+                            <span className="text-slate-400 block text-[10px]">سد توپ</span>
+                            <span className="font-bold text-white font-sport">{stat.interceptions || 0}</span>
+                          </div>
+                          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800/60">
+                            <span className="text-slate-400 block text-[10px]">تکل</span>
+                            <span className="font-bold text-white font-sport">{stat.tackles || 0}</span>
+                          </div>
+                          <div className="bg-slate-950 p-2 rounded-xl border border-slate-800/60">
+                            <span className="text-slate-400 block text-[10px]">شوت گیری دروازبان</span>
+                            <span className="font-bold text-white font-sport">{stat.saves || 0}</span>
                           </div>
                         </div>
                       </div>

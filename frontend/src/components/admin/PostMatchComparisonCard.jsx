@@ -39,8 +39,14 @@ export default function PostMatchComparisonCard({
     shots: 0,
     shots_on_target: 0,
     fouls: 0,
-    corners: 0,
     offsides: 0,
+    corners: 0,
+    free_kicks: 0,
+    passes: 0,
+    passes_completed: 0,
+    crosses: 0,
+    interceptions: 0,
+    tackles: 0,
     saves: 0,
   };
 
@@ -49,8 +55,14 @@ export default function PostMatchComparisonCard({
     shots: 0,
     shots_on_target: 0,
     fouls: 0,
-    corners: 0,
     offsides: 0,
+    corners: 0,
+    free_kicks: 0,
+    passes: 0,
+    passes_completed: 0,
+    crosses: 0,
+    interceptions: 0,
+    tackles: 0,
     saves: 0,
   };
 
@@ -110,15 +122,18 @@ export default function PostMatchComparisonCard({
 
   const motmPlayer = allRatedPlayers[0] || null;
 
-  // Stat definitions for comparative bars
+  // Stat definitions for comparative bars (PES 2021 Exact 10 Metrics)
   const STAT_METRICS = [
-    { key: 'possession_percent', label: 'درصد مالکیت توپ', unit: '٪', isPercent: true },
-    { key: 'shots', label: 'کل شوت‌ها', unit: '' },
-    { key: 'shots_on_target', label: 'شوت در چارچوب', unit: '' },
-    { key: 'corners', label: 'کرنرها', unit: '' },
-    { key: 'fouls', label: 'خطاها', unit: '' },
-    { key: 'offsides', label: 'آفسایدها', unit: '' },
-    { key: 'saves', label: 'مهار دروازه‌بان (Saves)', unit: '' },
+    { key: 'possession_percent', label: 'مالکیت بازی', unit: '٪', isPercent: true },
+    { key: 'shots', subKey: 'shots_on_target', label: 'شوت زده (در چارچوب)', isDual: true },
+    { key: 'fouls', subKey: 'offsides', label: 'خطا (آفساید)', isDual: true },
+    { key: 'corners', label: 'کرنر', unit: '' },
+    { key: 'free_kicks', label: 'ضربه آزاد', unit: '' },
+    { key: 'passes', subKey: 'passes_completed', label: 'پاس (موفق)', isDual: true },
+    { key: 'crosses', label: 'سانتر', unit: '' },
+    { key: 'interceptions', label: 'سد توپ', unit: '' },
+    { key: 'tackles', label: 'تکل', unit: '' },
+    { key: 'saves', label: 'شوت گیری دروازبان', unit: '' },
   ];
 
   return (
@@ -264,9 +279,12 @@ export default function PostMatchComparisonCard({
         </div>
 
         <div className="space-y-3.5 pt-1">
-          {STAT_METRICS.map(({ key, label, unit, isPercent }) => {
+          {STAT_METRICS.map(({ key, subKey, label, unit, isPercent, isDual }) => {
             const hVal = Number(homeStatsObj[key]) || 0;
             const aVal = Number(awayStatsObj[key]) || 0;
+            const hSub = subKey ? (Number(homeStatsObj[subKey]) || 0) : null;
+            const aSub = subKey ? (Number(awayStatsObj[subKey]) || 0) : null;
+
             const total = isPercent ? 100 : (hVal + aVal === 0 ? 1 : hVal + aVal);
             const homePercent = isPercent ? hVal : Math.round((hVal / total) * 100);
             const awayPercent = isPercent ? aVal : Math.round((aVal / total) * 100);
@@ -274,12 +292,15 @@ export default function PostMatchComparisonCard({
             const isHomeDominant = hVal > aVal;
             const isAwayDominant = aVal > hVal;
 
+            const homeDisplay = isDual ? `${hVal} (${hSub})` : `${hVal}${unit ? ' ' + unit : ''}`;
+            const awayDisplay = isDual ? `${aVal} (${aSub})` : `${aVal}${unit ? ' ' + unit : ''}`;
+
             return (
               <div key={key} className="space-y-1 text-xs">
                 <div className="flex justify-between items-center">
                   {/* Home Value */}
                   <span className={`font-sport font-black text-xs ${isHomeDominant ? 'text-cyan-300 font-bold' : 'text-slate-400'}`}>
-                    {hVal} {unit}
+                    {homeDisplay}
                   </span>
 
                   {/* Metric Label */}
@@ -287,7 +308,7 @@ export default function PostMatchComparisonCard({
 
                   {/* Away Value */}
                   <span className={`font-sport font-black text-xs ${isAwayDominant ? 'text-rose-300 font-bold' : 'text-slate-400'}`}>
-                    {aVal} {unit}
+                    {awayDisplay}
                   </span>
                 </div>
 

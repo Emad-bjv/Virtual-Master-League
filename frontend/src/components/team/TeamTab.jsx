@@ -204,13 +204,13 @@ export default function TeamTab({
         // Load coach's permanent player lineup if available
         if (Array.isArray(gp.players_data) && gp.players_data.length > 0) {
           const playersDataMap = new Map();
-          gp.players_data.forEach((item) => {
+          gp.players_data.forEach((item, index) => {
             const pid = item.player_id || item.id;
-            if (pid) playersDataMap.set(String(pid), item);
+            if (pid) playersDataMap.set(String(pid), { ...item, _order: item.order !== undefined ? Number(item.order) : index });
           });
 
-          setPlayers((prev) =>
-            (prev || []).map((p) => {
+          setPlayers((prev) => {
+            const updated = (prev || []).map((p) => {
               const custom = playersDataMap.get(String(p.id));
               if (custom) {
                 return {
@@ -220,11 +220,20 @@ export default function TeamTab({
                   y_coord: custom.y_coord != null ? custom.y_coord : p.y_coord,
                   tacticalPosition: custom.position || null,
                   position: custom.position || p.position,
+                  _order: custom._order,
                 };
               }
-              return p;
-            })
-          );
+              return { ...p, _order: 1000 - (Number(p.overall) || 75) };
+            });
+
+            updated.sort((a, b) => {
+              if (a.is_starting !== b.is_starting) {
+                return a.is_starting ? -1 : 1;
+              }
+              return (a._order ?? 999) - (b._order ?? 999);
+            });
+            return updated;
+          });
         }
       }
     }).catch(() => {});
@@ -287,13 +296,13 @@ export default function TeamTab({
         // If this match has custom or inherited standing lineup data, apply it to the workbench
         if (Array.isArray(gp.players_data) && gp.players_data.length > 0) {
           const playersDataMap = new Map();
-          gp.players_data.forEach((item) => {
+          gp.players_data.forEach((item, index) => {
             const pid = item.player_id || item.id;
-            if (pid) playersDataMap.set(String(pid), item);
+            if (pid) playersDataMap.set(String(pid), { ...item, _order: item.order !== undefined ? Number(item.order) : index });
           });
 
-          setPlayers((prev) =>
-            prev.map((p) => {
+          setPlayers((prev) => {
+            const updated = (prev || []).map((p) => {
               const custom = playersDataMap.get(String(p.id));
               if (custom) {
                 return {
@@ -303,11 +312,20 @@ export default function TeamTab({
                   y_coord: custom.y_coord != null ? custom.y_coord : p.y_coord,
                   tacticalPosition: custom.position || null,
                   position: custom.position || p.position,
+                  _order: custom._order,
                 };
               }
-              return p;
-            })
-          );
+              return { ...p, _order: 1000 - (Number(p.overall) || 75) };
+            });
+
+            updated.sort((a, b) => {
+              if (a.is_starting !== b.is_starting) {
+                return a.is_starting ? -1 : 1;
+              }
+              return (a._order ?? 999) - (b._order ?? 999);
+            });
+            return updated;
+          });
         }
       }
     }).catch(() => {});
@@ -461,12 +479,14 @@ export default function TeamTab({
           has_custom_player_edits: hasCustomPlayerEdits,
           ...tactics,
         },
-        players: players.map((p) => ({
+        players: players.map((p, idx) => ({
           player_id: parseInt(p.id, 10),
           x_coord: p.x_coord,
           y_coord: p.y_coord,
           position: p.tacticalPosition || p.position,
-          is_starting: p.is_starting ?? true,
+          is_starting: Boolean(p.is_starting),
+          is_substitute: !p.is_starting && idx < 22,
+          order: idx,
         })),
         match_id: targetMatchId,
       };
@@ -575,10 +595,10 @@ export default function TeamTab({
     const rawList = (contextPlayers && contextPlayers.length > 0) ? contextPlayers : (initialPlayers || []);
     if (rawList && rawList.length > 0) {
       setPlayers((prev) => {
-        const prevMap = new Map((prev || []).map((p) => [String(p.id), p]));
+        const prevMap = new Map((prev || []).map((p, i) => [String(p.id), { ...p, prevIndex: i }]));
         const hasPrev = prev && prev.length > 0;
 
-        // Map players preserving existing custom positions and starters if already set
+        // Map players preserving existing custom positions, starters and order if already set
         const mapped = rawList.map((p, idx) => {
           const existing = prevMap.get(String(p.id));
           return {
@@ -599,6 +619,7 @@ export default function TeamTab({
             consecutive_games: 0,
             base_stamina: 100,
             position_group: p.position_group || 'CMF',
+            _order: existing?.prevIndex ?? p._order ?? (1000 - (Number(p.overall) || 75)),
           };
         });
 
@@ -606,6 +627,15 @@ export default function TeamTab({
         const isPlayerIneligibleStarter = (p) => Boolean(
           (p?.suspension_matches > 0) || p?.is_suspended || p?.isSuspended || p?.is_injured || (p?.injury_matches > 0)
         );
+
+        // Sort by starters first, then by _order
+        mapped.sort((a, b) => {
+          if (a.is_starting !== b.is_starting) {
+            return a.is_starting ? -1 : 1;
+          }
+          return (a._order ?? 999) - (b._order ?? 999);
+        });
+
         let starters = mapped.filter((p) => p.is_starting && !isPlayerIneligibleStarter(p));
         let nonStarters = mapped.filter((p) => !p.is_starting || isPlayerIneligibleStarter(p)).map((p) => isPlayerIneligibleStarter(p) ? { ...p, is_starting: false } : p);
 
@@ -631,12 +661,14 @@ export default function TeamTab({
     setSaving(true);
     setSaveMessage('');
     try {
-      const payload = players.map((p) => ({
+      const payload = players.map((p, idx) => ({
         player_id: parseInt(p.id, 10),
         x_coord: p.x_coord,
         y_coord: p.y_coord,
         position: p.tacticalPosition || p.position,
-        is_starting: p.is_starting ?? true,
+        is_starting: Boolean(p.is_starting),
+        is_substitute: !p.is_starting && idx < 22,
+        order: idx,
       }));
       await teamApi.updateGameplan(teamId, payload);
       setSaveMessage('ترکیب و تاکتیک‌ها در دیتابیس سرور ذخیره شد!');
@@ -858,9 +890,13 @@ export default function TeamTab({
                   nonStarting = nonStarting.map((p) => promotedIds.has(p.id) ? { ...p, is_starting: true } : p).filter((p) => !promotedIds.has(p.id));
                 }
 
+                const benchSubs = nonStarting.slice(0, 11);
+                const benchRes = nonStarting.slice(11);
+                const benchKey = benchSubs.map((p) => p.id).join('-');
+
                 return (
                   <EFootballGamePlan 
-                    key={`gameplan-${teamId}-${selectedMatch?.id || 'default'}-${selectedFormation}-${presetName || 'custom'}-${starters.map(p => `${p.id}_${p.tacticalPosition || p.position}`).join('-')}`}
+                    key={`gameplan-${teamId}-${selectedMatch?.id || 'default'}-${selectedFormation}-${presetName || 'custom'}-${starters.map(p => `${p.id}_${p.tacticalPosition || p.position}`).join('-')}-subs_${benchKey}`}
                     teamName={teamData?.name || "بدون تیم"} 
                     formation={selectedFormation} 
                     onFormationChange={setSelectedFormation}
@@ -868,30 +904,33 @@ export default function TeamTab({
                       if (newForm) setSelectedFormation(newForm);
                       if (presetName) setHasCustomPlayerEdits(true);
                       const updatedPlayers = [
-                        ...newXi.map((p) => ({
+                        ...newXi.map((p, i) => ({
                           ...p,
                           position: p.naturalPosition || p.position,
                           tacticalPosition: p.position,
                           is_starting: true,
+                          _order: i,
                         })),
-                        ...newSubs.map((p) => ({
+                        ...newSubs.map((p, i) => ({
                           ...p,
                           position: p.naturalPosition || p.position,
                           tacticalPosition: null,
                           is_starting: false,
+                          _order: 11 + i,
                         })),
-                        ...newRes.map((p) => ({
+                        ...newRes.map((p, i) => ({
                           ...p,
                           position: p.naturalPosition || p.position,
                           tacticalPosition: null,
                           is_starting: false,
+                          _order: 22 + i,
                         })),
                       ];
                       setPlayers(updatedPlayers);
                     }}
                     initialStartingXi={starters}
-                    initialSubstitutes={nonStarting.slice(0, 11)}
-                    initialReserves={nonStarting.slice(11)}
+                    initialSubstitutes={benchSubs}
+                    initialReserves={benchRes}
                   />
                 );
               })()}

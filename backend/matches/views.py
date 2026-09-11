@@ -588,13 +588,19 @@ class SubmitTeamStatsView(APIView):
         stat, created = MatchTeamStat.objects.update_or_create(
             match=match, team=team,
             defaults={
-                'possession_percent': request.data.get('possession_percent', 50),
-                'shots': request.data.get('shots', 0),
-                'shots_on_target': request.data.get('shots_on_target', 0),
-                'corners': request.data.get('corners', 0),
-                'fouls': request.data.get('fouls', 0),
-                'offsides': request.data.get('offsides', 0),
-                'saves': request.data.get('saves', 0),
+                'possession_percent': int(request.data.get('possession_percent', 50) or 50),
+                'shots': int(request.data.get('shots', 0) or 0),
+                'shots_on_target': int(request.data.get('shots_on_target', 0) or 0),
+                'corners': int(request.data.get('corners', 0) or 0),
+                'fouls': int(request.data.get('fouls', 0) or 0),
+                'offsides': int(request.data.get('offsides', 0) or 0),
+                'saves': int(request.data.get('saves', 0) or 0),
+                'free_kicks': int(request.data.get('free_kicks', 0) or 0),
+                'passes': int(request.data.get('passes', 0) or 0),
+                'passes_completed': int(request.data.get('passes_completed', 0) or 0),
+                'crosses': int(request.data.get('crosses', 0) or 0),
+                'interceptions': int(request.data.get('interceptions', 0) or 0),
+                'tackles': int(request.data.get('tackles', 0) or 0),
             }
         )
 
@@ -1745,13 +1751,19 @@ class AdminMatchControlRoomView(APIView):
                 MatchTeamStat.objects.update_or_create(
                     match=match, team=match.home_team,
                     defaults={
-                        'possession_percent': home_data.get('possession_percent', 50),
-                        'shots': home_data.get('shots', 0),
-                        'shots_on_target': home_data.get('shots_on_target', 0),
-                        'corners': home_data.get('corners', 0),
-                        'fouls': home_data.get('fouls', 0),
-                        'offsides': home_data.get('offsides', 0),
-                        'saves': home_data.get('saves', 0),
+                        'possession_percent': int(home_data.get('possession_percent', 50) or 50),
+                        'shots': int(home_data.get('shots', 0) or 0),
+                        'shots_on_target': int(home_data.get('shots_on_target', 0) or 0),
+                        'corners': int(home_data.get('corners', 0) or 0),
+                        'fouls': int(home_data.get('fouls', 0) or 0),
+                        'offsides': int(home_data.get('offsides', 0) or 0),
+                        'saves': int(home_data.get('saves', 0) or 0),
+                        'free_kicks': int(home_data.get('free_kicks', 0) or 0),
+                        'passes': int(home_data.get('passes', 0) or 0),
+                        'passes_completed': int(home_data.get('passes_completed', 0) or 0),
+                        'crosses': int(home_data.get('crosses', 0) or 0),
+                        'interceptions': int(home_data.get('interceptions', 0) or 0),
+                        'tackles': int(home_data.get('tackles', 0) or 0),
                     }
                 )
 
@@ -1759,13 +1771,19 @@ class AdminMatchControlRoomView(APIView):
                 MatchTeamStat.objects.update_or_create(
                     match=match, team=match.away_team,
                     defaults={
-                        'possession_percent': away_data.get('possession_percent', 50),
-                        'shots': away_data.get('shots', 0),
-                        'shots_on_target': away_data.get('shots_on_target', 0),
-                        'corners': away_data.get('corners', 0),
-                        'fouls': away_data.get('fouls', 0),
-                        'offsides': away_data.get('offsides', 0),
-                        'saves': away_data.get('saves', 0),
+                        'possession_percent': int(away_data.get('possession_percent', 50) or 50),
+                        'shots': int(away_data.get('shots', 0) or 0),
+                        'shots_on_target': int(away_data.get('shots_on_target', 0) or 0),
+                        'corners': int(away_data.get('corners', 0) or 0),
+                        'fouls': int(away_data.get('fouls', 0) or 0),
+                        'offsides': int(away_data.get('offsides', 0) or 0),
+                        'saves': int(away_data.get('saves', 0) or 0),
+                        'free_kicks': int(away_data.get('free_kicks', 0) or 0),
+                        'passes': int(away_data.get('passes', 0) or 0),
+                        'passes_completed': int(away_data.get('passes_completed', 0) or 0),
+                        'crosses': int(away_data.get('crosses', 0) or 0),
+                        'interceptions': int(away_data.get('interceptions', 0) or 0),
+                        'tackles': int(away_data.get('tackles', 0) or 0),
                     }
                 )
 
