@@ -5,6 +5,9 @@ from .views import (
     QuickLoginView,
     CoachPasswordLoginView,
     AdminUserListView,
+    AdminManagementView,
+    AdminDetailManagementView,
+    AdminCandidatesView,
 )
 
 urlpatterns = [
@@ -13,4 +16,7 @@ urlpatterns = [
     path('me/', UserProfileView.as_view(), name='user-me'),
     path('leaderboard/', LeaderboardView.as_view(), name='user-leaderboard'),
     path('admin/users/', AdminUserListView.as_view(), name='admin-users-list'),
+    path('admins/', AdminManagementView.as_view(), name='admin-management-list-create'),
+    path('admins/<int:pk>/', AdminDetailManagementView.as_view(), name='admin-management-detail'),
+    path('admins/candidates/', AdminCandidatesView.as_view(), name='admin-management-candidates'),
 ]

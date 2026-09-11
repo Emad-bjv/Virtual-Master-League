@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
+import users.views as users_views
 
 router = DefaultRouter()
 
@@ -49,6 +50,9 @@ urlpatterns = [
     path('system-settings/', views.AdminSystemSettingsView.as_view(), name='admin-system-settings'),
     path('reset/<str:action>/', views.AdminResetActionView.as_view(), name='admin-reset-action-slug'),
     path('reset/', views.AdminResetActionView.as_view(), name='admin-reset-action'),
+    path('admins/candidates/', users_views.AdminCandidatesView.as_view(), name='admin-api-candidates'),
+    path('admins/<int:pk>/', users_views.AdminDetailManagementView.as_view(), name='admin-api-admins-detail'),
+    path('admins/', users_views.AdminManagementView.as_view(), name='admin-api-admins'),
     path('', include(router.urls)),
 ]
 

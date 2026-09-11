@@ -74,7 +74,30 @@ TransferListingAdminViewSet = create_admin_viewset(tr_models.TransferListing, s.
 TransferBidAdminViewSet = create_admin_viewset(tr_models.TransferBid, s.TransferBidSerializer)
 TransferHistoryAdminViewSet = create_admin_viewset(tr_models.TransferHistory, s.TransferHistorySerializer)
 
-TeamAdminViewSet = create_admin_viewset(t_models.Team, s.TeamSerializer)
+class TeamAdminViewSet(AdminModelViewSet):
+    queryset = t_models.Team.objects.all()
+    serializer_class = s.TeamSerializer
+
+    def update(self, request, *args, **kwargs):
+        data = request.data
+        if any(k in data for k in ['budget', 'gems', 'wage_cap']):
+            if not request.user.has_admin_perm('sensitive_club_finances_manage'):
+                return Response(
+                    {'error': 'شما مجوز تغییر مستقیم بودجه، جم یا سقف دستمزد باشگاه‌ها را ندارید.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        data = request.data
+        if any(k in data for k in ['budget', 'gems', 'wage_cap']):
+            if not request.user.has_admin_perm('sensitive_club_finances_manage'):
+                return Response(
+                    {'error': 'شما مجوز تغییر مستقیم بودجه، جم یا سقف دستمزد باشگاه‌ها را ندارید.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        return super().partial_update(request, *args, **kwargs)
+
 ClubFacilitiesAdminViewSet = create_admin_viewset(t_models.ClubFacilities, s.ClubFacilitiesSerializer)
 
 
@@ -347,10 +370,14 @@ class AdminResetActionView(APIView):
     permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
 
     def post(self, request, action=None):
-        is_super = request.user.is_superuser or getattr(request.user, 'role', '') == 'superadmin'
-        if not is_super:
+        can_reset = (
+            request.user.is_superuser or
+            getattr(request.user, 'role', '') == 'superadmin' or
+            request.user.has_admin_perm('sensitive_system_settings_reset')
+        )
+        if not can_reset:
             return Response(
-                {'detail': 'تنها مدیر ارشد سامانه (SuperAdmin) مجاز به اجرای عملیات حساس ریست است.'},
+                {'detail': 'تنها مدیر ارشد سامانه یا دارندگان مجوز ریست مجاز به اجرای عملیات حساس ریست هستند.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 

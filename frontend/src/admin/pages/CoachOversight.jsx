@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { Lock } from 'lucide-react';
 import api from '../../services/api';
 import Tooltip from '../components/Tooltip';
 import Modal from '../components/Modal';
 import { useToast } from '../components/Toast';
 import PlayerManagementModal from '../components/PlayerManagementModal';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
+import { hasAdminPermission } from '../../utils/adminPermissions';
 
 const CoachOversight = () => {
   const [teams, setTeams] = useState([]);
   const [users, setUsers] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedTeam, setSelectedTeam] = useState(null);
   
@@ -25,7 +28,10 @@ const CoachOversight = () => {
   useEffect(() => {
     fetchTeams();
     fetchUsers();
+    api.get('/users/me/').then((res) => setCurrentUser(res.data)).catch(() => {});
   }, []);
+
+  const canManageFinances = currentUser?.is_superuser || hasAdminPermission(currentUser, 'sensitive_club_finances_manage');
 
   const fetchTeams = async () => {
     setLoading(true);
@@ -85,6 +91,12 @@ const CoachOversight = () => {
       const payload = { ...teamForm };
       if (!payload.manager) delete payload.manager;
       else payload.manager = parseInt(payload.manager);
+
+      if (!canManageFinances) {
+        delete payload.budget;
+        delete payload.gems;
+        delete payload.wage_cap;
+      }
 
       await api.patch(`/admin/teams/${selectedTeam.id}/`, payload);
       showToast(`تیم ${selectedTeam.name} با موفقیت بروزرسانی شد`, 'success');
@@ -307,12 +319,45 @@ const CoachOversight = () => {
               <input type="text" name="logo" className="admin-input" value={teamForm.logo} onChange={handleInputChange} dir="ltr" />
             </div>
             <div>
-              <label className="admin-label">بودجه باشگاه ($ / تومان)</label>
-              <input type="number" name="budget" className="admin-input" value={teamForm.budget} onChange={handleInputChange} required />
+              <label className="admin-label flex items-center justify-between">
+                <span>بودجه باشگاه ($ / تومان)</span>
+                {!canManageFinances && (
+                  <span className="text-amber-400 text-[10px] font-bold flex items-center gap-1">
+                    <Lock size={11} /> قفل دسترسی
+                  </span>
+                )}
+              </label>
+              <input 
+                type="number" 
+                name="budget" 
+                className="admin-input" 
+                value={teamForm.budget} 
+                onChange={handleInputChange} 
+                disabled={!canManageFinances}
+                title={!canManageFinances ? 'تغییر بودجه نیازمند دسترسی حساس مالی است' : ''}
+                required 
+              />
             </div>
             <div>
-              <label className="admin-label">جم باشگاه (💎)</label>
-              <input type="number" name="gems" min="0" className="admin-input" value={teamForm.gems} onChange={handleInputChange} required />
+              <label className="admin-label flex items-center justify-between">
+                <span>جم باشگاه (💎)</span>
+                {!canManageFinances && (
+                  <span className="text-amber-400 text-[10px] font-bold flex items-center gap-1">
+                    <Lock size={11} /> قفل دسترسی
+                  </span>
+                )}
+              </label>
+              <input 
+                type="number" 
+                name="gems" 
+                min="0" 
+                className="admin-input" 
+                value={teamForm.gems} 
+                onChange={handleInputChange} 
+                disabled={!canManageFinances}
+                title={!canManageFinances ? 'تغییر جم نیازمند دسترسی حساس مالی است' : ''}
+                required 
+              />
             </div>
             <div style={{gridColumn: '1 / -1'}}>
               <label className="admin-label">مربی (تخصیص حساب کاربری)</label>

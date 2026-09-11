@@ -560,6 +560,9 @@ class AdminMassRewardView(views.APIView):
         }, status=status.HTTP_200_OK)
 
     def post(self, request):
+        if not request.user.has_admin_perm('sensitive_grant_rewards'):
+            return Response({'error': 'شما مجوز اعطای پاداش و تزریق جم یا بودجه به باشگاه‌ها را ندارید.'}, status=status.HTTP_403_FORBIDDEN)
+
         data = request.data
         title = (data.get('title') or '').strip()
         message = (data.get('message') or '').strip()

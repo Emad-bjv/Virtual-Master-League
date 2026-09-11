@@ -20,6 +20,7 @@ const DynamicCrud = lazy(() => import('./admin/pages/DynamicCrud'));
 const AdminPacks = lazy(() => import('./admin/pages/AdminPacks'));
 const AdminSquadTransfers = lazy(() => import('./admin/pages/AdminSquadTransfers'));
 const AdminPESSkills = lazy(() => import('./admin/pages/AdminPESSkills'));
+const AdminManagement = lazy(() => import('./admin/pages/AdminManagement'));
 
 // Sleek Neon Suspense Loading Fallback
 const PageLoadingFallback = () => (
@@ -60,6 +61,7 @@ function App() {
             <Route path="financial" element={<FinancialControl />} />
             <Route path="settings" element={<SystemSettings />} />
             <Route path="audit" element={<AuditLogs />} />
+            <Route path="admins" element={<AdminManagement />} />
             <Route path="crud/:model" element={<DynamicCrud />} />
           </Route>
         </Routes>

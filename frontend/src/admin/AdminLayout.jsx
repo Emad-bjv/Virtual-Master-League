@@ -5,8 +5,10 @@ import api from '../services/api';
 import { ToastProvider } from './components/Toast';
 import { 
   LayoutDashboard, Radio, Users, Shield, DollarSign, Settings, 
-  FileText, Database, LogOut, ExternalLink, ArrowRight, Newspaper, Gift, ArrowRightLeft, Sparkles, Menu, X 
+  FileText, Database, LogOut, ExternalLink, ArrowRight, Newspaper, Gift, ArrowRightLeft, Sparkles, Menu, X,
+  Key, ShieldCheck
 } from 'lucide-react';
+import { hasAdminPermission } from '../utils/adminPermissions';
 
 const AdminLayoutContent = () => {
   const location = useLocation();
@@ -126,66 +128,97 @@ const AdminLayoutContent = () => {
             <span>داشبورد اصلی</span>
           </Link>
 
-          <Link to="/admin/squad-transfers" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/squad-transfers')}`}>
-            <ArrowRightLeft size={17} className="text-cyan-400" />
-            <span>نقل‌وانتقال و ترکیب تیم‌ها</span>
-          </Link>
+          {(adminUser?.is_superuser || hasAdminPermission(adminUser, 'sensitive_admin_rbac_manage') || hasAdminPermission(adminUser, 'panel_admin_admins')) && (
+            <Link to="/admin/admins" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/admins')}`}>
+              <ShieldCheck size={17} className="text-cyan-400" />
+              <span>مدیریت ادمین‌ها و دسترسی‌ها</span>
+            </Link>
+          )}
 
-          <Link to="/admin/packs" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/packs')}`}>
-            <Gift size={17} className="text-amber-400" />
-            <span>مدیریت پک‌ها و کارت‌ها</span>
-          </Link>
+          {hasAdminPermission(adminUser, 'panel_admin_squad_transfers') && (
+            <Link to="/admin/squad-transfers" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/squad-transfers')}`}>
+              <ArrowRightLeft size={17} className="text-cyan-400" />
+              <span>نقل‌وانتقال و ترکیب تیم‌ها</span>
+            </Link>
+          )}
 
-          <Link to="/admin/pes-skills" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/pes-skills')}`}>
-            <Sparkles size={17} className="text-purple-400" />
-            <span>تقویت مهارت‌های PES</span>
-          </Link>
+          {hasAdminPermission(adminUser, 'panel_admin_packs') && (
+            <Link to="/admin/packs" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/packs')}`}>
+              <Gift size={17} className="text-amber-400" />
+              <span>مدیریت پک‌ها و کارت‌ها</span>
+            </Link>
+          )}
 
-          <Link to="/admin/transfer-reports" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/transfer-reports')}`}>
-            <Newspaper size={17} className="text-cyan-400" />
-            <span>اتاق خبر و نقل‌وانتقالات</span>
-          </Link>
+          {hasAdminPermission(adminUser, 'panel_admin_pes_skills') && (
+            <Link to="/admin/pes-skills" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/pes-skills')}`}>
+              <Sparkles size={17} className="text-purple-400" />
+              <span>تقویت مهارت‌های PES</span>
+            </Link>
+          )}
 
-          <Link to="/admin/live-control" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/live-control')}`}>
-            <Radio size={17} className="text-red-400" />
-            <span>مدیریت پخش زنده و بازی‌ها</span>
-          </Link>
+          {hasAdminPermission(adminUser, 'panel_admin_newsroom') && (
+            <Link to="/admin/transfer-reports" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/transfer-reports')}`}>
+              <Newspaper size={17} className="text-cyan-400" />
+              <span>اتاق خبر و نقل‌وانتقالات</span>
+            </Link>
+          )}
 
-          <Link to="/admin/users" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/users')}`}>
-            <Users size={17} />
-            <span>مدیریت کاربران</span>
-          </Link>
+          {hasAdminPermission(adminUser, 'panel_admin_live_control') && (
+            <Link to="/admin/live-control" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/live-control')}`}>
+              <Radio size={17} className="text-red-400" />
+              <span>مدیریت پخش زنده و بازی‌ها</span>
+            </Link>
+          )}
 
-          <Link to="/admin/coaches" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/coaches')}`}>
-            <Shield size={17} />
-            <span>نظارت بر تیم‌ها و مربیان</span>
-          </Link>
+          {hasAdminPermission(adminUser, 'panel_admin_users') && (
+            <Link to="/admin/users" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/users')}`}>
+              <Users size={17} />
+              <span>مدیریت کاربران</span>
+            </Link>
+          )}
 
-          <Link to="/admin/financial" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/financial')}`}>
-            <DollarSign size={17} />
-            <span>کنترل مالی و تسهیلات</span>
-          </Link>
+          {hasAdminPermission(adminUser, 'panel_admin_coaches') && (
+            <Link to="/admin/coaches" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/coaches')}`}>
+              <Shield size={17} />
+              <span>نظارت بر تیم‌ها و مربیان</span>
+            </Link>
+          )}
 
-          <Link to="/admin/settings" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/settings')}`}>
-            <Settings size={17} />
-            <span>تنظیمات سیستم</span>
-          </Link>
+          {hasAdminPermission(adminUser, 'panel_admin_financial') && (
+            <Link to="/admin/financial" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/financial')}`}>
+              <DollarSign size={17} />
+              <span>کنترل مالی و تسهیلات</span>
+            </Link>
+          )}
 
-          <Link to="/admin/audit" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/audit')}`}>
-            <FileText size={17} />
-            <span>لاگ‌های حسابرسی</span>
-          </Link>
+          {hasAdminPermission(adminUser, 'panel_admin_settings') && (
+            <Link to="/admin/settings" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/settings')}`}>
+              <Settings size={17} />
+              <span>تنظیمات سیستم</span>
+            </Link>
+          )}
+
+          {hasAdminPermission(adminUser, 'panel_admin_audit') && (
+            <Link to="/admin/audit" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/audit')}`}>
+              <FileText size={17} />
+              <span>لاگ‌های حسابرسی</span>
+            </Link>
+          )}
           
-          <div style={{ margin: '1rem 0', borderBottom: '1px solid var(--admin-border)' }}></div>
-          <div style={{ color: 'var(--admin-text-muted)', fontSize: '0.75rem', marginBottom: '0.5rem', paddingRight: '0.5rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Database size={13} />
-            <span>پایگاه داده مستقیم</span>
-          </div>
-          
-          <Link to="/admin/crud/users" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${location.pathname.includes('/crud/users') ? 'active' : ''}`}>کاربران</Link>
-          <Link to="/admin/crud/teams" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${location.pathname.includes('/crud/teams') ? 'active' : ''}`}>تیم‌ها</Link>
-          <Link to="/admin/crud/matches" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${location.pathname.includes('/crud/matches') ? 'active' : ''}`}>مسابقات</Link>
-          <Link to="/admin/crud/gacha-packs" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${location.pathname.includes('/crud/gacha') ? 'active' : ''}`}>بسته‌های شانس</Link>
+          {hasAdminPermission(adminUser, 'panel_admin_database_crud') && (
+            <>
+              <div style={{ margin: '1rem 0', borderBottom: '1px solid var(--admin-border)' }}></div>
+              <div style={{ color: 'var(--admin-text-muted)', fontSize: '0.75rem', marginBottom: '0.5rem', paddingRight: '0.5rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Database size={13} />
+                <span>پایگاه داده مستقیم</span>
+              </div>
+              
+              <Link to="/admin/crud/users" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${location.pathname.includes('/crud/users') ? 'active' : ''}`}>کاربران</Link>
+              <Link to="/admin/crud/teams" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${location.pathname.includes('/crud/teams') ? 'active' : ''}`}>تیم‌ها</Link>
+              <Link to="/admin/crud/matches" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${location.pathname.includes('/crud/matches') ? 'active' : ''}`}>مسابقات</Link>
+              <Link to="/admin/crud/gacha-packs" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${location.pathname.includes('/crud/gacha') ? 'active' : ''}`}>بسته‌های شانس</Link>
+            </>
+          )}
           
           <div style={{flex: 1, minHeight: '1.5rem'}}></div>
 

@@ -23,6 +23,8 @@ import PenaltyShootoutModal from './PenaltyShootoutModal';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import { PACKAGE_TAGS, CUSTOM_TAG_PALETTES, resolveItemTag } from '../../utils/storePackageTags';
 import { useTranslation } from 'react-i18next';
+import AdminManagement from '../../admin/pages/AdminManagement';
+import { hasAdminPermission } from '../../utils/adminPermissions';
 
 const DEFAULT_ADMIN_SUBNAV = [
   { id: 'overview', label: 'داشبورد ارشد' },
@@ -135,6 +137,16 @@ export default function AdminDashboard({
     setAdminMessageType(type);
     setTimeout(() => setAdminMessage(''), 4500);
   };
+
+  const [adminCurrentUser, setAdminCurrentUser] = useState(null);
+
+  useEffect(() => {
+    api.get('/users/me/')
+      .then((res) => setAdminCurrentUser(res.data))
+      .catch(() => {});
+  }, []);
+
+  const canGrantRewards = adminCurrentUser?.is_superuser || hasAdminPermission(adminCurrentUser, 'sensitive_grant_rewards');
 
   // -------------------------------------------------------------
   // 1. GLOBAL SYSTEM DATA (KPIs, Matches, Gameweeks, Teams)
@@ -1981,6 +1993,11 @@ export default function AdminDashboard({
   ];
 
   const handleExecuteMassReward = async () => {
+    if (!canGrantRewards) {
+      showNotification('شما مجوز اعطای پاداش و تزریق جم یا بودجه به باشگاه‌ها را ندارید.', 'error');
+      return;
+    }
+
     const numGems = Math.max(0, parseInt(rewardGems, 10) || 0);
     const numBudget = Math.max(0, parseFloat(rewardBudget) || 0);
 
@@ -2017,20 +2034,40 @@ export default function AdminDashboard({
   };
 
   const adminSubnavItems = useMemo(() => {
-    return [
-      { id: 'overview', label: 'داشبورد ارشد' },
-      { id: 'transactions', label: 'مدیریت واریزی‌ها و تراکنش‌ها', badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : null },
-      { id: 'store_packages', label: 'مدیریت بسته‌های فروشگاه' },
-      { id: 'mass_reward', label: '🎁 پاداش و ایردراپ همگانی' },
-      { id: 'live_admin', label: 'اتاق داوری و کنترل مسابقات' },
-      { id: 'tournament_hub', label: 'مدیریت لیگ و جام حذفی' },
-      { id: 'packs_season_pass', label: 'مدیریت پک‌ها و سیزن پس' },
-      { id: 'match_team_stats', label: 'ثبت سریع آمار تیمی' },
-      { id: 'match_player_ratings', label: 'ثبت سریع نمرات بازیکنان' },
-      { id: 'register_coach', label: 'مدیریت و ثبت مربیان' },
-      { id: 'audit_logs', label: 'گزارش تغییرات سیستم' },
+    const rawItems = [
+      { id: 'overview', label: 'داشبورد ارشد', perm: 'panel_dashboard_overview' },
+      { id: 'transactions', label: 'مدیریت واریزی‌ها و تراکنش‌ها', badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : null, perm: 'panel_dashboard_transactions' },
+      { id: 'store_packages', label: 'مدیریت بسته‌های فروشگاه', perm: 'panel_dashboard_store_packages' },
+      { id: 'mass_reward', label: '🎁 پاداش و ایردراپ همگانی', perm: 'panel_dashboard_airdrop' },
+      { id: 'live_admin', label: 'اتاق داوری و کنترل مسابقات', perm: 'panel_dashboard_live_referee' },
+      { id: 'tournament_hub', label: 'مدیریت لیگ و جام حذفی', perm: 'panel_dashboard_tournaments' },
+      { id: 'packs_season_pass', label: 'مدیریت پک‌ها و سیزن پس', perm: 'panel_dashboard_packs' },
+      { id: 'match_team_stats', label: 'ثبت سریع آمار تیمی', perm: 'panel_dashboard_rapid_stats' },
+      { id: 'match_player_ratings', label: 'ثبت سریع نمرات بازیکنان', perm: 'panel_dashboard_rapid_stats' },
+      { id: 'register_coach', label: 'مدیریت و ثبت مربیان', perm: 'panel_dashboard_coach_registration' },
+      { id: 'audit_logs', label: 'گزارش تغییرات سیستم', perm: 'panel_dashboard_audit_logs' },
     ];
-  }, [pendingPaymentsCount]);
+
+    if (adminCurrentUser?.is_superuser || hasAdminPermission(adminCurrentUser, 'sensitive_admin_rbac_manage') || hasAdminPermission(adminCurrentUser, 'panel_dashboard_admin_management')) {
+      rawItems.push({ id: 'admin_management', label: '👑 مدیریت ادمین‌ها و دسترسی‌ها', perm: 'panel_dashboard_admin_management' });
+    }
+
+    if (!adminCurrentUser) return rawItems;
+
+    return rawItems.filter(item => {
+      if (item.id === 'overview') return true;
+      return hasAdminPermission(adminCurrentUser, item.perm);
+    });
+  }, [pendingPaymentsCount, adminCurrentUser]);
+
+  useEffect(() => {
+    if (adminSubnavItems && adminSubnavItems.length > 0) {
+      const exists = adminSubnavItems.some(it => it.id === activeSub);
+      if (!exists) {
+        setActiveSub(adminSubnavItems[0].id);
+      }
+    }
+  }, [adminSubnavItems, activeSub]);
 
   // -------------------------------------------------------------
   // AUDIT LOGS STATE (SUBTAB 6)
@@ -3365,12 +3402,19 @@ export default function AdminDashboard({
                       ⚠️ با تأیید این عملیات، بلافاصله موجودی کیف پول تمامی تیم‌های فوق شارژ شده، اسناد تراکنش ایجاد گشته و اعلان رسمی به مربیان ارسال می‌شود.
                     </p>
 
+                    {!canGrantRewards && (
+                      <p className="text-[11px] text-rose-400 bg-rose-950/50 p-3 rounded-xl border border-rose-500/40 leading-relaxed font-bold flex items-center gap-2">
+                        <Lock size={15} className="shrink-0" />
+                        <span>شما مجوز اعطای پاداش و تزریق جم یا بودجه به باشگاه‌ها را ندارید (نیازمند مجوز حساس اعطای پاداش).</span>
+                      </p>
+                    )}
+
                     <div className="flex items-center gap-3 pt-2">
                       <button
                         type="button"
-                        disabled={isSubmittingMassReward}
+                        disabled={isSubmittingMassReward || !canGrantRewards}
                         onClick={handleExecuteMassReward}
-                        className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:brightness-110 active:scale-[0.98] text-slate-950 font-black text-sm shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                        className="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:brightness-110 active:scale-[0.98] text-slate-950 font-black text-sm shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         {isSubmittingMassReward ? (
                           <>
@@ -7339,6 +7383,15 @@ export default function AdminDashboard({
               </div>
             )}
           </div>
+        </motion.div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUBTAB: ADMIN MANAGEMENT & RBAC                                           */}
+      {/* ========================================================================= */}
+      {activeSub === 'admin_management' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <AdminManagement isEmbedded={true} currentUser={adminCurrentUser} />
         </motion.div>
       )}
 
