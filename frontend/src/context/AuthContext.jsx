@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { authApi } from '../services/api';
+import { authApi, clearApiCache } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -45,6 +45,7 @@ export function AuthProvider({ children }) {
     const res = await authApi.login(username, password);
     const { access, refresh, user: userData } = res.data;
     localStorage.setItem('vml_token', access);
+    localStorage.setItem('access_token', access);
     if (refresh) {
       localStorage.setItem('vml_refresh_token', refresh);
     }
@@ -60,6 +61,7 @@ export function AuthProvider({ children }) {
     const res = await authApi.quickLogin(role);
     const { access, refresh, user: userData } = res.data;
     localStorage.setItem('vml_token', access);
+    localStorage.setItem('access_token', access);
     if (refresh) {
       localStorage.setItem('vml_refresh_token', refresh);
     }
@@ -82,6 +84,8 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('vml_token');
     localStorage.removeItem('vml_refresh_token');
     localStorage.removeItem('vml_user');
+    localStorage.removeItem('access_token');
+    clearApiCache();
     setToken(null);
     setUser(null);
   };

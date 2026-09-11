@@ -47,7 +47,7 @@ export const cachedGet = async (url, config = {}, ttlMs = 25000) => {
 // Request Interceptor: Attach JWT Bearer token if available
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token') || localStorage.getItem('vml_token');
+    const token = localStorage.getItem('vml_token') || localStorage.getItem('access_token');
     if (token && token !== 'null' && token !== 'undefined') {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -174,7 +174,10 @@ export const economyApi = {
 };
 
 export const gachaApi = {
-  getPacks: () => api.get('/gacha/packs/'),
+  getPacks: (arg) => {
+    const params = typeof arg === 'object' && arg !== null ? arg : (arg ? { team_id: arg } : {});
+    return api.get('/gacha/packs/', { params });
+  },
   openPack: (data) => api.post('/gacha/open/', data),
   pickCard: (data) => api.post('/gacha/pick/', data),
   expireSession: (sessionId) => api.post('/gacha/expire-session/', { session_id: sessionId }),

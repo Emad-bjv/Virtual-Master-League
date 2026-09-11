@@ -117,16 +117,40 @@ class PackSerializer(serializers.ModelSerializer):
 
     def get_loyalty_status(self, obj):
         request = self.context.get('request')
-        if request and request.user.is_authenticated and hasattr(request.user, 'team') and request.user.team:
+        target_team = self.context.get('target_team')
+
+        if not target_team and request and request.user.is_authenticated and hasattr(request.user, 'team') and request.user.team:
+            target_team = request.user.team
+
+        if target_team:
             from .services import get_team_pack_loyalty_status
-            return get_team_pack_loyalty_status(request.user.team, obj)
+            return get_team_pack_loyalty_status(target_team, obj)
+
+        threshold = getattr(obj, 'loyalty_boost_threshold', 3) or 3
+        target_min_ovr = getattr(obj, 'loyalty_min_ovr', 94) or 94
+        mid_step_pct = getattr(obj, 'loyalty_mid_step_pct', 35) or 35
+        top_step_pct = getattr(obj, 'loyalty_step_boost_pct', 15) or 15
+        is_enabled = getattr(obj, 'is_loyalty_boost_enabled', True)
+
+        top_tier_count = obj.players.filter(is_claimed=False, overall__gte=target_min_ovr).count() if obj else 0
+        mid_tier_count = obj.players.filter(is_claimed=False, overall__gte=90, overall__lt=target_min_ovr).count() if obj else 0
+
         return {
             'consecutive_opens': 0,
             'is_loyalty_boost_active': False,
             'is_hard_guaranteed': False,
-            'opens_until_boost': 3,
+            'opens_until_boost': threshold,
+            'mid_multiplier': 1.0,
+            'top_multiplier': 1.0,
             'pity_multiplier': 1.0,
-            'boost_threshold': 3,
+            'boost_threshold': threshold,
+            'is_enabled': is_enabled,
+            'target_min_ovr': target_min_ovr,
+            'mid_step_pct': mid_step_pct,
+            'top_step_pct': top_step_pct,
+            'top_tier_unclaimed_count': top_tier_count,
+            'mid_tier_unclaimed_count': mid_tier_count,
+            'is_top_tier_depleted': (top_tier_count == 0),
         }
 
     def to_internal_value(self, data):

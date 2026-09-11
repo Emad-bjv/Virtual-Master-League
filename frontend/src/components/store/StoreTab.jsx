@@ -238,7 +238,7 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
       .then((res) => setStorePackages(res.data || []))
       .catch(() => setStorePackages([]));
 
-    gachaApi.getPacks()
+    gachaApi.getPacks({ team_id: teamId })
       .then((res) => setGachaPacks(res.data || []))
       .catch(() => setGachaPacks([]));
 
@@ -683,7 +683,7 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
             </div>
             <button
               onClick={() => {
-                gachaApi.getPacks().then((res) => setGachaPacks(res.data || []));
+                gachaApi.getPacks({ team_id: teamId }).then((res) => setGachaPacks(res.data || []));
               }}
               className="text-xs text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 cursor-pointer"
             >
@@ -910,7 +910,7 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
           onPlayerClaimed={() => {
             if (onRefreshTeam) onRefreshTeam();
             if (fetchTeam) fetchTeam(team?.id);
-            gachaApi.getPacks().then((res) => setGachaPacks(res.data || []));
+            gachaApi.getPacks({ team_id: teamId }).then((res) => setGachaPacks(res.data || []));
           }}
         />
       )}

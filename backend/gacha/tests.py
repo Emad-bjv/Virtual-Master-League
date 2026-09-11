@@ -303,3 +303,55 @@ class PackSystemTestCase(TestCase):
         self.assertEqual(target_p.drop_weight, 25)
         self.assertEqual(target_p.get_effective_weight(), 25)
 
+    def test_loyalty_status_isolation_between_teams(self):
+        from rest_framework.test import APIClient
+        from users.models import User
+        from teams.models import Team
+
+        # Create Paris coach and team
+        paris_user = User.objects.create_user(username='coach_paris_iso', password='password123')
+        paris_team = Team.objects.create(name='Paris Isolation Test', manager=paris_user, gems=1000)
+
+        # Create Liverpool coach and team
+        liverpool_user = User.objects.create_user(username='coach_liverpool_iso', password='password123')
+        liverpool_team = Team.objects.create(name='Liverpool Isolation Test', manager=liverpool_user, gems=1000)
+
+        # Give Paris 3 consecutive low card openings
+        for _ in range(3):
+            open_res = open_pack(paris_team.id, self.pack.id, payment_method='GEMS')
+            self.assertTrue(open_res['success'])
+            low_card = [c for c in open_res['cards'] if c['overall'] < 94][0]
+            pick_res = pick_card(open_res['session_id'], low_card['id'], paris_team.id)
+            self.assertTrue(pick_res['success'])
+
+        # Liverpool has opened 0 packs!
+
+        # 1. Test Paris client fetching packs:
+        paris_client = APIClient()
+        paris_client.force_authenticate(user=paris_user)
+        res_paris = paris_client.get('/api/gacha/packs/')
+        self.assertEqual(res_paris.status_code, 200)
+        paris_pack_data = [p for p in res_paris.data if p['id'] == self.pack.id][0]
+        self.assertTrue(paris_pack_data['loyalty_status']['is_hard_guaranteed'])
+        self.assertEqual(paris_pack_data['loyalty_status']['consecutive_opens'], 3)
+        self.assertEqual(paris_pack_data['loyalty_status']['opens_until_boost'], 0)
+
+        # 2. Test Liverpool client fetching packs (with and without team_id param):
+        liverpool_client = APIClient()
+        liverpool_client.force_authenticate(user=liverpool_user)
+
+        res_liv = liverpool_client.get('/api/gacha/packs/')
+        self.assertEqual(res_liv.status_code, 200)
+        liv_pack_data = [p for p in res_liv.data if p['id'] == self.pack.id][0]
+        self.assertFalse(liv_pack_data['loyalty_status']['is_hard_guaranteed'])
+        self.assertFalse(liv_pack_data['loyalty_status']['is_loyalty_boost_active'])
+        self.assertEqual(liv_pack_data['loyalty_status']['consecutive_opens'], 0)
+        self.assertEqual(liv_pack_data['loyalty_status']['opens_until_boost'], 3)
+
+        res_liv_param = liverpool_client.get(f'/api/gacha/packs/?team_id={liverpool_team.id}')
+        self.assertEqual(res_liv_param.status_code, 200)
+        liv_pack_data_param = [p for p in res_liv_param.data if p['id'] == self.pack.id][0]
+        self.assertFalse(liv_pack_data_param['loyalty_status']['is_hard_guaranteed'])
+        self.assertEqual(liv_pack_data_param['loyalty_status']['consecutive_opens'], 0)
+
+

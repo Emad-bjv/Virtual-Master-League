@@ -18,6 +18,26 @@ class PackListView(generics.ListAPIView):
     serializer_class = PackSerializer
     permission_classes = [permissions.AllowAny]
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        team_id = self.request.query_params.get('team_id')
+        target_team = None
+        if team_id:
+            try:
+                from teams.models import Team
+                t = Team.objects.filter(id=int(team_id)).first()
+                if t:
+                    if self.request.user.is_authenticated and (self.request.user.is_staff or self.request.user.is_superuser):
+                        target_team = t
+                    elif self.request.user.is_authenticated and hasattr(self.request.user, 'team') and self.request.user.team and self.request.user.team.id == t.id:
+                        target_team = t
+            except (ValueError, TypeError):
+                pass
+        if not target_team and self.request.user.is_authenticated and hasattr(self.request.user, 'team') and self.request.user.team:
+            target_team = self.request.user.team
+        context['target_team'] = target_team
+        return context
+
     def get_queryset(self):
         # Trigger background expiry of stale sessions when viewing packs
         try:
