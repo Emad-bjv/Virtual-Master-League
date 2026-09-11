@@ -814,9 +814,24 @@ export default function AdminDashboard({
   // -------------------------------------------------------------
   // R5: MATCH TEAM STATS DESK (Home & Away Side-by-Side)
   // -------------------------------------------------------------
+  const DEFAULT_DESK_TEAM_STATS = {
+    possession_percent: 50,
+    shots: 0,
+    shots_on_target: 0,
+    fouls: 0,
+    offsides: 0,
+    corners: 0,
+    free_kicks: 0,
+    passes: 0,
+    passes_completed: 0,
+    crosses: 0,
+    interceptions: 0,
+    tackles: 0,
+    saves: 0,
+  };
   const [deskTeamStats, setDeskTeamStats] = useState({
-    home: { possession_percent: 50, shots: 8, shots_on_target: 4, fouls: 6, corners: 4, offsides: 1, saves: 3 },
-    away: { possession_percent: 50, shots: 7, shots_on_target: 3, fouls: 7, corners: 3, offsides: 2, saves: 4 },
+    home: { ...DEFAULT_DESK_TEAM_STATS },
+    away: { ...DEFAULT_DESK_TEAM_STATS },
   });
   const [savingDeskTeamStats, setSavingDeskTeamStats] = useState(false);
 
@@ -904,8 +919,8 @@ export default function AdminDashboard({
             const hStat = res.data.match.team_stats.find((s) => s.team === res.data.match.home_team || s.team_id === res.data.match.home_team);
             const aStat = res.data.match.team_stats.find((s) => s.team === res.data.match.away_team || s.team_id === res.data.match.away_team);
             setDeskTeamStats({
-              home: hStat ? { ...hStat } : deskTeamStats.home,
-              away: aStat ? { ...aStat } : deskTeamStats.away,
+              home: hStat ? { ...DEFAULT_DESK_TEAM_STATS, ...hStat } : deskTeamStats.home,
+              away: aStat ? { ...DEFAULT_DESK_TEAM_STATS, ...aStat } : deskTeamStats.away,
             });
           }
 
@@ -1365,16 +1380,35 @@ export default function AdminDashboard({
   };
 
   // -------------------------------------------------------------
-  // R5: MATCH TEAM STATS SUBMISSION (DESK TAB 3)
+  // R5: MATCH TEAM STATS SUBMISSION (DESK TAB 3 - PES 2021)
   // -------------------------------------------------------------
   const handleDeskTeamStatsChange = (teamSide, metricKey, value) => {
-    const val = parseInt(value, 10) || 0;
+    if (value === '') {
+      setDeskTeamStats((prev) => ({
+        ...prev,
+        [teamSide]: { ...prev[teamSide], [metricKey]: '' },
+      }));
+      return;
+    }
+    const val = Math.max(0, parseInt(value, 10) || 0);
     setDeskTeamStats((prev) => {
       const updated = { ...prev, [teamSide]: { ...prev[teamSide], [metricKey]: val } };
-      // Linked possession percent calculation
       if (metricKey === 'possession_percent') {
         const otherSide = teamSide === 'home' ? 'away' : 'home';
-        updated[otherSide].possession_percent = Math.max(0, 100 - val);
+        updated[otherSide].possession_percent = Math.min(100, Math.max(0, 100 - val));
+      }
+      return updated;
+    });
+  };
+
+  const handleDeskTeamStatsIncrement = (teamSide, metricKey, delta) => {
+    setDeskTeamStats((prev) => {
+      const cur = Number(prev[teamSide]?.[metricKey] || 0);
+      const nextVal = Math.max(0, cur + delta);
+      const updated = { ...prev, [teamSide]: { ...prev[teamSide], [metricKey]: nextVal } };
+      if (metricKey === 'possession_percent') {
+        const otherSide = teamSide === 'home' ? 'away' : 'home';
+        updated[otherSide].possession_percent = Math.min(100, Math.max(0, 100 - nextVal));
       }
       return updated;
     });
@@ -1387,19 +1421,38 @@ export default function AdminDashboard({
       const homeTeamId = selectedLiveMatch.home_team || selectedLiveMatch.homeId;
       const awayTeamId = selectedLiveMatch.away_team || selectedLiveMatch.awayId;
 
+      const sanitize = (s) => ({
+        possession_percent: Math.min(100, Math.max(0, Number(s?.possession_percent) || 50)),
+        shots: Math.max(0, Number(s?.shots) || 0),
+        shots_on_target: Math.max(0, Number(s?.shots_on_target) || 0),
+        fouls: Math.max(0, Number(s?.fouls) || 0),
+        offsides: Math.max(0, Number(s?.offsides) || 0),
+        corners: Math.max(0, Number(s?.corners) || 0),
+        free_kicks: Math.max(0, Number(s?.free_kicks) || 0),
+        passes: Math.max(0, Number(s?.passes) || 0),
+        passes_completed: Math.max(0, Number(s?.passes_completed) || 0),
+        crosses: Math.max(0, Number(s?.crosses) || 0),
+        interceptions: Math.max(0, Number(s?.interceptions) || 0),
+        tackles: Math.max(0, Number(s?.tackles) || 0),
+        saves: Math.max(0, Number(s?.saves) || 0),
+      });
+
+      const cleanHome = sanitize(deskTeamStats.home);
+      const cleanAway = sanitize(deskTeamStats.away);
+
       // Submit stats for Home and Away teams
       await Promise.all([
         matchApi.submitTeamStats(selectedLiveMatch.id, {
           team_id: homeTeamId,
-          ...deskTeamStats.home,
+          ...cleanHome,
         }),
         matchApi.submitTeamStats(selectedLiveMatch.id, {
           team_id: awayTeamId,
-          ...deskTeamStats.away,
+          ...cleanAway,
         }),
       ]);
 
-      showNotification(`آمار تیمی مسابقه #${selectedLiveMatch.id} با موفقیت در دیتابیس ثبت و ذخیره شد.`);
+      showNotification(`آمار ۱۰ گانه مسابقه #${selectedLiveMatch.id} (PES 2021) با موفقیت ثبت و ذخیره شد.`);
       fetchLiveMatchState(selectedLiveMatch.id);
     } catch (err) {
       showNotification(`خطا در ثبت آمار تیمی: ${err.response?.data?.error || 'مشکل ارتباط با سرور'}`, 'error');
@@ -6574,105 +6627,345 @@ export default function AdminDashboard({
               {/* ------------------------------------------------------------- */}
               {!showPostMatchCardView && refereeDeskTab === 'team_stats' && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 text-xs">
-                  <div className="glass-panel p-5 rounded-3xl border border-amber-500/40 space-y-4">
+                  <div className="glass-panel p-4 sm:p-6 rounded-3xl border border-cyan-500/40 bg-slate-950/80 shadow-2xl space-y-4">
+                    {/* Header */}
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-3">
-                      <div>
-                        <h3 className="font-black text-white text-sm sm:text-base flex items-center gap-2">
-                          <BarChart2 size={18} className="text-amber-400" />
-                          <span>ثبت و تنظیم آمار تیمی مسابقه (Team Telemetry Stats)</span>
-                        </h3>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          آمار فنی دو تیم را تنظیم کنید. درصد مالکیت توپ به صورت خودکار بین میزبان و میهمان همگام می‌شود.
-                        </p>
+                      <div className="flex items-center gap-2">
+                        <span className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                          <BarChart2 size={18} />
+                        </span>
+                        <div>
+                          <h3 className="font-black text-white text-sm sm:text-base flex items-center gap-2">
+                            <span>ثبت آمار مسابقه</span>
+                            <span className="text-[10px] px-2 py-0.5 bg-blue-900/60 text-cyan-300 rounded-lg border border-cyan-500/40 font-sport">
+                              PES 2021
+                            </span>
+                          </h3>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            ورود مستقیم با کیبورد (Tab) • محاسبه خودکار درصد مالکیت • ۱۰ شاخص رسمی
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-3 font-sport text-xs font-bold">
-                        <span className="text-cyan-400">{selectedLiveMatch.home_team_name}</span>
-                        <span className="text-slate-500">مقابل</span>
-                        <span className="text-rose-400">{selectedLiveMatch.away_team_name}</span>
+                      <button
+                        type="button"
+                        onClick={handleSaveDeskTeamStats}
+                        disabled={savingDeskTeamStats}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-black text-xs transition-all flex items-center gap-1.5 shadow-lg active:scale-95 disabled:opacity-50 cursor-pointer"
+                      >
+                        <Send size={14} />
+                        <span>{savingDeskTeamStats ? 'در حال ثبت...' : 'مخابره و ثبت نهایی'}</span>
+                      </button>
+                    </div>
+
+                    {/* Match Scoreboard Banner Mirroring PES End-of-Match Screen */}
+                    <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-900/70 border border-slate-800 text-xs">
+                      <div className="flex items-center gap-2 max-w-[42%] truncate">
+                        <span className="w-3 h-3 rounded-full bg-cyan-400 shrink-0"></span>
+                        <span className="font-black text-sm text-cyan-400 truncate">
+                          {selectedLiveMatch.home_team_name} (میزبان)
+                        </span>
+                      </div>
+                      <span className="font-sport font-black text-xs px-3 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                        اتمام وقت
+                      </span>
+                      <div className="flex items-center gap-2 max-w-[42%] justify-end truncate">
+                        <span className="font-black text-sm text-rose-400 truncate">
+                          {selectedLiveMatch.away_team_name} (میهمان)
+                        </span>
+                        <span className="w-3 h-3 rounded-full bg-rose-400 shrink-0"></span>
                       </div>
                     </div>
 
-                    {/* Side-by-Side Sliders & Steppers */}
-                    <div className="space-y-4 pt-1">
-                      {[
-                        { key: 'possession_percent', label: 'درصد مالکیت توپ', min: 10, max: 90, unit: '٪' },
-                        { key: 'shots', label: 'تعداد کل شوت‌ها', min: 0, max: 40, unit: 'شوت' },
-                        { key: 'shots_on_target', label: 'شوت در چارچوب', min: 0, max: 25, unit: 'شوت' },
-                        { key: 'corners', label: 'کرنرها', min: 0, max: 20, unit: 'کرنر' },
-                        { key: 'fouls', label: 'خطاها', min: 0, max: 30, unit: 'خطا' },
-                        { key: 'offsides', label: 'آفسایدها', min: 0, max: 15, unit: 'مورد' },
-                        { key: 'saves', label: 'مهار دروازه‌بان (Saves)', min: 0, max: 20, unit: 'مهار' },
-                      ].map(({ key, label, min, max, unit }) => {
-                        const hVal = deskTeamStats.home[key] ?? 0;
-                        const aVal = deskTeamStats.away[key] ?? 0;
-
-                        return (
-                          <div key={key} className="p-3 sm:p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-2">
-                            <div className="flex justify-between items-center gap-1 sm:gap-2 text-[11px] sm:text-xs">
-                              {/* Home Side Input */}
-                              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-                                <button
-                                  onClick={() => handleDeskTeamStatsChange('home', key, Math.max(min, hVal - 1))}
-                                  className="p-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 cursor-pointer"
-                                >
-                                  <Minus size={12} />
-                                </button>
-                                <span className="font-mono font-black text-cyan-400 px-1.5 sm:px-2 py-0.5 bg-slate-900 rounded-lg border border-slate-800 text-[10.5px] sm:text-xs">
-                                  {hVal} {unit}
-                                </span>
-                                <button
-                                  onClick={() => handleDeskTeamStatsChange('home', key, Math.min(max, hVal + 1))}
-                                  className="p-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 cursor-pointer"
-                                >
-                                  <Plus size={12} />
-                                </button>
-                              </div>
-
-                              {/* Label */}
-                              <span className="font-bold text-slate-200 text-center px-1 text-[11px] sm:text-xs truncate">{label}</span>
-
-                              {/* Away Side Input */}
-                              <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-                                <button
-                                  onClick={() => handleDeskTeamStatsChange('away', key, Math.max(min, aVal - 1))}
-                                  className="p-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-rose-400 text-slate-300 cursor-pointer"
-                                >
-                                  <Minus size={12} />
-                                </button>
-                                <span className="font-mono font-black text-rose-400 px-1.5 sm:px-2 py-0.5 bg-slate-900 rounded-lg border border-slate-800 text-[10.5px] sm:text-xs">
-                                  {aVal} {unit}
-                                </span>
-                                <button
-                                  onClick={() => handleDeskTeamStatsChange('away', key, Math.min(max, aVal + 1))}
-                                  className="p-1 rounded-lg bg-slate-900 border border-slate-700 hover:border-rose-400 text-slate-300 cursor-pointer"
-                                >
-                                  <Plus size={12} />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Range Slider */}
+                    {/* 10 PES Statistical Rows */}
+                    <div className="space-y-2 text-xs">
+                      {/* 1. Possession */}
+                      <div className="p-3 rounded-2xl bg-slate-900/50 border border-slate-800/80 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          {/* Home Side Input */}
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleDeskTeamStatsIncrement('home', 'possession_percent', -1)}
+                              className="w-6 h-7 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs flex items-center justify-center font-bold cursor-pointer"
+                            >-</button>
                             <input
-                              type="range"
-                              min={min}
-                              max={max}
-                              value={hVal}
-                              onChange={(e) => handleDeskTeamStatsChange('home', key, e.target.value)}
-                              className="w-full accent-amber-500 cursor-pointer h-2 bg-slate-900 rounded-lg"
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={deskTeamStats.home.possession_percent}
+                              onChange={(e) => handleDeskTeamStatsChange('home', 'possession_percent', e.target.value)}
+                              onFocus={(e) => e.target.select()}
+                              className="w-14 h-8 text-center font-sport font-black text-cyan-400 bg-slate-950 border border-cyan-500/40 rounded-xl text-xs sm:text-sm focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 outline-none"
                             />
+                            <span className="text-cyan-400 font-bold text-xs">%</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDeskTeamStatsIncrement('home', 'possession_percent', 1)}
+                              className="w-6 h-7 rounded-lg bg-cyan-700 text-white hover:bg-cyan-600 text-xs flex items-center justify-center font-bold cursor-pointer"
+                            >+</button>
                           </div>
-                        );
-                      })}
+
+                          <span className="text-xs text-slate-200 font-bold select-none text-center">مالکیت بازی</span>
+
+                          {/* Away Side Input */}
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleDeskTeamStatsIncrement('away', 'possession_percent', 1)}
+                              className="w-6 h-7 rounded-lg bg-rose-700 text-white hover:bg-rose-600 text-xs flex items-center justify-center font-bold cursor-pointer"
+                            >+</button>
+                            <span className="text-rose-400 font-bold text-xs">%</span>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={deskTeamStats.away.possession_percent}
+                              onChange={(e) => handleDeskTeamStatsChange('away', 'possession_percent', e.target.value)}
+                              onFocus={(e) => e.target.select()}
+                              className="w-14 h-8 text-center font-sport font-black text-rose-400 bg-slate-950 border border-rose-500/40 rounded-xl text-xs sm:text-sm focus:border-rose-400 focus:ring-1 focus:ring-rose-400 outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleDeskTeamStatsIncrement('away', 'possession_percent', -1)}
+                              className="w-6 h-7 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs flex items-center justify-center font-bold cursor-pointer"
+                            >-</button>
+                          </div>
+                        </div>
+
+                        {/* Dual color progress visual */}
+                        <div className="w-full h-2 bg-rose-950/80 rounded-full overflow-hidden flex border border-slate-800">
+                          <div
+                            className="h-full bg-cyan-400 transition-all duration-300"
+                            style={{ width: `${deskTeamStats.home.possession_percent}%` }}
+                          />
+                          <div
+                            className="h-full bg-rose-500 transition-all duration-300"
+                            style={{ width: `${deskTeamStats.away.possession_percent}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Rows 2 to 10 */}
+                      {[
+                        {
+                          id: 'shots',
+                          label: 'شوت زده (در چارچوب)',
+                          isDual: true,
+                          mainKey: 'shots',
+                          subKey: 'shots_on_target',
+                          mainPlaceholder: 'شوت',
+                          subPlaceholder: 'هدف',
+                        },
+                        {
+                          id: 'fouls',
+                          label: 'خطا (آفساید)',
+                          isDual: true,
+                          mainKey: 'fouls',
+                          subKey: 'offsides',
+                          mainPlaceholder: 'خطا',
+                          subPlaceholder: 'آفساید',
+                        },
+                        {
+                          id: 'corners',
+                          label: 'کرنر',
+                          isDual: false,
+                          key: 'corners',
+                        },
+                        {
+                          id: 'free_kicks',
+                          label: 'ضربه آزاد',
+                          isDual: false,
+                          key: 'free_kicks',
+                        },
+                        {
+                          id: 'passes',
+                          label: 'پاس (موفق)',
+                          isDual: true,
+                          mainKey: 'passes',
+                          subKey: 'passes_completed',
+                          mainPlaceholder: 'پاس',
+                          subPlaceholder: 'موفق',
+                        },
+                        {
+                          id: 'crosses',
+                          label: 'سانتر',
+                          isDual: false,
+                          key: 'crosses',
+                        },
+                        {
+                          id: 'interceptions',
+                          label: 'سد توپ',
+                          isDual: false,
+                          key: 'interceptions',
+                        },
+                        {
+                          id: 'tackles',
+                          label: 'تکل',
+                          isDual: false,
+                          key: 'tackles',
+                        },
+                        {
+                          id: 'saves',
+                          label: 'شوت گیری دروازبان',
+                          isDual: false,
+                          key: 'saves',
+                        },
+                      ].map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between p-2.5 rounded-2xl bg-slate-900/40 border border-slate-800/60 hover:border-slate-700/80 transition-all"
+                        >
+                          {/* Home Side Inputs */}
+                          <div className="flex items-center gap-1.5">
+                            {item.isDual ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeskTeamStatsIncrement('home', item.mainKey, -1)}
+                                  className="w-5 h-7 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 text-[11px] flex items-center justify-center font-bold cursor-pointer"
+                                >-</button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  title={`میزبان: کل ${item.label}`}
+                                  placeholder={item.mainPlaceholder}
+                                  value={deskTeamStats.home[item.mainKey]}
+                                  onChange={(e) => handleDeskTeamStatsChange('home', item.mainKey, e.target.value)}
+                                  onFocus={(e) => e.target.select()}
+                                  className="w-12 sm:w-14 h-8 text-center font-sport font-black text-cyan-400 bg-slate-950 border border-cyan-500/40 rounded-xl text-xs sm:text-sm focus:border-cyan-400 outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeskTeamStatsIncrement('home', item.mainKey, 1)}
+                                  className="w-5 h-7 rounded-lg bg-cyan-800/60 text-cyan-300 hover:bg-cyan-700 text-[11px] flex items-center justify-center font-bold cursor-pointer"
+                                >+</button>
+                                <span className="text-slate-500 font-bold text-xs">(</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  title={`میزبان: ${item.subPlaceholder}`}
+                                  placeholder={item.subPlaceholder}
+                                  value={deskTeamStats.home[item.subKey]}
+                                  onChange={(e) => handleDeskTeamStatsChange('home', item.subKey, e.target.value)}
+                                  onFocus={(e) => e.target.select()}
+                                  className="w-10 sm:w-12 h-8 text-center font-sport font-bold text-cyan-300 bg-slate-950/80 border border-cyan-700/50 rounded-xl text-xs focus:border-cyan-400 outline-none"
+                                />
+                                <span className="text-slate-500 font-bold text-xs">)</span>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeskTeamStatsIncrement('home', item.key, -1)}
+                                  className="w-5 h-7 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 text-[11px] flex items-center justify-center font-bold cursor-pointer"
+                                >-</button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  title={`میزبان: ${item.label}`}
+                                  value={deskTeamStats.home[item.key]}
+                                  onChange={(e) => handleDeskTeamStatsChange('home', item.key, e.target.value)}
+                                  onFocus={(e) => e.target.select()}
+                                  className="w-12 sm:w-14 h-8 text-center font-sport font-black text-cyan-400 bg-slate-950 border border-cyan-500/40 rounded-xl text-xs sm:text-sm focus:border-cyan-400 outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeskTeamStatsIncrement('home', item.key, 1)}
+                                  className="w-5 h-7 rounded-lg bg-cyan-800/60 text-cyan-300 hover:bg-cyan-700 text-[11px] flex items-center justify-center font-bold cursor-pointer"
+                                >+</button>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Center Metric Name */}
+                          <span className="text-[11.5px] sm:text-xs text-slate-200 font-bold select-none text-center px-2 truncate">
+                            {item.label}
+                          </span>
+
+                          {/* Away Side Inputs */}
+                          <div className="flex items-center gap-1.5">
+                            {item.isDual ? (
+                              <>
+                                <span className="text-slate-500 font-bold text-xs">(</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  title={`میهمان: ${item.subPlaceholder}`}
+                                  placeholder={item.subPlaceholder}
+                                  value={deskTeamStats.away[item.subKey]}
+                                  onChange={(e) => handleDeskTeamStatsChange('away', item.subKey, e.target.value)}
+                                  onFocus={(e) => e.target.select()}
+                                  className="w-10 sm:w-12 h-8 text-center font-sport font-bold text-rose-300 bg-slate-950/80 border border-rose-700/50 rounded-xl text-xs focus:border-rose-400 outline-none"
+                                />
+                                <span className="text-slate-500 font-bold text-xs">)</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeskTeamStatsIncrement('away', item.mainKey, 1)}
+                                  className="w-5 h-7 rounded-lg bg-rose-800/60 text-rose-300 hover:bg-rose-700 text-[11px] flex items-center justify-center font-bold cursor-pointer"
+                                >+</button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  title={`میهمان: کل ${item.label}`}
+                                  placeholder={item.mainPlaceholder}
+                                  value={deskTeamStats.away[item.mainKey]}
+                                  onChange={(e) => handleDeskTeamStatsChange('away', item.mainKey, e.target.value)}
+                                  onFocus={(e) => e.target.select()}
+                                  className="w-12 sm:w-14 h-8 text-center font-sport font-black text-rose-400 bg-slate-950 border border-rose-500/40 rounded-xl text-xs sm:text-sm focus:border-rose-400 outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeskTeamStatsIncrement('away', item.mainKey, -1)}
+                                  className="w-5 h-7 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 text-[11px] flex items-center justify-center font-bold cursor-pointer"
+                                >-</button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeskTeamStatsIncrement('away', item.key, 1)}
+                                  className="w-5 h-7 rounded-lg bg-rose-800/60 text-rose-300 hover:bg-rose-700 text-[11px] flex items-center justify-center font-bold cursor-pointer"
+                                >+</button>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  title={`میهمان: ${item.label}`}
+                                  value={deskTeamStats.away[item.key]}
+                                  onChange={(e) => handleDeskTeamStatsChange('away', item.key, e.target.value)}
+                                  onFocus={(e) => e.target.select()}
+                                  className="w-12 sm:w-14 h-8 text-center font-sport font-black text-rose-400 bg-slate-950 border border-rose-500/40 rounded-xl text-xs sm:text-sm focus:border-rose-400 outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeskTeamStatsIncrement('away', item.key, -1)}
+                                  className="w-5 h-7 rounded-lg bg-slate-800 text-slate-400 hover:bg-slate-700 text-[11px] flex items-center justify-center font-bold cursor-pointer"
+                                >-</button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
 
+                    {/* Submit Button */}
                     <button
+                      type="button"
                       onClick={handleSaveDeskTeamStats}
                       disabled={savingDeskTeamStats}
-                      className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white font-black text-xs transition-all flex items-center justify-center gap-2 shadow-xl cursor-pointer disabled:opacity-50"
+                      className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-black text-xs transition-all flex items-center justify-center gap-2 shadow-xl cursor-pointer disabled:opacity-50 active:scale-[0.99]"
                     >
-                      <BarChart2 size={16} />
-                      <span>{savingDeskTeamStats ? 'در حال ذخیره آمار...' : '📊 ثبت و ذخیره رسمی آمار تیمی مسابقه'}</span>
+                      {savingDeskTeamStats ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>در حال ثبت و ذخیره رسمی در شبکه...</span>
+                        </>
+                      ) : (
+                        <>
+                          <BarChart2 size={16} />
+                          <span>💾 ثبت و ذخیره رسمی آمار تیمی مسابقه (PES 2021)</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </motion.div>
