@@ -60,11 +60,14 @@ const CoachLogin = () => {
       await passwordLogin(username, password);
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      const errorMsg =
-        err.response?.data?.error ||
-        (err.message === 'Network Error' || !err.response
-          ? 'خطا در برقراری ارتباط با سرور (بک‌اند در دسترس نیست).'
-          : 'نام کاربری یا رمز عبور اشتباه است.');
+      let errorMsg = 'نام کاربری یا رمز عبور اشتباه است.';
+      if (err.response?.data?.error) {
+        errorMsg = err.response.data.error;
+      } else if (err.response?.status >= 500) {
+        errorMsg = `خطای سرور (${err.response.status} Bad Gateway / خطای سرویس بک‌اند). لطفاً وضعیت کانتینر بک‌اند را بررسی کنید.`;
+      } else if (err.message === 'Network Error' || !err.response) {
+        errorMsg = 'خطا در برقراری ارتباط با سرور (بک‌اند در دسترس نیست).';
+      }
       setError(errorMsg);
     } finally {
       setIsLoading(false);
