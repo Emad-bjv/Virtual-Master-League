@@ -639,6 +639,7 @@ def seed_packs():
         name="پک اساطیر میلان و یوونتوس (Milan & Juventus Legends)",
         defaults={
             "tier": "LEGENDARY",
+            "cover_image": "packs/covers/milan_juve_legends_cover.webp",
             "description": "پک شانس ویژه اسطوره‌های جاودانه سری آ شامل ۲۷ بازیکن برتر تاریخ باشگاه‌های میلان و یوونتوس.",
             "ovr_range_text": "OVR 87-93",
             "cost_gems": 100,
@@ -692,6 +693,7 @@ def seed_packs():
         name="پک اساطیر لیورپول و منچستریونایتد (Liverpool & Man United Legends)",
         defaults={
             "tier": "LEGENDARY",
+            "cover_image": "packs/covers/liv_manu_legends_cover.webp",
             "description": "پک شانس ویژه اسطوره‌های جاودانه لیگ جزیره شامل ۱۷ بازیکن برتر تاریخ لیورپول و منچستریونایتد.",
             "ovr_range_text": "OVR 86-93",
             "cost_gems": 100,
