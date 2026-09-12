@@ -67,8 +67,16 @@ for filename, candidates in LOGO_SOURCES.items():
 def copy_player_image(base_dir, folder_name, slug):
     """
     Finds the image file inside folder_name under base_dir,
-    and copies it to media/packs/players/{slug}.{ext}
+    and copies it to media/packs/players/{slug}.{ext}.
+    If the destination file already exists in PACKS_PLAYERS_DIR, uses it directly.
     """
+    # 1. Check if already exists in PACKS_PLAYERS_DIR
+    for ext in ['.webp', '.jpg', '.jpeg', '.png', '.JPG', '.WEBP']:
+        candidate = os.path.join(PACKS_PLAYERS_DIR, f"{slug}{ext}")
+        if os.path.exists(candidate):
+            return f"packs/players/{slug}{ext}"
+
+    # 2. Otherwise try copying from source folder under base_dir
     source_folder = os.path.join(base_dir, folder_name)
     if not os.path.exists(source_folder):
         # Case insensitive check
