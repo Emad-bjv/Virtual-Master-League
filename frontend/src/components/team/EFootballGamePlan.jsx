@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Shield, Users, AlertCircle, ArrowLeftRight, User, Sliders, Plus, Zap, Sparkles, Gem, HeartPulse, X } from 'lucide-react';
+import { Shield, Users, AlertCircle, ArrowLeftRight, User, Sliders, Plus, Zap, Sparkles, Gem, HeartPulse, X, Wand2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import CustomSelect from '../common/CustomSelect';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
@@ -10,6 +10,8 @@ import { playerApi } from '../../services/api';
 import { useTeam } from '../../context/TeamContext';
 import ConfirmModal from '../common/ConfirmModal';
 import { autoSelectOptimalLineup } from './SimpleTacticsModal';
+import FutPitchCard from './FutPitchCard';
+import PlayerSlotSelectModal from './PlayerSlotSelectModal';
 
 // Color map for position badges matching eFootball standard (13 official positions)
 const POSITION_COLORS = {
@@ -114,201 +116,201 @@ export const getGemBoostTargetOvr = (player) => {
 export const FORMATION_PRESETS = {
   // Category 1: 4 Defenders
   '4-5-1 (4-2-3-1)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'LB', x: 15, y: 72 },
-    { pos: 'CB', x: 35, y: 75 },
-    { pos: 'CB', x: 65, y: 75 },
-    { pos: 'RB', x: 85, y: 72 },
-    { pos: 'DMF', x: 35, y: 58 },
-    { pos: 'DMF', x: 65, y: 58 },
-    { pos: 'LMF', x: 18, y: 38 },
-    { pos: 'AMF', x: 50, y: 36 },
-    { pos: 'RMF', x: 82, y: 38 },
-    { pos: 'CF', x: 50, y: 15 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'LB', x: 14, y: 68 },
+    { pos: 'CB', x: 38, y: 70 },
+    { pos: 'CB', x: 62, y: 70 },
+    { pos: 'RB', x: 86, y: 68 },
+    { pos: 'DMF', x: 36, y: 52 },
+    { pos: 'DMF', x: 64, y: 52 },
+    { pos: 'LMF', x: 14, y: 32 },
+    { pos: 'AMF', x: 50, y: 32 },
+    { pos: 'RMF', x: 86, y: 32 },
+    { pos: 'CF', x: 50, y: 12 },
   ],
   '4-5-1 (4-1-4-1)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'LB', x: 15, y: 72 },
-    { pos: 'CB', x: 35, y: 75 },
-    { pos: 'CB', x: 65, y: 75 },
-    { pos: 'RB', x: 85, y: 72 },
-    { pos: 'DMF', x: 50, y: 60 },
-    { pos: 'LMF', x: 18, y: 40 },
-    { pos: 'AMF', x: 38, y: 42 },
-    { pos: 'AMF', x: 62, y: 42 },
-    { pos: 'RMF', x: 82, y: 40 },
-    { pos: 'CF', x: 50, y: 15 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'LB', x: 14, y: 68 },
+    { pos: 'CB', x: 38, y: 70 },
+    { pos: 'CB', x: 62, y: 70 },
+    { pos: 'RB', x: 86, y: 68 },
+    { pos: 'DMF', x: 50, y: 54 },
+    { pos: 'LMF', x: 14, y: 34 },
+    { pos: 'AMF', x: 38, y: 34 },
+    { pos: 'AMF', x: 62, y: 34 },
+    { pos: 'RMF', x: 86, y: 34 },
+    { pos: 'CF', x: 50, y: 12 },
   ],
   '4-5-1 (4-3-2-1)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'LB', x: 15, y: 72 },
-    { pos: 'CB', x: 35, y: 75 },
-    { pos: 'CB', x: 65, y: 75 },
-    { pos: 'RB', x: 85, y: 72 },
-    { pos: 'CMF', x: 28, y: 55 },
-    { pos: 'DMF', x: 50, y: 60 },
-    { pos: 'CMF', x: 72, y: 55 },
-    { pos: 'AMF', x: 36, y: 35 },
-    { pos: 'AMF', x: 64, y: 35 },
-    { pos: 'CF', x: 50, y: 15 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'LB', x: 14, y: 68 },
+    { pos: 'CB', x: 38, y: 70 },
+    { pos: 'CB', x: 62, y: 70 },
+    { pos: 'RB', x: 86, y: 68 },
+    { pos: 'CMF', x: 26, y: 50 },
+    { pos: 'DMF', x: 50, y: 54 },
+    { pos: 'CMF', x: 74, y: 50 },
+    { pos: 'AMF', x: 36, y: 30 },
+    { pos: 'AMF', x: 64, y: 30 },
+    { pos: 'CF', x: 50, y: 12 },
   ],
   '4-4-2 (4-2-2-2)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'LB', x: 15, y: 72 },
-    { pos: 'CB', x: 35, y: 75 },
-    { pos: 'CB', x: 65, y: 75 },
-    { pos: 'RB', x: 85, y: 72 },
-    { pos: 'CMF', x: 35, y: 56 },
-    { pos: 'CMF', x: 65, y: 56 },
-    { pos: 'LMF', x: 18, y: 40 },
-    { pos: 'RMF', x: 82, y: 40 },
-    { pos: 'SS', x: 38, y: 22 },
-    { pos: 'CF', x: 62, y: 16 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'LB', x: 14, y: 68 },
+    { pos: 'CB', x: 38, y: 70 },
+    { pos: 'CB', x: 62, y: 70 },
+    { pos: 'RB', x: 86, y: 68 },
+    { pos: 'CMF', x: 36, y: 50 },
+    { pos: 'CMF', x: 64, y: 50 },
+    { pos: 'LMF', x: 14, y: 32 },
+    { pos: 'RMF', x: 86, y: 32 },
+    { pos: 'SS', x: 36, y: 16 },
+    { pos: 'CF', x: 64, y: 12 },
   ],
   '4-4-2 (4-3-1-2)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'LB', x: 15, y: 72 },
-    { pos: 'CB', x: 35, y: 75 },
-    { pos: 'CB', x: 65, y: 75 },
-    { pos: 'RB', x: 85, y: 72 },
-    { pos: 'CMF', x: 30, y: 50 },
-    { pos: 'DMF', x: 50, y: 62 },
-    { pos: 'CMF', x: 70, y: 50 },
-    { pos: 'AMF', x: 50, y: 36 },
-    { pos: 'SS', x: 38, y: 20 },
-    { pos: 'CF', x: 62, y: 16 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'LB', x: 14, y: 68 },
+    { pos: 'CB', x: 38, y: 70 },
+    { pos: 'CB', x: 62, y: 70 },
+    { pos: 'RB', x: 86, y: 68 },
+    { pos: 'CMF', x: 26, y: 48 },
+    { pos: 'DMF', x: 50, y: 54 },
+    { pos: 'CMF', x: 74, y: 48 },
+    { pos: 'AMF', x: 50, y: 32 },
+    { pos: 'SS', x: 36, y: 16 },
+    { pos: 'CF', x: 64, y: 12 },
   ],
   '4-3-3 (4-2-1-3)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'LB', x: 15, y: 72 },
-    { pos: 'CB', x: 35, y: 75 },
-    { pos: 'CB', x: 65, y: 75 },
-    { pos: 'RB', x: 85, y: 72 },
-    { pos: 'DMF', x: 35, y: 58 },
-    { pos: 'DMF', x: 65, y: 58 },
-    { pos: 'AMF', x: 50, y: 38 },
-    { pos: 'LWF', x: 18, y: 20 },
-    { pos: 'RWF', x: 82, y: 20 },
-    { pos: 'CF', x: 50, y: 15 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'LB', x: 14, y: 68 },
+    { pos: 'CB', x: 38, y: 70 },
+    { pos: 'CB', x: 62, y: 70 },
+    { pos: 'RB', x: 86, y: 68 },
+    { pos: 'DMF', x: 36, y: 52 },
+    { pos: 'DMF', x: 64, y: 52 },
+    { pos: 'AMF', x: 50, y: 34 },
+    { pos: 'LWF', x: 16, y: 16 },
+    { pos: 'RWF', x: 84, y: 16 },
+    { pos: 'CF', x: 50, y: 12 },
   ],
   '4-3-3 (4-1-2-3)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'LB', x: 15, y: 72 },
-    { pos: 'CB', x: 35, y: 75 },
-    { pos: 'CB', x: 65, y: 75 },
-    { pos: 'RB', x: 85, y: 72 },
-    { pos: 'DMF', x: 50, y: 60 },
-    { pos: 'AMF', x: 35, y: 42 },
-    { pos: 'AMF', x: 65, y: 42 },
-    { pos: 'LWF', x: 18, y: 20 },
-    { pos: 'RWF', x: 82, y: 20 },
-    { pos: 'CF', x: 50, y: 15 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'LB', x: 14, y: 68 },
+    { pos: 'CB', x: 38, y: 70 },
+    { pos: 'CB', x: 62, y: 70 },
+    { pos: 'RB', x: 86, y: 68 },
+    { pos: 'DMF', x: 50, y: 54 },
+    { pos: 'AMF', x: 34, y: 36 },
+    { pos: 'AMF', x: 66, y: 36 },
+    { pos: 'LWF', x: 16, y: 16 },
+    { pos: 'RWF', x: 84, y: 16 },
+    { pos: 'CF', x: 50, y: 12 },
   ],
 
   // Category 2: 3 & 5 Defenders
   '3-6-1 (3-2-4-1)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'CB', x: 25, y: 75 },
-    { pos: 'CB', x: 50, y: 78 },
-    { pos: 'CB', x: 75, y: 75 },
-    { pos: 'DMF', x: 38, y: 58 },
-    { pos: 'DMF', x: 62, y: 58 },
-    { pos: 'LMF', x: 15, y: 38 },
-    { pos: 'AMF', x: 38, y: 35 },
-    { pos: 'AMF', x: 62, y: 35 },
-    { pos: 'RMF', x: 85, y: 38 },
-    { pos: 'CF', x: 50, y: 15 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'CB', x: 25, y: 70 },
+    { pos: 'CB', x: 50, y: 71 },
+    { pos: 'CB', x: 75, y: 70 },
+    { pos: 'DMF', x: 36, y: 54 },
+    { pos: 'DMF', x: 64, y: 54 },
+    { pos: 'LMF', x: 14, y: 34 },
+    { pos: 'AMF', x: 38, y: 32 },
+    { pos: 'AMF', x: 62, y: 32 },
+    { pos: 'RMF', x: 86, y: 34 },
+    { pos: 'CF', x: 50, y: 12 },
   ],
   '3-5-2 (3-2-3-2)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'CB', x: 25, y: 75 },
-    { pos: 'CB', x: 50, y: 78 },
-    { pos: 'CB', x: 75, y: 75 },
-    { pos: 'DMF', x: 38, y: 58 },
-    { pos: 'DMF', x: 62, y: 58 },
-    { pos: 'LMF', x: 15, y: 40 },
-    { pos: 'AMF', x: 50, y: 36 },
-    { pos: 'RMF', x: 85, y: 40 },
-    { pos: 'SS', x: 38, y: 20 },
-    { pos: 'CF', x: 62, y: 16 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'CB', x: 25, y: 70 },
+    { pos: 'CB', x: 50, y: 71 },
+    { pos: 'CB', x: 75, y: 70 },
+    { pos: 'DMF', x: 36, y: 54 },
+    { pos: 'DMF', x: 64, y: 54 },
+    { pos: 'LMF', x: 14, y: 34 },
+    { pos: 'AMF', x: 50, y: 34 },
+    { pos: 'RMF', x: 86, y: 34 },
+    { pos: 'SS', x: 36, y: 16 },
+    { pos: 'CF', x: 64, y: 12 },
   ],
   '3-5-2 (3-3-2-2)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'CB', x: 25, y: 75 },
-    { pos: 'CB', x: 50, y: 78 },
-    { pos: 'CB', x: 75, y: 75 },
-    { pos: 'CMF', x: 28, y: 52 },
-    { pos: 'DMF', x: 50, y: 62 },
-    { pos: 'CMF', x: 72, y: 52 },
-    { pos: 'AMF', x: 38, y: 35 },
-    { pos: 'AMF', x: 62, y: 35 },
-    { pos: 'SS', x: 38, y: 20 },
-    { pos: 'CF', x: 62, y: 16 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'CB', x: 25, y: 70 },
+    { pos: 'CB', x: 50, y: 71 },
+    { pos: 'CB', x: 75, y: 70 },
+    { pos: 'CMF', x: 26, y: 50 },
+    { pos: 'DMF', x: 50, y: 55 },
+    { pos: 'CMF', x: 74, y: 50 },
+    { pos: 'AMF', x: 36, y: 32 },
+    { pos: 'AMF', x: 64, y: 32 },
+    { pos: 'SS', x: 36, y: 16 },
+    { pos: 'CF', x: 64, y: 12 },
   ],
   '3-4-3 (3-2-2-3)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'CB', x: 25, y: 75 },
-    { pos: 'CB', x: 50, y: 78 },
-    { pos: 'CB', x: 75, y: 75 },
-    { pos: 'CMF', x: 38, y: 56 },
-    { pos: 'CMF', x: 62, y: 56 },
-    { pos: 'LMF', x: 16, y: 40 },
-    { pos: 'RMF', x: 84, y: 40 },
-    { pos: 'LWF', x: 18, y: 20 },
-    { pos: 'RWF', x: 82, y: 20 },
-    { pos: 'CF', x: 50, y: 15 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'CB', x: 25, y: 70 },
+    { pos: 'CB', x: 50, y: 71 },
+    { pos: 'CB', x: 75, y: 70 },
+    { pos: 'CMF', x: 36, y: 52 },
+    { pos: 'CMF', x: 64, y: 52 },
+    { pos: 'LMF', x: 14, y: 34 },
+    { pos: 'RMF', x: 86, y: 34 },
+    { pos: 'LWF', x: 16, y: 16 },
+    { pos: 'RWF', x: 84, y: 16 },
+    { pos: 'CF', x: 50, y: 12 },
   ],
   '3-3-4 (3-3-4)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'CB', x: 25, y: 75 },
-    { pos: 'CB', x: 50, y: 78 },
-    { pos: 'CB', x: 75, y: 75 },
-    { pos: 'DMF', x: 50, y: 58 },
-    { pos: 'CMF', x: 28, y: 48 },
-    { pos: 'CMF', x: 72, y: 48 },
-    { pos: 'LWF', x: 18, y: 18 },
-    { pos: 'CF', x: 38, y: 14 },
-    { pos: 'CF', x: 62, y: 14 },
-    { pos: 'RWF', x: 82, y: 18 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'CB', x: 25, y: 70 },
+    { pos: 'CB', x: 50, y: 71 },
+    { pos: 'CB', x: 75, y: 70 },
+    { pos: 'DMF', x: 50, y: 54 },
+    { pos: 'CMF', x: 28, y: 44 },
+    { pos: 'CMF', x: 72, y: 44 },
+    { pos: 'LWF', x: 14, y: 16 },
+    { pos: 'CF', x: 38, y: 12 },
+    { pos: 'CF', x: 62, y: 12 },
+    { pos: 'RWF', x: 86, y: 16 },
   ],
   '5-4-1 (5-2-2-1)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'LB', x: 12, y: 68 },
-    { pos: 'CB', x: 30, y: 76 },
-    { pos: 'CB', x: 50, y: 78 },
-    { pos: 'CB', x: 70, y: 76 },
-    { pos: 'RB', x: 88, y: 68 },
-    { pos: 'DMF', x: 38, y: 54 },
-    { pos: 'DMF', x: 62, y: 54 },
-    { pos: 'LMF', x: 18, y: 36 },
-    { pos: 'RMF', x: 82, y: 36 },
-    { pos: 'CF', x: 50, y: 15 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'LB', x: 10, y: 66 },
+    { pos: 'CB', x: 30, y: 71 },
+    { pos: 'CB', x: 50, y: 71 },
+    { pos: 'CB', x: 70, y: 71 },
+    { pos: 'RB', x: 90, y: 66 },
+    { pos: 'DMF', x: 36, y: 50 },
+    { pos: 'DMF', x: 64, y: 50 },
+    { pos: 'LMF', x: 14, y: 32 },
+    { pos: 'RMF', x: 86, y: 32 },
+    { pos: 'CF', x: 50, y: 12 },
   ],
   '5-3-2 (5-2-1-2)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'LB', x: 12, y: 68 },
-    { pos: 'CB', x: 30, y: 76 },
-    { pos: 'CB', x: 50, y: 78 },
-    { pos: 'CB', x: 70, y: 76 },
-    { pos: 'RB', x: 88, y: 68 },
-    { pos: 'DMF', x: 38, y: 54 },
-    { pos: 'DMF', x: 62, y: 54 },
-    { pos: 'AMF', x: 50, y: 36 },
-    { pos: 'SS', x: 38, y: 20 },
-    { pos: 'CF', x: 62, y: 16 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'LB', x: 10, y: 66 },
+    { pos: 'CB', x: 30, y: 71 },
+    { pos: 'CB', x: 50, y: 71 },
+    { pos: 'CB', x: 70, y: 71 },
+    { pos: 'RB', x: 90, y: 66 },
+    { pos: 'DMF', x: 36, y: 50 },
+    { pos: 'DMF', x: 64, y: 50 },
+    { pos: 'AMF', x: 50, y: 32 },
+    { pos: 'SS', x: 36, y: 16 },
+    { pos: 'CF', x: 64, y: 12 },
   ],
   '5-3-2 (5-3-2)': [
-    { pos: 'GK', x: 50, y: 90 },
-    { pos: 'LB', x: 12, y: 68 },
-    { pos: 'CB', x: 30, y: 76 },
-    { pos: 'CB', x: 50, y: 78 },
-    { pos: 'CB', x: 70, y: 76 },
-    { pos: 'RB', x: 88, y: 68 },
-    { pos: 'CMF', x: 30, y: 50 },
-    { pos: 'DMF', x: 50, y: 58 },
-    { pos: 'CMF', x: 70, y: 50 },
-    { pos: 'SS', x: 38, y: 20 },
-    { pos: 'CF', x: 62, y: 16 },
+    { pos: 'GK', x: 50, y: 89 },
+    { pos: 'LB', x: 10, y: 66 },
+    { pos: 'CB', x: 30, y: 71 },
+    { pos: 'CB', x: 50, y: 71 },
+    { pos: 'CB', x: 70, y: 71 },
+    { pos: 'RB', x: 90, y: 66 },
+    { pos: 'CMF', x: 27, y: 46 },
+    { pos: 'DMF', x: 50, y: 53 },
+    { pos: 'CMF', x: 73, y: 46 },
+    { pos: 'SS', x: 36, y: 16 },
+    { pos: 'CF', x: 64, y: 12 },
   ],
 };
 
@@ -480,42 +482,11 @@ export default function EFootballGamePlan({
       }
     }
 
-    const needsAutoLayout = currentStarters.length < 11 || currentStarters.some(
-      p => p.x_coord == null || p.y_coord == null || (p.x_coord === 0 && p.y_coord === 0)
-    );
+    // Always snap starters to the exact calibrated non-overlapping formation slot coordinates
+    const alignedStarters = formPreset
+      ? matchPlayersToFormation(currentStarters, formPreset)
+      : currentStarters;
 
-    let alignedStarters;
-    if (!needsAutoLayout && formPreset) {
-      alignedStarters = currentStarters.map((p) => {
-        const natPos = p.naturalPosition || p.position;
-        let slotPos = p.tacticalPosition;
-        if (!slotPos && formPreset) {
-          let closestSlot = formPreset[0];
-          let minDistance = Infinity;
-          for (const s of formPreset) {
-            const dx = (p.x_coord || 0) - s.x;
-            const dy = (p.y_coord || 0) - s.y;
-            const dist = dx * dx + dy * dy;
-            if (dist < minDistance) {
-              minDistance = dist;
-              closestSlot = s;
-            }
-          }
-          if (minDistance < 250) {
-            slotPos = closestSlot.pos;
-          }
-        }
-        return {
-          ...p,
-          naturalPosition: natPos,
-          position: slotPos || p.position || natPos,
-        };
-      });
-    } else if (formPreset) {
-      alignedStarters = matchPlayersToFormation(currentStarters, formPreset);
-    } else {
-      alignedStarters = currentStarters;
-    }
 
     return {
       startingXi: alignedStarters,
@@ -563,6 +534,8 @@ export default function EFootballGamePlan({
   const [adminQuickDockPlayer, setAdminQuickDockPlayer] = useState(null);
   const [statusMsg, setStatusMsg] = useState('');
   const [quickSubModal, setQuickSubModal] = useState({ isOpen: false, sourcePlayer: null, targetType: null });
+
+  const [slotModalState, setSlotModalState] = useState({ isOpen: false, targetSlot: null });
 
   const selectedPitchPlayer = useMemo(() => {
     return selectedPitchPlayerId
@@ -640,39 +613,68 @@ export default function EFootballGamePlan({
 
   const isTacticsDisabled = false;
 
-  // Change Formation Handler
+  // Change Formation Handler: Adapts current starters to new formation slots
   const handleFormationChange = (newFormation, notify = true) => {
     const preset = FORMATION_PRESETS[newFormation];
     if (!preset) return;
 
     setCurrentFormation(newFormation);
-    let updatedXi = matchPlayersToFormation(startingXi, preset);
-    let updatedSubs = substitutes;
-    let updatedRes = reserves;
-
-    if (notify) {
-      // Intelligently pick best players across full squad for this new formation
-      const fullSquad = [...startingXi, ...substitutes, ...reserves];
-      const optimized = autoSelectOptimalLineup(fullSquad, newFormation);
-      const isSuspended = (p) => Boolean((p?.suspension_matches > 0) || p?.is_suspended || p?.isSuspended);
-      updatedXi = optimized.filter((p) => p && p.is_starting && !isSuspended(p)).slice(0, 11);
-      const nonStarting = optimized.filter((p) => p && (!p.is_starting || isSuspended(p)));
-      updatedSubs = nonStarting.slice(0, 11);
-      updatedRes = nonStarting.slice(11);
-      setSubstitutes(updatedSubs);
-      setReserves(updatedRes);
-    }
+    const updatedXi = matchPlayersToFormation(startingXi, preset);
 
     setStartingXi(updatedXi);
 
     if (notify) {
-      showNotification(`چیدمان تیمی به ${newFormation} تغییر یافت و ۱۱ بازیکن برتر چیده شدند ⚡`);
+      showNotification(`چیدمان تیمی به «${newFormation}» تغییر یافت ⚡`);
     }
     if (onFormationChange) {
       onFormationChange(newFormation);
     }
     if (onLineupChange) {
-      onLineupChange({ startingXi: updatedXi, substitutes: updatedSubs, reserves: updatedRes, formation: newFormation });
+      onLineupChange({ startingXi: updatedXi, substitutes, reserves, formation: newFormation });
+    }
+  };
+
+  // Smart Auto-Select Optimal Lineup Handler (AI Best 11 by OVR & Position)
+  const handleAutoOptimizeLineup = () => {
+    const fullSquad = [...(startingXi || []), ...(substitutes || []), ...(reserves || [])];
+    const isSuspended = (p) => Boolean((p?.suspension_matches > 0) || p?.is_suspended || p?.isSuspended);
+    const optimized = autoSelectOptimalLineup(fullSquad, currentFormation);
+    const updatedXi = optimized.filter((p) => p && p.is_starting && !isSuspended(p)).slice(0, 11);
+    const nonStarting = optimized.filter((p) => p && (!p.is_starting || isSuspended(p)));
+    const updatedSubs = nonStarting.slice(0, 11);
+    const updatedRes = nonStarting.slice(11);
+    setStartingXi(updatedXi);
+    setSubstitutes(updatedSubs);
+    setReserves(updatedRes);
+    showNotification(`۱۱ بازیکن برتر بر اساس قدرت (OVR) و پست تخصصی چیده شدند ✨`);
+    if (onLineupChange) {
+      onLineupChange({ startingXi: updatedXi, substitutes: updatedSubs, reserves: updatedRes, formation: currentFormation });
+    }
+  };
+
+  // Direct 1-Click Player Placement from PlayerSlotSelectModal
+  const handleSelectPlayerForSlot = (player, slot) => {
+    if (!player || !slot) return;
+    const newPitchPlayer = {
+      ...player,
+      naturalPosition: player.naturalPosition || player.position,
+      position: slot.pos,
+      x_coord: slot.x,
+      y_coord: slot.y,
+      is_starting: true,
+    };
+
+    const updatedXi = [...(startingXi || []).filter((p) => p && p.id !== player.id), newPitchPlayer];
+    const newSubs = (substitutes || []).filter((b) => b && b.id !== player.id);
+    const newRes = (reserves || []).filter((r) => r && r.id !== player.id);
+
+    setStartingXi(updatedXi);
+    setSubstitutes(newSubs);
+    setReserves(newRes);
+    setSlotModalState({ isOpen: false, targetSlot: null });
+    showNotification(`«${player.name}» در پست ${slot.pos} در ترکیب قرار گرفت ✅`);
+    if (onLineupChange) {
+      onLineupChange({ startingXi: updatedXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
     }
   };
 
@@ -1151,9 +1153,9 @@ export default function EFootballGamePlan({
       return;
     }
 
-    // Case 4: In Coach mode, select this empty slot and highlight suitable bench candidates
+    // Case 4: In Coach mode, open direct player slot select modal and highlight suitable bench candidates
     setHighlightedPosition(slot.pos);
-    showNotification(`پست خالی «${slot.pos}» انتخاب شد. روی بازیکن مورد نظر در نیمکت کلیک کنید 🟢`);
+    setSlotModalState({ isOpen: true, targetSlot: slot });
   };
 
   const activeSelectedPlayer =
@@ -1235,63 +1237,114 @@ export default function EFootballGamePlan({
           </div>
         )}
 
-        {/* FORMATION SELECTOR BAR (در بالای زمین چمن) */}
+        {/* FORMATION SELECTOR BAR & SMART ACTIONS */}
         {!readOnly && (
-          <div className="bg-[#080c14]/90 p-3.5 rounded-2xl border border-cyan-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur-xl">
-            <div className="flex items-center gap-2">
-              <Sliders size={18} className="text-cyan-400" />
-              <span className="text-xs font-black text-white">انتخاب ترکیب چیدمان تیمی (Formation):</span>
+          <div className="bg-[#080c14]/90 p-3 sm:p-4 rounded-2xl border border-cyan-500/30 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-[0_4px_20px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+              <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                <Sliders size={18} />
+              </div>
+              <div>
+                <span className="text-xs font-black text-white block">انتخاب ترکیب چیدمان (Formation):</span>
+                <span className="text-[10px] text-slate-400">۱۴ آرایش رسمی بدون تداخل کارت</span>
+              </div>
             </div>
-            <div className="w-full sm:w-64">
-              <CustomSelect
-                value={currentFormation}
-                onChange={handleFormationChange}
-                colorTheme="cyan"
-                options={FORMATION_OPTIONS}
-                disabled={isTacticsDisabled}
-              />
+
+            <div className="flex items-center gap-2.5 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+              <div className="w-full sm:w-56">
+                <CustomSelect
+                  value={currentFormation}
+                  onChange={handleFormationChange}
+                  colorTheme="cyan"
+                  options={FORMATION_OPTIONS}
+                  disabled={isTacticsDisabled}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAutoOptimizeLineup}
+                title="چینش خودکار بهترین ۱۱ بازیکن بر اساس قدرت (OVR) و پست تخصصی"
+                className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+              >
+                <Wand2 size={15} />
+                <span>چینش هوشمند</span>
+              </button>
             </div>
           </div>
         )}
 
-        {/* TOP: GREEN FOOTBALL PITCH CONTAINER */}
+        {/* TOP: FUTBIN 3D PERSPECTIVE FOOTBALL PITCH CONTAINER */}
         <div 
           onClick={() => {
             if (highlightedPosition) setHighlightedPosition(null);
             if (adminQuickDockPlayer) setAdminQuickDockPlayer(null);
           }}
-          className="fc-pitch-turf rounded-2xl sm:rounded-3xl p-2 sm:p-3 md:p-5 border-2 border-cyan-500/40 shadow-[0_20px_50px_rgba(0,0,0,0.85)] relative flex flex-col justify-between min-h-[480px] sm:min-h-[560px] md:min-h-[680px] overflow-hidden select-none"
+          className="futbin-pitch-container p-2 sm:p-3 md:p-4 border-2 border-emerald-500/40 shadow-[0_25px_60px_rgba(0,0,0,0.9)] relative flex flex-col justify-between overflow-hidden select-none"
         >
-          {/* Turf Mowing Stripes & Center Spotlight */}
-          <div className="absolute inset-0 fc-pitch-mow-stripes opacity-70 pointer-events-none"></div>
+          {/* Turf Mowing Stripes */}
+          <div className="futbin-pitch-mow-stripes opacity-80 pointer-events-none" />
+
+          {/* Center Stadium Spotlight */}
           <div 
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[400px] md:w-[450px] h-[320px] sm:h-[400px] md:h-[450px] rounded-full pointer-events-none"
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[340px] sm:w-[460px] md:w-[540px] h-[340px] sm:h-[460px] md:h-[540px] rounded-full pointer-events-none"
             style={{
-              background: 'radial-gradient(circle, rgba(0, 243, 255, 0.08) 0%, rgba(0, 255, 135, 0.04) 50%, transparent 80%)',
+              background: 'radial-gradient(circle, rgba(0, 255, 135, 0.12) 0%, rgba(0, 243, 255, 0.05) 50%, transparent 80%)',
             }}
           />
 
-          {/* Pitch Lines (Neon Cyan Line Art) */}
-          <div className="absolute inset-2 sm:inset-3 border-2 border-cyan-400/60 rounded-xl sm:rounded-2xl pointer-events-none shadow-[0_0_15px_rgba(0,243,255,0.2)]"></div>
+          {/* Pitch Outer Boundary Line */}
+          <div className="absolute inset-2 sm:inset-3 md:inset-4 border-2 border-white/45 rounded-2xl pointer-events-none shadow-[0_0_12px_rgba(0,255,135,0.15)]" />
 
-          {/* Penalty Boxes & Circle */}
-          <div className="absolute top-2 sm:top-3 left-1/2 -translate-x-1/2 w-36 sm:w-48 md:w-64 h-16 sm:h-24 md:h-32 border-2 border-cyan-400/60 border-t-0 rounded-b-xl sm:rounded-b-2xl pointer-events-none overflow-hidden">
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-18 sm:w-24 h-7 sm:h-10 border-2 border-cyan-400/40 border-t-0 rounded-b-lg sm:rounded-b-xl"></div>
-          </div>
-          <div className="absolute bottom-2 sm:bottom-3 left-1/2 -translate-x-1/2 w-36 sm:w-48 md:w-64 h-16 sm:h-24 md:h-32 border-2 border-cyan-400/60 border-b-0 rounded-t-xl sm:rounded-t-2xl pointer-events-none overflow-hidden">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-18 sm:w-24 h-7 sm:h-10 border-2 border-cyan-400/40 border-b-0 rounded-t-lg sm:rounded-t-xl"></div>
-          </div>
-          <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-cyan-400/60 pointer-events-none shadow-[0_0_8px_rgba(0,243,255,0.3)]"></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 sm:w-28 md:w-40 h-20 sm:h-28 md:h-40 rounded-full border-2 border-cyan-400/60 pointer-events-none"></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-cyan-300 pointer-events-none shadow-[0_0_10px_#00f3ff]"></div>
+          {/* Halfway Line */}
+          <div className="absolute top-1/2 left-2 right-2 sm:left-3 sm:right-3 md:left-4 md:right-4 h-0.5 bg-white/45 pointer-events-none" />
 
-          {/* Watermark Logo Overlay */}
-          <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
-            <Shield size={140} className="text-cyan-400" />
+          {/* Center Circle & Spot */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 sm:w-32 md:w-44 h-24 sm:h-32 md:h-44 rounded-full border-2 border-white/45 pointer-events-none" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-white pointer-events-none shadow-[0_0_8px_#00ff87]" />
+
+          {/* Top Penalty Box & Goal Area */}
+          <div className="absolute top-2 sm:top-3 md:top-4 left-1/2 -translate-x-1/2 w-44 sm:w-60 md:w-80 h-16 sm:h-24 md:h-32 border-2 border-white/45 border-t-0 rounded-b-2xl pointer-events-none overflow-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-20 sm:w-28 h-7 sm:h-10 border-2 border-white/35 border-t-0 rounded-b-xl" />
           </div>
 
-          {/* PLAYERS ON PITCH */}
-          <div className="relative w-full h-[450px] sm:h-[530px] md:h-[630px]">
+          {/* Bottom Penalty Box & Goal Area */}
+          <div className="absolute bottom-2 sm:bottom-3 md:bottom-4 left-1/2 -translate-x-1/2 w-44 sm:w-60 md:w-80 h-16 sm:h-24 md:h-32 border-2 border-white/45 border-b-0 rounded-t-2xl pointer-events-none overflow-hidden">
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-20 sm:w-28 h-7 sm:h-10 border-2 border-white/35 border-b-0 rounded-t-xl" />
+          </div>
+
+          {/* Club Watermark Logo in Turf */}
+          <div className="absolute inset-0 flex items-center justify-center opacity-[0.06] pointer-events-none">
+            {getTeamLogoUrl(teamName) ? (
+              <img src={getTeamLogoUrl(teamName)} alt="" className="w-52 h-52 sm:w-64 sm:h-64 object-contain" />
+            ) : (
+              <Shield size={180} className="text-white" />
+            )}
+          </div>
+
+          {/* MANAGER CARD SLOT (Top-Left corner outside pitch) */}
+          <div className="absolute top-2.5 left-2.5 sm:top-3.5 sm:left-3.5 z-30 pointer-events-auto">
+            <FutPitchCard
+              isManager={true}
+              managerData={{
+                name: team?.manager_name || team?.manager || 'سرمربی',
+                avatar: team?.manager_avatar || team?.logo_url,
+              }}
+              cardSize="bench"
+              showPillUnderCard={true}
+            />
+          </div>
+
+          {/* CURRENT FORMATION BADGE (Bottom-Right corner) */}
+          <div className="absolute bottom-2.5 right-2.5 sm:bottom-3.5 sm:right-3.5 z-20 flex items-center gap-2 bg-slate-950/85 px-3 py-1.5 rounded-2xl border border-white/10 backdrop-blur-md shadow-lg pointer-events-none">
+            <span className="text-[10px] text-emerald-400 font-bold">ترکیب تیمی:</span>
+            <span className="text-xs sm:text-sm font-black text-white font-sport tracking-wider">
+              {currentFormation}
+            </span>
+          </div>
+
+          {/* PLAYERS ON PITCH SURFACE */}
+          <div className="futbin-pitch-surface">
             {(startingXi || []).map((player) => {
               if (!player) return null;
               const isSelected = selectedPitchPlayerId === player.id;
@@ -1299,7 +1352,7 @@ export default function EFootballGamePlan({
               const slotPos = player.position || natPos || 'CMF';
               const selectedPitchSlot = selectedPitchPlayer ? selectedPitchPlayer.position : null;
 
-              // 1. Green Highlight: Can the selected player (from pitch or bench) play in this specific formation slot?
+              // Green Highlight: Can the selected player play in this specific formation slot?
               const isSlotPlayableBySelectedPitch = Boolean(
                 selectedPitchPlayer && !isSelected && isPlayerCompatibleWithPosition(selectedPitchPlayer, slotPos)
               );
@@ -1312,7 +1365,7 @@ export default function EFootballGamePlan({
                 (highlightedPosition && slotPos === highlightedPosition)
               );
 
-              // 2. Star Highlight: Can this other player on the pitch play in the selected player's current slot or highlighted position?
+              // Star Highlight: Can this player play in the selected player's current slot or highlighted position?
               const isPlayerPlayableInSelectedSlot = Boolean(
                 selectedPitchPlayer && !isSelected && isPlayerCompatibleWithPosition(player, selectedPitchSlot)
               );
@@ -1337,7 +1390,7 @@ export default function EFootballGamePlan({
                 isExactHighlightedMatch
               );
 
-              // 3. Dimming: Dim players that are neither selected, nor green-compatible, nor star-rated
+              // Dimming
               const isDimmed = Boolean(
                 (selectedPitchPlayerId && !isSelected && !isGreenSlot && !hasStarRating) ||
                 (selectedBenchPlayerId && !isGreenSlot) ||
@@ -1345,22 +1398,6 @@ export default function EFootballGamePlan({
               );
 
               const isOutOfPosition = Boolean(!isPlayerCompatibleWithPosition(player, slotPos));
-              const posCode = slotPos;
-
-              // Readiness / Stamina Calculation (linked with facilities & fatigue formula)
-              const staminaPercent = Math.max(5, Math.min(100, Math.round(Number(player.stamina ?? player.virtual_stamina ?? 90))));
-              const staminaColorClass =
-                staminaPercent >= 80
-                  ? 'bg-[#00ff87] shadow-[0_0_8px_#00ff87]'
-                  : staminaPercent >= 50
-                  ? 'bg-cyan-400 shadow-[0_0_8px_#00f3ff]'
-                  : staminaPercent >= 30
-                  ? 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'
-                  : 'bg-rose-500 shadow-[0_0_8px_#f43f5e]';
-
-              const photoUrl = getPlayerPhotoUrl(player);
-              const isPack = isPackPlayer(player);
-              const packConfig = isPack ? getPackTierConfig(player.pack_tier || player.rarity) : null;
 
               return (
                 <motion.div
@@ -1373,17 +1410,10 @@ export default function EFootballGamePlan({
                   animate={{
                     left: `${player.x_coord}%`,
                     top: `${player.y_coord}%`,
-                    scale: isGreenSlot ? 1.1 : isSelected ? 1.06 : hasStarRating ? 1.04 : 1,
-                    opacity: isDimmed ? 0.35 : 1,
                   }}
-                  transition={{
-                    duration: 0.12,
-                    ease: 'easeOut',
-                  }}
-                  style={{ willChange: 'left, top, transform' }}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 w-[62px] sm:w-[76px] md:w-[94px] flex flex-col items-center cursor-pointer group z-10 hover:z-30 transition-transform duration-100 active:scale-105 ${
-                    isSelected ? 'ring-2 sm:ring-4 ring-cyan-400 rounded-xl sm:rounded-2xl p-0.5 sm:p-1 bg-cyan-950/90 shadow-[0_0_20px_rgba(0,243,255,0.6)]' : ''
-                  }`}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                  style={{ willChange: 'left, top' }}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 z-10 hover:z-30 cursor-pointer"
                 >
                   {/* FotMob Style Rapid Action Emoji Dock (Admin Mode) */}
                   {isAdminMode && adminQuickDockPlayer?.id === player.id && (
@@ -1466,237 +1496,19 @@ export default function EFootballGamePlan({
                     </div>
                   )}
 
-                  {/* Player Avatar Container + Floating Event Badges */}
-                  <div className="relative flex items-center justify-center">
-                    {/* Golden Star for Position Highlight Match */}
-                    {hasStarRating && (
-                      <span
-                        className="absolute -top-1.5 -left-1.5 z-40 text-amber-300 text-[13px] sm:text-[15px] drop-shadow-[0_0_6px_#f59e0b] animate-bounce pointer-events-none"
-                        title={
-                          selectedPitchPlayer
-                            ? `توانایی بازی در پست «${selectedPitchSlot}» (پست ${selectedPitchPlayer.name}) ⭐`
-                            : isExactMatch
-                            ? 'پست تخصصی اصلی ⭐'
-                            : 'پست سازگار و قابل بازی ⭐'
-                        }
-                      >
-                        ⭐
-                      </span>
-                    )}
-
-                    {/* Pack Player Special Sparkle Indicator */}
-                    {isPack && !isOutOfPosition && !hasStarRating && (
-                      <span
-                        className="absolute -top-1.5 -left-1.5 z-40 text-[11px] sm:text-[13px] drop-shadow-[0_0_8px_rgba(245,158,11,0.9)] pointer-events-none animate-pulse"
-                        title={`بازیکن ویژه استخراج‌شده از ${packConfig?.name || 'پک التیمیت'} ✨`}
-                      >
-                        ✨
-                      </span>
-                    )}
-
-                    {/* Out of Position Warning Badge */}
-                    {isOutOfPosition && (
-                      <span
-                        className="absolute -top-1.5 -right-1.5 z-50 bg-amber-500 text-black text-[10px] sm:text-[11px] font-black w-4 h-4 sm:w-5 sm:h-5 rounded-full border border-white shadow-[0_0_10px_rgba(245,158,11,0.9)] flex items-center justify-center leading-none pointer-events-none animate-pulse"
-                        title={`⚠️ پست غیرتخصصی! پست اصلی: ${natPos} (پست در چمن: ${slotPos})`}
-                      >
-                        ⚠️
-                      </span>
-                    )}
-
-                    {/* Top-Right Blue Rating Pill Badge (Only in Live/Admin match mode) */}
-                    {(isLiveMode || isAdminMode) && (player.rating != null || (isAdminMode && player.goals > 0)) && (
-                      <span className="absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2.5 z-30 bg-sky-500 text-slate-950 font-black text-[7.5px] sm:text-[9px] md:text-[10px] px-1 sm:px-1.5 py-0.2 rounded-full shadow-md border border-sky-300 flex items-center gap-0.5 font-sport leading-none pointer-events-none">
-                        {player.rating || (player.goals >= 3 ? '10.0' : player.goals >= 1 ? '8.5' : '7.0')} ★
-                      </span>
-                    )}
-
-                    {/* Top-Left Subbed-Off / Booked Minute Badge (Only in Live/Admin match mode) */}
-                    {(isLiveMode || isAdminMode) && player.subMinute && (
-                      <span className="absolute -top-1.5 -left-1.5 sm:-top-2 sm:-left-2.5 z-30 bg-black/95 text-white font-black text-[7px] sm:text-[8.5px] md:text-[9.5px] px-1 sm:px-1.5 py-0.2 rounded-full border border-rose-500 shadow-md flex items-center gap-0.5 font-sport leading-none pointer-events-none">
-                        <span>{player.subMinute}'</span>
-                        <span className="text-rose-400 font-black">←</span>
-                      </span>
-                    )}
-
-                    {/* FUT Portrait Photo Card Frame (Circular/Pill Frame) */}
-                    <div className={`relative flex items-center justify-center w-10 h-12 sm:w-12 sm:h-14 md:w-14 md:h-16 rounded-xl sm:rounded-2xl overflow-hidden border-1.5 sm:border-2 shadow-xl transition-all ${
-                      (player.isRed || player.is_suspended || player.suspension_matches > 0)
-                        ? 'border-rose-600 ring-2 ring-rose-600/80 bg-rose-950/90 text-rose-300 opacity-70 grayscale'
-                        : (player.isInjured || player.is_injured)
-                        ? 'border-amber-500 ring-2 ring-amber-500/80 bg-amber-950/90 text-amber-300 animate-pulse'
-                        : isGreenSlot
-                        ? 'border-[#00ff87] bg-emerald-950/90 ring-2 sm:ring-4 ring-[#00ff87] shadow-[0_0_25px_rgba(0,255,135,0.9)]'
-                        : isSelected
-                        ? 'border-cyan-400 bg-cyan-900/70 ring-2 ring-cyan-400 shadow-[0_0_20px_rgba(0,243,255,0.6)]'
-                        : ((isLiveMode || isAdminMode) && (player.in_match_goals || player.goals) > 0)
-                        ? 'border-emerald-400 ring-2 ring-emerald-400/60 bg-emerald-950/80'
-                        : isPack
-                        ? `${packConfig.borderColor} ${packConfig.ringColor} ring-2 ${packConfig.glowShadow} bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950`
-                        : 'border-slate-400/60 bg-gradient-to-b from-[#0d162a] to-[#05080e] group-hover:border-cyan-400 group-hover:shadow-[0_0_15px_rgba(0,243,255,0.4)]'
-                    }`}>
-                      {/* Holographic sweep sheen for pack players */}
-                      {isPack && (
-                        <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
-                          <div
-                            className="absolute -inset-[100%] w-[300%] h-[300%] bg-gradient-to-r from-transparent via-white/25 to-transparent rotate-45 animate-pulse"
-                            style={{ animationDuration: '2.5s' }}
-                          />
-                        </div>
-                      )}
-
-                      {photoUrl ? (
-                        <img
-                          src={photoUrl}
-                          alt={player.name}
-                          loading="lazy"
-                          decoding="async"
-                          className="w-full h-full object-cover object-top"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            if (e.currentTarget.nextSibling) {
-                              e.currentTarget.nextSibling.style.display = 'flex';
-                            }
-                          }}
-                        />
-                      ) : null}
-
-                      {/* Fallback Avatar Icon */}
-                      <div className={`w-full h-full flex items-center justify-center bg-gradient-to-b from-[#0f172a] to-[#05080e] ${photoUrl ? 'hidden' : 'flex'}`}>
-                        <User size={20} className="text-slate-300 opacity-85" />
-                      </div>
-
-                      {/* Shirt Number Tag Overlay */}
-                      {player.shirt_number != null && (
-                        <span className="absolute bottom-0 right-0 bg-[#05080e]/95 text-cyan-300 text-[7px] sm:text-[8px] md:text-[9px] font-sport font-black px-0.5 sm:px-1 rounded-tl-md border-t border-l border-cyan-500/30">
-                          #{player.shirt_number}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* In Coach Mode: Clean Injury or Suspension Pill Indicator */}
-                    {!isLiveMode && !isAdminMode && (player.is_injured || player.isInjured || (player.injury_matches > 0) || (player.suspension_matches > 0) || player.is_suspended) && (
-                      <div className="absolute -bottom-2 z-30 flex items-center justify-center pointer-events-none drop-shadow">
-                        {(player.is_injured || player.isInjured || player.injury_matches > 0) ? (
-                          <span className="bg-rose-950 text-rose-300 border border-rose-500 text-[7px] sm:text-[8px] font-black px-1.5 py-0.2 rounded-full shadow flex items-center gap-0.5">
-                            🩹 مصدوم ({player.injury_matches || 2} بازی)
-                          </span>
-                        ) : (
-                          <span className="bg-red-950 text-red-300 border border-red-500 text-[7px] sm:text-[8px] font-black px-1.5 py-0.2 rounded-full shadow flex items-center gap-0.5">
-                            🟥 محروم
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Bottom Overlapping Event Badges (FotMob Style) */}
-                    {(isLiveMode || isAdminMode) && ((player.in_match_goals || 0) > 0 || (player.in_match_assists || 0) > 0 || player.yellowCards > 0 || player.isRed || player.isInjured) && (
-                      <div className="absolute -bottom-2.5 z-30 flex items-center justify-center gap-1 drop-shadow-md pointer-events-none">
-                        {/* Goal Badge with Multiplier */}
-                        {(player.in_match_goals || 0) > 0 && (
-                          <div
-                            className="px-1.5 py-0.5 rounded-full bg-slate-950/95 border border-emerald-400/80 shadow-[0_0_8px_rgba(16,185,129,0.6)] flex items-center gap-0.5 text-[8px] sm:text-[9.5px] font-black text-emerald-300 font-sport shrink-0"
-                            title={`${player.in_match_goals} گل زده`}
-                          >
-                            <span>⚽</span>
-                            {player.in_match_goals > 1 && <span>×{player.in_match_goals}</span>}
-                          </div>
-                        )}
-                        {/* Assist Badge with Multiplier */}
-                        {(player.in_match_assists || 0) > 0 && (
-                          <div
-                            className="px-1.5 py-0.5 rounded-full bg-slate-950/95 border border-cyan-400/80 shadow-[0_0_8px_rgba(6,182,212,0.6)] flex items-center gap-0.5 text-[8px] sm:text-[9.5px] font-black text-cyan-300 font-sport shrink-0"
-                            title={`${player.in_match_assists} پاس‌گل`}
-                          >
-                            <span>👟</span>
-                            {player.in_match_assists > 1 && <span>×{player.in_match_assists}</span>}
-                          </div>
-                        )}
-                        {/* Yellow Card Badge */}
-                        {player.yellowCards === 1 && !player.isRed && (
-                          <div
-                            className="w-3.5 h-4.5 sm:w-4 sm:h-5 rounded-xs bg-amber-400 border border-amber-200 shadow flex items-center justify-center text-[7px] font-bold text-black shrink-0"
-                            title="کارت زرد"
-                          >
-                            🟨
-                          </div>
-                        )}
-                        {/* Second Yellow / Red Card */}
-                        {player.yellowCards === 2 && (
-                          <div
-                            className="flex items-center -space-x-1 shrink-0"
-                            title="کارت زرد دوم (اخراج)"
-                          >
-                            <div className="w-3 h-4 rounded-xs bg-amber-400 border border-amber-200 shadow z-10" />
-                            <div className="w-3 h-4 rounded-xs bg-rose-600 border border-rose-300 shadow z-20" />
-                          </div>
-                        )}
-                        {/* Direct Red Card */}
-                        {player.isRed && player.yellowCards !== 2 && (
-                          <div
-                            className="w-3.5 h-4.5 sm:w-4 sm:h-5 rounded-xs bg-rose-600 border border-rose-300 shadow flex items-center justify-center text-[7px] font-bold text-white shrink-0"
-                            title="کارت قرمز مستقیم"
-                          >
-                            🟥
-                          </div>
-                        )}
-                        {/* Injury Badge */}
-                        {player.isInjured && (
-                          <div
-                            className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-rose-950/95 border border-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)] flex items-center justify-center text-[8px] sm:text-[9.5px] shrink-0 animate-pulse"
-                            title="مصدومیت بازیکن"
-                          >
-                            🩹
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Badge Pill: Position + Championship Gold OVR Rating */}
-                  <div className="flex items-center gap-0.5 sm:gap-1 mt-0.5 sm:mt-1 shadow-lg z-10 pointer-events-none">
-                    <span
-                      className={`text-[7px] sm:text-[8px] md:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-md shadow ${
-                        isGreenSlot
-                          ? 'bg-[#00ff87] text-slate-950 font-black shadow-[0_0_10px_#00ff87] ring-1 ring-white'
-                          : (POSITION_COLORS[posCode] || 'bg-purple-600 text-white font-bold')
-                      }`}
-                    >
-                      {posCode}
-                    </span>
-                    <span className={`text-[9px] sm:text-[10.5px] md:text-xs font-black px-0.5 sm:px-1 rounded-md drop-shadow font-sport tracking-wide ${
-                      isPack
-                        ? `${packConfig.accentText} bg-slate-950/95 border ${packConfig.borderColor} ${packConfig.glowShadow}`
-                        : 'text-amber-300 bg-amber-950/90 border border-amber-400/50'
-                    }`}>
-                      {player.overall}
-                    </span>
-                  </div>
-
-                  {/* Player Name Tag */}
-                  <span className={`text-[7.5px] sm:text-[8.5px] md:text-[10px] font-black tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] text-center whitespace-nowrap leading-none mt-0.5 max-w-[60px] sm:max-w-[74px] md:max-w-[90px] truncate px-1 sm:px-1.5 py-0.5 rounded-md border ${
-                    isPack
-                      ? `${packConfig.accentText} bg-[#05080e]/95 border-amber-400/60 shadow-[0_0_8px_rgba(245,158,11,0.3)]`
-                      : 'text-white bg-[#05080e]/85 border-white/10'
-                  }`}>
-                    {player.isCaptain && (
-                      <span className="bg-amber-400 text-black font-black text-[6.5px] sm:text-[7.5px] px-0.5 ml-0.5 rounded">
-                        C
-                      </span>
-                    )}
-                    {player.name}
-                  </span>
-
-                  {/* Stamina / Readiness Bar under Player Name */}
-                  <div 
-                    className="w-9 sm:w-12 md:w-14 h-1 sm:h-1.5 bg-[#05080e]/95 rounded-full overflow-hidden border border-white/15 p-0.2 mt-0.5 shadow-inner"
-                    title={`میزان آمادگی و استقامت: ${staminaPercent}٪`}
-                  >
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${staminaColorClass}`}
-                      style={{ width: `${staminaPercent}%` }}
-                    ></div>
-                  </div>
+                  <FutPitchCard
+                    player={player}
+                    slotPos={slotPos}
+                    isSelected={isSelected}
+                    isGreenSlot={isGreenSlot}
+                    hasStarRating={hasStarRating}
+                    isExactMatch={isExactMatch}
+                    isDimmed={isDimmed}
+                    isOutOfPosition={isOutOfPosition}
+                    isLiveMode={isLiveMode}
+                    isAdminMode={isAdminMode}
+                    cardSize="normal"
+                  />
                 </motion.div>
               );
             })}
@@ -1719,57 +1531,24 @@ export default function EFootballGamePlan({
                   animate={{
                     left: `${slot.x}%`,
                     top: `${slot.y}%`,
-                    scale: isSlotHighlighted ? 1.08 : 1,
-                    opacity: 1,
                   }}
-                  transition={{ duration: 0.12, ease: 'easeOut' }}
-                  style={{ willChange: 'left, top, transform' }}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 w-[62px] sm:w-[76px] md:w-[94px] flex flex-col items-center cursor-pointer group z-10 hover:z-30 transition-all ${
-                    isSlotHighlighted ? 'ring-2 ring-emerald-400 rounded-xl sm:rounded-2xl p-0.5 bg-emerald-950/70 shadow-[0_0_20px_rgba(52,211,153,0.7)]' : ''
-                  }`}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                  style={{ willChange: 'left, top' }}
+                  className="absolute -translate-x-1/2 -translate-y-1/2 z-10 hover:z-30 cursor-pointer"
                 >
-                  <div className={`relative flex items-center justify-center w-10 h-12 sm:w-12 sm:h-14 md:w-14 md:h-16 rounded-xl sm:rounded-2xl border-2 border-dashed shadow-lg flex-col gap-0.5 sm:gap-1 transition-all group-hover:scale-105 ${
-                    isSlotHighlighted
-                      ? 'border-emerald-400 bg-emerald-950/80 text-emerald-300 ring-2 ring-emerald-400'
-                      : 'border-cyan-400/80 bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 animate-pulse'
-                  }`}>
-                    <User size={20} className={isSlotHighlighted ? 'text-emerald-300 opacity-85' : 'text-cyan-300/70 opacity-75'} />
-                    <span className="text-[7.5px] sm:text-[8.5px] font-black tracking-tight">خالی</span>
-                  </div>
-                  <div className="flex items-center gap-0.5 sm:gap-1 mt-0.5 sm:mt-1 shadow-lg z-10 pointer-events-none">
-                    <span
-                      className={`text-[7px] sm:text-[8px] md:text-[9px] px-1 sm:px-1.5 py-0.2 rounded-md shadow ${
-                        POSITION_COLORS[slot.pos] || 'bg-purple-600 text-white font-bold'
-                      }`}
-                    >
-                      {slot.pos}
-                    </span>
-                    <span className={`text-[7.5px] sm:text-[8.5px] px-1 py-0.2 rounded-md font-black border ${
-                      isSlotHighlighted
-                        ? 'bg-emerald-950/90 text-emerald-300 border-emerald-400/50'
-                        : 'bg-cyan-950/90 text-cyan-300 border-cyan-500/40'
-                    }`}>
-                      +انتخاب
-                    </span>
-                  </div>
-                  <span className="text-[7px] sm:text-[8px] font-black text-cyan-200/80 tracking-tight text-center whitespace-nowrap leading-none mt-0.5 bg-[#05080e]/80 px-1 py-0.5 rounded-md border border-cyan-500/20">
-                    جای خالی
-                  </span>
+                  <FutPitchCard
+                    player={null}
+                    slotPos={slot.pos}
+                    isGreenSlot={isSlotHighlighted}
+                    cardSize="normal"
+                  />
                 </motion.div>
               );
             })}
           </div>
-
-          {/* Formation Label */}
-          <div className="relative z-20 text-right pt-1 pr-1 flex justify-between items-end bg-[#080c14]/70 p-2 sm:p-2.5 rounded-xl sm:rounded-2xl border border-white/10 backdrop-blur-md">
-            <span className="text-xs text-cyan-300 font-bold">ترکیب چیدمان تیمی</span>
-            <span className="text-xl md:text-3xl font-black text-white font-sport tracking-wider drop-shadow-md">
-              {currentFormation}
-            </span>
-          </div>
         </div>
 
-        {/* ACTIVE POSITION HIGHLIGHT BANNER (مکان زیر چمن جهت جلوگیری از جابجایی عمودی صفحه) */}
+        {/* ACTIVE POSITION HIGHLIGHT BANNER */}
         {(activeHighlightPos || selectedPitchPlayerId || selectedBenchPlayerId) && (
           <div className="bg-gradient-to-r from-emerald-950/95 via-[#081f1d] to-[#080c14] border border-emerald-400/60 p-3 rounded-2xl flex items-center justify-between text-xs text-emerald-200 shadow-[0_0_20px_rgba(52,211,153,0.25)] backdrop-blur-xl animate-fadeIn">
             <div className="flex items-center gap-2.5">
@@ -1813,63 +1592,48 @@ export default function EFootballGamePlan({
           </div>
         )}
 
-        {/* BOTTOM: BENCH & RESERVES CONTAINER (زیر چمن) */}
-        <div className="bg-[#080c14]/90 rounded-3xl p-4 md:p-5 border border-slate-700/60 text-white shadow-2xl space-y-4 backdrop-blur-xl">
-          {/* SECTION 1: BENCH SUBSTITUTES (نیمکت ذخیره‌ها) */}
-          <div className="space-y-2.5">
-            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+        {/* BOTTOM: BENCH & RESERVES CONTAINER (FUTBIN Style 7 Subs + Reserves) */}
+        <div className="bg-[#080c14]/90 rounded-3xl p-4 md:p-5 border border-slate-700/60 text-white shadow-2xl space-y-5 backdrop-blur-xl">
+          {/* SECTION 1: BENCH SUBSTITUTES (دقیقاً ۷ اسلات نیمکت) */}
+          <div className="space-y-3">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2.5">
               <span className="font-black text-sm md:text-base text-cyan-300 flex items-center gap-2">
                 <Users size={18} className="text-cyan-400" />
-                <span>بازیکنان نیمکت ذخیره (Substitutes - {substitutes.length} نفر)</span>
+                <span>بازیکنان نیمکت ذخیره (Substitutes - ۷ بازیکن)</span>
               </span>
-              <span className="text-[11px] text-slate-400">کلیک جهت جابجایی دو بازیکن نیمکت یا تعویض با چمن</span>
+              <span className="text-[11px] text-slate-400 hidden sm:inline">کلیک روی بازیکن جهت تعویض با چمن یا جابجایی در نیمکت</span>
             </div>
 
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-11 gap-2">
-              {(substitutes || []).map((sub) => {
-                if (!sub) return null;
+            {/* 7 Bench Slots Row */}
+            <div className="flex items-center justify-start sm:justify-center overflow-x-auto pb-2 gap-2 sm:gap-3 custom-scrollbar">
+              {Array.from({ length: Math.max(7, (substitutes || []).length) }).map((_, idx) => {
+                const sub = (substitutes || [])[idx];
+                if (!sub) {
+                  return (
+                    <FutPitchCard
+                      key={`empty-sub-${idx}`}
+                      player={null}
+                      slotPos="SUB"
+                      cardSize="bench"
+                      onClick={() => {
+                        if (reserves && reserves.length > 0) {
+                          setSlotModalState({ isOpen: true, targetSlot: { pos: 'SUB' } });
+                        }
+                      }}
+                    />
+                  );
+                }
+
                 const isSelected = selectedBenchPlayerId === sub.id;
                 const natPos = sub.naturalPosition || sub.base_position || sub.main_position || sub.position;
                 const targetPos = highlightedPosition || (selectedPitchPlayer ? selectedPitchPlayer.position : null);
-
                 const isPosMatch = !selectedBenchPlayerId && Boolean(targetPos && isPlayerCompatibleWithPosition(sub, targetPos));
                 const isExactMatch = Boolean(targetPos && isPlayerExactPosition(sub, targetPos));
                 const isDimmed = !selectedBenchPlayerId && Boolean(targetPos && !isSelected && !isPosMatch);
-                const isOut = sub.isSubbedOut;
-                const isSuspended = Boolean((sub.suspension_matches > 0) || sub.is_suspended || sub.isSuspended);
-                const isSubPack = isPackPlayer(sub);
-                const subPackConfig = isSubPack ? getPackTierConfig(sub.pack_tier || sub.rarity) : null;
-                const subStamina = Math.max(5, Math.min(100, Math.round(Number(sub.stamina ?? sub.virtual_stamina ?? 90))));
-                const subStaminaColor =
-                  subStamina >= 80
-                    ? 'bg-[#00ff87]'
-                    : subStamina >= 50
-                    ? 'bg-cyan-400'
-                    : subStamina >= 30
-                    ? 'bg-amber-400'
-                    : 'bg-rose-500';
 
                 return (
-                  <div
-                    key={sub.id}
-                    onClick={() => handleBenchPlayerClick(sub, true)}
-                    className={`p-2 rounded-2xl border cursor-pointer flex flex-col items-center text-center transition-all relative ${
-                      isDimmed ? 'opacity-35' : ''
-                    } ${
-                      isSuspended
-                        ? 'bg-red-950/40 border-red-700/80 hover:border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.2)]'
-                        : isOut
-                        ? 'opacity-65 bg-rose-950/40 border-rose-800/60 grayscale cursor-not-allowed hover:border-rose-600'
-                        : isPosMatch
-                        ? 'bg-emerald-950/70 border-2 border-emerald-400 scale-105 shadow-[0_0_15px_rgba(52,211,153,0.5)] ring-2 ring-emerald-400'
-                        : isSelected
-                        ? 'bg-gradient-to-r from-cyan-950 to-purple-950 border-2 border-cyan-400 scale-105 shadow-[0_0_15px_rgba(0,243,255,0.4)] ring-2 ring-cyan-400'
-                        : isSubPack
-                        ? `bg-gradient-to-b from-[#111827] via-[#0b1020] to-[#070b14] border-2 ${subPackConfig.borderColor} ${subPackConfig.glowShadow} hover:scale-105`
-                        : 'bg-[#0f172a]/80 border-slate-700/60 hover:border-cyan-400/60 hover:bg-slate-800'
-                    }`}
-                  >
-                    {/* FotMob Style Rapid Action Emoji Dock for Bench (Admin Mode) */}
+                  <div key={sub.id} className="relative shrink-0">
+                    {/* Admin Mode Rapid Dock */}
                     {isAdminMode && adminQuickDockPlayer?.id === sub.id && (
                       <div
                         className="absolute bottom-[110%] left-1/2 -translate-x-1/2 z-[100] flex items-center gap-1 p-1 sm:p-1.5 rounded-2xl bg-slate-950/95 backdrop-blur-xl border-2 border-cyan-500/70 shadow-[0_0_30px_rgba(6,182,212,0.45)] animate-in fade-in zoom-in-90 duration-150 select-none whitespace-nowrap"
@@ -1879,293 +1643,95 @@ export default function EFootballGamePlan({
                           type="button"
                           onClick={() => handleAdminQuickEvent(sub, 'GOAL')}
                           title="ثبت گل (⚽)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/60 hover:scale-110 active:scale-95 flex items-center justify-center text-sm sm:text-base cursor-pointer transition-all shadow-sm"
+                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/60 flex items-center justify-center text-xs sm:text-sm cursor-pointer"
                         >
                           ⚽
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleAdminQuickEvent(sub, 'ASSIST')}
-                          title="ثبت پاس‌گل (🅰️)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/60 hover:scale-110 active:scale-95 flex items-center justify-center text-sm sm:text-base cursor-pointer transition-all shadow-sm"
-                        >
-                          🅰️
-                        </button>
-                        <button
-                          type="button"
                           onClick={() => handleAdminQuickEvent(sub, 'YELLOW')}
                           title="کارت زرد (🟨)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-950/80 hover:bg-amber-900 border border-amber-500/60 hover:scale-110 active:scale-95 flex items-center justify-center text-sm sm:text-base cursor-pointer transition-all shadow-sm"
+                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-950/80 hover:bg-amber-900 border border-amber-500/60 flex items-center justify-center text-xs sm:text-sm cursor-pointer"
                         >
                           🟨
                         </button>
                         <button
                           type="button"
                           onClick={() => handleAdminQuickEvent(sub, 'RED')}
-                          title="کارت قرمز مستقیم (🟥)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/60 hover:scale-110 active:scale-95 flex items-center justify-center text-sm sm:text-base cursor-pointer transition-all shadow-sm"
+                          title="کارت قرمز (🟥)"
+                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/60 flex items-center justify-center text-xs sm:text-sm cursor-pointer"
                         >
                           🟥
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleAdminQuickEvent(sub, 'PENALTY_SCORED')}
-                          title="گل پنالتی (🎯)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-teal-950/80 hover:bg-teal-900 border border-teal-500/60 hover:scale-110 active:scale-95 flex items-center justify-center text-sm sm:text-base cursor-pointer transition-all shadow-sm"
-                        >
-                          🎯
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAdminQuickEvent(sub, 'OWN_GOAL')}
-                          title="گل به خودی (🤦‍♂️)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-red-950/80 hover:bg-red-900 border border-red-500/60 hover:scale-110 active:scale-95 flex items-center justify-center text-sm sm:text-base cursor-pointer transition-all shadow-sm"
-                        >
-                          🤦‍♂️
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAdminQuickEvent(sub, 'INJURY')}
-                          title="مصدومیت (🚑)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-purple-950/80 hover:bg-purple-900 border border-purple-500/60 hover:scale-110 active:scale-95 flex items-center justify-center text-sm sm:text-base cursor-pointer transition-all shadow-sm"
-                        >
-                          🚑
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAdminQuickEvent(sub, 'UNDO')}
-                          title="لغو آخرین رویداد این بازیکن (↩️)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:scale-110 active:scale-95 flex items-center justify-center text-xs sm:text-sm text-slate-300 hover:text-white cursor-pointer transition-all shadow-sm"
-                        >
-                          ↩️
-                        </button>
-                        <button
-                          type="button"
                           onClick={() => setAdminQuickDockPlayer(null)}
-                          title="بستن"
-                          className="w-6 h-6 rounded-lg bg-slate-900/90 text-slate-400 hover:text-white flex items-center justify-center text-xs cursor-pointer ml-0.5"
+                          className="w-5 h-5 rounded-lg bg-slate-900 text-slate-400 hover:text-white flex items-center justify-center text-xs cursor-pointer ml-0.5"
                         >
                           ✕
                         </button>
                       </div>
                     )}
 
-                    {isPosMatch && (
-                      <span className="absolute top-1 left-1 text-amber-300 text-[12px] drop-shadow-[0_0_6px_#f59e0b] z-20 animate-bounce pointer-events-none" title={isExactMatch ? 'پست تخصصی اصلی ⭐' : 'پست سازگار و قابل بازی ⭐'}>
-                        ⭐
-                      </span>
-                    )}
-                    {isSubPack && !isPosMatch && (
-                      <span className="absolute top-1 left-1 text-amber-300 text-[11px] drop-shadow-[0_0_6px_#f59e0b] z-20 animate-pulse pointer-events-none" title={`بازیکن ویژه استخراج‌شده از ${subPackConfig.name}`}>
-                        ✨
-                      </span>
-                    )}
-                    {isSuspended && (
-                      <span className="absolute top-1 right-1 text-[7px] font-black bg-red-600 text-white px-1 py-0.2 rounded-full flex items-center gap-0.5 shadow z-10 font-sport">
-                        🟥 محروم
-                      </span>
-                    )}
-                    {Boolean(sub.is_injured || sub.isInjured || (sub.injury_matches > 0)) && !isSuspended && (
-                      <span className="absolute top-1 right-1 text-[7px] font-black bg-rose-700 text-white px-1 py-0.2 rounded-full flex items-center gap-0.5 shadow z-10 font-sport">
-                        🩹 مصدوم ({sub.injury_matches || 2})
-                      </span>
-                    )}
-                    {isOut && !isSuspended && !(sub.is_injured || sub.isInjured || (sub.injury_matches > 0)) && (
-                      <span className="absolute top-1 right-1 text-[7px] font-black bg-rose-600 text-white px-1 py-0.2 rounded-full flex items-center gap-0.5 shadow z-10 font-sport">
-                        ↩️ OUT
-                      </span>
-                    )}
-
-                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1 bg-[#05080e] relative overflow-hidden shadow-inner ${
-                      isSubPack ? `${subPackConfig.borderColor} border-2 ${subPackConfig.glowShadow}` : 'border border-slate-600'
-                    }`}>
-                      {/* Holographic sweep sheen */}
-                      {isSubPack && (
-                        <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
-                          <div
-                            className="absolute -inset-[100%] w-[300%] h-[300%] bg-gradient-to-r from-transparent via-white/20 to-transparent rotate-45 animate-pulse"
-                            style={{ animationDuration: '2.5s' }}
-                          />
-                        </div>
-                      )}
-                      {getPlayerPhotoUrl(sub) ? (
-                        <img
-                          src={getPlayerPhotoUrl(sub)}
-                          alt={sub.name}
-                          loading="lazy"
-                          decoding="async"
-                          className="w-full h-full object-cover object-top"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <User size={18} className={isOut ? 'text-rose-400 opacity-60' : 'text-slate-400 opacity-70'} />
-                      )}
-                      {sub.shirt_number != null && (
-                        <span className="absolute bottom-0 right-0 bg-[#05080e]/95 text-cyan-300 text-[7px] font-sport font-black px-0.5 rounded-tl border-t border-l border-cyan-500/40">
-                          #{sub.shirt_number}
-                        </span>
-                      )}
-                    </div>
-
-                    <span className={`font-black text-[9px] leading-tight w-full truncate max-w-[70px] ${
-                      isOut ? 'line-through text-slate-400' : isSubPack ? `${subPackConfig.accentText} drop-shadow` : 'text-white'
-                    }`}>
-                      {sub.name}
-                    </span>
-
-                    <div className="flex items-center gap-1 mt-1 pointer-events-none">
-                      <span
-                        className={`text-[7.5px] font-black px-1 rounded ${POSITION_COLORS[natPos] || 'bg-slate-700 text-white'}`}
-                      >
-                        {natPos}
-                      </span>
-                      <span className={`font-sport text-[10.5px] font-black ${isSubPack ? subPackConfig.accentText : 'text-amber-300'}`}>
-                        {sub.overall}
-                      </span>
-                    </div>
-
-                    {/* FotMob Style Badges for Sub */}
-                    {(isLiveMode || isAdminMode) && ((sub.in_match_goals || 0) > 0 || (sub.in_match_assists || 0) > 0 || sub.yellowCards > 0 || sub.isRed || sub.isInjured) && (
-                      <div className="absolute -bottom-1.5 z-30 flex items-center justify-center gap-0.5 pointer-events-none">
-                        {(sub.in_match_goals || 0) > 0 && (
-                          <span className="text-[7.5px] bg-slate-950/95 border border-emerald-400 px-1 rounded-full text-emerald-300 font-black">
-                            ⚽{sub.in_match_goals > 1 ? `×${sub.in_match_goals}` : ''}
-                          </span>
-                        )}
-                        {(sub.in_match_assists || 0) > 0 && (
-                          <span className="text-[7.5px] bg-slate-950/95 border border-cyan-400 px-1 rounded-full text-cyan-300 font-black">
-                            👟{sub.in_match_assists > 1 ? `×${sub.in_match_assists}` : ''}
-                          </span>
-                        )}
-                        {sub.yellowCards === 1 && !sub.isRed && (
-                          <span className="w-2.5 h-3.5 rounded-xs bg-amber-400 text-[6px] font-bold text-black flex items-center justify-center">
-                            🟨
-                          </span>
-                        )}
-                        {sub.isRed && (
-                          <span className="w-2.5 h-3.5 rounded-xs bg-rose-600 text-[6px] font-bold text-white flex items-center justify-center">
-                            🟥
-                          </span>
-                        )}
-                        {sub.isInjured && (
-                          <span className="w-3.5 h-3.5 rounded-full bg-rose-950 border border-rose-500 text-[7px] flex items-center justify-center animate-pulse">
-                            🩹
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    <FutPitchCard
+                      player={sub}
+                      slotPos={natPos || 'SUB'}
+                      isSelected={isSelected}
+                      isGreenSlot={isPosMatch}
+                      hasStarRating={isPosMatch}
+                      isExactMatch={isExactMatch}
+                      isDimmed={isDimmed}
+                      isLiveMode={isLiveMode}
+                      isAdminMode={isAdminMode}
+                      cardSize="bench"
+                      onClick={() => handleBenchPlayerClick(sub, true)}
+                    />
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* VISUAL SEPARATOR DIVIDER & SECTION 2: RESERVES / OUT OF SQUAD */}
+          {/* SECTION 2: RESERVES / OUT OF SQUAD */}
           {!hideReserves && !isLiveMode && (
             <>
-              <div className="my-4 flex items-center gap-3">
-                <div className="h-0.5 flex-1 bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent"></div>
+              <div className="my-3 flex items-center gap-3">
+                <div className="h-0.5 flex-1 bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
                 <span className="text-[11px] font-black text-cyan-300 px-3 py-1 bg-[#080c14] rounded-full border border-cyan-500/40 shadow-inner flex items-center gap-1.5 font-sport">
                   <ArrowLeftRight size={13} className="text-cyan-400" />
-                  <span>بازیکنان خارج از بازی و لیست رختکن (Reserves / Out of Squad)</span>
+                  <span>بازیکنان ذخیره و لیست رختکن (Reserves - {reserves.length} نفر)</span>
                 </span>
-                <div className="h-0.5 flex-1 bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent"></div>
+                <div className="h-0.5 flex-1 bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
               </div>
 
-              {/* SECTION 2: RESERVES / OUT OF SQUAD */}
-              <div className="space-y-2">
-                <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                  {(reserves || []).map((res) => {
-                    if (!res) return null;
-                    const isSelected = selectedBenchPlayerId === res.id;
-                    const natPos = res.naturalPosition || res.base_position || res.main_position || res.position;
-                    const targetPos = highlightedPosition || (selectedPitchPlayer ? selectedPitchPlayer.position : null);
+              <div className="flex items-center justify-start sm:justify-center overflow-x-auto pb-2 gap-2 sm:gap-3 custom-scrollbar">
+                {(reserves || []).map((res) => {
+                  if (!res) return null;
+                  const isSelected = selectedBenchPlayerId === res.id;
+                  const natPos = res.naturalPosition || res.base_position || res.main_position || res.position;
+                  const targetPos = highlightedPosition || (selectedPitchPlayer ? selectedPitchPlayer.position : null);
+                  const isPosMatch = !selectedBenchPlayerId && Boolean(targetPos && isPlayerCompatibleWithPosition(res, targetPos));
+                  const isExactMatch = Boolean(targetPos && isPlayerExactPosition(res, targetPos));
+                  const isDimmed = !selectedBenchPlayerId && Boolean(targetPos && !isSelected && !isPosMatch);
 
-                    const isPosMatch = !selectedBenchPlayerId && Boolean(targetPos && isPlayerCompatibleWithPosition(res, targetPos));
-                    const isExactMatch = Boolean(targetPos && isPlayerExactPosition(res, targetPos));
-                    const isDimmed = !selectedBenchPlayerId && Boolean(targetPos && !isSelected && !isPosMatch);
-                    const isSuspended = Boolean((res.suspension_matches > 0) || res.is_suspended || res.isSuspended);
-                    const isResPack = isPackPlayer(res);
-                    const resPackConfig = isResPack ? getPackTierConfig(res.pack_tier || res.rarity) : null;
-                    const resStamina = Math.max(5, Math.min(100, Math.round(Number(res.stamina ?? res.virtual_stamina ?? 90))));
-
-                    return (
-                      <div
-                        key={res.id}
+                  return (
+                    <div key={res.id} className="relative shrink-0">
+                      <FutPitchCard
+                        player={res}
+                        slotPos={natPos || 'RES'}
+                        isSelected={isSelected}
+                        isGreenSlot={isPosMatch}
+                        hasStarRating={isPosMatch}
+                        isExactMatch={isExactMatch}
+                        isDimmed={isDimmed}
+                        isLiveMode={isLiveMode}
+                        isAdminMode={isAdminMode}
+                        cardSize="bench"
                         onClick={() => handleBenchPlayerClick(res, false)}
-                        className={`p-2.5 rounded-2xl border cursor-pointer flex justify-between items-center transition-all ${
-                          isDimmed ? 'opacity-35' : ''
-                        } ${
-                          isSuspended
-                            ? 'bg-red-950/30 border-red-700/80 hover:border-red-500 text-red-200 shadow'
-                            : isPosMatch
-                            ? 'bg-emerald-950/70 border-2 border-emerald-400 shadow-lg ring-2 ring-emerald-400 scale-[1.02]'
-                            : isSelected
-                            ? 'bg-cyan-950/80 border-2 border-cyan-400 shadow-lg ring-2 ring-cyan-400 animate-pulse'
-                            : isResPack
-                            ? `bg-gradient-to-r from-[#111827] via-[#0b1020] to-[#070b14] border-2 ${resPackConfig.borderColor} ${resPackConfig.glowShadow} text-white`
-                            : 'bg-slate-950/70 border-slate-800 hover:border-slate-600 text-slate-300'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          {isPosMatch && (
-                            <span className="text-amber-300 text-[12px] drop-shadow-[0_0_6px_#f59e0b] animate-bounce pointer-events-none" title={isExactMatch ? 'پست تخصصی اصلی ⭐' : 'پست سازگار و قابل بازی ⭐'}>
-                              ⭐
-                            </span>
-                          )}
-                          {isResPack && !isPosMatch && (
-                            <span className="text-amber-300 text-[10px] animate-pulse pointer-events-none" title={`بازیکن ویژه استخراج‌شده از ${resPackConfig.name}`}>
-                              ✨
-                            </span>
-                          )}
-                          {isSuspended && (
-                            <span className="text-[7.5px] font-black bg-red-600 text-white px-1 py-0.2 rounded-full font-sport">
-                              🟥
-                            </span>
-                          )}
-                          {Boolean(res.is_injured || res.isInjured || (res.injury_matches > 0)) && !isSuspended && (
-                            <span className="text-[7.5px] font-black bg-rose-700 text-white px-1 py-0.2 rounded-full font-sport" title={`مصدوم (${res.injury_matches || 2} بازی)`}>
-                              🩹
-                            </span>
-                          )}
-                          <div className={`w-6 h-6 rounded-lg flex items-center justify-center bg-[#05080e] relative overflow-hidden shrink-0 shadow-inner ${
-                            isResPack ? `${resPackConfig.borderColor} border` : 'border border-slate-700'
-                          }`}>
-                            {getPlayerPhotoUrl(res) ? (
-                              <img
-                                src={getPlayerPhotoUrl(res)}
-                                alt={res.name}
-                                loading="lazy"
-                                decoding="async"
-                                className="w-full h-full object-cover object-top"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <User size={12} className="text-slate-500" />
-                            )}
-                          </div>
-                          {res.shirt_number != null && (
-                            <span className="text-[8.5px] font-sport text-cyan-400 font-black">#{res.shirt_number}</span>
-                          )}
-                          <span
-                            className={`text-[8px] font-black px-1.5 py-0.5 rounded pointer-events-none ${POSITION_COLORS[natPos] || 'bg-slate-700 text-white'}`}
-                          >
-                            {natPos}
-                          </span>
-                          <span className={`font-bold text-[10px] sm:text-[11px] truncate max-w-[90px] ${isResPack ? resPackConfig.accentText : ''}`}>{res.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[9px] font-sport text-cyan-300 font-bold">{resStamina}%</span>
-                          <span className={`font-sport text-[11px] font-black ${isResPack ? resPackConfig.accentText : 'text-amber-300'}`}>{res.overall}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </>
           )}
@@ -2407,6 +1973,15 @@ export default function EFootballGamePlan({
         </AnimatePresence>,
         document.body
       )}
+
+      {/* DIRECT PLAYER SLOT SELECT MODAL */}
+      <PlayerSlotSelectModal
+        isOpen={slotModalState.isOpen}
+        onClose={() => setSlotModalState({ isOpen: false, targetSlot: null })}
+        targetSlot={slotModalState.targetSlot}
+        availablePlayers={[...(substitutes || []), ...(reserves || [])]}
+        onSelectPlayer={(player) => handleSelectPlayerForSlot(player, slotModalState.targetSlot)}
+      />
     </div>
   );
 }

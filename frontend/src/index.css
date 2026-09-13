@@ -358,6 +358,39 @@
 }
 
 /* =========================================================
+   FUTBIN / FC 3D Perspective Stadium Pitch
+   ========================================================= */
+.futbin-pitch-container {
+  position: relative;
+  width: 100%;
+  border-radius: 28px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 35%, #184c2a 0%, #0d2e18 45%, #06170c 85%, #030a05 100%);
+  border: 2px solid rgba(0, 255, 135, 0.35);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), inset 0 0 50px rgba(0, 255, 135, 0.08);
+}
+
+.futbin-pitch-mow-stripes {
+  background-image: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.02) 0px,
+    rgba(255, 255, 255, 0.02) 40px,
+    rgba(0, 0, 0, 0.035) 40px,
+    rgba(0, 0, 0, 0.035) 80px
+  );
+}
+
+.futbin-pitch-perspective {
+  perspective: 1100px;
+  transform-style: preserve-3d;
+}
+
+.futbin-pitch-surface {
+  transform: perspective(950px) rotateX(10deg) scale(0.98);
+  transform-origin: 50% 100%;
+}
+
+/* =========================================================
    Trading Card (FUT Style) Styling
    ========================================================= */
 .fut-card {
@@ -445,4 +478,49 @@
 .animate-fc-shockwave {
   animation: fc-shockwave-pulse 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* =========================================================
+   FUTBIN / EA Sports FC 26 Stadium 3D Perspective Pitch
+   ========================================================= */
+.futbin-pitch-container {
+  position: relative;
+  border-radius: 28px;
+  background: radial-gradient(circle at 50% 35%, #0e301d 0%, #081d12 55%, #030d07 100%);
+  border: 2px solid rgba(0, 255, 135, 0.35);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), inset 0 0 50px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  user-select: none;
+}
+
+.futbin-pitch-mow-stripes {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 255, 255, 0.02) 0px,
+    rgba(255, 255, 255, 0.02) 48px,
+    transparent 48px,
+    transparent 96px
+  );
+  pointer-events: none;
+}
+
+.futbin-pitch-surface {
+  position: relative;
+  width: 100%;
+  min-height: 580px;
+}
+
+@media (min-width: 640px) {
+  .futbin-pitch-surface {
+    min-height: 660px;
+  }
+}
+
+@media (min-width: 768px) {
+  .futbin-pitch-surface {
+    min-height: 760px;
+  }
+}
+
 
