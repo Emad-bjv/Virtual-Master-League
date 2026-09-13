@@ -890,13 +890,13 @@ export default function TeamTab({
                   nonStarting = nonStarting.map((p) => promotedIds.has(p.id) ? { ...p, is_starting: true } : p).filter((p) => !promotedIds.has(p.id));
                 }
 
-                const benchSubs = nonStarting.slice(0, 11);
-                const benchRes = nonStarting.slice(11);
-                const benchKey = benchSubs.map((p) => p.id).join('-');
+                const benchSubs = (nonStarting || []).slice(0, 11).filter(Boolean);
+                const benchRes = (nonStarting || []).slice(11).filter(Boolean);
+                const benchKey = benchSubs.map((p) => p?.id).filter(Boolean).join('-');
 
                 return (
                   <EFootballGamePlan 
-                    key={`gameplan-${teamId}-${selectedMatch?.id || 'default'}-${selectedFormation}-${presetName || 'custom'}-${starters.map(p => `${p.id}_${p.tacticalPosition || p.position}`).join('-')}-subs_${benchKey}`}
+                    key={`gameplan-${teamId}-${selectedMatch?.id || 'default'}-${selectedFormation}-${presetName || 'custom'}-${(starters || []).map(p => `${p?.id}_${p?.tacticalPosition || p?.position}`).join('-')}-subs_${benchKey}`}
                     teamName={teamData?.name || "بدون تیم"} 
                     formation={selectedFormation} 
                     onFormationChange={setSelectedFormation}
@@ -904,23 +904,23 @@ export default function TeamTab({
                       if (newForm) setSelectedFormation(newForm);
                       if (presetName) setHasCustomPlayerEdits(true);
                       const updatedPlayers = [
-                        ...newXi.map((p, i) => ({
+                        ...(newXi || []).filter(Boolean).map((p, i) => ({
                           ...p,
-                          position: p.naturalPosition || p.position,
-                          tacticalPosition: p.position,
+                          position: p?.naturalPosition || p?.position,
+                          tacticalPosition: p?.position,
                           is_starting: true,
                           _order: i,
                         })),
-                        ...newSubs.map((p, i) => ({
+                        ...(newSubs || []).filter(Boolean).map((p, i) => ({
                           ...p,
-                          position: p.naturalPosition || p.position,
+                          position: p?.naturalPosition || p?.position,
                           tacticalPosition: null,
                           is_starting: false,
                           _order: 11 + i,
                         })),
-                        ...newRes.map((p, i) => ({
+                        ...(newRes || []).filter(Boolean).map((p, i) => ({
                           ...p,
-                          position: p.naturalPosition || p.position,
+                          position: p?.naturalPosition || p?.position,
                           tacticalPosition: null,
                           is_starting: false,
                           _order: 22 + i,

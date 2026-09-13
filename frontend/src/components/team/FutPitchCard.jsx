@@ -127,7 +127,12 @@ export default function FutPitchCard({
 
   // Manager Card Slot
   if (isManager) {
-    const managerName = managerData?.name || managerData?.full_name || managerData?.username || 'سرمربی تیم';
+    const managerName = String(
+      (typeof managerData?.name === 'string' ? managerData.name : null) || 
+      managerData?.full_name || 
+      managerData?.username || 
+      'سرمربی تیم'
+    );
     const managerAvatar = managerData?.avatar;
 
     return (
@@ -181,13 +186,13 @@ export default function FutPitchCard({
   // Occupied FUT Player Card
   const photoUrl = getPlayerPhotoUrl(player);
   const isPack = isPackPlayer(player);
-  const packConfig = isPack ? getPackTierConfig(player.pack_tier || player.rarity) : null;
-  const ovr = player.overall || 75;
-  const isSuspended = Boolean((player.suspension_matches > 0) || player.is_suspended || player.isSuspended);
-  const isInjured = Boolean(player.is_injured || player.isInjured || (player.injury_matches > 0));
+  const packConfig = isPack ? getPackTierConfig(player?.pack_tier || player?.rarity) : null;
+  const ovr = player?.overall || 75;
+  const isSuspended = Boolean((player?.suspension_matches > 0) || player?.is_suspended || player?.isSuspended);
+  const isInjured = Boolean(player?.is_injured || player?.isInjured || (player?.injury_matches > 0));
 
   // Stamina calculation
-  const staminaPercent = Math.max(5, Math.min(100, Math.round(Number(player.stamina ?? player.virtual_stamina ?? 90))));
+  const staminaPercent = Math.max(5, Math.min(100, Math.round(Number(player?.stamina ?? player?.virtual_stamina ?? 90))));
   const staminaColorClass =
     staminaPercent >= 80 ? 'bg-[#00ff87]' :
     staminaPercent >= 50 ? 'bg-cyan-400' :
@@ -212,7 +217,7 @@ export default function FutPitchCard({
             ? 'filter drop-shadow-[0_0_18px_rgba(0,243,255,0.95)]'
             : isGreenSlot
             ? 'filter drop-shadow-[0_0_16px_rgba(0,255,135,0.95)]'
-            : isPack
+            : isPack && packConfig?.glowShadow
             ? `${packConfig.glowShadow}`
             : 'drop-shadow-[0_8px_18px_rgba(0,0,0,0.85)]'
         }`}
@@ -240,7 +245,7 @@ export default function FutPitchCard({
           {photoUrl ? (
             <img
               src={photoUrl}
-              alt={player.name}
+              alt={player?.name || 'بازیکن'}
               loading="lazy"
               decoding="async"
               className={`w-full h-full object-cover object-top filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.75)] ${
@@ -320,8 +325,8 @@ export default function FutPitchCard({
         {/* Player Name Banner at Bottom of Card */}
         <div className="absolute bottom-2 sm:bottom-2.5 left-1 right-1 flex flex-col items-center leading-none px-1 z-20">
           <div className="text-[8px] sm:text-[9.5px] md:text-[11px] font-black text-white truncate max-w-full text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
-            {player.isCaptain && <span className="text-amber-400 ml-0.5">©</span>}
-            {player.name}
+            {player?.isCaptain && <span className="text-amber-400 ml-0.5">©</span>}
+            {player?.name || 'بازیکن'}
           </div>
 
           {/* Micro Stamina Bar */}
@@ -342,10 +347,10 @@ export default function FutPitchCard({
         <div className="mt-1 flex items-center justify-center pointer-events-none">
           <span
             className={`px-2 py-0.5 rounded-full bg-slate-950/95 border text-[9px] sm:text-[10px] md:text-[11px] font-black shadow-md font-sport tracking-wider ${
-              POSITION_COLORS[slotPos] || 'border-slate-700/80 text-slate-300'
+              POSITION_COLORS[String(slotPos || '')] || 'border-slate-700/80 text-slate-300'
             }`}
           >
-            {slotPos}
+            {String(slotPos || 'POS')}
           </span>
         </div>
       )}

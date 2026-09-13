@@ -391,11 +391,11 @@ export default function EFootballGamePlan({
   };
 
   // Helper to intelligently match players to tactical slots based on their natural position
-  const matchPlayersToFormation = (players, preset) => {
-    if (!preset) return players;
+  const matchPlayersToFormation = (players = [], preset) => {
+    if (!preset || !Array.isArray(players) || players.length === 0) return players || [];
     const unassignedPlayers = [...players];
     const availableSlots = [...preset];
-    const newXi = new Array(players.length).fill(null);
+    const newXi = new Array(Math.min(players.length, availableSlots.length)).fill(null);
 
     // Pass 1: Exact Natural Position Match
     for (let i = 0; i < availableSlots.length; i++) {
@@ -405,10 +405,10 @@ export default function EFootballGamePlan({
         p => p && (p.naturalPosition || p.position) === targetPos
       );
 
-      if (playerIndex !== -1) {
+      if (playerIndex !== -1 && i < newXi.length) {
         newXi[i] = {
           ...unassignedPlayers[playerIndex],
-          naturalPosition: unassignedPlayers[playerIndex].naturalPosition || unassignedPlayers[playerIndex].position,
+          naturalPosition: unassignedPlayers[playerIndex]?.naturalPosition || unassignedPlayers[playerIndex]?.position || targetPos,
           position: targetPos,
           x_coord: availableSlots[i].x,
           y_coord: availableSlots[i].y,
@@ -420,12 +420,12 @@ export default function EFootballGamePlan({
 
     // Pass 2: Fill remaining slots with remaining players
     for (let i = 0; i < availableSlots.length; i++) {
-      if (availableSlots[i] !== null) {
+      if (availableSlots[i] !== null && i < newXi.length) {
         const playerIndex = unassignedPlayers.findIndex(p => p !== null);
         if (playerIndex !== -1) {
           newXi[i] = {
             ...unassignedPlayers[playerIndex],
-            naturalPosition: unassignedPlayers[playerIndex].naturalPosition || unassignedPlayers[playerIndex].position,
+            naturalPosition: unassignedPlayers[playerIndex]?.naturalPosition || unassignedPlayers[playerIndex]?.position || availableSlots[i].pos,
             position: availableSlots[i].pos,
             x_coord: availableSlots[i].x,
             y_coord: availableSlots[i].y,
@@ -436,14 +436,22 @@ export default function EFootballGamePlan({
     }
     
     // Fallback for any leftovers
-    return newXi.map((p, idx) => p || { ...players[idx], naturalPosition: players[idx].naturalPosition || players[idx].position });
+    return newXi.map((p, idx) => {
+      if (p) return p;
+      const fallbackP = players[idx];
+      if (!fallbackP) return null;
+      return {
+        ...fallbackP,
+        naturalPosition: fallbackP?.naturalPosition || fallbackP?.position || 'SUB',
+      };
+    }).filter(Boolean);
   };
 
   // Helper to ensure 11 starters are populated from bench if starters departed or suspended
   const buildFullSquad = (starters = [], subs = [], res = [], formPreset) => {
-    let currentStarters = [...(starters || [])];
-    let currentSubs = [...(subs || [])];
-    let currentRes = [...(res || [])];
+    let currentStarters = [...(starters || [])].filter(Boolean);
+    let currentSubs = [...(subs || [])].filter(Boolean);
+    let currentRes = [...(res || [])].filter(Boolean);
 
     // Identify and auto-rotate out suspended or ineligible starters (Only in pre-match non-live mode)
     const isPlayerIneligible = (p) => {
@@ -459,21 +467,21 @@ export default function EFootballGamePlan({
 
       ineligibleStarters.forEach((ineligibleP) => {
         // Find best eligible candidate from bench or reserves
-        const eligibleCandidates = [...currentSubs, ...currentRes].filter((p) => !isPlayerIneligible(p));
+        const eligibleCandidates = [...currentSubs, ...currentRes].filter((p) => p && !isPlayerIneligible(p));
         const posMatch = eligibleCandidates.find((p) => p.position === ineligibleP.position) ||
                          eligibleCandidates.find((p) => (p.naturalPosition || p.position) === (ineligibleP.naturalPosition || ineligibleP.position)) ||
                          eligibleCandidates[0];
 
         if (posMatch) {
-          currentSubs = currentSubs.filter((p) => p.id !== posMatch.id);
-          currentRes = currentRes.filter((p) => p.id !== posMatch.id);
+          currentSubs = currentSubs.filter((p) => p && p.id !== posMatch.id);
+          currentRes = currentRes.filter((p) => p && p.id !== posMatch.id);
 
           currentStarters.push({
             ...posMatch,
             x_coord: ineligibleP.x_coord,
             y_coord: ineligibleP.y_coord,
             position: ineligibleP.position,
-            naturalPosition: posMatch.naturalPosition || posMatch.position,
+            naturalPosition: posMatch.naturalPosition || posMatch.position || ineligibleP.position,
             is_starting: true,
           });
         }
@@ -489,18 +497,18 @@ export default function EFootballGamePlan({
     // Auto-promote bench players if starters are fewer than 11
     if (currentStarters.length < 11 && (currentSubs.length > 0 || currentRes.length > 0)) {
       const needed = 11 - currentStarters.length;
-      const eligiblePool = currentSubs.filter((p) => !isPlayerIneligible(p));
+      const eligiblePool = currentSubs.filter((p) => p && !isPlayerIneligible(p));
       const fromSubs = eligiblePool.splice(0, needed);
       fromSubs.forEach((p) => {
-        currentSubs = currentSubs.filter((s) => s.id !== p.id);
+        if (p) currentSubs = currentSubs.filter((s) => s && s.id !== p.id);
       });
       currentStarters.push(...fromSubs);
       if (fromSubs.length < needed && currentRes.length > 0) {
         const stillNeeded = needed - fromSubs.length;
-        const eligibleResPool = currentRes.filter((p) => !isPlayerIneligible(p));
+        const eligibleResPool = currentRes.filter((p) => p && !isPlayerIneligible(p));
         const fromRes = eligibleResPool.splice(0, stillNeeded);
         fromRes.forEach((p) => {
-          currentRes = currentRes.filter((r) => r.id !== p.id);
+          if (p) currentRes = currentRes.filter((r) => r && r.id !== p.id);
         });
         currentStarters.push(...fromRes);
       }
@@ -511,11 +519,10 @@ export default function EFootballGamePlan({
       ? matchPlayersToFormation(currentStarters, formPreset)
       : currentStarters;
 
-
     return {
       startingXi: alignedStarters,
-      substitutes: currentSubs.map(p => ({ ...p, naturalPosition: p.naturalPosition || p.position })),
-      reserves: currentRes.map(p => ({ ...p, naturalPosition: p.naturalPosition || p.position })),
+      substitutes: currentSubs.filter(Boolean).map(p => ({ ...p, naturalPosition: p.naturalPosition || p.position || 'SUB' })),
+      reserves: currentRes.filter(Boolean).map(p => ({ ...p, naturalPosition: p.naturalPosition || p.position || 'RES' })),
     };
   };
 
