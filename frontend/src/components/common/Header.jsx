@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Coins, LogIn, ShieldAlert, LogOut, Gem, Sparkles } from 'lucide-react';
 import NotificationCenter from './NotificationCenter';
 import { useAuth } from '../../context/AuthContext';
@@ -13,7 +14,16 @@ export default function Header({ user: propUser, coins, unreadNotifications, onA
   const isAuthenticated = contextIsAuth || propIsAuth;
   const onLogout = contextLogout || propOnLogout;
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin' || user?.is_superuser || user?.is_staff || user?.isAdminAccess;
+  const userRole = String(user?.role || '').toLowerCase().trim();
+  const adminRole = String(user?.admin_role || '').toLowerCase().trim();
+  const isAdmin = 
+    userRole === 'admin' || 
+    userRole === 'superadmin' || 
+    adminRole === 'admin' || 
+    adminRole === 'superadmin' || 
+    Boolean(user?.is_superuser) || 
+    Boolean(user?.is_staff) || 
+    Boolean(user?.isAdminAccess);
   const userTeamName = team?.name || user?.team_name || user?.team?.name;
   const userTeamLogo = getTeamLogoUrl(team || user?.team || userTeamName);
 
@@ -74,16 +84,27 @@ export default function Header({ user: propUser, coins, unreadNotifications, onA
 
       {/* Stats & Actions */}
       <div className="flex items-center gap-1.5 sm:gap-2.5">
-        {/* Admin Mode Quick Access Button */}
-        {onOpenAdmin && isAuthenticated && isAdmin && activeTab !== 'admin' && (
-          <button
-            onClick={onOpenAdmin}
-            className="flex items-center gap-1 bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 px-2 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95"
-            title="ورود به پنل مدیریت ادمین"
-          >
-            <ShieldAlert size={14} className="text-rose-400" />
-            <span className="hidden sm:inline">ادمین</span>
-          </button>
+        {/* Admin Portal & Referee Desk Direct Access */}
+        {isAuthenticated && isAdmin && activeTab !== 'admin' && (
+          <div className="flex items-center gap-1">
+            <Link
+              to="/admin"
+              className="flex items-center gap-1 bg-gradient-to-r from-rose-950 to-purple-950 hover:from-rose-900 hover:to-purple-900 text-rose-300 border border-rose-500/50 hover:border-rose-400 px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95"
+              title="ورود به پورتال ارشد ادمین (/admin)"
+            >
+              <ShieldAlert size={14} className="text-rose-400" />
+              <span className="hidden xs:inline sm:inline">پورتال ارشد</span>
+            </Link>
+            {onOpenAdmin && (
+              <button
+                onClick={onOpenAdmin}
+                className="hidden sm:flex items-center gap-1 bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 px-2 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md active:scale-95"
+                title="اتاق داوری درون داشبورد"
+              >
+                <span>اتاق داوری</span>
+              </button>
+            )}
+          </div>
         )}
 
         {/* Dual Currency Badges */}

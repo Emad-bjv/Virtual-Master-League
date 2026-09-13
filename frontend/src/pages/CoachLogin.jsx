@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { TEAM_LOGOS } from '../utils/teamLogos';
 import './CoachLogin.css';
@@ -57,8 +57,15 @@ const CoachLogin = () => {
     setError('');
 
     try {
-      await passwordLogin(username, password);
-      navigate('/dashboard', { replace: true });
+      const userData = await passwordLogin(username, password);
+      const role = String(userData?.role || '').toLowerCase();
+      const adminRole = String(userData?.admin_role || '').toLowerCase();
+      const isAdmin = role === 'admin' || role === 'superadmin' || adminRole === 'admin' || adminRole === 'superadmin' || userData?.is_superuser || userData?.is_staff;
+      if (isAdmin) {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
     } catch (err) {
       let errorMsg = 'نام کاربری یا رمز عبور اشتباه است.';
       if (err.response?.data?.error) {
@@ -159,6 +166,12 @@ const CoachLogin = () => {
           <button type="submit" className="login-btn" disabled={isLoading}>
             {isLoading ? <span className="loader"></span> : 'Sign In'}
           </button>
+
+          <div className="mt-4 pt-3 border-t border-white/10 text-center">
+            <Link to="/admin" className="text-xs text-cyan-400/90 hover:text-cyan-300 font-bold transition-colors">
+              🔐 ورود به پورتال مدیریت ارشد (Admin Suite)
+            </Link>
+          </div>
         </form>
       </div>
     </div>

@@ -6,9 +6,220 @@ import { ToastProvider } from './components/Toast';
 import { 
   LayoutDashboard, Radio, Users, Shield, DollarSign, Settings, 
   FileText, Database, LogOut, ExternalLink, ArrowRight, Newspaper, Gift, ArrowRightLeft, Sparkles, Menu, X,
-  Key, ShieldCheck, ShieldAlert, Gamepad2, Scale
+  Key, ShieldCheck, ShieldAlert, Gamepad2, Scale, Lock, LogIn, CheckCircle2, UserCheck, AlertCircle
 } from 'lucide-react';
 import { hasAdminPermission } from '../utils/adminPermissions';
+
+const isUserAdminRole = (u) => {
+  if (!u) return false;
+  const role = String(u.role || '').toLowerCase().trim();
+  const adminRole = String(u.admin_role || u.admin_profile?.admin_role || '').toLowerCase().trim();
+  return (
+    role === 'admin' ||
+    role === 'superadmin' ||
+    adminRole === 'admin' ||
+    adminRole === 'superadmin' ||
+    Boolean(u.is_superuser) ||
+    Boolean(u.is_staff) ||
+    (Array.isArray(u.admin_permissions) && u.admin_permissions.length > 0)
+  );
+};
+
+const AdminAuthGate = ({ currentUser, onLoginSuccess }) => {
+  const navigate = useNavigate();
+  const [username, setUsername] = useState('admin_emad');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async (e) => {
+    e?.preventDefault();
+    if (!username || !password) {
+      setError('لطفاً نام کاربری و رمز عبور را وارد کنید.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await api.post('/users/auth/login/', {
+        username: username.trim(),
+        password: password.trim()
+      });
+
+      const { access, refresh, user: userData } = res.data;
+      if (access) {
+        localStorage.setItem('vml_token', access);
+        localStorage.setItem('access_token', access);
+      }
+      if (refresh) {
+        localStorage.setItem('vml_refresh_token', refresh);
+      }
+      if (userData) {
+        localStorage.setItem('vml_user', JSON.stringify(userData));
+      }
+
+      if (isUserAdminRole(userData)) {
+        onLoginSuccess(userData);
+      } else {
+        setError(`حساب کاربری @${userData?.username || username} فاقد نقش ادمین یا مجوزهای سوپرادمین است.`);
+      }
+    } catch (err) {
+      const msg = err.response?.data?.error || err.response?.data?.detail || 'نام کاربری یا رمز عبور اشتباه است.';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#050811] text-slate-100 flex items-center justify-center p-4 font-sans dir-rtl select-none relative overflow-hidden" style={{ fontFamily: 'Vazirmatn, Tahoma, sans-serif' }}>
+      {/* Background ambient lighting */}
+      <div className="absolute -top-40 -right-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="relative z-10 w-full max-w-md bg-slate-900/90 backdrop-blur-2xl border border-slate-700/70 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/80 space-y-6">
+        {/* Header */}
+        <div className="text-center space-y-3">
+          <div className="w-16 h-16 rounded-3xl bg-gradient-to-tr from-cyan-500 via-purple-600 to-rose-500 p-0.5 mx-auto shadow-lg shadow-cyan-500/20 flex items-center justify-center">
+            <div className="w-full h-full bg-slate-950 rounded-[22px] flex items-center justify-center">
+              <ShieldAlert className="text-cyan-400" size={32} />
+            </div>
+          </div>
+          <div>
+            <h1 className="text-xl font-black text-white tracking-tight">دروازه ورود به پورتال ارشد ادمین</h1>
+            <p className="text-xs text-slate-400 mt-1 font-sport tracking-wider text-cyan-400/80 uppercase">
+              VML Senior Admin Suite
+            </p>
+          </div>
+        </div>
+
+        {/* Current User Warning if logged in as coach */}
+        {currentUser && (
+          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2">
+            <div className="flex items-center gap-2 font-bold">
+              <AlertCircle size={16} className="shrink-0 text-amber-400" />
+              <span>دسترسی محدود: شما در حساب مربی هستید</span>
+            </div>
+            <p className="text-[11px] text-amber-200/80 leading-relaxed">
+              شما هم‌اکنون با نام کاربری <span className="font-bold text-white dir-ltr inline-block">@{currentUser.username}</span> وارد شده‌اید که نقش آن «{currentUser.role || 'مربی'}» است و اجازه ورود به پورتال مدیریت را ندارد.
+            </p>
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard')}
+                className="w-full py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-amber-200 text-xs font-bold border border-amber-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <ArrowRight size={14} />
+                <span>بازگشت به برنامه اصلی (داشبورد)</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Quick Fill Chips */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] text-slate-400 font-bold block">انتخاب سریع نام کاربری ادمین:</label>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setUsername('admin_emad')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                username === 'admin_emad'
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm shadow-cyan-500/20'
+                  : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:text-white'
+              }`}
+            >
+              admin_emad
+            </button>
+            <button
+              type="button"
+              onClick={() => setUsername('admin')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                username === 'admin'
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-sm shadow-cyan-500/20'
+                  : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:text-white'
+              }`}
+            >
+              admin
+            </button>
+          </div>
+        </div>
+
+        {/* Login Form */}
+        <form onSubmit={handleLogin} className="space-y-4">
+          {error && (
+            <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-bold flex items-center gap-2">
+              <AlertCircle size={16} className="shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-slate-300 font-bold block">نام کاربری مدیر ارشد</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="مثال: admin_emad یا admin"
+                className="w-full bg-slate-950/80 border border-slate-700/80 focus:border-cyan-500 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 transition-all dir-ltr text-right"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs text-slate-300 font-bold block">رمز عبور مدیر ارشد</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="رمز عبور حساب ادمین"
+                className="w-full bg-slate-950/80 border border-slate-700/80 focus:border-cyan-500 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 transition-all dir-ltr text-right pl-16"
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 hover:text-cyan-400 cursor-pointer transition-colors"
+              >
+                {showPassword ? 'مخفی' : 'نمایش'}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-black text-xs shadow-lg shadow-cyan-500/25 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer mt-2"
+          >
+            {loading ? (
+              <div className="w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <LogIn size={16} />
+                <span>ورود به پورتال مدیریت ارشد</span>
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Helpful promotion hint */}
+        <div className="pt-3 border-t border-slate-800 text-[11px] text-slate-400 space-y-1 text-center">
+          <p>
+            💡 برای ارتقای سریع هر مربی به ادمین، دستور زیر را در سرور اجرا فرمایید:
+          </p>
+          <code className="block bg-slate-950/90 text-cyan-300 p-2 rounded-xl border border-slate-800 dir-ltr font-mono text-[10px]">
+            python backend/promote_user.py &lt;نام_مربی&gt;
+          </code>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const AdminLayoutContent = () => {
   const location = useLocation();
@@ -21,24 +232,26 @@ const AdminLayoutContent = () => {
     setMobileNavOpen(false);
   }, [location.pathname]);
 
-  useEffect(() => {
-    const checkAdmin = async () => {
-      try {
-        const response = await api.get('/users/me/');
-        if (response.data.role === 'admin' || response.data.role === 'superadmin' || response.data.is_superuser || response.data.is_staff) {
-          setIsAdmin(true);
-          setAdminUser(response.data);
-        } else {
-          setIsAdmin(false);
-          navigate('/dashboard');
-        }
-      } catch (err) {
+  const checkAdmin = async () => {
+    try {
+      const response = await api.get('/users/me/');
+      const userData = response.data;
+      if (isUserAdminRole(userData)) {
+        setIsAdmin(true);
+        setAdminUser(userData);
+      } else {
         setIsAdmin(false);
-        navigate('/');
+        setAdminUser(userData);
       }
-    };
+    } catch (err) {
+      setIsAdmin(false);
+      setAdminUser(null);
+    }
+  };
+
+  useEffect(() => {
     checkAdmin();
-  }, [navigate]);
+  }, []);
 
   if (isAdmin === null) {
     return (
@@ -48,6 +261,18 @@ const AdminLayoutContent = () => {
           <p className="font-bold">در حال بارگذاری پورتال امن مدیریت ارشد...</p>
         </div>
       </div>
+    );
+  }
+
+  if (isAdmin === false) {
+    return (
+      <AdminAuthGate
+        currentUser={adminUser}
+        onLoginSuccess={(userData) => {
+          setIsAdmin(true);
+          setAdminUser(userData);
+        }}
+      />
     );
   }
 
