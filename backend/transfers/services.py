@@ -49,6 +49,10 @@ def list_player_for_sale(team_id: int, player_id: int, price_usd: Decimal, listi
     if not getattr(team, 'is_active', True):
         return {'success': False, 'error': 'تیم شما در حال حاضر توسط مدیریت غیرفعال شده است و امکان فعالیت در نقل‌وانتقالات را ندارد.'}
 
+    if getattr(team, 'is_transfer_banned', False):
+        ban_date = team.transfer_ban_until.strftime("%Y/%m/%d %H:%M") if team.transfer_ban_until else "مدت نامعلوم"
+        return {'success': False, 'error': f'باشگاه شما به دلیل رای کمیته انضباطی تا {ban_date} از هرگونه فعالیت در نقل‌وانتقالات محروم است.'}
+
     if TransferListing.objects.filter(player=player, status='ACTIVE').exists():
         return {'success': False, 'error': 'این بازیکن در حال حاضر آگهی فعال در نقل‌وانتقالات دارد.'}
 
@@ -90,6 +94,14 @@ def buy_player_direct(buyer_team_id: int, listing_id: int) -> dict:
 
         if not getattr(buyer, 'is_active', True):
             return {'success': False, 'error': 'تیم شما در حال حاضر توسط مدیریت غیرفعال شده است و امکان فعالیت در نقل‌وانتقالات را ندارد.'}
+
+        if getattr(buyer, 'is_transfer_banned', False):
+            ban_date = buyer.transfer_ban_until.strftime("%Y/%m/%d %H:%M") if buyer.transfer_ban_until else "مدت نامعلوم"
+            return {'success': False, 'error': f'باشگاه شما به دلیل رای کمیته انضباطی تا {ban_date} از خرید بازیکن محروم است.'}
+
+        if getattr(seller, 'is_transfer_banned', False):
+            ban_date = seller.transfer_ban_until.strftime("%Y/%m/%d %H:%M") if seller.transfer_ban_until else "مدت نامعلوم"
+            return {'success': False, 'error': f'باشگاه فروشنده ({seller.name}) تا {ban_date} در محرومیت نقل‌وانتقالاتی است.'}
 
         if buyer.manager is None:
             return {'success': False, 'error': 'تیم بدون مربی (سرپرستی) مجاز به خرید یا خرج بودجه نیست.'}
@@ -189,6 +201,10 @@ def place_bid(bidder_team_id: int, listing_id: int, bid_amount: Decimal) -> dict
 
         if not getattr(bidder, 'is_active', True):
             return {'success': False, 'error': 'تیم شما در حال حاضر توسط مدیریت غیرفعال شده است و امکان شرکت در مزایده را ندارد.'}
+
+        if getattr(bidder, 'is_transfer_banned', False):
+            ban_date = bidder.transfer_ban_until.strftime("%Y/%m/%d %H:%M") if bidder.transfer_ban_until else "مدت نامعلوم"
+            return {'success': False, 'error': f'باشگاه شما به دلیل رای کمیته انضباطی تا {ban_date} از شرکت در مزایده نقل‌وانتقالات محروم است.'}
 
         if bidder.manager is None:
             return {'success': False, 'error': 'تیم بدون مربی (سرپرستی) مجاز به پیشنهاد قیمت نیست.'}

@@ -12,7 +12,7 @@ import { teamApi, matchApi, notificationApi, coreApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useTeam } from '../context/TeamContext';
 import notificationSoundService from '../services/notificationSound';
-import { AlertTriangle, Radio, X, Lock, ArrowRight } from 'lucide-react';
+import { AlertTriangle, Radio, X, Lock, ArrowRight, Ban } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Dynamic Code-Splitting
@@ -407,6 +407,30 @@ export default function MainDashboard() {
 
             {/* Global Unresolved Pack Warning Banner */}
             <PendingPackBanner />
+
+            {/* Disciplinary Sanction / Transfer Ban Warning Banner */}
+            {teamData?.is_transfer_banned && (
+              <div className="mx-3 sm:mx-5 md:mx-6 mt-3 p-3.5 bg-gradient-to-r from-rose-950/80 via-red-900/60 to-rose-950/80 border border-rose-500/50 rounded-2xl flex items-center gap-3 text-rose-200 text-xs shadow-lg shadow-rose-950/40">
+                <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 shrink-0">
+                  <Ban size={20} />
+                </div>
+                <div className="flex-1">
+                  <div className="font-black text-rose-300 text-sm flex items-center gap-2">
+                    <span>محرومیت انضباطی از نقل‌وانتقالات</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/30 text-rose-200 border border-rose-500/40 font-bold">
+                      فعال
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-rose-200/80 mt-0.5">
+                    باشگاه شما طبق رای کمیته انضباطی تا تاریخ{' '}
+                    <span className="font-bold text-white">
+                      {new Date(teamData.transfer_ban_until).toLocaleDateString('fa-IR')}
+                    </span>{' '}
+                    از هرگونه فعالیت، خرید، جذب بازیکن آزاد و معامله در بازار نقل‌وانتقالات محروم است.
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Responsive Content Area */}
             <main className="flex-1 p-3 sm:p-5 md:p-6 pb-36 sm:pb-44 overflow-y-auto relative">

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Team, Player, ClubFacilities, TeamGamePlan
+from .models import Team, Player, ClubFacilities, TeamGamePlan, ClubPenalty
 
 
 class ClubFacilitiesSerializer(serializers.ModelSerializer):
@@ -319,12 +319,13 @@ class TeamListSerializer(serializers.ModelSerializer):
     injury_heal_cost = serializers.IntegerField(read_only=True)
     players_count = serializers.IntegerField(source='players.count', read_only=True)
     is_vip = serializers.BooleanField(read_only=True)
+    is_transfer_banned = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Team
         fields = [
             'id', 'name', 'logo', 'budget', 'gems', 'wage_cap', 'star_rating',
-            'is_active', 'manager', 'manager_username', 'manager_full_name',
+            'is_active', 'is_transfer_banned', 'transfer_ban_until', 'manager', 'manager_username', 'manager_full_name',
             'manager_birth_date', 'facilities', 'gameplan', 'default_formation',
             'max_squad_size', 'injury_heal_cost', 'players_count', 'is_vip'
         ]
@@ -340,9 +341,24 @@ class TeamSerializer(serializers.ModelSerializer):
     max_squad_size = serializers.IntegerField(read_only=True)
     injury_heal_cost = serializers.IntegerField(read_only=True)
     is_vip = serializers.BooleanField(read_only=True)
+    is_transfer_banned = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Team
+        fields = '__all__'
+
+
+class ClubPenaltySerializer(serializers.ModelSerializer):
+    team_name = serializers.CharField(source='team.name', read_only=True)
+    team_logo = serializers.CharField(source='team.logo', read_only=True)
+    issued_by_username = serializers.CharField(source='issued_by.username', read_only=True, default=None)
+    revoked_by_username = serializers.CharField(source='revoked_by.username', read_only=True, default=None)
+    tournament_name = serializers.CharField(source='tournament.name', read_only=True, default=None)
+    violation_type_display = serializers.CharField(source='get_violation_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = ClubPenalty
         fields = '__all__'
 
 

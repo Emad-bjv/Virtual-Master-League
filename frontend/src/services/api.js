@@ -320,5 +320,15 @@ export const pesTransferApi = {
   toggleApplied: (data) => api.post('/teams/admin/pes-transfers/toggle-applied/', data),
 };
 
+export const disciplinaryApi = {
+  getOverview: () => api.get('/teams/admin/disciplinary/overview/'),
+  getRecords: (params) => api.get('/teams/admin/disciplinary/records/', { params }),
+  issuePenalty: (data) => api.post('/teams/admin/disciplinary/issue/', data),
+  revokePenalty: (penaltyId, data) => api.post(`/teams/admin/disciplinary/${penaltyId}/revoke/`, data),
+  getTeamPenalties: (teamId) => api.get(`/teams/${teamId}/penalties/`),
+  getMyPenalties: () => api.get('/teams/my-penalties/'),
+};
+
 export default api;
+
 

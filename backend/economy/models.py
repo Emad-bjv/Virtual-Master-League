@@ -126,6 +126,8 @@ class Transaction(models.Model):
         ('INJURY_HEAL', 'درمان فوری مصدومیت'),
         ('UNDERDOG_BONUS', 'پاداش شگفتی‌سازی مسابقه'),
         ('AIRDROP_REWARD', 'پاداش و ایردراپ همگانی'),
+        ('DISCIPLINARY_FINE', 'جریمه کمیته انضباطی'),
+        ('DISCIPLINARY_REFUND', 'استرداد جریمه انضباطی'),
     ]
 
     STATUS_CHOICES = [

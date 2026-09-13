@@ -21,6 +21,7 @@ class Team(models.Model):
         verbose_name="قدرت ستاره تیم (۰.۵ تا ۵)"
     )
     is_active = models.BooleanField(default=True, db_index=True, verbose_name="فعال در سیستم لیگ")
+    transfer_ban_until = models.DateTimeField(null=True, blank=True, verbose_name="محرومیت از نقل‌وانتقالات تا تاریخ")
 
     class Meta:
         verbose_name = "تیم"
@@ -77,6 +78,14 @@ class Team(models.Model):
         """بررسی وضعیت فعال بودن اشتراک VIP سیزن‌پس تیم"""
         if hasattr(self, 'season_pass') and self.season_pass:
             return bool(self.season_pass.is_vip)
+        return False
+
+    @property
+    def is_transfer_banned(self) -> bool:
+        """بررسی فعال بودن محرومیت نقل‌وانتقالات تیم بر اساس تاریخ پایان"""
+        from django.utils import timezone
+        if self.transfer_ban_until and self.transfer_ban_until > timezone.now():
+            return True
         return False
 
     @property
@@ -543,6 +552,108 @@ class PlayerLevelUpLog(models.Model):
 
     def __str__(self):
         return f"{self.player.name}: لول {self.old_level} → {self.new_level} ({self.get_xp_source_display()})"
+
+
+# ==============================================================================
+# Club Disciplinary & Penalties System (سیستم کمیته انضباطی و جرایم باشگاه‌ها)
+# ==============================================================================
+
+class ClubPenalty(models.Model):
+    PENALTY_TYPE_CHOICES = [
+        ('FINANCIAL_USD', 'جریمه نقدی دلاری'),
+        ('FINANCIAL_GEMS', 'جریمه جم'),
+        ('POINTS_DEDUCTION', 'کسر امتیاز در جدول'),
+        ('TRANSFER_BAN', 'محرومیت از نقل‌وانتقالات'),
+        ('OFFICIAL_WARNING', 'اخطار رسمی کتبی'),
+        ('COMBINED', 'جریمه ترکیبی'),
+    ]
+
+    STATUS_CHOICES = [
+        ('ACTIVE', 'فعال / اعمال‌شده'),
+        ('REVOKED', 'لغوشده / بخشیده‌شده'),
+        ('EXPIRED', 'منقضی‌شده'),
+    ]
+
+    VIOLATION_CHOICES = [
+        ('MATCH_DELAY', 'تاخیر در حضور برای مسابقه'),
+        ('NO_GAMEPLAN', 'عدم ثبت یا ارسال ترکیب قبل از مسابقه'),
+        ('MATCH_FIXING_CHEATING', 'تبانی، دستکاری نتایج یا تقلب'),
+        ('UNSPORTSMANLIKE', 'توهین، الفاظ نامناسب یا رفتار غیرورزشی'),
+        ('TRANSFER_VIOLATION', 'تخلف در بازار نقل‌وانتقالات'),
+        ('FORFEIT_RAGE_QUIT', 'ترک بازی یکطرفه یا عدم انجام مسابقه'),
+        ('CUSTOM', 'سایر تخلفات (سفارشی)'),
+    ]
+
+    team = models.ForeignKey(
+        Team, on_delete=models.CASCADE,
+        related_name='penalties', verbose_name="تیم متخلف"
+    )
+    issued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='issued_penalties',
+        verbose_name="صادرکننده حکم"
+    )
+    violation_type = models.CharField(
+        max_length=40, choices=VIOLATION_CHOICES, default='CUSTOM',
+        verbose_name="نوع تخلف"
+    )
+    title = models.CharField(max_length=200, verbose_name="عنوان حکم انضباطی")
+    reason = models.TextField(verbose_name="شرح تخلف و دلایل حکم")
+
+    # Financial penalties
+    fine_budget_usd = models.DecimalField(
+        max_digits=15, decimal_places=2, default=Decimal('0.00'),
+        verbose_name="مبلغ جریمه دلاری"
+    )
+    fine_gems = models.PositiveIntegerField(default=0, verbose_name="مقدار جریمه جم")
+
+    # Points deduction penalty
+    tournament = models.ForeignKey(
+        'matches.Tournament', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='penalties',
+        verbose_name="تورنمنت مربوطه برای کسر امتیاز"
+    )
+    points_deduction = models.PositiveIntegerField(
+        default=0, verbose_name="تعداد امتیاز کسرشده"
+    )
+
+    # Transfer ban penalty
+    transfer_ban_days = models.PositiveIntegerField(
+        default=0, verbose_name="مدت محرومیت نقل‌وانتقالات (روز)"
+    )
+    transfer_ban_until = models.DateTimeField(
+        null=True, blank=True, verbose_name="محرومیت نقل‌وانتقالات تا تاریخ"
+    )
+
+    # Warning
+    is_warning = models.BooleanField(default=False, verbose_name="اخطار رسمی کتبی")
+
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default='ACTIVE',
+        verbose_name="وضعیت حکم"
+    )
+    revoked_at = models.DateTimeField(null=True, blank=True, verbose_name="تاریخ لغو/بخشش")
+    revoked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='revoked_penalties',
+        verbose_name="بخشش‌کننده حکم"
+    )
+    revoke_reason = models.TextField(
+        blank=True, default='', verbose_name="علت بخشش یا لغو حکم"
+    )
+
+    publish_to_newsroom = models.BooleanField(
+        default=True, verbose_name="انتشار بیانیه در اتاق خبر لیگ"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاریخ صدور حکم")
+
+    class Meta:
+        verbose_name = "حکم انضباطی باشگاه"
+        verbose_name_plural = "احکام انضباطی باشگاه‌ها"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"حکم #{self.id} - {self.team.name}: {self.title} ({self.get_status_display()})"
 
 
 # ==========================================

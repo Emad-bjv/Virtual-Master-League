@@ -6,7 +6,7 @@ import { ToastProvider } from './components/Toast';
 import { 
   LayoutDashboard, Radio, Users, Shield, DollarSign, Settings, 
   FileText, Database, LogOut, ExternalLink, ArrowRight, Newspaper, Gift, ArrowRightLeft, Sparkles, Menu, X,
-  Key, ShieldCheck, ShieldAlert, Gamepad2
+  Key, ShieldCheck, ShieldAlert, Gamepad2, Scale
 } from 'lucide-react';
 import { hasAdminPermission } from '../utils/adminPermissions';
 
@@ -68,6 +68,7 @@ const AdminLayoutContent = () => {
     if (path.startsWith('/admin/live-control')) return hasAdminPermission(adminUser, 'panel_admin_live_control');
     if (path.startsWith('/admin/users')) return hasAdminPermission(adminUser, 'panel_admin_users');
     if (path.startsWith('/admin/coaches')) return hasAdminPermission(adminUser, 'panel_admin_coaches');
+    if (path.startsWith('/admin/disciplinary')) return hasAdminPermission(adminUser, 'panel_admin_coaches') || adminUser?.is_superuser;
     if (path.startsWith('/admin/financial')) return hasAdminPermission(adminUser, 'panel_admin_financial');
     if (path.startsWith('/admin/settings')) return hasAdminPermission(adminUser, 'panel_admin_settings');
     if (path.startsWith('/admin/audit')) return hasAdminPermission(adminUser, 'panel_admin_audit');
@@ -211,6 +212,13 @@ const AdminLayoutContent = () => {
             <Link to="/admin/coaches" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/coaches')}`}>
               <Shield size={17} />
               <span>نظارت بر تیم‌ها و مربیان</span>
+            </Link>
+          )}
+
+          {(adminUser?.is_superuser || hasAdminPermission(adminUser, 'panel_admin_coaches')) && (
+            <Link to="/admin/disciplinary" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/disciplinary')}`}>
+              <Scale size={17} className="text-amber-400" />
+              <span>کمیته انضباطی و جرایم</span>
             </Link>
           )}
 

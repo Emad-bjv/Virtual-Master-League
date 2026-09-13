@@ -15,6 +15,14 @@ def create_transfer_offer(sender_team_id, receiver_team_id, target_player_id, da
             return {'success': False, 'error': 'تیم مبدأ (پیشنهاد دهنده) مشخص نیست یا یافت نشد.'}
         if not receiver:
             return {'success': False, 'error': 'تیم مقصد یافت نشد.'}
+
+        if getattr(sender, 'is_transfer_banned', False):
+            ban_date = sender.transfer_ban_until.strftime("%Y/%m/%d %H:%M") if sender.transfer_ban_until else "مدت نامعلوم"
+            return {'success': False, 'error': f'باشگاه شما به دلیل رای کمیته انضباطی تا {ban_date} از هرگونه فعالیت در نقل‌وانتقالات محروم است.'}
+
+        if getattr(receiver, 'is_transfer_banned', False):
+            ban_date = receiver.transfer_ban_until.strftime("%Y/%m/%d %H:%M") if receiver.transfer_ban_until else "مدت نامعلوم"
+            return {'success': False, 'error': f'باشگاه مقصد ({receiver.name}) تا {ban_date} به دلیل رای انضباطی در محرومیت نقل‌وانتقالاتی است.'}
             
         if sender.id == receiver.id:
             return {'success': False, 'error': 'امکان ارسال پیشنهاد برای بازیکنان تیم خودتان وجود ندارد.'}
@@ -164,6 +172,14 @@ def accept_transfer_offer(offer_id, user_team_id):
             if not seller or seller.id not in [offer.sender_team_id, offer.receiver_team_id]:
                 return {'success': False, 'error': 'تیم مالک بازیکن هدف مشخص نیست.'}
             buyer = offer.sender_team if offer.receiver_team_id == seller.id else offer.receiver_team
+
+            if getattr(buyer, 'is_transfer_banned', False):
+                ban_date = buyer.transfer_ban_until.strftime("%Y/%m/%d %H:%M") if buyer.transfer_ban_until else "مدت نامعلوم"
+                return {'success': False, 'error': f'تیم خریدار ({buyer.name}) به دلیل رای کمیته انضباطی تا {ban_date} از ثبت قرارداد محروم است.'}
+
+            if getattr(seller, 'is_transfer_banned', False):
+                ban_date = seller.transfer_ban_until.strftime("%Y/%m/%d %H:%M") if seller.transfer_ban_until else "مدت نامعلوم"
+                return {'success': False, 'error': f'تیم فروشنده ({seller.name}) به دلیل رای کمیته انضباطی تا {ban_date} در محرومیت نقل‌وانتقالاتی است.'}
 
             # Squad capacity validation for buyer
             swap_count = offer.swap_players.count() if offer.offer_type == 'SWAP' else 0

@@ -3,10 +3,10 @@ from django.conf import settings
 from rest_framework import viewsets, status, permissions, views
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Team, Player, ClubFacilities, TeamGamePlan
+from .models import Team, Player, ClubFacilities, TeamGamePlan, ClubPenalty
 from .serializers import (
     TeamSerializer, TeamListSerializer, PlayerSerializer, GamePlanUpdateSerializer, 
-    ClubFacilitiesSerializer, TeamGamePlanSerializer, resolve_player_photo_url
+    ClubFacilitiesSerializer, TeamGamePlanSerializer, ClubPenaltySerializer, resolve_player_photo_url
 )
 
 
@@ -1773,4 +1773,485 @@ class AdminPESTransferToggleView(views.APIView):
             'team_id': player.team_id,
             'team_pending_count': team_pending
         })
+
+
+# ==============================================================================
+# Disciplinary Committee & Club Sanctions Views
+# ==============================================================================
+from datetime import timedelta
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
+from django.db import transaction as db_transaction
+from django.db.models import Sum, Q
+from economy.models import Transaction
+from notifications.models import Notification
+from transfers.models import TransferLog
+from audit.utils import log_admin_action
+
+
+STANDARD_VIOLATIONS = [
+    {
+        'code': 'MATCH_DELAY',
+        'title': 'تاخیر در حضور برای مسابقه',
+        'default_fine_usd': 50000,
+        'default_fine_gems': 0,
+        'default_points': 0,
+        'default_ban_days': 0,
+        'severity': 'LOW',
+        'description': 'تاخیر غیرموجه بیش از ۱۵ دقیقه در هماهنگی یا شروع بازی رسمی.'
+    },
+    {
+        'code': 'NO_GAMEPLAN',
+        'title': 'عدم ثبت یا ارسال ترکیب قبل از مسابقه',
+        'default_fine_usd': 20000,
+        'default_fine_gems': 0,
+        'default_points': 0,
+        'default_ban_days': 0,
+        'severity': 'LOW',
+        'description': 'عدم تایید و ثبت ارنج یا تاکتیک تیم تا پیش از ضرب‌الاجل مقرر مسابقه.'
+    },
+    {
+        'code': 'UNSPORTSMANLIKE',
+        'title': 'توهین، الفاظ نامناسب یا رفتار غیرورزشی',
+        'default_fine_usd': 100000,
+        'default_fine_gems': 50,
+        'default_points': 1,
+        'default_ban_days': 7,
+        'severity': 'MEDIUM',
+        'description': 'رفتار ناشایست، بی‌احترامی به حریف یا لیدرهای لیگ در رسانه‌ها یا حین بازی.'
+    },
+    {
+        'code': 'FORFEIT_RAGE_QUIT',
+        'title': 'ترک بازی یکطرفه یا عدم انجام مسابقه',
+        'default_fine_usd': 150000,
+        'default_fine_gems': 0,
+        'default_points': 3,
+        'default_ban_days': 0,
+        'severity': 'HIGH',
+        'description': 'خروج غیرموجه در جریان بازی یا عدم شرکت در مسابقه رسمی بدون هماهنگی.'
+    },
+    {
+        'code': 'TRANSFER_VIOLATION',
+        'title': 'تخلف در بازار نقل‌وانتقالات',
+        'default_fine_usd': 250000,
+        'default_fine_gems': 100,
+        'default_points': 0,
+        'default_ban_days': 14,
+        'severity': 'HIGH',
+        'description': 'تخطی از قوانین معامله، دور زدن سقف دستمزد یا توافقات غیررسمی غیرمجاز.'
+    },
+    {
+        'code': 'MATCH_FIXING_CHEATING',
+        'title': 'تبانی، دستکاری نتایج یا تقلب',
+        'default_fine_usd': 500000,
+        'default_fine_gems': 200,
+        'default_points': 6,
+        'default_ban_days': 30,
+        'severity': 'CRITICAL',
+        'description': 'تبانی مستقیم در نتایج، استفاده از ابزارهای غیرمجاز، گل‌به‌خودی عمدی یا فساد رقابتی.'
+    },
+    {
+        'code': 'CUSTOM',
+        'title': 'سایر تخلفات (سفارشی)',
+        'default_fine_usd': 0,
+        'default_fine_gems': 0,
+        'default_points': 0,
+        'default_ban_days': 0,
+        'severity': 'INFO',
+        'description': 'تخلف خاص یا تصمیم موردی کمیته انضباطی با مقادیر و عناوین دلخواه مدیریت.'
+    },
+]
+
+
+class AdminDisciplinaryOverviewView(views.APIView):
+    """
+    Returns summary statistics, catalog of standard violations,
+    active tournaments and clubs for the admin disciplinary dashboard.
+    """
+    permission_classes = [IsAdminOrDebug]
+
+    def get(self, request):
+        from matches.models import Tournament
+        now = timezone.now()
+
+        total_penalties = ClubPenalty.objects.count()
+        active_penalties = ClubPenalty.objects.filter(status='ACTIVE').count()
+        fines_sum = ClubPenalty.objects.filter(status='ACTIVE').aggregate(
+            usd=Sum('fine_budget_usd'),
+            gems=Sum('fine_gems'),
+            pts=Sum('points_deduction')
+        )
+        active_transfer_bans = Team.objects.filter(transfer_ban_until__gt=now).count()
+
+        teams = list(
+            Team.objects.filter(is_active=True).values(
+                'id', 'name', 'logo', 'budget', 'gems', 'transfer_ban_until'
+            ).order_by('name')
+        )
+        for t in teams:
+            ban_until = t.get('transfer_ban_until')
+            t['is_transfer_banned'] = bool(ban_until and ban_until > now)
+
+        tournaments = list(
+            Tournament.objects.all().values(
+                'id', 'name', 'tournament_type', 'status'
+            ).order_by('-id')
+        )
+
+        return Response({
+            'stats': {
+                'total_penalties': total_penalties,
+                'active_penalties': active_penalties,
+                'total_fines_usd': float(fines_sum['usd'] or 0),
+                'total_fines_gems': int(fines_sum['gems'] or 0),
+                'total_points_deducted': int(fines_sum['pts'] or 0),
+                'active_transfer_bans': active_transfer_bans,
+            },
+            'standard_violations': STANDARD_VIOLATIONS,
+            'teams': teams,
+            'tournaments': tournaments,
+        })
+
+
+class AdminDisciplinaryRecordsView(views.APIView):
+    """
+    Returns a filtered list of club penalties.
+    Supports filters: team_id, status (ACTIVE, REVOKED, EXPIRED, ALL), violation_type, search.
+    """
+    permission_classes = [IsAdminOrDebug]
+
+    def get(self, request):
+        qs = ClubPenalty.objects.select_related('team', 'issued_by', 'revoked_by', 'tournament').all()
+
+        team_id = request.query_params.get('team_id')
+        if team_id:
+            qs = qs.filter(team_id=team_id)
+
+        status_filter = request.query_params.get('status', 'ALL')
+        if status_filter and status_filter != 'ALL':
+            qs = qs.filter(status=status_filter)
+
+        violation = request.query_params.get('violation_type')
+        if violation and violation != 'ALL':
+            qs = qs.filter(violation_type=violation)
+
+        search = request.query_params.get('search', '').strip()
+        if search:
+            qs = qs.filter(
+                Q(title__icontains=search) |
+                Q(reason__icontains=search) |
+                Q(team__name__icontains=search)
+            )
+
+        serializer = ClubPenaltySerializer(qs[:150], many=True)
+        return Response(serializer.data)
+
+
+class AdminDisciplinaryIssueView(views.APIView):
+    """
+    Issues a new disciplinary penalty against a club.
+    Applies financial deductions (budget/gems), points deduction on standings,
+    and sets a transfer ban period (custom days or exact target date).
+    """
+    permission_classes = [IsAdminOrDebug]
+
+    def post(self, request):
+        data = request.data
+        team_id = data.get('team_id')
+        if not team_id:
+            return Response({'error': 'انتخاب تیم متخلف الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            team = Team.objects.get(id=team_id)
+        except Team.DoesNotExist:
+            return Response({'error': 'تیم مورد نظر یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        violation_type = data.get('violation_type', 'CUSTOM')
+        title = (data.get('title') or '').strip()
+        reason = (data.get('reason') or '').strip()
+
+        if not title:
+            return Response({'error': 'عنوان حکم انضباطی الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not reason:
+            return Response({'error': 'شرح تخلف و دلایل حکم الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            fine_budget_usd = Decimal(str(data.get('fine_budget_usd', 0) or 0))
+        except (ValueError, InvalidOperation):
+            fine_budget_usd = Decimal('0.00')
+
+        try:
+            fine_gems = max(0, int(data.get('fine_gems', 0) or 0))
+        except (ValueError, TypeError):
+            fine_gems = 0
+
+        try:
+            points_deduction = max(0, int(data.get('points_deduction', 0) or 0))
+        except (ValueError, TypeError):
+            points_deduction = 0
+
+        try:
+            transfer_ban_days = max(0, int(data.get('transfer_ban_days', 0) or 0))
+        except (ValueError, TypeError):
+            transfer_ban_days = 0
+
+        exact_ban_until = data.get('transfer_ban_until')
+        tournament_id = data.get('tournament_id')
+        is_warning = bool(data.get('is_warning', False))
+        publish_to_newsroom = bool(data.get('publish_to_newsroom', True))
+
+        now = timezone.now()
+        calculated_ban_until = None
+
+        if exact_ban_until:
+            parsed = parse_datetime(str(exact_ban_until))
+            if parsed and parsed > now:
+                calculated_ban_until = parsed
+                if transfer_ban_days == 0:
+                    transfer_ban_days = max(1, (parsed - now).days)
+        elif transfer_ban_days > 0:
+            calculated_ban_until = now + timedelta(days=transfer_ban_days)
+
+        with db_transaction.atomic():
+            tournament_obj = None
+            if tournament_id:
+                from matches.models import Tournament
+                tournament_obj = Tournament.objects.filter(id=tournament_id).first()
+
+            penalty = ClubPenalty.objects.create(
+                team=team,
+                issued_by=request.user if request.user.is_authenticated else None,
+                violation_type=violation_type,
+                title=title,
+                reason=reason,
+                fine_budget_usd=fine_budget_usd,
+                fine_gems=fine_gems,
+                tournament=tournament_obj,
+                points_deduction=points_deduction,
+                transfer_ban_days=transfer_ban_days,
+                transfer_ban_until=calculated_ban_until,
+                is_warning=is_warning,
+                publish_to_newsroom=publish_to_newsroom,
+                status='ACTIVE'
+            )
+
+            # 1. Financial deduction (Negative budget allowed as club debt)
+            if fine_budget_usd > 0:
+                team.budget = team.budget - fine_budget_usd
+                team.save(update_fields=['budget'])
+                Transaction.objects.create(
+                    team=team,
+                    currency='BUDGET',
+                    transaction_type='DISCIPLINARY_FINE',
+                    amount=-fine_budget_usd,
+                    status='SUCCESS',
+                    description=f"جریمه کمیته انضباطی: {title}"
+                )
+
+            if fine_gems > 0:
+                team.gems = max(0, team.gems - fine_gems)
+                team.save(update_fields=['gems'])
+                Transaction.objects.create(
+                    team=team,
+                    currency='GEMS',
+                    transaction_type='DISCIPLINARY_FINE',
+                    amount=-fine_gems,
+                    status='SUCCESS',
+                    description=f"جریمه جم کمیته انضباطی: {title}"
+                )
+
+            # 2. Points deduction in tournament standing
+            if points_deduction > 0 and tournament_obj:
+                from matches.models import LeagueStanding
+                standing = LeagueStanding.objects.filter(team=team, tournament=tournament_obj).first()
+                if standing:
+                    standing.points_deduction += points_deduction
+                    standing.points_deduction_reason = f"حکم انضباطی: {title}"
+                    standing.save(update_fields=['points_deduction', 'points_deduction_reason'])
+
+            # 3. Apply transfer ban on Team
+            if calculated_ban_until:
+                if not team.transfer_ban_until or calculated_ban_until > team.transfer_ban_until:
+                    team.transfer_ban_until = calculated_ban_until
+                    team.save(update_fields=['transfer_ban_until'])
+
+            # 4. In-app notification to club coach
+            fine_details = []
+            if fine_budget_usd > 0:
+                fine_details.append(f"کسر بودجه: {float(fine_budget_usd):,.0f} $")
+            if fine_gems > 0:
+                fine_details.append(f"کسر جم: {fine_gems} 💎")
+            if points_deduction > 0:
+                fine_details.append(f"کسر امتیاز در جدول: {points_deduction} امتیاز")
+            if calculated_ban_until:
+                fine_details.append(f"محرومیت نقل‌وانتقالات تا: {calculated_ban_until.strftime('%Y/%m/%d %H:%M')}")
+            if is_warning:
+                fine_details.append("اخطار رسمی کتبی درج در پرونده")
+
+            details_str = " | ".join(fine_details) if fine_details else "بدون جریمه مضاعف"
+
+            Notification.objects.create(
+                team=team,
+                category='DISCIPLINARY',
+                target_role='COACH',
+                title=f"⚖️ حکم کمیته انضباطی: {title}",
+                message=f"باشگاه شما مشمول حکم انضباطی گردید.\nجزئیات: {details_str}\nشرح رای: {reason}"
+            )
+
+            # 5. Newsroom log
+            if publish_to_newsroom:
+                TransferLog.objects.create(
+                    event_type='DISCIPLINARY_ACTION',
+                    description=f"⚖️ بیانیه کمیته انضباطی: باشگاه «{team.name}» به علت «{title}» محکوم شد ({details_str})."
+                )
+
+            # 6. Audit log
+            try:
+                log_admin_action(
+                    admin_user=request.user if request.user.is_authenticated else None,
+                    action_type='DISCIPLINARY_PENALTY_ISSUED',
+                    target_team=team,
+                    reason=f"{title}: {reason}"
+                )
+            except Exception:
+                pass
+
+        return Response({
+            'status': 'حکم انضباطی با موفقیت صادر و اعمال شد.',
+            'penalty': ClubPenaltySerializer(penalty).data
+        }, status=status.HTTP_201_CREATED)
+
+
+class AdminDisciplinaryRevokeView(views.APIView):
+    """
+    Revokes / pardons an active penalty, automatically refunding any deducted
+    fines (USD/gems), restoring deducted points, and lifting the transfer ban.
+    """
+    permission_classes = [IsAdminOrDebug]
+
+    def post(self, request, penalty_id):
+        try:
+            penalty = ClubPenalty.objects.select_related('team', 'tournament').get(id=penalty_id)
+        except ClubPenalty.DoesNotExist:
+            return Response({'error': 'حکم انضباطی یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if penalty.status != 'ACTIVE':
+            return Response(
+                {'error': f'این حکم در وضعیت فعال نیست (وضعیت فعلی: {penalty.get_status_display()}).'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        revoke_reason = (request.data.get('reason') or '').strip()
+        team = penalty.team
+        now = timezone.now()
+
+        with db_transaction.atomic():
+            # 1. Refund USD Budget
+            if penalty.fine_budget_usd > 0:
+                team.budget = team.budget + penalty.fine_budget_usd
+                team.save(update_fields=['budget'])
+                Transaction.objects.create(
+                    team=team,
+                    currency='BUDGET',
+                    transaction_type='DISCIPLINARY_REFUND',
+                    amount=penalty.fine_budget_usd,
+                    status='SUCCESS',
+                    description=f"استرداد جریمه انضباطی حکم #{penalty.id}: {penalty.title}"
+                )
+
+            # 2. Refund Gems
+            if penalty.fine_gems > 0:
+                team.gems = team.gems + penalty.fine_gems
+                team.save(update_fields=['gems'])
+                Transaction.objects.create(
+                    team=team,
+                    currency='GEMS',
+                    transaction_type='DISCIPLINARY_REFUND',
+                    amount=penalty.fine_gems,
+                    status='SUCCESS',
+                    description=f"استرداد جریمه جم حکم #{penalty.id}: {penalty.title}"
+                )
+
+            # 3. Restore Points
+            if penalty.points_deduction > 0 and penalty.tournament:
+                from matches.models import LeagueStanding
+                standing = LeagueStanding.objects.filter(team=team, tournament=penalty.tournament).first()
+                if standing:
+                    standing.points_deduction = max(0, standing.points_deduction - penalty.points_deduction)
+                    standing.save(update_fields=['points_deduction'])
+
+            # 4. Check & Re-evaluate Transfer Ban
+            if penalty.transfer_ban_until:
+                other_active_bans = ClubPenalty.objects.filter(
+                    team=team, status='ACTIVE'
+                ).exclude(id=penalty.id).filter(
+                    transfer_ban_until__gt=now
+                ).order_by('-transfer_ban_until').first()
+
+                if other_active_bans:
+                    team.transfer_ban_until = other_active_bans.transfer_ban_until
+                else:
+                    team.transfer_ban_until = None
+                team.save(update_fields=['transfer_ban_until'])
+
+            # 5. Mark Penalty as Revoked
+            penalty.status = 'REVOKED'
+            penalty.revoked_at = now
+            penalty.revoked_by = request.user if request.user.is_authenticated else None
+            penalty.revoke_reason = revoke_reason or 'عفو و بخشش مدیریت کمیته انضباطی'
+            penalty.save(update_fields=['status', 'revoked_at', 'revoked_by', 'revoke_reason'])
+
+            # 6. Notify Coach
+            Notification.objects.create(
+                team=team,
+                category='DISCIPLINARY',
+                target_role='COACH',
+                title=f"🟢 بخشش و لغو حکم انضباطی: {penalty.title}",
+                message=f"حکم انضباطی صادره علیه باشگاه شما بخشیده شد و کلیه مبالغ و امتیازات کسر شده مسترد گردید.\nعلت بخشش: {penalty.revoke_reason}"
+            )
+
+            # 7. Audit log
+            try:
+                log_admin_action(
+                    admin_user=request.user if request.user.is_authenticated else None,
+                    action_type='DISCIPLINARY_PENALTY_REVOKED',
+                    target_team=team,
+                    reason=f"لغو حکم #{penalty.id}: {penalty.revoke_reason}"
+                )
+            except Exception:
+                pass
+
+        return Response({
+            'status': 'حکم انضباطی با موفقیت بخشیده شد و جریمه‌ها مسترد گردیدند.',
+            'penalty': ClubPenaltySerializer(penalty).data
+        })
+
+
+class TeamPenaltiesView(views.APIView):
+    """
+    Returns disciplinary penalties for a given team (or the current user's team).
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, team_id=None):
+        if team_id is None:
+            if not hasattr(request.user, 'team') or not request.user.team:
+                return Response({'error': 'باشگاهی برای شما یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+            team = request.user.team
+        else:
+            try:
+                team = Team.objects.get(id=team_id)
+            except Team.DoesNotExist:
+                return Response({'error': 'باشگاه یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        penalties = ClubPenalty.objects.filter(team=team).select_related('issued_by', 'tournament').order_by('-created_at')
+        serializer = ClubPenaltySerializer(penalties, many=True)
+        return Response({
+            'team_id': team.id,
+            'team_name': team.name,
+            'is_transfer_banned': team.is_transfer_banned,
+            'transfer_ban_until': team.transfer_ban_until,
+            'penalties': serializer.data
+        })
+
 

@@ -300,6 +300,10 @@ class SignFreeAgentAPIView(views.APIView):
         user_team = get_authenticated_user_team(request)
         if not user_team:
             return Response({'error': 'باشگاه شما مشخص نیست. لطفاً وارد شوید.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if getattr(user_team, 'is_transfer_banned', False):
+            ban_date = user_team.transfer_ban_until.strftime("%Y/%m/%d %H:%M") if user_team.transfer_ban_until else "مدت نامعلوم"
+            return Response({'error': f'باشگاه شما به دلیل رای کمیته انضباطی تا {ban_date} از جذب بازیکن محروم است.'}, status=status.HTTP_400_BAD_REQUEST)
             
         player = Player.objects.filter(id=pk, team__isnull=True).first()
         if not player:

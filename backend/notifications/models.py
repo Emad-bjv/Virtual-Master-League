@@ -16,6 +16,7 @@ class Notification(models.Model):
         ('GACHA', 'گاشا'),
         ('SYSTEM', 'سیستم'),
         ('REWARD', 'پاداش و جایزه'),
+        ('DISCIPLINARY', 'کمیته انضباطی'),
     ]
 
     TARGET_ROLE_CHOICES = [

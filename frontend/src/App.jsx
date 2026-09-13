@@ -22,6 +22,7 @@ const AdminSquadTransfers = lazy(() => import('./admin/pages/AdminSquadTransfers
 const AdminPESTransfers = lazy(() => import('./admin/pages/AdminPESTransfers'));
 const AdminPESSkills = lazy(() => import('./admin/pages/AdminPESSkills'));
 const AdminManagement = lazy(() => import('./admin/pages/AdminManagement'));
+const AdminDisciplinary = lazy(() => import('./admin/pages/AdminDisciplinary'));
 
 // Sleek Neon Suspense Loading Fallback
 const PageLoadingFallback = () => (
@@ -60,6 +61,7 @@ function App() {
             <Route path="live-control" element={<LiveBroadcastControl />} />
             <Route path="users" element={<UserManagement />} />
             <Route path="coaches" element={<CoachOversight />} />
+            <Route path="disciplinary" element={<AdminDisciplinary />} />
             <Route path="financial" element={<FinancialControl />} />
             <Route path="settings" element={<SystemSettings />} />
             <Route path="audit" element={<AuditLogs />} />
