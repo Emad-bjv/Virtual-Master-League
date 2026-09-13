@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Shield, Users, AlertCircle, ArrowLeftRight, User, Sliders, Plus, Zap, Sparkles, Gem, HeartPulse, X, Wand2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -558,6 +558,8 @@ export default function EFootballGamePlan({
       setReserves(updated.reserves);
     }
   }, [initialStartingXi, initialSubstitutes, initialReserves, initialFormationProp]);
+
+  const pitchContainerRef = useRef(null);
 
   const [selectedPitchPlayerId, setSelectedPitchPlayerId] = useState(null);
   const [selectedBenchPlayerId, setSelectedBenchPlayerId] = useState(null);
