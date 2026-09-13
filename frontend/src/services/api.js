@@ -145,7 +145,7 @@ export const transferApi = {
   getInbox: () => api.get('/transfers/inbox/'),
   actionOffer: (offerId, action, data = {}) => api.post(`/transfers/offers/${offerId}/${action}/`, data),
   releasePlayer: (playerId) => api.post(`/transfers/players/${playerId}/release/`),
-  getLogs: () => api.get('/transfers/logs/'),
+  getLogs: (params) => api.get('/transfers/logs/', { params }),
   getAudit: (teamId) => api.get('/transfers/audit/', { params: teamId ? { team_id: teamId } : {} }),
   rollbackTransfer: (data) => api.post('/transfers/rollback/', data),
   getMarketStatus: () => api.get('/transfers/market-status/'),

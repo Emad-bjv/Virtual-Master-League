@@ -7,7 +7,7 @@ export default function TransferActivityFeed() {
   
   const fetchLogs = () => {
     transferApi.getLogs()
-      .then(res => setLogs(res.data))
+      .then(res => setLogs(Array.isArray(res.data) ? res.data : (res.data?.results || [])))
       .catch(err => console.error(err));
   };
 

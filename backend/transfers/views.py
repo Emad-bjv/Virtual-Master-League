@@ -268,15 +268,74 @@ class PlayerReleaseAPIView(views.APIView):
             return Response(result)
         return Response(result, status=status.HTTP_400_BAD_REQUEST)
 
+from rest_framework.pagination import PageNumberPagination
+
+
+class TransferLogPagination(PageNumberPagination):
+    page_size = 15
+    page_size_query_param = 'page_size'
+    max_page_size = 50
+
+    def get_paginated_response(self, data):
+        summary_counts = getattr(self, 'summary_counts', {})
+        return Response({
+            'count': self.page.paginator.count,
+            'total_pages': self.page.paginator.num_pages,
+            'current_page': self.page.number,
+            'page_size': self.get_page_size(self.request),
+            'next': self.get_next_link(),
+            'previous': self.get_previous_link(),
+            'summary_counts': summary_counts,
+            'results': data
+        })
+
+
 class TransferLogListView(generics.ListAPIView):
     serializer_class = TransferLogSerializer
-    queryset = TransferLog.objects.select_related(
-        'related_offer__sender_team',
-        'related_offer__receiver_team',
-        'related_offer__target_player'
-    ).prefetch_related(
-        'related_offer__swap_players'
-    ).order_by('-timestamp')
+    pagination_class = TransferLogPagination
+
+    def get_queryset(self):
+        qs = TransferLog.objects.select_related(
+            'related_offer__sender_team',
+            'related_offer__receiver_team',
+            'related_offer__target_player'
+        ).prefetch_related(
+            'related_offer__swap_players'
+        ).order_by('-timestamp')
+
+        event_type = self.request.query_params.get('event_type')
+        if event_type and event_type != 'ALL':
+            qs = qs.filter(event_type=event_type)
+
+        search = (self.request.query_params.get('search') or '').strip()
+        if search:
+            qs = qs.filter(
+                Q(description__icontains=search) |
+                Q(related_offer__target_player__name__icontains=search) |
+                Q(related_offer__sender_team__name__icontains=search) |
+                Q(related_offer__receiver_team__name__icontains=search)
+            )
+
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            from django.db.models import Count
+            counts = TransferLog.objects.aggregate(
+                finalized=Count('id', filter=Q(event_type='TRANSFER_FINALIZED')),
+                counters=Count('id', filter=Q(event_type='COUNTER_OFFER')),
+                offers=Count('id', filter=Q(event_type='OFFER_MADE')),
+                releases=Count('id', filter=Q(event_type__in=['PLAYER_RELEASED', 'FREE_AGENT_SIGNED'])),
+            )
+            self.paginator.summary_counts = counts
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class FreeAgentsAPIView(generics.ListAPIView):

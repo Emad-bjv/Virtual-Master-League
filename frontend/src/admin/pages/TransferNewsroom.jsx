@@ -5,7 +5,8 @@ import {
   ArrowRightLeft, CheckCircle2, XCircle, AlertCircle, AlertTriangle,
   Share2, DollarSign, Users, UserMinus, Flame, ExternalLink, Sparkles,
   Zap, ArrowUpRight, Trophy, Shield, Calendar, Clock, ShieldAlert,
-  RotateCcw, TrendingUp, TrendingDown, Eye, UserCheck, Scale
+  RotateCcw, TrendingUp, TrendingDown, Eye, UserCheck, Scale,
+  ChevronRight, ChevronLeft, ChevronsRight, ChevronsLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { transferApi } from '../../services/api';
@@ -63,7 +64,15 @@ export default function TransferNewsroom() {
   const [copiedId, setCopiedId] = useState(null);
   const [copiedHeadlineId, setCopiedHeadlineId] = useState(null);
 
-  // Audit & Anti-Brokerage States
+  // Pagination & Live Sync States
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [summaryCounts, setSummaryCounts] = useState({ finalized: 0, counters: 0, offers: 0, releases: 0 });
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+
+  // Audit & Anti-Brokerage States (Lazy Loaded)
   const [auditData, setAuditData] = useState(null);
   const [selectedAuditTeamId, setSelectedAuditTeamId] = useState('all');
   const [auditLoading, setAuditLoading] = useState(false);
@@ -73,17 +82,46 @@ export default function TransferNewsroom() {
   const [rollbackReason, setRollbackReason] = useState('');
   const [isRollingBack, setIsRollingBack] = useState(false);
 
-  const fetchLogs = async () => {
+  const fetchLogs = async (page = currentPage, size = pageSize, type = filterType, search = searchQuery, isBackground = false) => {
     try {
-      setRefreshing(true);
-      const res = await transferApi.getLogs();
-      setLogs(res?.data || []);
+      if (!isBackground) setRefreshing(true);
+      const params = {
+        page,
+        page_size: size,
+      };
+      if (type && type !== 'ALL') {
+        params.event_type = type;
+      }
+      if (search && search.trim()) {
+        params.search = search.trim();
+      }
+
+      const res = await transferApi.getLogs(params);
+      const data = res?.data;
+
+      if (Array.isArray(data)) {
+        setLogs(data);
+        setTotalCount(data.length);
+        setTotalPages(Math.ceil(data.length / size) || 1);
+      } else if (data && typeof data === 'object') {
+        const results = data.results || [];
+        setLogs(results);
+        const count = data.count ?? results.length;
+        setTotalCount(count);
+        setTotalPages((data.total_pages ?? Math.ceil(count / size)) || 1);
+        if (data.summary_counts) {
+          setSummaryCounts(data.summary_counts);
+        }
+      }
+      setLastRefreshedAt(new Date());
     } catch (err) {
       console.error('Failed to load transfer logs:', err);
-      showToast('خطا در دریافت لاگ‌ها و گزارشات نقل‌وانتقالات', 'error');
+      if (!isBackground) {
+        showToast('خطا در دریافت لاگ‌ها و گزارشات نقل‌وانتقالات', 'error');
+      }
     } finally {
       setLoading(false);
-      setRefreshing(false);
+      if (!isBackground) setRefreshing(false);
     }
   };
 
@@ -100,14 +138,78 @@ export default function TransferNewsroom() {
     }
   };
 
+  // 1. Initial mount: load only logs (do NOT load heavy audit data yet)
   useEffect(() => {
-    fetchLogs();
-    fetchAuditData('all');
-    const interval = setInterval(() => {
-      fetchLogs();
-    }, 15000); // 15s auto-refresh
-    return () => clearInterval(interval);
+    fetchLogs(1, pageSize, filterType, searchQuery);
   }, []);
+
+  // 2. Lazy load audit data when user switches to AUDIT tab
+  useEffect(() => {
+    if (activeMainTab === 'AUDIT' && !auditData && !auditLoading) {
+      fetchAuditData('all');
+    }
+  }, [activeMainTab]);
+
+  // 3. Optimized 60s background polling
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (activeMainTab === 'NEWSROOM') {
+        fetchLogs(currentPage, pageSize, filterType, searchQuery, true);
+      }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [currentPage, pageSize, filterType, searchQuery, activeMainTab]);
+
+  // 4. Debounced search trigger (resets to page 1)
+  const isSearchMounted = React.useRef(false);
+  useEffect(() => {
+    if (!isSearchMounted.current) {
+      isSearchMounted.current = true;
+      return;
+    }
+    const timer = setTimeout(() => {
+      setCurrentPage(1);
+      fetchLogs(1, pageSize, filterType, searchQuery);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage < 1 || newPage > totalPages || newPage === currentPage) return;
+    setCurrentPage(newPage);
+    fetchLogs(newPage, pageSize, filterType, searchQuery);
+    const topEl = document.getElementById('newsroom-feed-top');
+    if (topEl) {
+      topEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const handlePageSizeChange = (newSize) => {
+    setPageSize(newSize);
+    setCurrentPage(1);
+    fetchLogs(1, newSize, filterType, searchQuery);
+  };
+
+  const handleFilterChange = (newType) => {
+    setFilterType(newType);
+    setCurrentPage(1);
+    fetchLogs(1, pageSize, newType, searchQuery);
+  };
+
+  const getPageNumbers = (current, total) => {
+    if (total <= 5) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const pages = [];
+    if (current <= 3) {
+      pages.push(1, 2, 3, 4, '...', total);
+    } else if (current >= total - 2) {
+      pages.push(1, '...', total - 3, total - 2, total - 1, total);
+    } else {
+      pages.push(1, '...', current - 1, current, current + 1, '...', total);
+    }
+    return pages;
+  };
 
   const handleSelectAuditTeam = (teamId) => {
     setSelectedAuditTeamId(teamId);
@@ -169,29 +271,7 @@ export default function TransferNewsroom() {
     }
   };
 
-  const filteredLogs = (logs || []).filter(log => {
-    if (!log) return false;
-    if (filterType !== 'ALL' && log.event_type !== filterType) {
-      return false;
-    }
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    const desc = String(log.description || '').toLowerCase();
-    const headline = String(log.news_headline || '').toLowerCase();
-    const content = String(log.news_content || '').toLowerCase();
-    const targetPlayer = String(log.offer_details?.target_player_name || '').toLowerCase();
-    const sellerTeam = String(log.offer_details?.seller_team_name || '').toLowerCase();
-    const buyerTeam = String(log.offer_details?.buyer_team_name || '').toLowerCase();
-
-    return (
-      desc.includes(q) ||
-      headline.includes(q) ||
-      content.includes(q) ||
-      targetPlayer.includes(q) ||
-      sellerTeam.includes(q) ||
-      buyerTeam.includes(q)
-    );
-  });
+  const filteredLogs = logs || [];
 
   const filteredAuditTransactions = (auditData?.transactions || []).filter(tx => {
     if (!tx) return false;
@@ -207,10 +287,10 @@ export default function TransferNewsroom() {
     return pName.includes(q) || sName.includes(q) || bName.includes(q);
   });
 
-  const countFinalized = (logs || []).filter(l => l.event_type === 'TRANSFER_FINALIZED').length;
-  const countCounters = (logs || []).filter(l => l.event_type === 'COUNTER_OFFER').length;
-  const countOffers = (logs || []).filter(l => l.event_type === 'OFFER_MADE').length;
-  const countReleases = (logs || []).filter(l => l.event_type === 'PLAYER_RELEASED' || l.event_type === 'FREE_AGENT_SIGNED').length;
+  const countFinalized = summaryCounts?.finalized ?? (logs || []).filter(l => l.event_type === 'TRANSFER_FINALIZED').length;
+  const countCounters = summaryCounts?.counters ?? (logs || []).filter(l => l.event_type === 'COUNTER_OFFER').length;
+  const countOffers = summaryCounts?.offers ?? (logs || []).filter(l => l.event_type === 'OFFER_MADE').length;
+  const countReleases = summaryCounts?.releases ?? (logs || []).filter(l => l.event_type === 'PLAYER_RELEASED' || l.event_type === 'FREE_AGENT_SIGNED').length;
 
   return (
     <div className="space-y-6 dir-rtl font-sans text-slate-100 pb-28">
@@ -235,17 +315,25 @@ export default function TransferNewsroom() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-3">
+          {lastRefreshedAt && (
+            <div className="hidden sm:flex flex-col text-left">
+              <span className="text-[10px] text-slate-400 font-sport">آخرین بروزرسانی</span>
+              <span className="text-xs text-cyan-300 font-sport font-bold dir-ltr">
+                {lastRefreshedAt.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            </div>
+          )}
           <button 
             onClick={() => {
-              if (activeMainTab === 'NEWSROOM') fetchLogs();
+              if (activeMainTab === 'NEWSROOM') fetchLogs(currentPage, pageSize, filterType, searchQuery);
               else fetchAuditData(selectedAuditTeamId);
             }}
             disabled={refreshing || auditLoading}
             className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all border border-slate-700 shadow-sm active:scale-95 cursor-pointer"
           >
             <RefreshCw size={14} className={(refreshing || auditLoading) ? 'animate-spin text-cyan-400' : ''} />
-            <span>بروزرسانی اطلاعات</span>
+            <span>بروزرسانی زنده</span>
           </button>
         </div>
       </header>
@@ -263,7 +351,7 @@ export default function TransferNewsroom() {
           <Newspaper size={16} />
           <span>اتاق خبر و رویدادهای زنده (Newsroom Feed)</span>
           <span className="bg-slate-950/40 px-2 py-0.5 rounded-lg text-[10px] font-sport">
-            {logs.length}
+            {totalCount || logs.length}
           </span>
         </button>
 
@@ -349,7 +437,7 @@ export default function TransferNewsroom() {
               ].map(f => (
                 <button
                   key={f.id}
-                  onClick={() => setFilterType(f.id)}
+                  onClick={() => handleFilterChange(f.id)}
                   className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
                     filterType === f.id
                       ? 'bg-cyan-500 text-slate-950 font-black shadow-md'
@@ -374,7 +462,7 @@ export default function TransferNewsroom() {
           </div>
 
           {/* Reports and News Feed List */}
-          <div className="space-y-4">
+          <div id="newsroom-feed-top" className="space-y-4">
             {loading ? (
               <div className="p-12 text-center text-slate-400 font-sans glass-panel rounded-3xl">
                 <RefreshCw size={24} className="animate-spin mx-auto mb-2 text-cyan-400" />
@@ -609,6 +697,93 @@ export default function TransferNewsroom() {
               })
             )}
           </div>
+
+          {/* Dedicated Modern Pagination Bar */}
+          {!loading && totalCount > 0 && (
+            <div className="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 bg-[#080d1a] shadow-xl">
+              {/* Items Range & Total */}
+              <div className="flex items-center gap-2 text-xs text-slate-300 font-sport">
+                <span className="text-slate-400">نمایش</span>
+                <span className="font-bold text-white bg-slate-800/80 px-2 py-1 rounded-lg border border-slate-700">
+                  {((currentPage - 1) * pageSize) + 1} - {Math.min(currentPage * pageSize, totalCount)}
+                </span>
+                <span className="text-slate-400">از</span>
+                <span className="font-bold text-cyan-400 bg-cyan-950/40 px-2.5 py-1 rounded-lg border border-cyan-500/30">
+                  {totalCount} رویداد
+                </span>
+              </div>
+
+              {/* Page Number Navigation Buttons */}
+              <div className="flex items-center gap-1.5 font-sport text-xs">
+                {/* Prev Button */}
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage <= 1 || refreshing}
+                  className="p-2 rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center gap-1"
+                  title="صفحه قبل"
+                >
+                  <ChevronRight size={16} />
+                  <span className="hidden md:inline text-[11px] font-sans">قبلی</span>
+                </button>
+
+                {/* Page Numbers */}
+                {getPageNumbers(currentPage, totalPages).map((p, idx) => {
+                  if (p === '...') {
+                    return (
+                      <span key={`ellipsis-${idx}`} className="px-2 text-slate-500 font-bold select-none">
+                        ...
+                      </span>
+                    );
+                  }
+                  const isCurrent = p === currentPage;
+                  return (
+                    <button
+                      key={`page-${p}`}
+                      onClick={() => handlePageChange(p)}
+                      disabled={refreshing}
+                      className={`min-w-[34px] h-[34px] rounded-xl font-bold transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-black shadow-lg shadow-cyan-500/30 scale-105'
+                          : 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-800/80'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+
+                {/* Next Button */}
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage >= totalPages || refreshing}
+                  className="p-2 rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center gap-1"
+                  title="صفحه بعد"
+                >
+                  <span className="hidden md:inline text-[11px] font-sans">بعدی</span>
+                  <ChevronLeft size={16} />
+                </button>
+              </div>
+
+              {/* Page Size Selector */}
+              <div className="flex items-center gap-2 text-xs font-sport">
+                <span className="text-slate-400 text-[11px] font-sans">تعداد در صفحه:</span>
+                {[10, 15, 25].map(size => (
+                  <button
+                    key={size}
+                    onClick={() => handlePageSizeChange(size)}
+                    disabled={refreshing}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      pageSize === size
+                        ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
+                        : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
