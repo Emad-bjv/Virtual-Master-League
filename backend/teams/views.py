@@ -1970,8 +1970,12 @@ class AdminDisciplinaryOverviewView(views.APIView):
         )
         active_transfer_bans = Team.objects.filter(transfer_ban_until__gt=now).count()
 
+        team_qs = Team.objects.filter(is_active=True)
+        if not team_qs.exists():
+            team_qs = Team.objects.all()
+
         teams = list(
-            Team.objects.filter(is_active=True).values(
+            team_qs.values(
                 'id', 'name', 'logo', 'budget', 'gems', 'transfer_ban_until'
             ).order_by('name')
         )
@@ -1981,9 +1985,11 @@ class AdminDisciplinaryOverviewView(views.APIView):
 
         tournaments = list(
             Tournament.objects.all().values(
-                'id', 'name', 'tournament_type', 'status'
+                'id', 'name', 'tournament_type', 'is_active'
             ).order_by('-id')
         )
+        for tour in tournaments:
+            tour['status'] = 'ACTIVE' if tour.get('is_active') else 'INACTIVE'
 
         return Response({
             'stats': {

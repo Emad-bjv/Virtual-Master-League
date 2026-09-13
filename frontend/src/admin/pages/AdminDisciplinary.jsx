@@ -236,16 +236,16 @@ export default function AdminDisciplinary() {
 
   // Filtered Clubs for Clubs Tab
   const clubsWithStatus = useMemo(() => {
-    return (overview.teams || []).map((team) => {
-      const activeClubPenalties = records.filter(
-        (r) => r.team === team.id && r.status === 'ACTIVE'
+    return (overview?.teams || []).map((team) => {
+      const activeClubPenalties = (records || []).filter(
+        (r) => (String(r?.team) === String(team?.id) || String(r?.team?.id) === String(team?.id)) && r?.status === 'ACTIVE'
       );
       return {
         ...team,
         active_penalties_count: activeClubPenalties.length,
       };
     });
-  }, [overview.teams, records]);
+  }, [overview?.teams, records]);
 
   return (
     <div className="space-y-6 text-slate-100 font-sans dir-rtl" style={{ fontFamily: 'Vazirmatn, Tahoma, sans-serif' }}>
