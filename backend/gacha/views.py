@@ -115,41 +115,85 @@ class PickCardView(views.APIView):
             return Response({'error': result.get('error', 'خطا در انتخاب کارت')}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class ActiveSessionView(views.APIView):
+    """
+    Returns any active PENDING pack opening session for the authenticated user's team.
+    Used for Global Pending Pack Banner and store locking.
+    """
+    throttle_scope = 'gacha'
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if not hasattr(request.user, 'team') or not request.user.team:
+            return Response({'has_active_session': False})
+
+        team = request.user.team
+        active_session = PackOpeningSession.objects.filter(
+            team=team, status='PENDING'
+        ).select_related('card_1', 'card_2', 'card_3', 'guaranteed_card', 'pack').first()
+
+        if not active_session:
+            return Response({'has_active_session': False})
+
+        pack = active_session.pack
+        g_card = active_session.guaranteed_card
+
+        def serialize_card(card):
+            if not card:
+                return None
+            return {
+                'id': card.id,
+                'name': card.name,
+                'position': card.position,
+                'compatible_positions': card.compatible_positions,
+                'overall': card.overall,
+                'potential_ovr': card.potential_ovr,
+                'age': card.age,
+                'base_stamina': card.base_stamina,
+                'rarity': card.rarity,
+                'nationality': card.nationality,
+                'prime_club': card.prime_club,
+                'club_logo': card.club_logo.url if card.club_logo else None,
+                'wage': float(card.wage),
+                'market_value': float(card.market_value),
+                'card_image': card.card_image.url if card.card_image else None,
+                'is_pity_guaranteed': (g_card is not None and card.id == g_card.id),
+            }
+
+        return Response({
+            'has_active_session': True,
+            'session_id': active_session.id,
+            'pack': {
+                'id': pack.id,
+                'name': pack.name,
+                'tier': pack.tier,
+                'cover_image': pack.cover_image.url if pack.cover_image else None,
+                'ovr_range_text': pack.ovr_range_text,
+                'purchase_method': pack.purchase_method,
+                'cost_gems': pack.cost_gems,
+                'cost_usd': str(pack.cost_usd),
+            },
+            'cards': [
+                serialize_card(active_session.card_1),
+                serialize_card(active_session.card_2),
+                serialize_card(active_session.card_3),
+            ],
+            'guaranteed_card_id': g_card.id if g_card else None,
+            'is_hard_pity_applied': (g_card is not None),
+        })
+
+
 class ExpireSessionView(views.APIView):
     """
-    Called when a pack opening session times out without picking a card.
-    Refunds the Gems or Budget paid by the team.
+    Deprecated: Packs no longer expire or auto-refund.
     """
     throttle_scope = 'gacha'
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        session_id = request.data.get('session_id')
-        if not session_id:
-            return Response({'error': 'شناسه سشن الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            session = PackOpeningSession.objects.get(id=int(session_id))
-        except PackOpeningSession.DoesNotExist:
-            return Response({'error': 'سشن یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
-
-        if not request.user.is_staff and session.team.manager != request.user:
-            return Response({'error': 'شما دسترسی به این سشن ندارید.'}, status=status.HTTP_403_FORBIDDEN)
-
-        if not request.user.is_staff and not session.is_expired:
-            return Response({'error': 'مهلت ۵ دقیقه‌ای انتخاب کارت هنوز به پایان نرسیده است.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        refunded = expire_session(session)
-        team = session.team
-        team.refresh_from_db()
-
         return Response({
-            'success': True,
-            'refunded': refunded,
-            'message': 'مهلت انتخاب کارت به پایان رسید و هزینه پرداختی به موجودی باشگاه عودت داده شد.',
-            'remaining_gems': team.gems,
-            'remaining_budget': float(team.budget)
-        })
+            'error': 'امکان لغو یا عودت وجه برای پک بازشده وجود ندارد. لطفاً یکی از بازیکنان را انتخاب کنید.'
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 
 class IsAdminRole(permissions.BasePermission):

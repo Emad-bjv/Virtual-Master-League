@@ -159,6 +159,7 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
   const teamId = teamData?.id || team?.id;
   const [storePackages, setStorePackages] = useState([]);
   const [gachaPacks, setGachaPacks] = useState([]);
+  const [activePendingSession, setActivePendingSession] = useState(null);
   const [cardInfo, setCardInfo] = useState(null);
   const [myPaymentRequests, setMyPaymentRequests] = useState([]);
   const [selectedPackForModal, setSelectedPackForModal] = useState(null);
@@ -233,6 +234,18 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
       .catch(() => setMyPaymentRequests([]));
   };
 
+  const fetchActiveGachaSession = useCallback(() => {
+    gachaApi.getActiveSession()
+      .then((res) => {
+        if (res.data?.has_active_session) {
+          setActivePendingSession(res.data);
+        } else {
+          setActivePendingSession(null);
+        }
+      })
+      .catch(() => setActivePendingSession(null));
+  }, []);
+
   useEffect(() => {
     economyApi.getPackages()
       .then((res) => setStorePackages(res.data || []))
@@ -242,9 +255,19 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
       .then((res) => setGachaPacks(res.data || []))
       .catch(() => setGachaPacks([]));
 
+    fetchActiveGachaSession();
     fetchPaymentData();
     fetchSeasonPassData();
-  }, [teamId, activeSub]);
+
+    const handlePackEvent = () => fetchActiveGachaSession();
+    window.addEventListener('vml_pack_completed', handlePackEvent);
+    window.addEventListener('vml_pack_opened', handlePackEvent);
+
+    return () => {
+      window.removeEventListener('vml_pack_completed', handlePackEvent);
+      window.removeEventListener('vml_pack_opened', handlePackEvent);
+    };
+  }, [teamId, activeSub, fetchActiveGachaSession]);
 
   const handleOpenGacha = async (packId) => {
     if (!teamId) {
@@ -869,22 +892,43 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                           )}
                         </div>
 
-                        <button
-                          disabled={isButtonDisabled}
-                          onClick={() => setSelectedPackForModal(pack)}
-                          className={`w-full py-2 rounded-xl bg-gradient-to-r ${tierStyles.btn} font-black text-xs shadow-lg transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 hover:scale-105 active:scale-95`}
-                        >
-                          <Sparkles size={14} />
-                          <span>
-                            {pack.is_sold_out
-                              ? 'تکمیل ظرفیت'
-                              : isTimeExpired
-                              ? 'مهلت پایان یافته'
-                              : isNotStarted
-                              ? 'به زودی'
-                              : 'مشاهده و باز کردن'}
-                          </span>
-                        </button>
+                        {(() => {
+                          const hasOtherPending = activePendingSession && activePendingSession.has_active_session && activePendingSession.pack?.id !== pack.id;
+                          const isCurrentPending = activePendingSession && activePendingSession.has_active_session && activePendingSession.pack?.id === pack.id;
+
+                          return (
+                            <button
+                              disabled={isButtonDisabled || hasOtherPending}
+                              onClick={() => {
+                                if (hasOtherPending) {
+                                  alert(`شما یک پک تکمیل‌نشده در «${activePendingSession.pack?.name}» دارید. لطفاً ابتدا انتخاب بازیکن آن را کامل کنید.`);
+                                  return;
+                                }
+                                setSelectedPackForModal(pack);
+                              }}
+                              className={`w-full py-2 rounded-xl bg-gradient-to-r ${
+                                isCurrentPending
+                                  ? 'from-amber-400 via-yellow-400 to-amber-500 text-slate-950 ring-2 ring-amber-300 shadow-[0_0_20px_rgba(245,158,11,0.5)] animate-pulse'
+                                  : tierStyles.btn
+                              } font-black text-xs shadow-lg transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1 hover:scale-105 active:scale-95`}
+                            >
+                              <Sparkles size={14} />
+                              <span>
+                                {isCurrentPending
+                                  ? 'ادامه و تکمیل انتخاب'
+                                  : hasOtherPending
+                                  ? 'قفل (ابتدا پک قبلی را باز کنید)'
+                                  : pack.is_sold_out
+                                  ? 'تکمیل ظرفیت'
+                                  : isTimeExpired
+                                  ? 'مهلت پایان یافته'
+                                  : isNotStarted
+                                  ? 'به زودی'
+                                  : 'مشاهده و باز کردن'}
+                              </span>
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   </motion.div>
@@ -906,11 +950,14 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
         <PackOpeningModal
           pack={selectedPackForModal}
           isOpen={!!selectedPackForModal}
+          initialSessionData={activePendingSession?.pack?.id === selectedPackForModal.id ? activePendingSession : null}
           onClose={() => setSelectedPackForModal(null)}
           onPlayerClaimed={() => {
+            setActivePendingSession(null);
             if (onRefreshTeam) onRefreshTeam();
             if (fetchTeam) fetchTeam(team?.id);
             gachaApi.getPacks({ team_id: teamId }).then((res) => setGachaPacks(res.data || []));
+            fetchActiveGachaSession();
           }}
         />
       )}

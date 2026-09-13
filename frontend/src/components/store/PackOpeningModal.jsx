@@ -21,7 +21,8 @@ export default function PackOpeningModal({
   pack,
   isOpen,
   onClose,
-  onPlayerClaimed
+  onPlayerClaimed,
+  initialSessionData = null
 }) {
   const { team, fetchTeam } = useTeam();
 
@@ -48,51 +49,47 @@ export default function PackOpeningModal({
   const [cards, setCards] = useState([]);
   const [revealedCardIds, setRevealedCardIds] = useState([]);
   const [pickedPlayer, setPickedPlayer] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
   const [loyaltyBoostApplied, setLoyaltyBoostApplied] = useState(false);
   const [isHardPityApplied, setIsHardPityApplied] = useState(false);
   const [isTopTierDepleted, setIsTopTierDepleted] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      setStep('INITIAL');
-      setPaymentMethod(pack?.purchase_method === 'DIRECT' ? 'DIRECT' : 'GEMS');
-      setIsOpening(false);
-      setIsPicking(false);
-      setIsAutoPicking(false);
-      setShowExitWarning(false);
-      setErrorMsg('');
-      setSessionId(null);
-      setCards([]);
-      setRevealedCardIds([]);
-      setPickedPlayer(null);
-      setTimeLeft(300);
-      setTopCard(null);
-      setLoyaltyBoostApplied(false);
-      setIsHardPityApplied(false);
-      setIsTopTierDepleted(false);
-      setWalkoutStage('POSITION');
-      if (stageTimerRef.current) clearTimeout(stageTimerRef.current);
+      if (initialSessionData && initialSessionData.session_id) {
+        // Direct resume without opening ceremony
+        setStep('CARDS_REVEAL');
+        setSessionId(initialSessionData.session_id);
+        const resumeCards = initialSessionData.cards || [];
+        setCards(resumeCards);
+        setRevealedCardIds(resumeCards.map((c) => c.id));
+        setIsHardPityApplied(Boolean(initialSessionData.is_hard_pity_applied));
+        setPickedPlayer(null);
+        setErrorMsg('');
+        setIsOpening(false);
+        setIsPicking(false);
+        setIsAutoPicking(false);
+        setShowExitWarning(false);
+      } else {
+        setStep('INITIAL');
+        setPaymentMethod(pack?.purchase_method === 'DIRECT' ? 'DIRECT' : 'GEMS');
+        setIsOpening(false);
+        setIsPicking(false);
+        setIsAutoPicking(false);
+        setShowExitWarning(false);
+        setErrorMsg('');
+        setSessionId(null);
+        setCards([]);
+        setRevealedCardIds([]);
+        setPickedPlayer(null);
+        setTopCard(null);
+        setLoyaltyBoostApplied(false);
+        setIsHardPityApplied(false);
+        setIsTopTierDepleted(false);
+        setWalkoutStage('POSITION');
+        if (stageTimerRef.current) clearTimeout(stageTimerRef.current);
+      }
     }
-  }, [isOpen, pack]);
-
-  // Countdown timer for active session
-  useEffect(() => {
-    if (step !== 'CARDS_REVEAL' || timeLeft <= 0 || pickedPlayer) return;
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          if (sessionId && !pickedPlayer) {
-            handleConfirmExitWithRandomPick();
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [step, timeLeft, sessionId, pickedPlayer, cards]);
+  }, [isOpen, pack, initialSessionData]);
 
   // Cinematic FC 26 Walkout Stage Progression
   useEffect(() => {
@@ -203,10 +200,15 @@ export default function PackOpeningModal({
         );
         setTopCard(bestCard);
 
-        // Audio tension riser & cinematic trigger
-        packAudio.playTensionRiser(0.7);
-        setWalkoutStage('POSITION');
-        setStep('FC26_CINEMATIC');
+        if (res.data?.is_resumed_session) {
+          setStep('CARDS_REVEAL');
+          setRevealedCardIds(receivedCards.map((c) => c.id));
+        } else {
+          // Audio tension riser & cinematic trigger
+          packAudio.playTensionRiser(0.7);
+          setWalkoutStage('POSITION');
+          setStep('FC26_CINEMATIC');
+        }
         setIsOpening(false);
         if (fetchTeam) fetchTeam();
       } else {
@@ -269,6 +271,11 @@ export default function PackOpeningModal({
         setStep('PICKED_SUCCESS');
         if (onPlayerClaimed) onPlayerClaimed(card);
         if (fetchTeam) fetchTeam();
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('vml_team_updated'));
+          window.dispatchEvent(new CustomEvent('vml_roster_updated'));
+          window.dispatchEvent(new CustomEvent('vml_pack_completed'));
+        }
       } else {
         setErrorMsg(res.data?.error || 'خطا در انتخاب بازیکن');
       }
@@ -315,6 +322,7 @@ export default function PackOpeningModal({
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('vml_team_updated'));
           window.dispatchEvent(new CustomEvent('vml_roster_updated'));
+          window.dispatchEvent(new CustomEvent('vml_pack_completed'));
         }
       } else {
         setErrorMsg(res.data?.error || 'خطا در انتخاب خودکار کارت');
@@ -324,12 +332,6 @@ export default function PackOpeningModal({
     } finally {
       setIsAutoPicking(false);
     }
-  };
-
-  const formatTimer = (sec) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
   return (
@@ -1035,9 +1037,9 @@ export default function PackOpeningModal({
                 </div>
 
                 <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-950/80 border border-amber-500/40 text-amber-300 font-bold font-sport">
-                    <Clock size={14} />
-                    <span>{formatTimer(timeLeft)}</span>
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-bold text-xs">
+                    <Sparkles size={14} className="text-amber-400" />
+                    <span>انتخاب ۱ بازیکن</span>
                   </div>
 
                   {revealedCardIds.length < cards.length && (

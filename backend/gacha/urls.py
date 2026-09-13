@@ -3,6 +3,7 @@ from .views import (
     PackListView,
     OpenPackView,
     PickCardView,
+    ActiveSessionView,
     ExpireSessionView,
     AdminPackListView,
     AdminPackDetailView,
@@ -20,12 +21,14 @@ urlpatterns = [
     path('gacha/packs/', PackListView.as_view(), name='pack-list'),
     path('gacha/open/', OpenPackView.as_view(), name='pack-open'),
     path('gacha/pick/', PickCardView.as_view(), name='pack-pick'),
+    path('gacha/active-session/', ActiveSessionView.as_view(), name='pack-active-session'),
     path('gacha/expire-session/', ExpireSessionView.as_view(), name='pack-expire-session'),
 
     # Direct pack endpoints aliases
     path('packs/', PackListView.as_view(), name='pack-list-direct'),
     path('packs/open/', OpenPackView.as_view(), name='pack-open-direct'),
     path('packs/pick/', PickCardView.as_view(), name='pack-pick-direct'),
+    path('packs/active-session/', ActiveSessionView.as_view(), name='pack-active-session-direct'),
     path('packs/expire-session/', ExpireSessionView.as_view(), name='pack-expire-session-direct'),
 
     # Admin pack management endpoints

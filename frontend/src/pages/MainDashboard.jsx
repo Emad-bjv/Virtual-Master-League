@@ -7,6 +7,7 @@ import ErrorBoundary from '../components/common/ErrorBoundary';
 import HomeTab from '../components/home/HomeTab';
 import AuthModal from '../components/auth/AuthModal';
 import RewardCelebrationModal from '../components/common/RewardCelebrationModal';
+import PendingPackBanner from '../components/common/PendingPackBanner';
 import { teamApi, matchApi, notificationApi, coreApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useTeam } from '../context/TeamContext';
@@ -403,6 +404,9 @@ export default function MainDashboard() {
               isAuthenticated={isAuthenticated}
               onNavigateTab={handleNavigateWithSub}
             />
+
+            {/* Global Unresolved Pack Warning Banner */}
+            <PendingPackBanner />
 
             {/* Responsive Content Area */}
             <main className="flex-1 p-3 sm:p-5 md:p-6 pb-36 sm:pb-44 overflow-y-auto relative">

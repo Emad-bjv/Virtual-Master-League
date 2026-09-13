@@ -180,6 +180,7 @@ export const gachaApi = {
   },
   openPack: (data) => api.post('/gacha/open/', data),
   pickCard: (data) => api.post('/gacha/pick/', data),
+  getActiveSession: () => api.get('/gacha/active-session/'),
   expireSession: (sessionId) => api.post('/gacha/expire-session/', { session_id: sessionId }),
   getPity: (teamId) => api.get(`/gacha/pity/${teamId}/`),
   adminGetPacks: () => api.get('/gacha/admin/packs/'),

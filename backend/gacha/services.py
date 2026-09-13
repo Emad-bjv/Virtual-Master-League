@@ -294,14 +294,9 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
                 'error': 'موجودی بازیکنان این پک تمام شده است (کمتر از ۳ بازیکن موجود است).'
             }
 
-        # Auto-expire any stale sessions for this team first
-        stale_sessions = PackOpeningSession.objects.filter(
-            team=team, status='PENDING', expires_at__lt=timezone.now()
-        )
-        for s in stale_sessions:
-            expire_session(s)
-
-        def serialize_card(card: PackPlayer, g_card):
+        def serialize_card(card: PackPlayer, g_card=None):
+            if not card:
+                return None
             return {
                 'id': card.id,
                 'name': card.name,
@@ -321,38 +316,50 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
                 'is_pity_guaranteed': (g_card is not None and card.id == g_card.id),
             }
 
-        # Check for active non-expired pending session on this pack to prevent re-roll exploits or double charge
+        # Check for any active pending session across ANY pack for this team
         active_session = PackOpeningSession.objects.filter(
-            team=team, pack=pack, status='PENDING', expires_at__gte=timezone.now()
-        ).select_related('card_1', 'card_2', 'card_3', 'guaranteed_card').first()
+            team=team, status='PENDING'
+        ).select_related('card_1', 'card_2', 'card_3', 'guaranteed_card', 'pack').first()
 
         if active_session:
-            loyalty_info = get_team_pack_loyalty_status(team, pack)
-            return {
-                'success': True,
-                'is_resumed_session': True,
-                'session_id': active_session.id,
-                'pack': {
-                    'id': pack.id,
-                    'name': pack.name,
-                    'tier': pack.tier,
-                    'cover_image': pack.cover_image.url if pack.cover_image else None,
-                    'ovr_range_text': pack.ovr_range_text,
-                },
-                'cards': [
-                    serialize_card(active_session.card_1, active_session.guaranteed_card),
-                    serialize_card(active_session.card_2, active_session.guaranteed_card),
-                    serialize_card(active_session.card_3, active_session.guaranteed_card),
-                ],
-                'loyalty_status': loyalty_info,
-                'loyalty_boost_applied': loyalty_info.get('is_loyalty_boost_active', False),
-                'loyalty_multiplier': loyalty_info.get('top_multiplier', 1.0),
-                'guaranteed_card_id': active_session.guaranteed_card.id if active_session.guaranteed_card else None,
-                'is_hard_pity_applied': (active_session.guaranteed_card is not None),
-                'is_top_tier_depleted': loyalty_info.get('is_top_tier_depleted', False),
-                'expires_at': active_session.expires_at.isoformat(),
-                'remaining_balance': team.gems if active_session.payment_method == 'GEMS' else float(team.budget)
-            }
+            # If the session belongs to the SAME pack, resume seamlessly
+            if active_session.pack_id == pack.id:
+                loyalty_info = get_team_pack_loyalty_status(team, pack)
+                return {
+                    'success': True,
+                    'is_resumed_session': True,
+                    'session_id': active_session.id,
+                    'pack': {
+                        'id': pack.id,
+                        'name': pack.name,
+                        'tier': pack.tier,
+                        'cover_image': pack.cover_image.url if pack.cover_image else None,
+                        'ovr_range_text': pack.ovr_range_text,
+                    },
+                    'cards': [
+                        serialize_card(active_session.card_1, active_session.guaranteed_card),
+                        serialize_card(active_session.card_2, active_session.guaranteed_card),
+                        serialize_card(active_session.card_3, active_session.guaranteed_card),
+                    ],
+                    'loyalty_status': loyalty_info,
+                    'loyalty_boost_applied': loyalty_info.get('is_loyalty_boost_active', False),
+                    'loyalty_multiplier': loyalty_info.get('top_multiplier', 1.0),
+                    'guaranteed_card_id': active_session.guaranteed_card.id if active_session.guaranteed_card else None,
+                    'is_hard_pity_applied': (active_session.guaranteed_card is not None),
+                    'is_top_tier_depleted': loyalty_info.get('is_top_tier_depleted', False),
+                    'expires_at': active_session.expires_at.isoformat() if active_session.expires_at else None,
+                    'remaining_balance': team.gems if active_session.payment_method == 'GEMS' else float(team.budget)
+                }
+            else:
+                # User has an unresolved session in a DIFFERENT pack - prevent opening new pack
+                return {
+                    'success': False,
+                    'has_pending_session': True,
+                    'pending_session_id': active_session.id,
+                    'pending_pack_id': active_session.pack_id,
+                    'pending_pack_name': active_session.pack.name,
+                    'error': f'شما یک پک بازشده تکمیل‌نشده در «{active_session.pack.name}» دارید. لطفاً ابتدا انتخاب بازیکن آن را نهایی کنید.'
+                }
 
         # Wallet deduction
         if payment_method == 'GEMS':
@@ -384,7 +391,7 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
         selected_cards, guaranteed_card = weighted_sample_pack_cards(pack, unclaimed_list, team=team, return_guaranteed=True)
         loyalty_info = get_team_pack_loyalty_status(team, pack)
 
-        # Create opening session (expires in 5 minutes)
+        # Create opening session (No timeout expiry to eliminate reroll exploits)
         session = PackOpeningSession.objects.create(
             team=team,
             pack=pack,
@@ -395,7 +402,7 @@ def open_pack(team_id: int, pack_id: int, payment_method: str = 'GEMS') -> dict:
             payment_method=payment_method,
             cost=cost,
             status='PENDING',
-            expires_at=timezone.now() + timedelta(minutes=5)
+            expires_at=timezone.now() + timedelta(days=3650)
         )
 
         return {
@@ -550,48 +557,14 @@ def pick_card(session_id: int, pack_player_id: int, team_id: int) -> dict:
 
 def expire_session(session) -> bool:
     """
-    Refunds payment and marks session EXPIRED. Accepts PackOpeningSession instance or integer session_id.
+    DEPRECATED/DISABLED: Pack opening sessions do NOT auto-refund gems or expire anymore.
+    Sessions stay PENDING until a card is picked by the user or picked randomly upon forced exit.
     """
-    if isinstance(session, int):
-        try:
-            session = PackOpeningSession.objects.get(id=session)
-        except PackOpeningSession.DoesNotExist:
-            return False
-
-    if session.status != 'PENDING':
-        return False
-
-    with transaction.atomic():
-        session = PackOpeningSession.objects.select_for_update().get(id=session.id)
-        if session.status != 'PENDING':
-            return False
-
-        # Refund
-        if session.cost > 0:
-            currency = 'GEMS' if session.payment_method == 'GEMS' else 'BUDGET'
-            process_atomic_wallet_update(
-                team_id=session.team_id,
-                amount=session.cost,
-                currency=currency,
-                transaction_type='ADMIN_ADJUST',
-                description=f"برگشت وجه به علت عدم انتخاب کارت در سشن پک #{session.id}"
-            )
-
-        session.status = 'EXPIRED'
-        session.save(update_fields=['status'])
-        return True
+    return False
 
 
 def expire_all_stale_sessions() -> int:
     """
-    Finds and auto-refunds all expired pending sessions.
+    DEPRECATED/DISABLED: Auto-refunds disabled to prevent reroll exploits.
     """
-    stale_sessions = PackOpeningSession.objects.filter(
-        status='PENDING',
-        expires_at__lt=timezone.now()
-    )
-    count = 0
-    for s in stale_sessions:
-        if expire_session(s):
-            count += 1
-    return count
+    return 0
