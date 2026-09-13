@@ -6,7 +6,7 @@ import { ToastProvider } from './components/Toast';
 import { 
   LayoutDashboard, Radio, Users, Shield, DollarSign, Settings, 
   FileText, Database, LogOut, ExternalLink, ArrowRight, Newspaper, Gift, ArrowRightLeft, Sparkles, Menu, X,
-  Key, ShieldCheck, ShieldAlert
+  Key, ShieldCheck, ShieldAlert, Gamepad2
 } from 'lucide-react';
 import { hasAdminPermission } from '../utils/adminPermissions';
 
@@ -61,6 +61,7 @@ const AdminLayoutContent = () => {
     if (path === '/admin' || path === '/admin/') return true;
     if (path.startsWith('/admin/admins')) return hasAdminPermission(adminUser, 'sensitive_admin_rbac_manage') || hasAdminPermission(adminUser, 'panel_admin_admins');
     if (path.startsWith('/admin/squad-transfers')) return hasAdminPermission(adminUser, 'panel_admin_squad_transfers');
+    if (path.startsWith('/admin/pes-transfers')) return hasAdminPermission(adminUser, 'panel_admin_squad_transfers') || adminUser?.is_superuser;
     if (path.startsWith('/admin/packs')) return hasAdminPermission(adminUser, 'panel_admin_packs');
     if (path.startsWith('/admin/pes-skills')) return hasAdminPermission(adminUser, 'panel_admin_pes_skills');
     if (path.startsWith('/admin/transfer-reports')) return hasAdminPermission(adminUser, 'panel_admin_newsroom');
@@ -161,6 +162,13 @@ const AdminLayoutContent = () => {
             <Link to="/admin/squad-transfers" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/squad-transfers')}`}>
               <ArrowRightLeft size={17} className="text-cyan-400" />
               <span>نقل‌وانتقال و ترکیب تیم‌ها</span>
+            </Link>
+          )}
+
+          {(adminUser?.is_superuser || hasAdminPermission(adminUser, 'panel_admin_squad_transfers')) && (
+            <Link to="/admin/pes-transfers" onClick={() => setMobileNavOpen(false)} className={`admin-nav-link ${isActive('/admin/pes-transfers')}`}>
+              <Gamepad2 size={17} className="text-emerald-400" />
+              <span>نقل‌وانتقالات PES</span>
             </Link>
           )}
 

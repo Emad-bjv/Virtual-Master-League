@@ -314,4 +314,11 @@ export const seasonPassApi = {
   adminResetAllTeamPasses: () => api.post('/season-pass/admin-reset-all-team-passes/'),
 };
 
+export const pesTransferApi = {
+  getOverview: () => api.get('/teams/admin/pes-transfers/overview/'),
+  getClubDetail: (teamId) => api.get(`/teams/admin/pes-transfers/club/${teamId}/`),
+  toggleApplied: (data) => api.post('/teams/admin/pes-transfers/toggle-applied/', data),
+};
+
 export default api;
+

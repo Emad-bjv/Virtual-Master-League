@@ -19,6 +19,7 @@ const TransferNewsroom = lazy(() => import('./admin/pages/TransferNewsroom'));
 const DynamicCrud = lazy(() => import('./admin/pages/DynamicCrud'));
 const AdminPacks = lazy(() => import('./admin/pages/AdminPacks'));
 const AdminSquadTransfers = lazy(() => import('./admin/pages/AdminSquadTransfers'));
+const AdminPESTransfers = lazy(() => import('./admin/pages/AdminPESTransfers'));
 const AdminPESSkills = lazy(() => import('./admin/pages/AdminPESSkills'));
 const AdminManagement = lazy(() => import('./admin/pages/AdminManagement'));
 
@@ -52,6 +53,7 @@ function App() {
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<DashboardOverview />} />
             <Route path="squad-transfers" element={<AdminSquadTransfers />} />
+            <Route path="pes-transfers" element={<AdminPESTransfers />} />
             <Route path="packs" element={<AdminPacks />} />
             <Route path="pes-skills" element={<AdminPESSkills />} />
             <Route path="transfer-reports" element={<TransferNewsroom />} />

@@ -135,7 +135,8 @@ def buy_player_direct(buyer_team_id: int, listing_id: int) -> dict:
         # Transfer player ownership
         player = listing.player
         player.team = buyer
-        player.save(update_fields=['team'])
+        player.pes_transfer_applied = False
+        player.save(update_fields=['team', 'pes_transfer_applied'])
 
         # Update listing status
         listing.status = 'SOLD'
@@ -282,7 +283,8 @@ def finalize_auction(listing_id: int) -> dict:
 
         player = listing.player
         player.team = buyer
-        player.save(update_fields=['team'])
+        player.pes_transfer_applied = False
+        player.save(update_fields=['team', 'pes_transfer_applied'])
 
         listing.status = 'SOLD'
         listing.save(update_fields=['status'])

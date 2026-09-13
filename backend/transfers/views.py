@@ -319,6 +319,7 @@ class SignFreeAgentAPIView(views.APIView):
             process_atomic_wallet_update(user_team.id, -signing_fee, 'BUDGET', 'FREE_AGENT_SIGNING', f"جذب بازیکن آزاد {player.name}")
             player.team = user_team
             player.is_free_agent = False
+            player.pes_transfer_applied = False
             player.save()
             ensure_team_starting_eleven(user_team)
             user_team.update_star_rating(save=True)

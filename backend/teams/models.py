@@ -218,6 +218,17 @@ class Player(models.Model):
         help_text="اطلاعات لول‌ها و مقادیر PES مهارت‌های تخصصی بازیکن"
     )
 
+    nationality = models.CharField(
+        max_length=60, blank=True, default='',
+        verbose_name="ملیت",
+        help_text="کشور یا ملیت بازیکن (مثال: برزیل، فرانسه)"
+    )
+    pes_transfer_applied = models.BooleanField(
+        default=False,
+        verbose_name="انتقال در PES اعمال شده است",
+        help_text="آیا انتقال این بازیکن در ترکیب بازی PES اعمال شده است؟"
+    )
+
     class Meta:
         verbose_name = "بازیکن"
         verbose_name_plural = "بازیکنان"

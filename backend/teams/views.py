@@ -1013,6 +1013,7 @@ class PlayerViewSet(viewsets.ModelViewSet):
         player.team = target_team
         if target_team:
             player.is_free_agent = False
+            player.pes_transfer_applied = False
             if transfer_type == 'LOAN' and old_team:
                 player.loan_owner_team = old_team
                 player.loan_matches_left = int(request.data.get('loan_matches', 10))
@@ -1446,3 +1447,330 @@ class PlayerViewSet(viewsets.ModelViewSet):
             'status': f'تیم پایه برای {updated_count} بازیکن با موفقیت ثبت و مقداردهی شد.',
             'updated_count': updated_count
         })
+
+
+# ==============================================================================
+# PES Transfer Hub (مرکز اختصاصی نقل‌وانتقالات بازی PES)
+# ==============================================================================
+
+def resolve_team_logo(team):
+    """Safely extracts team logo string or URL regardless of model field type."""
+    if not team:
+        return None
+    logo = getattr(team, 'logo', None)
+    if not logo:
+        return None
+    if hasattr(logo, 'url'):
+        try:
+            return logo.url
+        except Exception:
+            return str(logo)
+    return str(logo)
+
+
+def get_player_trajectory(player, prefetch_histories=None):
+    """
+    Builds the visual trajectory breadcrumb and chain of clubs for a player:
+    Step 1: base_team (مبدا اولیه در بازی PES)
+    Steps 2..N: Sequential buyers from TransferHistory
+    Final Step: Current team
+    """
+    if prefetch_histories is not None:
+        transfers = [h for h in prefetch_histories if h.player_id == player.id]
+    else:
+        from transfers.models import TransferHistory
+        transfers = list(
+            TransferHistory.objects.filter(player_id=player.id)
+            .select_related('seller_team', 'buyer_team')
+            .order_by('transferred_at', 'id')
+        )
+
+    chain = []
+
+    # 1. Base team (Original PES Origin)
+    base = player.base_team
+    if not base and transfers and transfers[0].seller_team:
+        base = transfers[0].seller_team
+
+    if base:
+        chain.append({
+            'club_id': base.id,
+            'club_name': base.name,
+            'club_logo': resolve_team_logo(base),
+            'step_type': 'BASE_PES',
+            'label': 'مبدا اولیه در PES'
+        })
+
+    # 2. Sequential transfers
+    for t in transfers:
+        if t.buyer_team:
+            # Avoid duplicate adjacent hops
+            if not chain or chain[-1]['club_id'] != t.buyer_team.id:
+                chain.append({
+                    'club_id': t.buyer_team.id,
+                    'club_name': t.buyer_team.name,
+                    'club_logo': resolve_team_logo(t.buyer_team),
+                    'step_type': 'INTERMEDIATE',
+                    'label': 'انتقال',
+                    'date': t.transferred_at.strftime('%Y-%m-%d') if t.transferred_at else None,
+                    'fee': float(t.price_usd or 0)
+                })
+
+    # 3. Current team guarantee at end
+    curr = player.team
+    if curr:
+        if not chain:
+            chain.append({
+                'club_id': curr.id,
+                'club_name': curr.name,
+                'club_logo': resolve_team_logo(curr),
+                'step_type': 'CURRENT',
+                'label': 'تیم فعلی'
+            })
+        elif chain[-1]['club_id'] != curr.id:
+            chain.append({
+                'club_id': curr.id,
+                'club_name': curr.name,
+                'club_logo': resolve_team_logo(curr),
+                'step_type': 'CURRENT',
+                'label': 'تیم فعلی'
+            })
+        else:
+            chain[-1]['step_type'] = 'CURRENT'
+            chain[-1]['label'] = 'تیم فعلی'
+
+    # Build human-friendly string
+    if len(chain) == 1:
+        trajectory_text = f"{chain[0]['club_name']} (تیم پایه و فعلی)"
+    else:
+        parts = [f"مبدا: {chain[0]['club_name']}"]
+        for hop in chain[1:-1]:
+            parts.append(hop['club_name'])
+        parts.append(f"{chain[-1]['club_name']} (فعلی)")
+        trajectory_text = " ➔ ".join(parts)
+
+    return chain, trajectory_text
+
+
+class AdminPESTransfersOverviewView(views.APIView):
+    """
+    Returns an overview of all clubs with their pending transfer counts,
+    total players, and departed count for quick PES editing status.
+    """
+    permission_classes = [IsAdminOrDebug]
+
+    def get(self, request):
+        from django.db.models import Count
+        from transfers.models import TransferHistory
+
+        teams = Team.objects.all().order_by('name')
+
+        # Fast aggregate queries
+        pending_map = dict(
+            Player.objects.filter(pes_transfer_applied=False, team__isnull=False)
+            .values('team_id')
+            .annotate(c=Count('id'))
+            .values_list('team_id', 'c')
+        )
+        total_players_map = dict(
+            Player.objects.filter(team__isnull=False)
+            .values('team_id')
+            .annotate(c=Count('id'))
+            .values_list('team_id', 'c')
+        )
+        departures_map = dict(
+            TransferHistory.objects.filter(seller_team__isnull=False)
+            .values('seller_team_id')
+            .annotate(c=Count('id'))
+            .values_list('seller_team_id', 'c')
+        )
+
+        clubs_data = []
+        total_pending_league = 0
+        total_clubs_with_pending = 0
+
+        for t in teams:
+            pending_count = pending_map.get(t.id, 0)
+            dep_count = departures_map.get(t.id, 0)
+            tot_count = total_players_map.get(t.id, 0)
+
+            if pending_count > 0:
+                total_pending_league += pending_count
+                total_clubs_with_pending += 1
+
+            clubs_data.append({
+                'id': t.id,
+                'name': t.name,
+                'logo': resolve_team_logo(t),
+                'total_players': tot_count,
+                'pending_transfers_count': pending_count,
+                'departures_count': dep_count,
+            })
+
+        # Clubs with pending changes are prioritized to the front
+        clubs_data.sort(key=lambda x: (-x['pending_transfers_count'], x['name']))
+
+        return Response({
+            'total_pending_league': total_pending_league,
+            'total_clubs_with_pending': total_clubs_with_pending,
+            'total_clubs': len(clubs_data),
+            'clubs': clubs_data
+        })
+
+
+class AdminPESTransferClubDetailView(views.APIView):
+    """
+    Returns full squad of a club with complete player attributes,
+    origin base team in PES, career trajectory breadcrumb, and list of departures.
+    """
+    permission_classes = [IsAdminOrDebug]
+
+    def get(self, request, team_id):
+        try:
+            team = Team.objects.get(id=team_id)
+        except Team.DoesNotExist:
+            return Response({'error': 'باشگاه مورد نظر یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        from transfers.models import TransferHistory
+
+        squad_qs = Player.objects.filter(team=team).select_related('base_team', 'team')
+        player_ids = [p.id for p in squad_qs]
+
+        # In-memory batch transfer history query for ultra fast response
+        player_transfers = list(
+            TransferHistory.objects.filter(player_id__in=player_ids)
+            .select_related('seller_team', 'buyer_team')
+            .order_by('transferred_at', 'id')
+        )
+
+        squad_data = []
+        pending_count = 0
+
+        for p in squad_qs:
+            is_pending = not p.pes_transfer_applied
+            if is_pending:
+                pending_count += 1
+
+            chain, trajectory_text = get_player_trajectory(p, prefetch_histories=player_transfers)
+            is_new = is_pending or (p.base_team_id and p.base_team_id != team.id) or any(t.player_id == p.id for t in player_transfers)
+
+            squad_data.append({
+                'id': p.id,
+                'name': p.name,
+                'photo': resolve_player_photo_url(p),
+                'position': p.position,
+                'overall': p.overall,
+                'age': p.age,
+                'nationality': p.nationality or '',
+                'shirt_number': p.shirt_number,
+                'pes_transfer_applied': p.pes_transfer_applied,
+                'is_new_signing': is_new,
+                'base_team': {
+                    'id': p.base_team.id if p.base_team else None,
+                    'name': p.base_team.name if p.base_team else 'نامشخص',
+                    'logo': resolve_team_logo(p.base_team)
+                },
+                'trajectory': chain,
+                'trajectory_text': trajectory_text,
+            })
+
+        # Sort: pending first, then new signings, then highest overall
+        squad_data.sort(key=lambda x: (
+            1 if x['pes_transfer_applied'] else 0,
+            0 if x['is_new_signing'] else 1,
+            -x['overall']
+        ))
+
+        # Departures (transfers where seller was this team)
+        departures_qs = (
+            TransferHistory.objects.filter(seller_team=team)
+            .select_related('player', 'buyer_team')
+            .order_by('-transferred_at', '-id')[:100]
+        )
+        departures_data = []
+        for d in departures_qs:
+            departures_data.append({
+                'id': d.id,
+                'player_id': d.player.id if d.player else None,
+                'player_name': d.player.name if d.player else 'بازیکن حذف شده',
+                'player_photo': resolve_player_photo_url(d.player) if d.player else '/players/default.png',
+                'player_position': d.player.position if d.player else '',
+                'player_overall': d.player.overall if d.player else 0,
+                'player_nationality': d.player.nationality if d.player else '',
+                'buyer_team_id': d.buyer_team.id if d.buyer_team else None,
+                'buyer_team_name': d.buyer_team.name if d.buyer_team else 'بازیکن آزاد',
+                'buyer_team_logo': resolve_team_logo(d.buyer_team),
+                'fee': float(d.price_usd or 0),
+                'transfer_type': d.transfer_type,
+                'transferred_at': d.transferred_at.strftime('%Y-%m-%d %H:%M') if d.transferred_at else None
+            })
+
+        return Response({
+            'club': {
+                'id': team.id,
+                'name': team.name,
+                'logo': resolve_team_logo(team),
+                'total_players': len(squad_data),
+                'pending_transfers_count': pending_count,
+                'departures_count': len(departures_data)
+            },
+            'squad': squad_data,
+            'departures': departures_data
+        })
+
+
+class AdminPESTransferToggleView(views.APIView):
+    """
+    Toggles or sets the pes_transfer_applied state for a specific player,
+    or batch-marks all players in a club as applied in PES.
+    """
+    permission_classes = [IsAdminOrDebug]
+
+    def post(self, request):
+        player_id = request.data.get('player_id')
+        team_id = request.data.get('team_id')
+        mark_all = request.data.get('mark_all', False)
+        applied_val = request.data.get('applied')
+
+        if mark_all and team_id:
+            try:
+                team = Team.objects.get(id=team_id)
+            except Team.DoesNotExist:
+                return Response({'error': 'باشگاه یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+            updated = Player.objects.filter(team=team).update(pes_transfer_applied=True)
+            return Response({
+                'status': f'تمام بازیکنان تیم «{team.name}» به عنوان اعمال‌شده در PES تیک خوردند.',
+                'team_id': team.id,
+                'updated_count': updated,
+                'pending_transfers_count': 0
+            })
+
+        if not player_id:
+            return Response({'error': 'شناسه بازیکن الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            player = Player.objects.get(id=player_id)
+        except Player.DoesNotExist:
+            return Response({'error': 'بازیکن یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if applied_val is not None:
+            player.pes_transfer_applied = bool(applied_val)
+        else:
+            player.pes_transfer_applied = not player.pes_transfer_applied
+
+        player.save(update_fields=['pes_transfer_applied'])
+
+        team_pending = 0
+        if player.team_id:
+            team_pending = Player.objects.filter(team_id=player.team_id, pes_transfer_applied=False).count()
+
+        return Response({
+            'status': 'وضعیت انتقال در PES بروزرسانی شد.',
+            'player_id': player.id,
+            'player_name': player.name,
+            'pes_transfer_applied': player.pes_transfer_applied,
+            'team_id': player.team_id,
+            'team_pending_count': team_pending
+        })
+
