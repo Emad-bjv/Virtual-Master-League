@@ -642,6 +642,20 @@ export default function EFootballGamePlan({
   const [substitutes, setSubstitutes] = useState(initialSquad.substitutes);
   const [reserves, setReserves] = useState(initialSquad.reserves);
 
+  // Responsive mobile touch device detection for tap-to-swap
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(
+        typeof window !== 'undefined' &&
+        (window.innerWidth < 640 || ('ontouchstart' in window && window.innerWidth < 768))
+      );
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   // Sync formation prop changes if any
   useEffect(() => {
     const resolved = getResolvedFormation(initialFormationProp);
@@ -1580,28 +1594,52 @@ export default function EFootballGamePlan({
             if (highlightedPosition) setHighlightedPosition(null);
             if (adminQuickDockPlayer) setAdminQuickDockPlayer(null);
           }}
-          className="relative w-full max-w-4xl mx-auto rounded-3xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.95)] select-none bg-[#050811] border border-slate-800/80"
+          className="relative w-full max-w-4xl mx-auto rounded-2xl sm:rounded-3xl overflow-hidden shadow-[0_25px_60px_rgba(0,0,0,0.95)] select-none bg-[#050811] border border-slate-800/80 -mx-0 sm:mx-auto"
         >
           {/* Aspect-Ratio 3D Pitch Container */}
-          <div className="relative w-full aspect-[924/760] min-h-[500px] sm:min-h-[620px] md:min-h-[720px] flex items-center justify-center">
+          <div className="relative w-full h-[510px] xs:h-[540px] sm:h-auto sm:aspect-[924/760] sm:min-h-[620px] md:min-h-[720px] flex items-center justify-center">
             {/* 3D Pitch Image Asset */}
             <img
               src={futPitchImg}
               alt="3D Stadium Pitch"
-              className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none drop-shadow-[0_10px_30px_rgba(0,0,0,0.9)]"
+              className="absolute inset-0 w-full h-full object-fill sm:object-contain pointer-events-none select-none drop-shadow-[0_10px_30px_rgba(0,0,0,0.9)]"
             />
 
-            {/* MANAGER CARD SLOT (Top-Left corner outside grass touchline) */}
-            <div className="absolute top-[2.5%] left-[2.5%] sm:top-[3.5%] sm:left-[3.5%] z-30 pointer-events-auto">
-              <FutPitchCard
-                isManager={true}
-                managerData={{
-                  name: team?.manager_name || team?.manager || 'سرمربی',
-                  avatar: team?.manager_avatar || team?.logo_url,
-                }}
-                cardSize="bench"
-                showPillUnderCard={true}
-              />
+            {/* MANAGER CARD / BADGE SLOT (Top-Left corner outside grass touchline) */}
+            <div className="absolute top-2 left-2 sm:top-[3.5%] sm:left-[3.5%] z-30 pointer-events-auto">
+              {/* Mobile: Sleek compact floating badge */}
+              <div className="flex sm:hidden items-center gap-1.5 bg-slate-950/90 backdrop-blur-md px-2 py-1 rounded-xl border border-sky-500/40 shadow-lg">
+                <div className="w-6 h-6 rounded-full overflow-hidden bg-slate-800 border border-sky-400/50 flex items-center justify-center shrink-0">
+                  {(team?.manager_avatar || team?.logo_url) ? (
+                    <img
+                      src={team?.manager_avatar || team?.logo_url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <User size={13} className="text-sky-300" />
+                  )}
+                </div>
+                <div className="flex flex-col leading-none">
+                  <span className="text-[7.5px] text-sky-300 font-bold">سرمربی</span>
+                  <span className="text-[9px] font-black text-white truncate max-w-[70px]">
+                    {team?.manager_name || team?.manager || 'سرمربی'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Desktop: Full authentic FUT Manager Card */}
+              <div className="hidden sm:block">
+                <FutPitchCard
+                  isManager={true}
+                  managerData={{
+                    name: team?.manager_name || team?.manager || 'سرمربی',
+                    avatar: team?.manager_avatar || team?.logo_url,
+                  }}
+                  cardSize="bench"
+                  showPillUnderCard={true}
+                />
+              </div>
             </div>
 
             {/* CURRENT FORMATION BADGE (Bottom-Right corner) */}
@@ -1672,13 +1710,14 @@ export default function EFootballGamePlan({
                 return (
                   <motion.div
                     key={player.id}
-                    drag={!readOnly && !isAdminMode}
+                    drag={!readOnly && !isAdminMode && !isMobile}
                     dragConstraints={pitchContainerRef}
                     dragSnapToOrigin={true}
                     dragElastic={0.08}
                     dragMomentum={false}
                     whileDrag={{ scale: 1.15, zIndex: 100 }}
                     onDragEnd={(e, info) => {
+                      if (isMobile) return;
                       const dist = Math.hypot(info?.offset?.x || 0, info?.offset?.y || 0);
                       if (dist < 8) {
                         handlePitchPlayerClickSafely(player);
@@ -1698,8 +1737,12 @@ export default function EFootballGamePlan({
                     }}
                     transition={{ duration: 0.15, ease: 'easeOut' }}
                     style={{ willChange: 'left, top' }}
-                    className={`absolute -translate-x-1/2 -translate-y-1/2 z-10 hover:z-30 pointer-events-auto touch-none select-none ${
-                      !readOnly && !isAdminMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 z-10 hover:z-30 pointer-events-auto select-none ${
+                      isMobile
+                        ? 'touch-auto cursor-pointer'
+                        : !readOnly && !isAdminMode
+                        ? 'touch-none cursor-grab active:cursor-grabbing'
+                        : 'cursor-pointer'
                     }`}
                   >
                     {/* FotMob Style Rapid Action Emoji Dock (Admin Mode) */}
@@ -1823,7 +1866,7 @@ export default function EFootballGamePlan({
                     }}
                     transition={{ duration: 0.15, ease: 'easeOut' }}
                     style={{ willChange: 'left, top' }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-10 hover:z-30 cursor-pointer pointer-events-auto"
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-10 hover:z-30 cursor-pointer pointer-events-auto select-none touch-auto"
                   >
                     <FutPitchCard
                       player={null}
