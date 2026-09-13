@@ -234,10 +234,20 @@ export default function FutPitchCard({
         {/* Glow border ring if selected or green */}
         {(isSelected || isGreenSlot) && (
           <div
-            className={`absolute inset-0 pointer-events-none rounded-[16px] border-2 ${
-              isSelected ? 'border-cyan-400 shadow-[0_0_15px_#00f3ff]' : 'border-[#00ff87] shadow-[0_0_15px_#00ff87]'
+            className={`absolute inset-0 pointer-events-none rounded-[16px] border-2 transition-all ${
+              isSelected
+                ? 'border-cyan-400 shadow-[0_0_20px_#00f3ff] animate-pulse'
+                : 'border-[#00ff87] shadow-[0_0_15px_#00ff87]'
             }`}
           />
+        )}
+
+        {/* Selected Swap Indicator Badge */}
+        {isSelected && (
+          <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-40 bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 px-2 py-0.5 rounded-full font-black text-[8px] sm:text-[9px] shadow-[0_0_12px_#00f3ff] flex items-center gap-1 animate-bounce whitespace-nowrap">
+            <span className="text-[10px]">🔄</span>
+            <span>آماده جابجایی</span>
+          </div>
         )}
 
         {/* Player Photo (Positioned in Upper Shield Area) */}

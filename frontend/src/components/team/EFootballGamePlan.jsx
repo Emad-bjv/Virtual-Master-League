@@ -405,6 +405,73 @@ export default function EFootballGamePlan({
     return '4-3-3 (4-2-1-3)';
   };
 
+  // Normalizes starting 11 players strictly to the 11 preset slots of the formation
+  // Preserves legitimate user swaps while snapping any corrupted or misplaced coordinates back to formation slots
+  const normalizeStartersToPreset = (starters = [], preset = []) => {
+    if (!preset || preset.length === 0 || !Array.isArray(starters) || starters.length === 0) {
+      return starters || [];
+    }
+
+    const unassignedSlots = preset.map((s) => ({ ...s }));
+    const assignedPlayers = new Array(starters.length).fill(null);
+
+    // Pass 1: Players that already match a slot's exact (or very close within 5%) x, y coordinates
+    starters.forEach((p, pIdx) => {
+      if (!p) return;
+      const px = Number(p.x_coord ?? -999);
+      const py = Number(p.y_coord ?? -999);
+      const slotIdx = unassignedSlots.findIndex((s) => {
+        if (!s) return false;
+        const dx = Math.abs(px - s.x);
+        const dy = Math.abs(py - s.y);
+        return dx <= 5 && dy <= 5;
+      });
+
+      if (slotIdx !== -1) {
+        const slot = unassignedSlots[slotIdx];
+        assignedPlayers[pIdx] = {
+          ...p,
+          x_coord: slot.x,
+          y_coord: slot.y,
+          position: slot.pos,
+          naturalPosition: p.naturalPosition || p.position || slot.pos,
+          is_starting: true,
+        };
+        unassignedSlots[slotIdx] = null;
+      }
+    });
+
+    // Pass 2: Any unassigned or displaced players (e.g. corrupted coordinates from old drags)
+    starters.forEach((p, pIdx) => {
+      if (assignedPlayers[pIdx] !== null || !p) return;
+
+      let bestSlotIdx = unassignedSlots.findIndex((s) => s && (s.pos === p.position || s.pos === p.naturalPosition));
+      if (bestSlotIdx === -1) {
+        bestSlotIdx = unassignedSlots.findIndex((s) => s && isPlayerCompatibleWithPosition(p, s.pos));
+      }
+      if (bestSlotIdx === -1) {
+        bestSlotIdx = unassignedSlots.findIndex((s) => s !== null);
+      }
+
+      if (bestSlotIdx !== -1) {
+        const slot = unassignedSlots[bestSlotIdx];
+        assignedPlayers[pIdx] = {
+          ...p,
+          x_coord: slot.x,
+          y_coord: slot.y,
+          position: slot.pos,
+          naturalPosition: p.naturalPosition || p.position || slot.pos,
+          is_starting: true,
+        };
+        unassignedSlots[bestSlotIdx] = null;
+      } else {
+        assignedPlayers[pIdx] = { ...p, is_starting: true };
+      }
+    });
+
+    return assignedPlayers.filter(Boolean);
+  };
+
   // Helper to intelligently match players to tactical slots based on their natural position
   const matchPlayersToFormation = (players = [], preset) => {
     if (!preset || !Array.isArray(players) || players.length === 0) return players || [];
@@ -536,14 +603,23 @@ export default function EFootballGamePlan({
         (p) => p && p.x_coord != null && p.y_coord != null && (p.position || p.tacticalPosition)
       );
 
-    // Only auto-snap to preset if coordinates are missing (initial raw squad load)
-    const alignedStarters = (hasValidCoords || !formPreset)
-      ? currentStarters.map((p) => ({
-          ...p,
-          naturalPosition: p.naturalPosition || p.position,
-          position: p.position || p.tacticalPosition || p.naturalPosition,
-        }))
-      : matchPlayersToFormation(currentStarters, formPreset);
+    // Normalize to preset slots: preserves legitimate swaps while fixing any corrupted coordinates
+    let alignedStarters;
+    if (formPreset && currentStarters.length === 11) {
+      if (hasValidCoords) {
+        alignedStarters = normalizeStartersToPreset(currentStarters, formPreset);
+      } else {
+        alignedStarters = matchPlayersToFormation(currentStarters, formPreset);
+      }
+    } else if (hasValidCoords || !formPreset) {
+      alignedStarters = currentStarters.map((p) => ({
+        ...p,
+        naturalPosition: p.naturalPosition || p.position,
+        position: p.position || p.tacticalPosition || p.naturalPosition,
+      }));
+    } else {
+      alignedStarters = matchPlayersToFormation(currentStarters, formPreset);
+    }
 
     return {
       startingXi: alignedStarters,
@@ -726,6 +802,18 @@ export default function EFootballGamePlan({
     setReserves(updatedRes);
     showNotification(`۱۱ بازیکن برتر بر اساس قدرت (OVR) و پست تخصصی چیده شدند ✨`);
     notifyLineupChange(updatedXi, updatedSubs, updatedRes, currentFormation);
+  };
+
+  // Dedicated Reset/Realign Handler: Snaps current 11 players strictly to standard formation slots
+  const handleRealignLineup = () => {
+    const preset = FORMATION_PRESETS[currentFormation];
+    if (!preset) return;
+    const aligned = normalizeStartersToPreset(startingXi, preset);
+    setStartingXi(aligned);
+    setSelectedPitchPlayerId(null);
+    setSelectedBenchPlayerId(null);
+    showNotification('موقعیت تمام بازیکنان بر اساس نقاط رسمی این چیدمان تراز شد ✨');
+    notifyLineupChange(aligned, substitutes, reserves, currentFormation);
   };
 
   // Direct 1-Click Player Placement from PlayerSlotSelectModal
@@ -1031,10 +1119,20 @@ export default function EFootballGamePlan({
     setAdminModalPlayer(null);
   };
 
+  const lastClickTimeRef = useRef(0);
+  const handlePitchPlayerClickSafely = (clickedPlayer) => {
+    const now = Date.now();
+    if (now - lastClickTimeRef.current < 200) return;
+    lastClickTimeRef.current = now;
+    handlePitchPlayerClick(clickedPlayer);
+  };
+
   // Swap two pitch players' positions (x_coord & y_coord)
   const swapPitchPositions = (id1, id2) => {
     const sId1 = String(id1);
     const sId2 = String(id2);
+    if (sId1 === sId2) return;
+
     const p1 = (startingXi || []).find((p) => String(p?.id) === sId1);
     const p2 = (startingXi || []).find((p) => String(p?.id) === sId2);
     if (!p1 || !p2) return;
@@ -1061,12 +1159,17 @@ export default function EFootballGamePlan({
       return p;
     });
 
-    setStartingXi(updatedXi);
+    const preset = FORMATION_PRESETS[currentFormation];
+    const normalizedXi = preset ? normalizeStartersToPreset(updatedXi, preset) : updatedXi;
+
+    setStartingXi(normalizedXi);
+    setSelectedPitchPlayerId(null);
+    setSelectedBenchPlayerId(null);
     showNotification(`پست تاکتیکی «${p1.name}» و «${p2.name}» روی چمن جابجا شد 🔄`);
-    notifyLineupChange(updatedXi, substitutes, reserves, currentFormation);
+    notifyLineupChange(normalizedXi, substitutes, reserves, currentFormation);
   };
 
-  // Pitch Player Drag End: Detect drop onto another pitch player to swap, or drop onto pitch to reposition
+  // Pitch Player Drag End: Detect drop onto another pitch player to swap, or drop onto empty slot
   const handlePitchPlayerDragEnd = (player, info) => {
     if (readOnly) return;
     const dragDist = Math.hypot(info?.offset?.x || 0, info?.offset?.y || 0);
@@ -1078,7 +1181,7 @@ export default function EFootballGamePlan({
     const dropPercentX = (((info?.point?.x || 0) - rect.left) / rect.width) * 100;
     const dropPercentY = (((info?.point?.y || 0) - rect.top) / rect.height) * 100;
 
-    // Check if dropped onto another pitch player (swap)
+    // Check if dropped onto another pitch player (swap with generous 22% radius)
     let targetPlayer = null;
     let minDistance = 9999;
 
@@ -1086,7 +1189,7 @@ export default function EFootballGamePlan({
       if (!other || String(other.id) === String(player.id)) return;
       const otherProj = getProjectedPitchCoords(other.x_coord, other.y_coord);
       const d = Math.hypot(dropPercentX - otherProj.x, dropPercentY - otherProj.y);
-      if (d < 10 && d < minDistance) {
+      if (d < 22 && d < minDistance) {
         minDistance = d;
         targetPlayer = other;
       }
@@ -1097,16 +1200,50 @@ export default function EFootballGamePlan({
       return;
     }
 
-    // Reposition player on pitch
-    const tactical = getTacticalCoordsFromProjected(dropPercentX, dropPercentY);
-    const updatedXi = (startingXi || []).map((p) =>
-      String(p.id) === String(player.id)
-        ? { ...p, x_coord: tactical.x, y_coord: tactical.y }
-        : p
-    );
-    setStartingXi(updatedXi);
-    showNotification(`موقعیت «${player.name}» روی چمن جابجا شد 📍`);
-    notifyLineupChange(updatedXi, substitutes, reserves, currentFormation);
+    // Check if dropped onto an unoccupied slot (if fewer than 11 players)
+    let targetEmptySlot = null;
+    let minSlotDist = 9999;
+    (unoccupiedSlots || []).forEach((slot) => {
+      const slotProj = getProjectedPitchCoords(slot.x, slot.y);
+      const d = Math.hypot(dropPercentX - slotProj.x, dropPercentY - slotProj.y);
+      if (d < 20 && d < minSlotDist) {
+        minSlotDist = d;
+        targetEmptySlot = slot;
+      }
+    });
+
+    if (targetEmptySlot) {
+      const updatedXi = (startingXi || []).map((p) =>
+        String(p.id) === String(player.id)
+          ? {
+              ...p,
+              x_coord: targetEmptySlot.x,
+              y_coord: targetEmptySlot.y,
+              position: targetEmptySlot.pos,
+            }
+          : p
+      );
+      setStartingXi(updatedXi);
+      setSelectedPitchPlayerId(null);
+      setSelectedBenchPlayerId(null);
+      showNotification(`«${player.name}» به پست ${targetEmptySlot.pos} منتقل شد 📍`);
+      notifyLineupChange(updatedXi, substitutes, reserves, currentFormation);
+      return;
+    }
+
+    // If dropped towards the substitutes bench (Y > 88%): swap with first compatible bench player or selected bench player
+    if (dropPercentY > 88 && (substitutes || []).length > 0) {
+      const targetBench = selectedBenchPlayerId
+        ? (substitutes || []).find((b) => String(b?.id) === String(selectedBenchPlayerId))
+        : (substitutes || []).find((b) => b && isPlayerCompatibleWithPosition(b, player.position)) || (substitutes || [])[0];
+      if (targetBench) {
+        swapPitchWithBench(player.id, targetBench.id);
+        return;
+      }
+    }
+
+    // If dropped on open grass without matching a target:
+    // Framer Motion dragSnapToOrigin will safely snap player back to their spot without modifying coordinates!
   };
 
   // Swap two bench or reserve players (between bench-bench, reserve-reserve, or bench-reserve)
@@ -1196,7 +1333,9 @@ export default function EFootballGamePlan({
     };
 
     const updatedXi = (startingXi || []).map((p) => (String(p?.id) === sPitchId ? newPitchPlayer : p));
-    setStartingXi(updatedXi);
+    const preset = FORMATION_PRESETS[currentFormation];
+    const normalizedXi = preset ? normalizeStartersToPreset(updatedXi, preset) : updatedXi;
+    setStartingXi(normalizedXi);
 
     // 2. Move pitch player to bench: RESTORED to their naturalPosition
     const newBenchPlayer = {
@@ -1221,8 +1360,10 @@ export default function EFootballGamePlan({
       setReserves(newRes);
     }
 
+    setSelectedPitchPlayerId(null);
+    setSelectedBenchPlayerId(null);
     showNotification(`تعویض تاکتیکی: ورود «${benchPlayer.name}» به جای «${pitchPlayer.name}» 🔄`);
-    notifyLineupChange(updatedXi, newSubs, newRes, currentFormation);
+    notifyLineupChange(normalizedXi, newSubs, newRes, currentFormation);
   };
 
   // Helper to calculate any unoccupied slots in current formation
@@ -1409,6 +1550,16 @@ export default function EFootballGamePlan({
 
               <button
                 type="button"
+                onClick={handleRealignLineup}
+                title="تراز خودکار بازیکنان بر اساس نقاط رسمی این چیدمان بدون تغییر بازیکنان"
+                className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 font-bold text-xs shadow-md transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+              >
+                <Sliders size={14} />
+                <span>تراز چیدمان</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={handleAutoOptimizeLineup}
                 title="چینش خودکار بهترین ۱۱ بازیکن بر اساس قدرت (OVR) و پست تخصصی"
                 className="flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 font-black text-xs shadow-lg shadow-emerald-500/20 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
@@ -1524,22 +1675,21 @@ export default function EFootballGamePlan({
                     drag={!readOnly && !isAdminMode}
                     dragConstraints={pitchContainerRef}
                     dragSnapToOrigin={true}
-                    dragElastic={0.06}
+                    dragElastic={0.08}
                     dragMomentum={false}
-                    whileDrag={{ scale: 1.14, zIndex: 100 }}
-                    onDragStart={() => {
-                      setIsDragging(true);
-                      setSelectedPitchPlayerId(null);
-                      setSelectedBenchPlayerId(null);
-                    }}
+                    whileDrag={{ scale: 1.15, zIndex: 100 }}
                     onDragEnd={(e, info) => {
-                      setTimeout(() => setIsDragging(false), 80);
+                      const dist = Math.hypot(info?.offset?.x || 0, info?.offset?.y || 0);
+                      if (dist < 8) {
+                        handlePitchPlayerClickSafely(player);
+                        return;
+                      }
+                      lastClickTimeRef.current = Date.now();
                       handlePitchPlayerDragEnd(player, info);
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (isDragging) return;
-                      handlePitchPlayerClick(player);
+                      handlePitchPlayerClickSafely(player);
                     }}
                     initial={false}
                     animate={{
@@ -1548,7 +1698,7 @@ export default function EFootballGamePlan({
                     }}
                     transition={{ duration: 0.15, ease: 'easeOut' }}
                     style={{ willChange: 'left, top' }}
-                    className={`absolute -translate-x-1/2 -translate-y-1/2 z-10 hover:z-30 pointer-events-auto touch-none ${
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 z-10 hover:z-30 pointer-events-auto touch-none select-none ${
                       !readOnly && !isAdminMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
                     }`}
                   >
