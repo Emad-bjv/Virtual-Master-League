@@ -248,12 +248,45 @@ export default function TeamTab({
     return scheduleMatches.find(m => m.status === 'SCHEDULED' || m.status === 'LIVE') || null;
   }, [scheduleMatches]);
 
+  // Auto-select targeted match from navigation event or sessionStorage
+  useEffect(() => {
+    const handleTargetMatchNav = (e) => {
+      const targetId = e?.detail?.matchId || sessionStorage.getItem('vml_selected_match_id');
+      if (targetId) {
+        const targetStr = String(targetId);
+        const matchFound = (scheduleMatches || []).find((m) => String(m.id) === targetStr);
+        if (matchFound) {
+          handleSelectMatchForLineup(matchFound);
+          try { sessionStorage.removeItem('vml_selected_match_id'); } catch (_e) {}
+        } else {
+          matchApi.getMatch(targetId).then((res) => {
+            if (res.data?.id) {
+              handleSelectMatchForLineup(res.data);
+              try { sessionStorage.removeItem('vml_selected_match_id'); } catch (_e) {}
+            }
+          }).catch(() => {});
+        }
+      }
+    };
+
+    window.addEventListener('vml_navigate_tab', handleTargetMatchNav);
+
+    const savedId = sessionStorage.getItem('vml_selected_match_id');
+    if (savedId) {
+      handleTargetMatchNav({ detail: { matchId: savedId } });
+    }
+
+    return () => window.removeEventListener('vml_navigate_tab', handleTargetMatchNav);
+  }, [scheduleMatches]);
+
   // Auto-select the next upcoming match if none is manually selected yet
   useEffect(() => {
+    const savedId = sessionStorage.getItem('vml_selected_match_id');
+    if (savedId) return;
     if (!selectedMatch && nextUpcomingMatch && teamId) {
       handleSelectMatchForLineup(nextUpcomingMatch);
     }
-  }, [nextUpcomingMatch?.id, teamId]);
+  }, [nextUpcomingMatch?.id, teamId, selectedMatch]);
 
   // Check if lineup is submitted for a specific match
   const isMatchLineupSubmitted = (m) => {
@@ -497,9 +530,9 @@ export default function TeamTab({
       // Update in local schedule list
       if (targetMatchId) {
         setScheduleMatches((prev) =>
-          prev.map((m) => {
+          (prev || []).map((m) => {
             if (m.id === targetMatchId) {
-              const isHome = m.home_team === teamId;
+              const isHome = m.home_team === teamId || m.home_team_id === teamId;
               return {
                 ...m,
                 home_lineup_ready: isHome ? true : m.home_lineup_ready,
@@ -510,6 +543,11 @@ export default function TeamTab({
           })
         );
       }
+
+      try {
+        window.dispatchEvent(new Event('battle_royale_bracket_updated'));
+        window.dispatchEvent(new Event('vml_league_schedule_updated'));
+      } catch (_e) {}
 
       try {
         await matchApi.updateLiveTactics({
@@ -890,13 +928,12 @@ export default function TeamTab({
                   nonStarting = nonStarting.map((p) => promotedIds.has(p.id) ? { ...p, is_starting: true } : p).filter((p) => !promotedIds.has(p.id));
                 }
 
-                const benchSubs = (nonStarting || []).slice(0, 11).filter(Boolean);
-                const benchRes = (nonStarting || []).slice(11).filter(Boolean);
-                const benchKey = benchSubs.map((p) => p?.id).filter(Boolean).join('-');
+                const benchSubs = (nonStarting || []).slice(0, 12).filter(Boolean);
+                const benchRes = (nonStarting || []).slice(12).filter(Boolean);
 
                 return (
                   <EFootballGamePlan 
-                    key={`gameplan-${teamId}-${selectedMatch?.id || 'default'}-${selectedFormation}-${presetName || 'custom'}-${(starters || []).map(p => `${p?.id}_${p?.tacticalPosition || p?.position}`).join('-')}-subs_${benchKey}`}
+                    key={`gameplan-${teamId}-${selectedMatch?.id || 'default'}`}
                     teamName={teamData?.name || "بدون تیم"} 
                     formation={selectedFormation} 
                     onFormationChange={setSelectedFormation}
@@ -906,8 +943,9 @@ export default function TeamTab({
                       const updatedPlayers = [
                         ...(newXi || []).filter(Boolean).map((p, i) => ({
                           ...p,
-                          position: p?.naturalPosition || p?.position,
-                          tacticalPosition: p?.position,
+                          position: p?.position || p?.tacticalPosition || p?.naturalPosition,
+                          tacticalPosition: p?.position || p?.tacticalPosition,
+                          naturalPosition: p?.naturalPosition || p?.position,
                           is_starting: true,
                           _order: i,
                         })),
@@ -915,15 +953,17 @@ export default function TeamTab({
                           ...p,
                           position: p?.naturalPosition || p?.position,
                           tacticalPosition: null,
+                          naturalPosition: p?.naturalPosition || p?.position,
                           is_starting: false,
-                          _order: 11 + i,
+                          _order: 12 + i,
                         })),
                         ...(newRes || []).filter(Boolean).map((p, i) => ({
                           ...p,
                           position: p?.naturalPosition || p?.position,
                           tacticalPosition: null,
+                          naturalPosition: p?.naturalPosition || p?.position,
                           is_starting: false,
-                          _order: 22 + i,
+                          _order: 24 + i,
                         })),
                       ];
                       setPlayers(updatedPlayers);
@@ -1404,7 +1444,7 @@ export default function TeamTab({
                         key={m.id || idx}
                         whileHover={{ scale: 1.008 }}
                         onClick={() => {
-                          setSelectedMatch(m);
+                          handleSelectMatchForLineup(m);
                         }}
                         className={`p-3.5 sm:p-4 rounded-3xl border transition-all flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 cursor-pointer ${
                           isImminentUnsubmitted

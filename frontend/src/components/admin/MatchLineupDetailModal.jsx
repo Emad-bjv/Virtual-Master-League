@@ -180,10 +180,12 @@ export default function MatchLineupDetailModal({
   const teamLogo = getTeamLogoUrl(isHome ? (match.home_team_logo || teamName) : (match.away_team_logo || teamName));
   const opponentLogo = getTeamLogoUrl(isHome ? (match.away_team_logo || opponentName) : (match.home_team_logo || teamName));
 
-  const isLineupReady = isHome ? Boolean(match.home_lineup_ready) : Boolean(match.away_lineup_ready);
   const activeSideData = isHome ? gameplanData.home : gameplanData.away;
+  const isLineupReady = isHome
+    ? Boolean(gameplanData.home?.gameplan?.is_submitted ?? match.home_lineup_ready)
+    : Boolean(gameplanData.away?.gameplan?.is_submitted ?? match.away_lineup_ready);
   const activeGp = activeSideData?.gameplan || {};
-  const activePreset = activeGp.preset_name || (isHome ? match.home_preset_name : match.away_preset_name);
+  const activePreset = activeGp.preset_name || (isHome ? (gameplanData.home?.gameplan?.preset_name || match.home_preset_name) : (gameplanData.away?.gameplan?.preset_name || match.away_preset_name));
   const formation = activeSideData?.formation || (isHome ? match.home_formation : match.away_formation) || '4-3-3';
   const coachName = isHome ? (match.home_coach_name || 'ثبت نشده') : (match.away_coach_name || 'ثبت نشده');
 
@@ -248,9 +250,9 @@ export default function MatchLineupDetailModal({
                 </div>
               </div>
               <span className={`text-[10px] px-2 py-0.5 rounded-md font-sport font-black shrink-0 ${
-                match.home_lineup_ready ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                Boolean(gameplanData.home?.gameplan?.is_submitted ?? match.home_lineup_ready) ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
               }`}>
-                {match.home_lineup_ready ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
+                {Boolean(gameplanData.home?.gameplan?.is_submitted ?? match.home_lineup_ready) ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
               </span>
             </button>
 
@@ -274,9 +276,9 @@ export default function MatchLineupDetailModal({
                 </div>
               </div>
               <span className={`text-[10px] px-2 py-0.5 rounded-md font-sport font-black shrink-0 ${
-                match.away_lineup_ready ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                Boolean(gameplanData.away?.gameplan?.is_submitted ?? match.away_lineup_ready) ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
               }`}>
-                {match.away_lineup_ready ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
+                {Boolean(gameplanData.away?.gameplan?.is_submitted ?? match.away_lineup_ready) ? '✓ ثبت‌شده' : '⏳ پیش‌فرض'}
               </span>
             </button>
           </div>

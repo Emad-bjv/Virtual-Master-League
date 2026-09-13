@@ -1132,11 +1132,11 @@ export default function LiveBroadcastControl() {
                   {/* Lineup & Preset Indicator */}
                   <div className="flex flex-col items-center gap-1">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 font-sport ${
-                      Boolean(selectedMatch.home_lineup_ready)
+                      Boolean(homeGameplan?.is_submitted ?? selectedMatch.home_lineup_ready)
                         ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50'
                         : 'bg-amber-950/80 text-amber-300 border-amber-500/50'
                     }`}>
-                      {Boolean(selectedMatch.home_lineup_ready) ? '✓ ترکیب ارسال شده' : '⏳ ترکیب پیش‌فرض'}
+                      {Boolean(homeGameplan?.is_submitted ?? selectedMatch.home_lineup_ready) ? '✓ ترکیب ارسال شده' : '⏳ ترکیب پیش‌فرض'}
                     </span>
 
                     {(homeGameplan?.preset_name || selectedMatch.home_preset_name) && (
@@ -1187,11 +1187,11 @@ export default function LiveBroadcastControl() {
                   {/* Lineup & Preset Indicator */}
                   <div className="flex flex-col items-center gap-1">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 font-sport ${
-                      Boolean(selectedMatch.away_lineup_ready)
+                      Boolean(awayGameplan?.is_submitted ?? selectedMatch.away_lineup_ready)
                         ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/50'
                         : 'bg-amber-950/80 text-amber-300 border-amber-500/50'
                     }`}>
-                      {Boolean(selectedMatch.away_lineup_ready) ? '✓ ترکیب ارسال شده' : '⏳ ترکیب پیش‌فرض'}
+                      {Boolean(awayGameplan?.is_submitted ?? selectedMatch.away_lineup_ready) ? '✓ ترکیب ارسال شده' : '⏳ ترکیب پیش‌فرض'}
                     </span>
 
                     {(awayGameplan?.preset_name || selectedMatch.away_preset_name) && (

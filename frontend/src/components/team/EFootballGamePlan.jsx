@@ -37,6 +37,21 @@ export const getProjectedPitchCoords = (formX = 50, formY = 50) => {
   };
 };
 
+// Inverse projection: convert screen percentages in pitch container back to 0-100 tactical pitch coordinates
+export const getTacticalCoordsFromProjected = (xScreen = 50, yScreen = 50) => {
+  const pitchTop = 7.2;
+  const pitchHeight = 88.8;
+  const yFrac = Math.max(0, Math.min(1, (Number(yScreen || 50) - pitchTop) / pitchHeight));
+  const leftMargin = 14.1 - yFrac * 12.6;
+  const pitchWidth = 72.0 + yFrac * 25.0;
+  const formX = Math.max(5, Math.min(95, ((Number(xScreen || 50) - leftMargin) / (pitchWidth || 1)) * 100));
+  const formY = Math.max(5, Math.min(95, yFrac * 100));
+  return {
+    x: Math.round(formX),
+    y: Math.round(formY),
+  };
+};
+
 // Color map for position badges matching eFootball standard (13 official positions)
 const POSITION_COLORS = {
   GK: 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black',
@@ -514,10 +529,21 @@ export default function EFootballGamePlan({
       }
     }
 
-    // Always snap starters to the exact calibrated non-overlapping formation slot coordinates
-    const alignedStarters = formPreset
-      ? matchPlayersToFormation(currentStarters, formPreset)
-      : currentStarters;
+    // Check if currentStarters already have valid coordinates (e.g. from existing lineup, user swap, or saved plan)
+    const hasValidCoords =
+      currentStarters.length > 0 &&
+      currentStarters.every(
+        (p) => p && p.x_coord != null && p.y_coord != null && (p.position || p.tacticalPosition)
+      );
+
+    // Only auto-snap to preset if coordinates are missing (initial raw squad load)
+    const alignedStarters = (hasValidCoords || !formPreset)
+      ? currentStarters.map((p) => ({
+          ...p,
+          naturalPosition: p.naturalPosition || p.position,
+          position: p.position || p.tacticalPosition || p.naturalPosition,
+        }))
+      : matchPlayersToFormation(currentStarters, formPreset);
 
     return {
       startingXi: alignedStarters,
@@ -548,19 +574,42 @@ export default function EFootballGamePlan({
     }
   }, [initialFormationProp]);
 
-  // Sync squad props when loaded asynchronously or when roster changes
-  useEffect(() => {
-    if (initialStartingXi && initialStartingXi.length > 0) {
-      const preset = FORMATION_PRESETS[getResolvedFormation(initialFormationProp)];
-      const updated = buildFullSquad(initialStartingXi, initialSubstitutes || [], initialReserves || [], preset);
-      setStartingXi(updated.startingXi);
-      setSubstitutes(updated.substitutes);
-      setReserves(updated.reserves);
-    }
+  // Squad signature for robust external sync without undoing coach edits
+  const squadSignature = useMemo(() => {
+    const sSig = (initialStartingXi || []).map(p => `${p?.id}_${p?.position || p?.tacticalPosition}_${p?.x_coord}_${p?.y_coord}`).join('|');
+    const bSig = (initialSubstitutes || []).map(p => `${p?.id}`).join('|');
+    const rSig = (initialReserves || []).map(p => `${p?.id}`).join('|');
+    return `${sSig}#${bSig}#${rSig}#${initialFormationProp}`;
   }, [initialStartingXi, initialSubstitutes, initialReserves, initialFormationProp]);
+
+  const lastSyncedSignature = useRef(squadSignature);
+
+  // Sync squad props when loaded asynchronously or when roster changes externally
+  useEffect(() => {
+    if (!initialStartingXi || initialStartingXi.length === 0) return;
+    if (lastSyncedSignature.current === squadSignature) return;
+
+    lastSyncedSignature.current = squadSignature;
+    const preset = FORMATION_PRESETS[getResolvedFormation(initialFormationProp)];
+    const updated = buildFullSquad(initialStartingXi, initialSubstitutes || [], initialReserves || [], preset);
+    setStartingXi(updated.startingXi);
+    setSubstitutes(updated.substitutes);
+    setReserves(updated.reserves);
+  }, [squadSignature]);
+
+  const notifyLineupChange = (newXi, newSubs = substitutes, newRes = reserves, newForm = currentFormation) => {
+    const sSig = (newXi || []).map(p => `${p?.id}_${p?.position || p?.tacticalPosition}_${p?.x_coord}_${p?.y_coord}`).join('|');
+    const bSig = (newSubs || []).map(p => `${p?.id}`).join('|');
+    const rSig = (newRes || []).map(p => `${p?.id}`).join('|');
+    lastSyncedSignature.current = `${sSig}#${bSig}#${rSig}#${newForm || currentFormation}`;
+    if (onLineupChange) {
+      onLineupChange({ startingXi: newXi, substitutes: newSubs, reserves: newRes, formation: newForm || currentFormation });
+    }
+  };
 
   const pitchContainerRef = useRef(null);
 
+  const [isDragging, setIsDragging] = useState(false);
   const [selectedPitchPlayerId, setSelectedPitchPlayerId] = useState(null);
   const [selectedBenchPlayerId, setSelectedBenchPlayerId] = useState(null);
   const [highlightedPosition, setHighlightedPosition] = useState(null);
@@ -572,14 +621,14 @@ export default function EFootballGamePlan({
 
   const selectedPitchPlayer = useMemo(() => {
     return selectedPitchPlayerId
-      ? (startingXi || []).find((p) => p && p.id === selectedPitchPlayerId) || null
+      ? (startingXi || []).find((p) => p && String(p.id) === String(selectedPitchPlayerId)) || null
       : null;
   }, [selectedPitchPlayerId, startingXi]);
 
   const selectedBenchPlayer = useMemo(() => {
     return selectedBenchPlayerId
-      ? ((substitutes || []).find((b) => b && b.id === selectedBenchPlayerId) ||
-         (reserves || []).find((r) => r && r.id === selectedBenchPlayerId) ||
+      ? ((substitutes || []).find((b) => b && String(b.id) === String(selectedBenchPlayerId)) ||
+         (reserves || []).find((r) => r && String(r.id) === String(selectedBenchPlayerId)) ||
          null)
       : null;
   }, [selectedBenchPlayerId, substitutes, reserves]);
@@ -616,7 +665,7 @@ export default function EFootballGamePlan({
       const newOvr = updatedP?.overall || player.overall + 1;
 
       const updateList = (list) =>
-        list.map((p) => (p.id === player.id ? { ...p, level: newLevel, overall: newOvr } : p));
+        (list || []).map((p) => (String(p.id) === String(player.id) ? { ...p, level: newLevel, overall: newOvr } : p));
 
       const newXi = updateList(startingXi);
       const newSubs = updateList(substitutes);
@@ -634,9 +683,7 @@ export default function EFootballGamePlan({
       }
       showNotification(`💎 سطح «${player.name}» با موفقیت به لول ${newLevel} و OVR ${newOvr} ارتقا یافت! ✨`);
       setActionPlayerToBoost(null);
-      if (onLineupChange) {
-        onLineupChange({ startingXi: newXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
-      }
+      notifyLineupChange(newXi, newSubs, newRes, currentFormation);
     } catch (err) {
       showNotification('خطا در ارتقای بازیکن: ' + (err.response?.data?.error || err.message));
     } finally {
@@ -662,9 +709,7 @@ export default function EFootballGamePlan({
     if (onFormationChange) {
       onFormationChange(newFormation);
     }
-    if (onLineupChange) {
-      onLineupChange({ startingXi: updatedXi, substitutes, reserves, formation: newFormation });
-    }
+    notifyLineupChange(updatedXi, substitutes, reserves, newFormation);
   };
 
   // Smart Auto-Select Optimal Lineup Handler (AI Best 11 by OVR & Position)
@@ -672,22 +717,21 @@ export default function EFootballGamePlan({
     const fullSquad = [...(startingXi || []), ...(substitutes || []), ...(reserves || [])];
     const isSuspended = (p) => Boolean((p?.suspension_matches > 0) || p?.is_suspended || p?.isSuspended);
     const optimized = autoSelectOptimalLineup(fullSquad, currentFormation);
-    const updatedXi = optimized.filter((p) => p && p.is_starting && !isSuspended(p)).slice(0, 11);
-    const nonStarting = optimized.filter((p) => p && (!p.is_starting || isSuspended(p)));
+    const updatedXi = (optimized || []).filter((p) => p && p.is_starting && !isSuspended(p)).slice(0, 11);
+    const nonStarting = (optimized || []).filter((p) => p && (!p.is_starting || isSuspended(p)));
     const updatedSubs = nonStarting.slice(0, 12);
     const updatedRes = nonStarting.slice(12);
     setStartingXi(updatedXi);
     setSubstitutes(updatedSubs);
     setReserves(updatedRes);
     showNotification(`۱۱ بازیکن برتر بر اساس قدرت (OVR) و پست تخصصی چیده شدند ✨`);
-    if (onLineupChange) {
-      onLineupChange({ startingXi: updatedXi, substitutes: updatedSubs, reserves: updatedRes, formation: currentFormation });
-    }
+    notifyLineupChange(updatedXi, updatedSubs, updatedRes, currentFormation);
   };
 
   // Direct 1-Click Player Placement from PlayerSlotSelectModal
   const handleSelectPlayerForSlot = (player, slot) => {
     if (!player || !slot) return;
+    const targetPlayerId = String(player.id);
 
     if (slot.isBench) {
       // Placing or swapping into Bench slot
@@ -696,8 +740,8 @@ export default function EFootballGamePlan({
       let newRes = [...(reserves || [])];
 
       // Remove player from wherever they were
-      newSubs = newSubs.filter((p) => p && p.id !== player.id);
-      newRes = newRes.filter((p) => p && p.id !== player.id);
+      newSubs = newSubs.filter((p) => p && String(p.id) !== targetPlayerId);
+      newRes = newRes.filter((p) => p && String(p.id) !== targetPlayerId);
 
       if (benchIdx < newSubs.length) {
         newSubs.splice(benchIdx, 0, { ...player, is_starting: false });
@@ -709,9 +753,7 @@ export default function EFootballGamePlan({
       setReserves(newRes);
       setSlotModalState({ isOpen: false, targetSlot: null });
       showNotification(`«${player.name}» به نیمکت ذخیره‌ها اضافه شد ✅`);
-      if (onLineupChange) {
-        onLineupChange({ startingXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
-      }
+      notifyLineupChange(startingXi, newSubs, newRes, currentFormation);
       return;
     }
 
@@ -725,18 +767,16 @@ export default function EFootballGamePlan({
       is_starting: true,
     };
 
-    const updatedXi = [...(startingXi || []).filter((p) => p && p.id !== player.id), newPitchPlayer];
-    const newSubs = (substitutes || []).filter((b) => b && b.id !== player.id);
-    const newRes = (reserves || []).filter((r) => r && r.id !== player.id);
+    const updatedXi = [...(startingXi || []).filter((p) => p && String(p.id) !== targetPlayerId), newPitchPlayer];
+    const newSubs = (substitutes || []).filter((b) => b && String(b.id) !== targetPlayerId);
+    const newRes = (reserves || []).filter((r) => r && String(r.id) !== targetPlayerId);
 
     setStartingXi(updatedXi);
     setSubstitutes(newSubs);
     setReserves(newRes);
     setSlotModalState({ isOpen: false, targetSlot: null });
     showNotification(`«${player.name}» در پست ${slot.pos} در ترکیب قرار گرفت ✅`);
-    if (onLineupChange) {
-      onLineupChange({ startingXi: updatedXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
-    }
+    notifyLineupChange(updatedXi, newSubs, newRes, currentFormation);
   };
 
 
@@ -866,18 +906,21 @@ export default function EFootballGamePlan({
 
   // Pitch Player Click Handler: Direct on-pitch click-to-swap & highlight for Coach Mode (No Modal)
   const handlePitchPlayerClick = (clickedPlayer) => {
+    if (!clickedPlayer) return;
     setHighlightedPosition(null);
 
     // In Admin Mode: Toggle the quick FotMob-style floating action dock directly above this player!
     if (isAdminMode) {
-      setAdminQuickDockPlayer((prev) => (prev?.id === clickedPlayer.id ? null : clickedPlayer));
+      setAdminQuickDockPlayer((prev) => (String(prev?.id) === String(clickedPlayer.id) ? null : clickedPlayer));
       return;
     }
 
     if (readOnly) return;
 
+    const clickedId = String(clickedPlayer.id);
+
     // Case 1: Clicking the already selected pitch player -> Deselect and cancel highlights
-    if (selectedPitchPlayerId === clickedPlayer.id) {
+    if (String(selectedPitchPlayerId) === clickedId) {
       setSelectedPitchPlayerId(null);
       setSelectedBenchPlayerId(null);
       return;
@@ -907,18 +950,21 @@ export default function EFootballGamePlan({
 
   // Bench / Reserve Player Click Handler: Direct on-pitch click-to-swap & highlight for Coach Mode (No Modal)
   const handleBenchPlayerClick = (clickedBenchPlayer, isFromSubstitutes = true) => {
+    if (!clickedBenchPlayer) return;
     setHighlightedPosition(null);
 
     // In Admin Mode: Toggle the quick FotMob-style floating action dock directly above this bench player!
     if (isAdminMode) {
-      setAdminQuickDockPlayer((prev) => (prev?.id === clickedBenchPlayer.id ? null : { ...clickedBenchPlayer, isBench: true }));
+      setAdminQuickDockPlayer((prev) => (String(prev?.id) === String(clickedBenchPlayer.id) ? null : { ...clickedBenchPlayer, isBench: true }));
       return;
     }
 
     if (readOnly) return;
 
+    const clickedId = String(clickedBenchPlayer.id);
+
     // Case 1: Clicking the already selected bench player -> Deselect and cancel highlights
-    if (selectedBenchPlayerId === clickedBenchPlayer.id) {
+    if (String(selectedBenchPlayerId) === clickedId) {
       setSelectedBenchPlayerId(null);
       setSelectedPitchPlayerId(null);
       return;
@@ -949,8 +995,10 @@ export default function EFootballGamePlan({
 
   // Admin Direct Substitution Execution Handler
   const handleAdminExecuteSub = (pitchId, benchId) => {
-    const pitchPlayer = startingXi.find((p) => p.id === pitchId);
-    const benchPlayer = substitutes.find((b) => b.id === benchId) || reserves.find((r) => r.id === benchId);
+    const sPitchId = String(pitchId);
+    const sBenchId = String(benchId);
+    const pitchPlayer = (startingXi || []).find((p) => String(p?.id) === sPitchId);
+    const benchPlayer = (substitutes || []).find((b) => String(b?.id) === sBenchId) || (reserves || []).find((r) => String(r?.id) === sBenchId);
 
     if (!pitchPlayer || !benchPlayer) return;
 
@@ -985,12 +1033,14 @@ export default function EFootballGamePlan({
 
   // Swap two pitch players' positions (x_coord & y_coord)
   const swapPitchPositions = (id1, id2) => {
-    const p1 = startingXi.find((p) => p.id === id1);
-    const p2 = startingXi.find((p) => p.id === id2);
+    const sId1 = String(id1);
+    const sId2 = String(id2);
+    const p1 = (startingXi || []).find((p) => String(p?.id) === sId1);
+    const p2 = (startingXi || []).find((p) => String(p?.id) === sId2);
     if (!p1 || !p2) return;
 
-    const updatedXi = startingXi.map((p) => {
-      if (p.id === id1) {
+    const updatedXi = (startingXi || []).map((p) => {
+      if (String(p?.id) === sId1) {
         return {
           ...p,
           x_coord: p2.x_coord,
@@ -999,7 +1049,7 @@ export default function EFootballGamePlan({
           naturalPosition: p.naturalPosition || p.position,
         };
       }
-      if (p.id === id2) {
+      if (String(p?.id) === sId2) {
         return {
           ...p,
           x_coord: p1.x_coord,
@@ -1012,78 +1062,117 @@ export default function EFootballGamePlan({
     });
 
     setStartingXi(updatedXi);
-    showNotification(`پست تاکتیکی «${p1.name}» و «${p2.name}» روی چمن جابجا شد.`);
-    if (onLineupChange) {
-      onLineupChange({ startingXi: updatedXi, substitutes, reserves, formation: currentFormation });
+    showNotification(`پست تاکتیکی «${p1.name}» و «${p2.name}» روی چمن جابجا شد 🔄`);
+    notifyLineupChange(updatedXi, substitutes, reserves, currentFormation);
+  };
+
+  // Pitch Player Drag End: Detect drop onto another pitch player to swap, or drop onto pitch to reposition
+  const handlePitchPlayerDragEnd = (player, info) => {
+    if (readOnly) return;
+    const dragDist = Math.hypot(info?.offset?.x || 0, info?.offset?.y || 0);
+    if (dragDist < 8) return;
+
+    const rect = pitchContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const dropPercentX = (((info?.point?.x || 0) - rect.left) / rect.width) * 100;
+    const dropPercentY = (((info?.point?.y || 0) - rect.top) / rect.height) * 100;
+
+    // Check if dropped onto another pitch player (swap)
+    let targetPlayer = null;
+    let minDistance = 9999;
+
+    (startingXi || []).forEach((other) => {
+      if (!other || String(other.id) === String(player.id)) return;
+      const otherProj = getProjectedPitchCoords(other.x_coord, other.y_coord);
+      const d = Math.hypot(dropPercentX - otherProj.x, dropPercentY - otherProj.y);
+      if (d < 10 && d < minDistance) {
+        minDistance = d;
+        targetPlayer = other;
+      }
+    });
+
+    if (targetPlayer) {
+      swapPitchPositions(player.id, targetPlayer.id);
+      return;
     }
+
+    // Reposition player on pitch
+    const tactical = getTacticalCoordsFromProjected(dropPercentX, dropPercentY);
+    const updatedXi = (startingXi || []).map((p) =>
+      String(p.id) === String(player.id)
+        ? { ...p, x_coord: tactical.x, y_coord: tactical.y }
+        : p
+    );
+    setStartingXi(updatedXi);
+    showNotification(`موقعیت «${player.name}» روی چمن جابجا شد 📍`);
+    notifyLineupChange(updatedXi, substitutes, reserves, currentFormation);
   };
 
   // Swap two bench or reserve players (between bench-bench, reserve-reserve, or bench-reserve)
   const swapBenchOrReserves = (id1, id2) => {
-    const isSub1 = substitutes.some((b) => b.id === id1);
-    const isSub2 = substitutes.some((b) => b.id === id2);
+    const sId1 = String(id1);
+    const sId2 = String(id2);
+    const isSub1 = (substitutes || []).some((b) => String(b?.id) === sId1);
+    const isSub2 = (substitutes || []).some((b) => String(b?.id) === sId2);
 
-    const isRes1 = reserves.some((r) => r.id === id1);
-    const isRes2 = reserves.some((r) => r.id === id2);
+    const isRes1 = (reserves || []).some((r) => String(r?.id) === sId1);
+    const isRes2 = (reserves || []).some((r) => String(r?.id) === sId2);
 
-    const p1 = substitutes.find((b) => b.id === id1) || reserves.find((r) => r.id === id1);
-    const p2 = substitutes.find((b) => b.id === id2) || reserves.find((r) => r.id === id2);
+    const p1 = (substitutes || []).find((b) => String(b?.id) === sId1) || (reserves || []).find((r) => String(r?.id) === sId1);
+    const p2 = (substitutes || []).find((b) => String(b?.id) === sId2) || (reserves || []).find((r) => String(r?.id) === sId2);
 
     if (!p1 || !p2) return;
 
     // Case A: Both in bench substitutes list
     if (isSub1 && isSub2) {
-      const newSubs = substitutes.map((item) => (item.id === id1 ? p2 : item.id === id2 ? p1 : item));
+      const newSubs = (substitutes || []).map((item) => (String(item?.id) === sId1 ? p2 : String(item?.id) === sId2 ? p1 : item));
       setSubstitutes(newSubs);
       showNotification(`جابجایی روی نیمکت: جایگاه «${p1.name}» و «${p2.name}» تعویض شد 🔄`);
-      if (onLineupChange) {
-        onLineupChange({ startingXi, substitutes: newSubs, reserves, formation: currentFormation });
-      }
+      notifyLineupChange(startingXi, newSubs, reserves, currentFormation);
       return;
     }
 
     // Case B: Both in reserves list
     if (isRes1 && isRes2) {
-      const newRes = reserves.map((item) => (item.id === id1 ? p2 : item.id === id2 ? p1 : item));
+      const newRes = (reserves || []).map((item) => (String(item?.id) === sId1 ? p2 : String(item?.id) === sId2 ? p1 : item));
       setReserves(newRes);
       showNotification(`جابجایی در رختکن: جایگاه «${p1.name}» و «${p2.name}» تعویض شد 🔄`);
-      if (onLineupChange) {
-        onLineupChange({ startingXi, substitutes, reserves: newRes, formation: currentFormation });
-      }
+      notifyLineupChange(startingXi, substitutes, newRes, currentFormation);
       return;
     }
 
     // Case C: Cross swap between substitutes and reserves
     if (isSub1 && isRes2) {
-      const newSubs = substitutes.map((item) => (item.id === id1 ? p2 : item));
-      const newRes = reserves.map((item) => (item.id === id2 ? p1 : item));
+      const newSubs = (substitutes || []).map((item) => (String(item?.id) === sId1 ? p2 : item));
+      const newRes = (reserves || []).map((item) => (String(item?.id) === sId2 ? p1 : item));
       setSubstitutes(newSubs);
       setReserves(newRes);
       showNotification(`ورود «${p2.name}» به نیمکت ذخیره‌ها و انتقال «${p1.name}» به خارج از ترکیب 🔄`);
-      if (onLineupChange) {
-        onLineupChange({ startingXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
-      }
+      notifyLineupChange(startingXi, newSubs, newRes, currentFormation);
       return;
     }
 
     if (isRes1 && isSub2) {
-      const newRes = reserves.map((item) => (item.id === id1 ? p2 : item));
-      const newSubs = substitutes.map((item) => (item.id === id2 ? p1 : item));
+      const newRes = (reserves || []).map((item) => (String(item?.id) === sId1 ? p2 : item));
+      const newSubs = (substitutes || []).map((item) => (String(item?.id) === sId2 ? p1 : item));
       setReserves(newRes);
       setSubstitutes(newSubs);
       showNotification(`ورود «${p1.name}» به نیمکت ذخیره‌ها و انتقال «${p2.name}» به خارج از ترکیب 🔄`);
-      if (onLineupChange) {
-        onLineupChange({ startingXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
-      }
+      notifyLineupChange(startingXi, newSubs, newRes, currentFormation);
       return;
     }
   };
 
   // Swap a pitch player with a bench/reserve player
   const swapPitchWithBench = (pitchId, benchId, isFromSubstitutes = true) => {
-    const pitchPlayer = startingXi.find((p) => p.id === pitchId);
-    const benchSourceList = isFromSubstitutes ? substitutes : reserves;
-    const benchPlayer = benchSourceList.find((b) => b.id === benchId) || substitutes.find((b) => b.id === benchId) || reserves.find((b) => b.id === benchId);
+    const sPitchId = String(pitchId);
+    const sBenchId = String(benchId);
+    const pitchPlayer = (startingXi || []).find((p) => String(p?.id) === sPitchId);
+    const benchSourceList = isFromSubstitutes ? (substitutes || []) : (reserves || []);
+    const benchPlayer = benchSourceList.find((b) => String(b?.id) === sBenchId) ||
+                        (substitutes || []).find((b) => String(b?.id) === sBenchId) ||
+                        (reserves || []).find((b) => String(b?.id) === sBenchId);
 
     if (!pitchPlayer || !benchPlayer) return;
 
@@ -1106,7 +1195,7 @@ export default function EFootballGamePlan({
       is_starting: true,
     };
 
-    const updatedXi = startingXi.map((p) => (p.id === pitchId ? newPitchPlayer : p));
+    const updatedXi = (startingXi || []).map((p) => (String(p?.id) === sPitchId ? newPitchPlayer : p));
     setStartingXi(updatedXi);
 
     // 2. Move pitch player to bench: RESTORED to their naturalPosition
@@ -1121,21 +1210,19 @@ export default function EFootballGamePlan({
       isSubbedOut: false,
     };
 
-    let newSubs = substitutes;
-    let newRes = reserves;
-    const isBenchSub = substitutes.some((b) => b.id === benchId);
+    let newSubs = substitutes || [];
+    let newRes = reserves || [];
+    const isBenchSub = (substitutes || []).some((b) => String(b?.id) === sBenchId);
     if (isBenchSub) {
-      newSubs = substitutes.map((b) => (b.id === benchId ? newBenchPlayer : b));
+      newSubs = (substitutes || []).map((b) => (String(b?.id) === sBenchId ? newBenchPlayer : b));
       setSubstitutes(newSubs);
     } else {
-      newRes = reserves.map((b) => (b.id === benchId ? newBenchPlayer : b));
+      newRes = (reserves || []).map((b) => (String(b?.id) === sBenchId ? newBenchPlayer : b));
       setReserves(newRes);
     }
 
-    showNotification(`تعویض تاکتیکی: ورود ${benchPlayer.name} به جای ${pitchPlayer.name} 🔄`);
-    if (onLineupChange) {
-      onLineupChange({ startingXi: updatedXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
-    }
+    showNotification(`تعویض تاکتیکی: ورود «${benchPlayer.name}» به جای «${pitchPlayer.name}» 🔄`);
+    notifyLineupChange(updatedXi, newSubs, newRes, currentFormation);
   };
 
   // Helper to calculate any unoccupied slots in current formation
@@ -1152,7 +1239,8 @@ export default function EFootballGamePlan({
   const handleEmptySlotClick = (slot) => {
     if (readOnly) return;
     if (selectedBenchPlayerId) {
-      const benchPlayer = substitutes.find((b) => b.id === selectedBenchPlayerId) || reserves.find((r) => r.id === selectedBenchPlayerId);
+      const sBenchId = String(selectedBenchPlayerId);
+      const benchPlayer = (substitutes || []).find((b) => String(b?.id) === sBenchId) || (reserves || []).find((r) => String(r?.id) === sBenchId);
       if (!benchPlayer) return;
 
       if (benchPlayer.suspension_matches > 0 || benchPlayer.is_suspended || benchPlayer.isSuspended) {
@@ -1169,9 +1257,9 @@ export default function EFootballGamePlan({
         is_starting: true,
       };
 
-      const updatedXi = [...startingXi, newPitchPlayer];
-      const newSubs = substitutes.filter((b) => b.id !== selectedBenchPlayerId);
-      const newRes = reserves.filter((r) => r.id !== selectedBenchPlayerId);
+      const updatedXi = [...(startingXi || []), newPitchPlayer];
+      const newSubs = (substitutes || []).filter((b) => String(b?.id) !== sBenchId);
+      const newRes = (reserves || []).filter((r) => String(r?.id) !== sBenchId);
 
       setStartingXi(updatedXi);
       setSubstitutes(newSubs);
@@ -1180,18 +1268,17 @@ export default function EFootballGamePlan({
       setSelectedPitchPlayerId(null);
       setHighlightedPosition(null);
       showNotification(`بازیکن «${benchPlayer.name}» در پست ${slot.pos} در ترکیب اصلی قرار گرفت ✅`);
-      if (onLineupChange) {
-        onLineupChange({ startingXi: updatedXi, substitutes: newSubs, reserves: newRes, formation: currentFormation });
-      }
+      notifyLineupChange(updatedXi, newSubs, newRes, currentFormation);
       return;
     }
 
     // Case 2: A pitch player was already selected -> Move them directly to this empty slot
     if (selectedPitchPlayerId) {
-      const pitchPlayer = startingXi.find((p) => p.id === selectedPitchPlayerId);
+      const sPitchId = String(selectedPitchPlayerId);
+      const pitchPlayer = (startingXi || []).find((p) => String(p?.id) === sPitchId);
       if (pitchPlayer) {
-        const updatedXi = startingXi.map((item) =>
-          item.id === pitchPlayer.id
+        const updatedXi = (startingXi || []).map((item) =>
+          String(item?.id) === sPitchId
             ? { ...item, position: slot.pos, x_coord: slot.x, y_coord: slot.y }
             : item
         );
@@ -1200,9 +1287,7 @@ export default function EFootballGamePlan({
         setSelectedBenchPlayerId(null);
         setHighlightedPosition(null);
         showNotification(`«${pitchPlayer.name}» به پست خالی ${slot.pos} منتقل شد ✅`);
-        if (onLineupChange) {
-          onLineupChange({ startingXi: updatedXi, substitutes, reserves, formation: currentFormation });
-        }
+        notifyLineupChange(updatedXi, substitutes, reserves, currentFormation);
         return;
       }
     }
@@ -1220,9 +1305,9 @@ export default function EFootballGamePlan({
   };
 
   const activeSelectedPlayer =
-    startingXi.find((p) => p.id === selectedPitchPlayerId) ||
-    substitutes.find((p) => p.id === selectedBenchPlayerId) ||
-    reserves.find((p) => p.id === selectedBenchPlayerId);
+    (startingXi || []).find((p) => String(p?.id) === String(selectedPitchPlayerId)) ||
+    (substitutes || []).find((p) => String(p?.id) === String(selectedBenchPlayerId)) ||
+    (reserves || []).find((r) => String(r?.id) === String(selectedBenchPlayerId));
 
   return (
     <div className="w-full max-w-4xl mx-auto rounded-3xl overflow-hidden shadow-2xl bg-[#ded8e6] border border-purple-900/30 text-slate-900 font-sans select-none dir-rtl">
@@ -1380,7 +1465,7 @@ export default function EFootballGamePlan({
             <div className="absolute inset-0 pointer-events-none">
               {(startingXi || []).map((player) => {
                 if (!player) return null;
-                const isSelected = selectedPitchPlayerId === player.id;
+                const isSelected = String(selectedPitchPlayerId) === String(player.id);
                 const natPos = player.naturalPosition || player.base_position || player.main_position || player.position;
                 const slotPos = player.position || natPos || 'CMF';
                 const selectedPitchSlot = selectedPitchPlayer ? selectedPitchPlayer.position : null;
@@ -1436,8 +1521,24 @@ export default function EFootballGamePlan({
                 return (
                   <motion.div
                     key={player.id}
+                    drag={!readOnly && !isAdminMode}
+                    dragConstraints={pitchContainerRef}
+                    dragSnapToOrigin={true}
+                    dragElastic={0.06}
+                    dragMomentum={false}
+                    whileDrag={{ scale: 1.14, zIndex: 100 }}
+                    onDragStart={() => {
+                      setIsDragging(true);
+                      setSelectedPitchPlayerId(null);
+                      setSelectedBenchPlayerId(null);
+                    }}
+                    onDragEnd={(e, info) => {
+                      setTimeout(() => setIsDragging(false), 80);
+                      handlePitchPlayerDragEnd(player, info);
+                    }}
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (isDragging) return;
                       handlePitchPlayerClick(player);
                     }}
                     initial={false}
@@ -1447,10 +1548,12 @@ export default function EFootballGamePlan({
                     }}
                     transition={{ duration: 0.15, ease: 'easeOut' }}
                     style={{ willChange: 'left, top' }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-10 hover:z-30 cursor-pointer pointer-events-auto"
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 z-10 hover:z-30 pointer-events-auto touch-none ${
+                      !readOnly && !isAdminMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+                    }`}
                   >
                     {/* FotMob Style Rapid Action Emoji Dock (Admin Mode) */}
-                    {isAdminMode && adminQuickDockPlayer?.id === player.id && (
+                    {isAdminMode && String(adminQuickDockPlayer?.id) === String(player.id) && (
                       <div
                         className={`absolute ${(projected.y ?? 50) < 22 ? 'top-[115%]' : 'bottom-[115%]'} left-1/2 -translate-x-1/2 z-[100] flex items-center gap-1 p-1 sm:p-1.5 rounded-2xl bg-slate-950/95 backdrop-blur-xl border-2 border-cyan-500/70 shadow-[0_0_30px_rgba(6,182,212,0.45)] animate-in fade-in zoom-in-90 duration-150 select-none whitespace-nowrap`}
                         onClick={(e) => e.stopPropagation()}
@@ -1664,7 +1767,7 @@ export default function EFootballGamePlan({
                   );
                 }
 
-                const isSelected = selectedBenchPlayerId === sub.id;
+                const isSelected = String(selectedBenchPlayerId) === String(sub.id);
                 const natPos = sub.naturalPosition || sub.base_position || sub.main_position || sub.position;
                 const targetPos = highlightedPosition || (selectedPitchPlayer ? selectedPitchPlayer.position : null);
                 const isPosMatch = !selectedBenchPlayerId && Boolean(targetPos && isPlayerCompatibleWithPosition(sub, targetPos));
@@ -1674,7 +1777,7 @@ export default function EFootballGamePlan({
                 return (
                   <div key={sub.id || `bench-${idx}`} className="relative shrink-0">
                     {/* Admin Mode Rapid Dock */}
-                    {isAdminMode && adminQuickDockPlayer?.id === sub.id && (
+                    {isAdminMode && String(adminQuickDockPlayer?.id) === String(sub.id) && (
                       <div
                         className="absolute bottom-[110%] left-1/2 -translate-x-1/2 z-[100] flex items-center gap-1 p-1 sm:p-1.5 rounded-2xl bg-slate-950/95 backdrop-blur-xl border-2 border-cyan-500/70 shadow-[0_0_30px_rgba(6,182,212,0.45)] animate-in fade-in zoom-in-90 duration-150 select-none whitespace-nowrap"
                         onClick={(e) => e.stopPropagation()}
@@ -1752,7 +1855,7 @@ export default function EFootballGamePlan({
                 <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 py-1">
                   {allRes.map((res) => {
                     if (!res) return null;
-                    const isSelected = selectedBenchPlayerId === res.id;
+                    const isSelected = String(selectedBenchPlayerId) === String(res.id);
                     const natPos = res.naturalPosition || res.base_position || res.main_position || res.position;
                     const targetPos = highlightedPosition || (selectedPitchPlayer ? selectedPitchPlayer.position : null);
                     const isPosMatch = !selectedBenchPlayerId && Boolean(targetPos && isPlayerCompatibleWithPosition(res, targetPos));

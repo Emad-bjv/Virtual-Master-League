@@ -144,8 +144,19 @@ export default function BattleRoyaleBracket({ tournamentId, isAdmin = false, onM
     return null;
   };
 
-  const handleNavigateToLineup = () => {
-    window.dispatchEvent(new CustomEvent('vml_navigate_tab', { detail: { tab: 'team', sub: 'matches' } }));
+  const handleNavigateToLineup = (targetMatch) => {
+    if (targetMatch?.id) {
+      try {
+        sessionStorage.setItem('vml_selected_match_id', String(targetMatch.id));
+      } catch (_e) {}
+    }
+    window.dispatchEvent(new CustomEvent('vml_navigate_tab', {
+      detail: {
+        tab: 'team',
+        sub: 'lineup',
+        matchId: targetMatch?.id || null,
+      },
+    }));
   };
 
   // Tournament progress percentage
@@ -1150,8 +1161,9 @@ export default function BattleRoyaleBracket({ tournamentId, isAdmin = false, onM
                       <button
                         type="button"
                         onClick={() => {
+                          const m = selectedMatch;
                           setSelectedMatch(null);
-                          handleNavigateToLineup();
+                          handleNavigateToLineup(m);
                         }}
                         className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg active:scale-95 transition-all cursor-pointer"
                       >
@@ -1292,11 +1304,18 @@ function EsportsMatchCard({
           )}
 
           <span
-            className={`text-xs truncate max-w-[130px] ${
+            className={`text-xs truncate max-w-[130px] flex items-center gap-1 ${
               homeIsTbd ? 'text-amber-300/80 italic text-[11px]' : ''
             }`}
           >
-            {homeLabel}
+            <span className="truncate">{homeLabel}</span>
+            {match.home_preset_name ? (
+              <span className="text-[8.5px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1 py-0.2 rounded font-black shrink-0">
+                ⚡ {match.home_preset_name}
+              </span>
+            ) : match.home_lineup_ready ? (
+              <span className="text-[8.5px] text-emerald-400 font-bold shrink-0">✓</span>
+            ) : null}
           </span>
         </div>
 
@@ -1349,11 +1368,18 @@ function EsportsMatchCard({
           )}
 
           <span
-            className={`text-xs truncate max-w-[130px] ${
+            className={`text-xs truncate max-w-[130px] flex items-center gap-1 ${
               awayIsTbd ? 'text-amber-300/80 italic text-[11px]' : ''
             }`}
           >
-            {awayLabel}
+            <span className="truncate">{awayLabel}</span>
+            {match.away_preset_name ? (
+              <span className="text-[8.5px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1 py-0.2 rounded font-black shrink-0">
+                ⚡ {match.away_preset_name}
+              </span>
+            ) : match.away_lineup_ready ? (
+              <span className="text-[8.5px] text-emerald-400 font-bold shrink-0">✓</span>
+            ) : null}
           </span>
         </div>
 
@@ -1376,7 +1402,7 @@ function EsportsMatchCard({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            onLineupClick();
+            onLineupClick(match);
           }}
           className="w-full mt-2 py-1 px-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-[11px] flex items-center justify-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer"
         >

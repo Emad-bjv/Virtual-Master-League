@@ -67,6 +67,61 @@ class LiveSubstitutionRequestSerializer(serializers.ModelSerializer):
         return data
 
 
+def is_team_lineup_ready(match_obj, team_id):
+    if not team_id:
+        return False
+    # 1. Match-specific submitted MatchGamePlan
+    cache = getattr(match_obj, '_prefetched_objects_cache', {})
+    if 'gameplans' in cache:
+        for gp in cache['gameplans']:
+            if gp.team_id == team_id and gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11):
+                return True
+    else:
+        for gp in match_obj.gameplans.filter(team_id=team_id, is_submitted=True):
+            if gp.players_data and len(gp.players_data) >= 11:
+                return True
+
+    # 2. Check team's standing master TeamGamePlan
+    team = getattr(match_obj, 'home_team' if match_obj.home_team_id == team_id else 'away_team', None)
+    if team:
+        tgp = getattr(team, 'gameplan', None)
+        if tgp and tgp.is_submitted and bool(tgp.players_data and len(tgp.players_data) >= 11):
+            return True
+
+    # 3. Check if coach has registered any MatchGamePlan
+    from matches.models import MatchGamePlan
+    latest_mgp = MatchGamePlan.objects.filter(team_id=team_id, is_submitted=True).order_by('-submitted_at', '-id').first()
+    if latest_mgp and bool(latest_mgp.players_data and len(latest_mgp.players_data) >= 11):
+        return True
+
+    return False
+
+
+def get_team_gameplan_attr(match_obj, team_id, attr, default=''):
+    if not team_id:
+        return default
+    # 1. Match-specific submitted MatchGamePlan
+    mgp = match_obj.gameplans.filter(team_id=team_id).first()
+    if mgp and mgp.is_submitted and getattr(mgp, attr, None):
+        return getattr(mgp, attr)
+    
+    # 2. Check latest submitted MatchGamePlan
+    from matches.models import MatchGamePlan
+    latest_mgp = MatchGamePlan.objects.filter(team_id=team_id, is_submitted=True).order_by('-submitted_at', '-id').first()
+    if latest_mgp and getattr(latest_mgp, attr, None):
+        return getattr(latest_mgp, attr)
+
+    # 3. Check TeamGamePlan
+    team = getattr(match_obj, 'home_team' if match_obj.home_team_id == team_id else 'away_team', None)
+    if team:
+        tgp = getattr(team, 'gameplan', None)
+        if tgp and getattr(tgp, attr, None):
+            return getattr(tgp, attr)
+        if attr == 'formation':
+            return team.default_formation or default
+    return default
+
+
 class MatchSerializer(serializers.ModelSerializer):
     home_team_name = serializers.CharField(source='home_team.name', read_only=True)
     away_team_name = serializers.CharField(source='away_team.name', read_only=True)
@@ -76,6 +131,12 @@ class MatchSerializer(serializers.ModelSerializer):
     away_coach_name = serializers.SerializerMethodField()
     home_lineup_ready = serializers.SerializerMethodField()
     away_lineup_ready = serializers.SerializerMethodField()
+    home_preset_name = serializers.SerializerMethodField()
+    away_preset_name = serializers.SerializerMethodField()
+    home_formation = serializers.SerializerMethodField()
+    away_formation = serializers.SerializerMethodField()
+    home_has_custom_player_edits = serializers.SerializerMethodField()
+    away_has_custom_player_edits = serializers.SerializerMethodField()
 
     class Meta:
         model = Match
@@ -92,32 +153,28 @@ class MatchSerializer(serializers.ModelSerializer):
         return 'نامشخص'
 
     def get_home_lineup_ready(self, obj):
-        if not obj.home_team_id:
-            return False
-        cache = getattr(obj, '_prefetched_objects_cache', {})
-        if 'gameplans' in cache:
-            return any(
-                gp.team_id == obj.home_team_id and gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11)
-                for gp in cache['gameplans']
-            )
-        return any(
-            gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11)
-            for gp in obj.gameplans.filter(team_id=obj.home_team_id)
-        )
+        return is_team_lineup_ready(obj, obj.home_team_id)
 
     def get_away_lineup_ready(self, obj):
-        if not obj.away_team_id:
-            return False
-        cache = getattr(obj, '_prefetched_objects_cache', {})
-        if 'gameplans' in cache:
-            return any(
-                gp.team_id == obj.away_team_id and gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11)
-                for gp in cache['gameplans']
-            )
-        return any(
-            gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11)
-            for gp in obj.gameplans.filter(team_id=obj.away_team_id)
-        )
+        return is_team_lineup_ready(obj, obj.away_team_id)
+
+    def get_home_preset_name(self, obj):
+        return get_team_gameplan_attr(obj, obj.home_team_id, 'preset_name', '')
+
+    def get_away_preset_name(self, obj):
+        return get_team_gameplan_attr(obj, obj.away_team_id, 'preset_name', '')
+
+    def get_home_formation(self, obj):
+        return get_team_gameplan_attr(obj, obj.home_team_id, 'formation', '4-3-3')
+
+    def get_away_formation(self, obj):
+        return get_team_gameplan_attr(obj, obj.away_team_id, 'formation', '4-3-3')
+
+    def get_home_has_custom_player_edits(self, obj):
+        return bool(get_team_gameplan_attr(obj, obj.home_team_id, 'has_custom_player_edits', False))
+
+    def get_away_has_custom_player_edits(self, obj):
+        return bool(get_team_gameplan_attr(obj, obj.away_team_id, 'has_custom_player_edits', False))
 
 
 
@@ -254,74 +311,28 @@ class MatchDetailSerializer(serializers.ModelSerializer):
         return 'نامشخص'
 
     def get_home_lineup_ready(self, obj):
-        if not obj.home_team_id:
-            return False
-        return any(
-            gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11)
-            for gp in obj.gameplans.filter(team_id=obj.home_team_id)
-        )
+        return is_team_lineup_ready(obj, obj.home_team_id)
 
     def get_away_lineup_ready(self, obj):
-        if not obj.away_team_id:
-            return False
-        return any(
-            gp.is_submitted and bool(gp.players_data and len(gp.players_data) >= 11)
-            for gp in obj.gameplans.filter(team_id=obj.away_team_id)
-        )
+        return is_team_lineup_ready(obj, obj.away_team_id)
 
     def get_home_preset_name(self, obj):
-        if not obj.home_team_id:
-            return ""
-        mgp = obj.gameplans.filter(team_id=obj.home_team_id).first()
-        if mgp and mgp.preset_name:
-            return mgp.preset_name
-        tgp = getattr(obj.home_team, 'gameplan', None)
-        return tgp.preset_name if tgp else ""
+        return get_team_gameplan_attr(obj, obj.home_team_id, 'preset_name', '')
 
     def get_away_preset_name(self, obj):
-        if not obj.away_team_id:
-            return ""
-        mgp = obj.gameplans.filter(team_id=obj.away_team_id).first()
-        if mgp and mgp.preset_name:
-            return mgp.preset_name
-        tgp = getattr(obj.away_team, 'gameplan', None)
-        return tgp.preset_name if tgp else ""
+        return get_team_gameplan_attr(obj, obj.away_team_id, 'preset_name', '')
 
     def get_home_has_custom_player_edits(self, obj):
-        if not obj.home_team_id:
-            return False
-        mgp = obj.gameplans.filter(team_id=obj.home_team_id).first()
-        if mgp:
-            return mgp.has_custom_player_edits
-        tgp = getattr(obj.home_team, 'gameplan', None)
-        return tgp.has_custom_player_edits if tgp else False
+        return bool(get_team_gameplan_attr(obj, obj.home_team_id, 'has_custom_player_edits', False))
 
     def get_away_has_custom_player_edits(self, obj):
-        if not obj.away_team_id:
-            return False
-        mgp = obj.gameplans.filter(team_id=obj.away_team_id).first()
-        if mgp:
-            return mgp.has_custom_player_edits
-        tgp = getattr(obj.away_team, 'gameplan', None)
-        return tgp.has_custom_player_edits if tgp else False
+        return bool(get_team_gameplan_attr(obj, obj.away_team_id, 'has_custom_player_edits', False))
 
     def get_home_formation(self, obj):
-        if not obj.home_team_id:
-            return "4-3-3"
-        mgp = obj.gameplans.filter(team_id=obj.home_team_id).first()
-        if mgp and mgp.formation:
-            return mgp.formation
-        tgp = getattr(obj.home_team, 'gameplan', None)
-        return tgp.formation if (tgp and tgp.formation) else (obj.home_team.default_formation or "4-3-3")
+        return get_team_gameplan_attr(obj, obj.home_team_id, 'formation', '4-3-3')
 
     def get_away_formation(self, obj):
-        if not obj.away_team_id:
-            return "4-3-3"
-        mgp = obj.gameplans.filter(team_id=obj.away_team_id).first()
-        if mgp and mgp.formation:
-            return mgp.formation
-        tgp = getattr(obj.away_team, 'gameplan', None)
-        return tgp.formation if (tgp and tgp.formation) else (obj.away_team.default_formation or "4-3-3")
+        return get_team_gameplan_attr(obj, obj.away_team_id, 'formation', '4-3-3')
 
     def get_home_subs_count(self, obj):
         if not obj.home_team_id:

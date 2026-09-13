@@ -669,6 +669,19 @@ def serialize_battle_royale_bracket(tournament: Tournament) -> dict:
                     l_f = feeder_loser_to.get(m.id, [])
                     away_feeder = f"بازنده بازی {match_num_map.get(l_f[0].id, '')}" if len(l_f) > 0 else "بازنده جدول برندگان"
 
+        from matches.serializers import is_team_lineup_ready, get_team_gameplan_attr
+
+        home_ready = is_team_lineup_ready(m, m.home_team_id) if m.home_team_id else False
+        away_ready = is_team_lineup_ready(m, m.away_team_id) if m.away_team_id else False
+        home_preset = get_team_gameplan_attr(m, m.home_team_id, 'preset_name', '') if m.home_team_id else ''
+        away_preset = get_team_gameplan_attr(m, m.away_team_id, 'preset_name', '') if m.away_team_id else ''
+        home_custom = bool(get_team_gameplan_attr(m, m.home_team_id, 'has_custom_player_edits', False)) if m.home_team_id else False
+        away_custom = bool(get_team_gameplan_attr(m, m.away_team_id, 'has_custom_player_edits', False)) if m.away_team_id else False
+        home_form = get_team_gameplan_attr(m, m.home_team_id, 'formation', '4-3-3') if m.home_team_id else '4-3-3'
+        away_form = get_team_gameplan_attr(m, m.away_team_id, 'formation', '4-3-3') if m.away_team_id else '4-3-3'
+        home_coach = m.home_team.manager.username if (m.home_team and m.home_team.manager) else 'نامشخص'
+        away_coach = m.away_team.manager.username if (m.away_team and m.away_team.manager) else 'نامشخص'
+
         return {
             'id': m.id,
             'match_number': match_num_map.get(m.id, 1),
@@ -681,10 +694,20 @@ def serialize_battle_royale_bracket(tournament: Tournament) -> dict:
             'home_team_id': m.home_team_id,
             'home_team_name': m.home_team.name if m.home_team else 'مشخص نشده (TBD)',
             'home_team_logo': m.home_team.logo if m.home_team else '',
+            'home_coach_name': home_coach,
+            'home_lineup_ready': home_ready,
+            'home_preset_name': home_preset,
+            'home_has_custom_player_edits': home_custom,
+            'home_formation': home_form,
             'home_feeder_label': home_feeder,
             'away_team_id': m.away_team_id,
             'away_team_name': m.away_team.name if m.away_team else 'مشخص نشده (TBD)',
             'away_team_logo': m.away_team.logo if m.away_team else '',
+            'away_coach_name': away_coach,
+            'away_lineup_ready': away_ready,
+            'away_preset_name': away_preset,
+            'away_has_custom_player_edits': away_custom,
+            'away_formation': away_form,
             'away_feeder_label': away_feeder,
             'home_score': m.home_score,
             'away_score': m.away_score,

@@ -68,6 +68,8 @@ class TeamViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve', 'live_stream']:
             return [permissions.AllowAny()]
+        if self.action == 'submit_gameplan' and self.request.method in permissions.SAFE_METHODS:
+            return [permissions.AllowAny()]
         return [permissions.IsAuthenticated(), IsManagerOrAdminOrReadOnly()]
 
     def get_throttles(self):
@@ -143,35 +145,99 @@ class TeamViewSet(viewsets.ModelViewSet):
         # Default template gameplan
         default_gameplan, _ = TeamGamePlan.objects.get_or_create(team=team)
 
+        # Ensure default_gameplan always has 11 valid starting players with valid calibrated coordinates
+        if not default_gameplan.players_data or len(default_gameplan.players_data) < 11:
+            existing_players = list(Player.objects.filter(team=team))
+            if existing_players:
+                from teams.lineup_services import resolve_formation_preset
+                form_key = default_gameplan.formation or team.default_formation or '4-3-3 (4-2-1-3)'
+                _, slots = resolve_formation_preset(form_key)
+
+                starters = [p for p in existing_players if p.is_starting]
+                if len(starters) < 11:
+                    non_starters = sorted([p for p in existing_players if not p.is_starting], key=lambda p: p.overall, reverse=True)
+                    needed = min(11 - len(starters), len(non_starters))
+                    starters.extend(non_starters[:needed])
+
+                starter_ids = {p.id for p in starters}
+                p_list = []
+                for idx, p in enumerate(starters):
+                    slot = slots[idx] if idx < len(slots) else {'pos': p.position, 'x': 50.0, 'y': 50.0}
+                    p_list.append({
+                        'player_id': p.id,
+                        'id': str(p.id),
+                        'name': p.name,
+                        'x_coord': p.x_coord if (p.x_coord is not None and p.x_coord > 0) else slot['x'],
+                        'y_coord': p.y_coord if (p.y_coord is not None and p.y_coord > 0) else slot['y'],
+                        'position': p.position or slot['pos'],
+                        'naturalPosition': p.position or slot['pos'],
+                        'shirt_number': p.shirt_number or (idx + 1),
+                        'is_starting': True,
+                    })
+                for idx, p in enumerate(existing_players):
+                    if p.id not in starter_ids:
+                        p_list.append({
+                            'player_id': p.id,
+                            'id': str(p.id),
+                            'name': p.name,
+                            'x_coord': p.x_coord if (p.x_coord is not None and p.x_coord > 0) else 0.0,
+                            'y_coord': p.y_coord if (p.y_coord is not None and p.y_coord > 0) else 0.0,
+                            'position': p.position,
+                            'naturalPosition': p.position,
+                            'shirt_number': p.shirt_number or (12 + idx),
+                            'is_starting': False,
+                        })
+                default_gameplan.players_data = p_list
+                default_gameplan.save(update_fields=['players_data'])
+
+        # Discover latest registered lineup across all matches or master template
+        latest_submitted_mgp = MatchGamePlan.objects.filter(
+            team=team,
+            is_submitted=True
+        ).order_by('-submitted_at', '-id').first()
+
+        latest_source = None
+        if latest_submitted_mgp and latest_submitted_mgp.players_data and len(latest_submitted_mgp.players_data) >= 11:
+            latest_source = latest_submitted_mgp
+        elif default_gameplan.is_submitted and default_gameplan.players_data and len(default_gameplan.players_data) >= 11:
+            latest_source = default_gameplan
+
         # Match-scoped gameplan
         match_gameplan = None
         if target_match:
             match_gameplan, _ = MatchGamePlan.objects.get_or_create(
                 match=target_match,
-                team=team,
-                defaults={
-                    'formation': default_gameplan.formation,
-                    'attacking_style': default_gameplan.attacking_style,
-                    'build_up': default_gameplan.build_up,
-                    'attacking_area': default_gameplan.attacking_area,
-                    'positioning': default_gameplan.positioning,
-                    'support_range': default_gameplan.support_range,
-                    'defensive_style': default_gameplan.defensive_style,
-                    'containment_area': default_gameplan.containment_area,
-                    'pressing': default_gameplan.pressing,
-                    'defensive_line': default_gameplan.defensive_line,
-                    'compactness': default_gameplan.compactness,
-                    'adv_offense_1': default_gameplan.adv_offense_1,
-                    'adv_offense_2': default_gameplan.adv_offense_2,
-                    'adv_defense_1': default_gameplan.adv_defense_1,
-                    'adv_defense_2': default_gameplan.adv_defense_2,
-                    'is_submitted': False,
-                }
+                team=team
             )
 
-        # If match_gameplan is not submitted yet or has empty players_data, always inherit the latest default gameplan & formation
-        if match_gameplan:
-            if not match_gameplan.is_submitted or not match_gameplan.players_data:
+            # Check if this match was already explicitly submitted
+            if match_gameplan.is_submitted and match_gameplan.players_data and len(match_gameplan.players_data) >= 11:
+                pass  # Explicitly registered for this match!
+            elif latest_source:
+                # Inherit the coach's latest registered lineup for this match!
+                match_gameplan.formation = latest_source.formation or team.default_formation or '4-3-3 (4-2-1-3)'
+                match_gameplan.attacking_style = latest_source.attacking_style
+                match_gameplan.build_up = latest_source.build_up
+                match_gameplan.attacking_area = latest_source.attacking_area
+                match_gameplan.positioning = latest_source.positioning
+                match_gameplan.support_range = latest_source.support_range
+                match_gameplan.defensive_style = latest_source.defensive_style
+                match_gameplan.containment_area = latest_source.containment_area
+                match_gameplan.pressing = latest_source.pressing
+                match_gameplan.defensive_line = latest_source.defensive_line
+                match_gameplan.compactness = latest_source.compactness
+                match_gameplan.adv_offense_1 = latest_source.adv_offense_1
+                match_gameplan.adv_offense_2 = latest_source.adv_offense_2
+                match_gameplan.adv_defense_1 = latest_source.adv_defense_1
+                match_gameplan.adv_defense_2 = latest_source.adv_defense_2
+                match_gameplan.preset_name = latest_source.preset_name
+                match_gameplan.has_custom_player_edits = latest_source.has_custom_player_edits
+                match_gameplan.players_data = latest_source.players_data
+                match_gameplan.is_submitted = True
+                match_gameplan.submitted_at = getattr(latest_source, 'submitted_at', None) or getattr(latest_source, 'updated_at', None)
+                match_gameplan.save()
+            else:
+                # Coach has never registered any lineup: Fall back to default
                 match_gameplan.formation = default_gameplan.formation or team.default_formation or '4-3-3 (4-2-1-3)'
                 match_gameplan.attacking_style = default_gameplan.attacking_style
                 match_gameplan.build_up = default_gameplan.build_up
@@ -189,50 +255,11 @@ class TeamViewSet(viewsets.ModelViewSet):
                 match_gameplan.adv_defense_2 = default_gameplan.adv_defense_2
                 match_gameplan.preset_name = default_gameplan.preset_name
                 match_gameplan.has_custom_player_edits = default_gameplan.has_custom_player_edits
-                if default_gameplan.players_data:
-                    match_gameplan.players_data = default_gameplan.players_data
-
-            # A match gameplan without actual players_data cannot be considered submitted
-            if not match_gameplan.players_data or len(match_gameplan.players_data) < 11:
+                match_gameplan.players_data = default_gameplan.players_data
                 match_gameplan.is_submitted = False
+                match_gameplan.save()
 
-        # Ensure default_gameplan always has 11 valid starting players
-        if not default_gameplan.players_data or len(default_gameplan.players_data) < 11:
-            existing_players = list(Player.objects.filter(team=team))
-            if existing_players:
-                starters = [p for p in existing_players if p.is_starting]
-                if len(starters) < 11:
-                    non_starters = sorted([p for p in existing_players if not p.is_starting], key=lambda p: p.overall, reverse=True)
-                    needed = min(11 - len(starters), len(non_starters))
-                    starters.extend(non_starters[:needed])
-
-                starter_ids = {p.id for p in starters}
-                p_list = []
-                for p in starters:
-                    p_list.append({
-                        'player_id': p.id,
-                        'id': str(p.id),
-                        'x_coord': p.x_coord if p.x_coord else 50.0,
-                        'y_coord': p.y_coord if p.y_coord else 50.0,
-                        'position': p.position,
-                        'is_starting': True,
-                    })
-                for p in existing_players:
-                    if p.id not in starter_ids:
-                        p_list.append({
-                            'player_id': p.id,
-                            'id': str(p.id),
-                            'x_coord': p.x_coord if p.x_coord else 0.0,
-                            'y_coord': p.y_coord if p.y_coord else 0.0,
-                            'position': p.position,
-                            'is_starting': False,
-                        })
-                default_gameplan.players_data = p_list
-                default_gameplan.save(update_fields=['players_data'])
-                if match_gameplan and (not match_gameplan.is_submitted or not match_gameplan.players_data):
-                    match_gameplan.players_data = default_gameplan.players_data
-
-        active_gameplan = match_gameplan if match_gameplan else default_gameplan
+        active_gameplan = match_gameplan if match_gameplan else (latest_source or default_gameplan)
 
         if request.method == 'POST':
             raw_tactics = request.data.get('tactics')
@@ -385,10 +412,40 @@ class TeamViewSet(viewsets.ModelViewSet):
                         d['preset_name'] = default_gameplan.preset_name
                     if not d.get('has_custom_player_edits') and default_gameplan.has_custom_player_edits:
                         d['has_custom_player_edits'] = default_gameplan.has_custom_player_edits
-                    return d
-                d = TeamGamePlanSerializer(plan).data
-                if not d.get('players_data') and default_gameplan.players_data:
-                    d['players_data'] = default_gameplan.players_data
+                else:
+                    d = TeamGamePlanSerializer(plan).data
+                    if not d.get('players_data') and default_gameplan.players_data:
+                        d['players_data'] = default_gameplan.players_data
+
+                # Enrich players_data with full player details
+                p_data = d.get('players_data')
+                if isinstance(p_data, list) and p_data:
+                    team_p_map = {p.id: p for p in Player.objects.filter(team=team)}
+                    enriched = []
+                    for item in p_data:
+                        if not isinstance(item, dict):
+                            continue
+                        item_copy = dict(item)
+                        pid = item_copy.get('player_id') or item_copy.get('id')
+                        try:
+                            pid_int = int(pid) if pid is not None else None
+                        except (ValueError, TypeError):
+                            pid_int = None
+                        p_obj = team_p_map.get(pid_int) if pid_int else None
+                        if p_obj:
+                            if not item_copy.get('name'):
+                                item_copy['name'] = p_obj.name
+                            if not item_copy.get('naturalPosition'):
+                                item_copy['naturalPosition'] = p_obj.position
+                            if not item_copy.get('shirt_number'):
+                                item_copy['shirt_number'] = p_obj.shirt_number
+                            if not item_copy.get('photo_url'):
+                                item_copy['photo_url'] = resolve_player_photo_url(p_obj)
+                            if not item_copy.get('rating'):
+                                item_copy['rating'] = getattr(p_obj, 'overall', 75)
+                        enriched.append(item_copy)
+                    d['players_data'] = enriched
+
                 return d
 
             serialized_gp = get_serialized_gp(active_gameplan)
@@ -409,10 +466,40 @@ class TeamViewSet(viewsets.ModelViewSet):
                     d['preset_name'] = default_gameplan.preset_name
                 if not d.get('has_custom_player_edits') and default_gameplan.has_custom_player_edits:
                     d['has_custom_player_edits'] = default_gameplan.has_custom_player_edits
-                return d
-            d = TeamGamePlanSerializer(plan).data
-            if not d.get('players_data') and default_gameplan.players_data:
-                d['players_data'] = default_gameplan.players_data
+            else:
+                d = TeamGamePlanSerializer(plan).data
+                if not d.get('players_data') and default_gameplan.players_data:
+                    d['players_data'] = default_gameplan.players_data
+
+            # Enrich players_data with full player details
+            p_data = d.get('players_data')
+            if isinstance(p_data, list) and p_data:
+                team_p_map = {p.id: p for p in Player.objects.filter(team=team)}
+                enriched = []
+                for item in p_data:
+                    if not isinstance(item, dict):
+                        continue
+                    item_copy = dict(item)
+                    pid = item_copy.get('player_id') or item_copy.get('id')
+                    try:
+                        pid_int = int(pid) if pid is not None else None
+                    except (ValueError, TypeError):
+                        pid_int = None
+                    p_obj = team_p_map.get(pid_int) if pid_int else None
+                    if p_obj:
+                        if not item_copy.get('name'):
+                            item_copy['name'] = p_obj.name
+                        if not item_copy.get('naturalPosition'):
+                            item_copy['naturalPosition'] = p_obj.position
+                        if not item_copy.get('shirt_number'):
+                            item_copy['shirt_number'] = p_obj.shirt_number
+                        if not item_copy.get('photo_url'):
+                            item_copy['photo_url'] = resolve_player_photo_url(p_obj)
+                        if not item_copy.get('rating'):
+                            item_copy['rating'] = getattr(p_obj, 'overall', 75)
+                    enriched.append(item_copy)
+                d['players_data'] = enriched
+
             return d
 
         serialized_gp = get_serialized_gp(active_gameplan)

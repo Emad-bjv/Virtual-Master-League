@@ -1072,10 +1072,13 @@ export default function AdminDashboard({
       };
     };
 
+    let dataHome = null;
+    let dataAway = null;
+
     if (homeId) {
       try {
         const resHome = await teamApi.getGameplan(homeId, selectedLiveMatch.id);
-        let dataHome = resHome.data;
+        dataHome = resHome.data;
         if (dataHome) {
           if ((!dataHome.team?.players || dataHome.team.players.length === 0) && (!dataHome.gameplan?.players_data || dataHome.gameplan.players_data.length === 0)) {
             try {
@@ -1116,7 +1119,7 @@ export default function AdminDashboard({
     if (awayId) {
       try {
         const resAway = await teamApi.getGameplan(awayId, selectedLiveMatch.id);
-        let dataAway = resAway.data;
+        dataAway = resAway.data;
         if (dataAway) {
           if ((!dataAway.team?.players || dataAway.team.players.length === 0) && (!dataAway.gameplan?.players_data || dataAway.gameplan.players_data.length === 0)) {
             try {
@@ -1152,6 +1155,21 @@ export default function AdminDashboard({
           }
         } catch (_fallbackErr) {}
       }
+    }
+
+    if (dataHome?.gameplan || dataAway?.gameplan) {
+      setSelectedLiveMatch((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          home_lineup_ready: dataHome?.gameplan?.is_submitted !== undefined ? Boolean(dataHome.gameplan.is_submitted) : prev.home_lineup_ready,
+          away_lineup_ready: dataAway?.gameplan?.is_submitted !== undefined ? Boolean(dataAway.gameplan.is_submitted) : prev.away_lineup_ready,
+          home_preset_name: dataHome?.gameplan?.preset_name || prev.home_preset_name,
+          away_preset_name: dataAway?.gameplan?.preset_name || prev.away_preset_name,
+          home_formation: dataHome?.gameplan?.formation || prev.home_formation,
+          away_formation: dataAway?.gameplan?.formation || prev.away_formation,
+        };
+      });
     }
   };
 
@@ -5717,9 +5735,9 @@ export default function AdminDashboard({
                 <div className="w-full grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-3 border-t border-slate-800/80">
                   {/* Home Team Lineup Status */}
                   {(() => {
-                    const homePreset = teamGameplanData.home.gameplan?.preset_name || selectedLiveMatch.home_preset_name;
-                    const homeHasCustom = teamGameplanData.home.gameplan?.has_custom_player_edits || selectedLiveMatch.home_has_custom_player_edits;
-                    const isSubmitted = Boolean(selectedLiveMatch?.home_lineup_ready);
+                    const homePreset = teamGameplanData.home?.gameplan?.preset_name || selectedLiveMatch.home_preset_name;
+                    const homeHasCustom = teamGameplanData.home?.gameplan?.has_custom_player_edits || selectedLiveMatch.home_has_custom_player_edits;
+                    const isSubmitted = Boolean(teamGameplanData.home?.gameplan?.is_submitted ?? selectedLiveMatch?.home_lineup_ready);
 
                     return (
                       <div className={`p-3 rounded-2xl border flex flex-col gap-2 text-xs transition-all ${
@@ -5781,9 +5799,9 @@ export default function AdminDashboard({
 
                   {/* Away Team Lineup Status */}
                   {(() => {
-                    const awayPreset = teamGameplanData.away.gameplan?.preset_name || selectedLiveMatch.away_preset_name;
-                    const awayHasCustom = teamGameplanData.away.gameplan?.has_custom_player_edits || selectedLiveMatch.away_has_custom_player_edits;
-                    const isSubmitted = Boolean(selectedLiveMatch?.away_lineup_ready);
+                    const awayPreset = teamGameplanData.away?.gameplan?.preset_name || selectedLiveMatch.away_preset_name;
+                    const awayHasCustom = teamGameplanData.away?.gameplan?.has_custom_player_edits || selectedLiveMatch.away_has_custom_player_edits;
+                    const isSubmitted = Boolean(teamGameplanData.away?.gameplan?.is_submitted ?? selectedLiveMatch?.away_lineup_ready);
 
                     return (
                       <div className={`p-3 rounded-2xl border flex flex-col gap-2 text-xs transition-all ${
@@ -6058,10 +6076,10 @@ export default function AdminDashboard({
                           >
                             <span>{selectedLiveMatch.home_team_name || selectedLiveMatch.home} (میزبان)</span>
                             <span className={`w-2 h-2 rounded-full ${
-                              Boolean(selectedLiveMatch?.home_lineup_ready)
+                              Boolean(teamGameplanData.home?.gameplan?.is_submitted ?? selectedLiveMatch?.home_lineup_ready)
                                 ? 'bg-[#00ff87] shadow-[0_0_8px_#00ff87]'
                                 : 'bg-amber-400'
-                            }`} title={Boolean(selectedLiveMatch?.home_lineup_ready) ? 'ترکیب اختصاصی ارسال شده' : 'ترکیب پیش‌فرض'}></span>
+                            }`} title={Boolean(teamGameplanData.home?.gameplan?.is_submitted ?? selectedLiveMatch?.home_lineup_ready) ? 'ترکیب اختصاصی ارسال شده' : 'ترکیب پیش‌فرض'}></span>
                           </button>
                           <button
                             onClick={() => setSelectedLiveTeamSwitch('away')}
@@ -6073,10 +6091,10 @@ export default function AdminDashboard({
                           >
                             <span>{selectedLiveMatch.away_team_name || selectedLiveMatch.away} (میهمان)</span>
                             <span className={`w-2 h-2 rounded-full ${
-                              Boolean(selectedLiveMatch?.away_lineup_ready)
+                              Boolean(teamGameplanData.away?.gameplan?.is_submitted ?? selectedLiveMatch?.away_lineup_ready)
                                 ? 'bg-[#00ff87] shadow-[0_0_8px_#00ff87]'
                                 : 'bg-amber-400'
-                            }`} title={Boolean(selectedLiveMatch?.away_lineup_ready) ? 'ترکیب اختصاصی ارسال شده' : 'ترکیب پیش‌فرض'}></span>
+                            }`} title={Boolean(teamGameplanData.away?.gameplan?.is_submitted ?? selectedLiveMatch?.away_lineup_ready) ? 'ترکیب اختصاصی ارسال شده' : 'ترکیب پیش‌فرض'}></span>
                           </button>
                         </div>
                       </div>
@@ -6088,8 +6106,8 @@ export default function AdminDashboard({
                       const activePreset = activeGp?.preset_name || (selectedLiveTeamSwitch === 'home' ? selectedLiveMatch.home_preset_name : selectedLiveMatch.away_preset_name);
                       const activeCustom = activeGp?.has_custom_player_edits || (selectedLiveTeamSwitch === 'home' ? selectedLiveMatch.home_has_custom_player_edits : selectedLiveMatch.away_has_custom_player_edits);
                       const isSubmitted = selectedLiveTeamSwitch === 'home' 
-                        ? Boolean(selectedLiveMatch?.home_lineup_ready)
-                        : Boolean(selectedLiveMatch?.away_lineup_ready);
+                        ? Boolean(teamGameplanData.home?.gameplan?.is_submitted ?? selectedLiveMatch?.home_lineup_ready)
+                        : Boolean(teamGameplanData.away?.gameplan?.is_submitted ?? selectedLiveMatch?.away_lineup_ready);
 
                       if (activePreset) {
                         return (

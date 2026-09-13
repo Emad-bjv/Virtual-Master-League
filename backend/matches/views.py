@@ -980,8 +980,11 @@ class TeamScheduleView(generics.ListAPIView):
             t_type = self.request.query_params.get('tournament_type').upper()
             qs = Match.objects.filter(tournament__tournament_type=t_type)
         else:
-            # Return all matches from active tournaments (both League, Cup, and Battle Royale)
-            active_tourneys = Tournament.objects.filter(is_active=True, matches__isnull=False).distinct()
+            # Return all matches from active tournaments (League, Cup, and Battle Royale)
+            active_tourneys = Tournament.objects.filter(
+                Q(is_active=True) | Q(tournament_type='BATTLE_ROYALE'),
+                matches__isnull=False
+            ).distinct()
             if active_tourneys.exists():
                 qs = Match.objects.filter(tournament__in=active_tourneys)
             else:
@@ -2942,6 +2945,7 @@ class BattleRoyaleScheduleView(APIView):
             date_key = m.date.strftime('%Y-%m-%d') if m.date else 'بدون تاریخ'
             if date_key not in schedule_by_date:
                 schedule_by_date[date_key] = []
+            from matches.serializers import is_team_lineup_ready, get_team_gameplan_attr
             schedule_by_date[date_key].append({
                 'id': m.id,
                 'round_name': m.round_name,
@@ -2949,8 +2953,18 @@ class BattleRoyaleScheduleView(APIView):
                 'bracket_round': m.bracket_round,
                 'home_team': m.home_team.name if m.home_team else 'مشخص نشده',
                 'away_team': m.away_team.name if m.away_team else 'مشخص نشده',
+                'home_team_id': m.home_team_id,
+                'away_team_id': m.away_team_id,
                 'home_team_logo': m.home_team.logo if m.home_team else '',
                 'away_team_logo': m.away_team.logo if m.away_team else '',
+                'home_coach_name': m.home_team.manager.username if (m.home_team and m.home_team.manager) else 'نامشخص',
+                'away_coach_name': m.away_team.manager.username if (m.away_team and m.away_team.manager) else 'نامشخص',
+                'home_lineup_ready': is_team_lineup_ready(m, m.home_team_id) if m.home_team_id else False,
+                'away_lineup_ready': is_team_lineup_ready(m, m.away_team_id) if m.away_team_id else False,
+                'home_preset_name': get_team_gameplan_attr(m, m.home_team_id, 'preset_name', '') if m.home_team_id else '',
+                'away_preset_name': get_team_gameplan_attr(m, m.away_team_id, 'preset_name', '') if m.away_team_id else '',
+                'home_formation': get_team_gameplan_attr(m, m.home_team_id, 'formation', '4-3-3') if m.home_team_id else '4-3-3',
+                'away_formation': get_team_gameplan_attr(m, m.away_team_id, 'formation', '4-3-3') if m.away_team_id else '4-3-3',
                 'home_score': m.home_score,
                 'away_score': m.away_score,
                 'status': m.status,
