@@ -62,6 +62,7 @@ class PlayerSerializer(serializers.ModelSerializer):
     is_from_pack = serializers.SerializerMethodField()
     pack_tier = serializers.SerializerMethodField()
     pack_name = serializers.SerializerMethodField()
+    pack_card_bg = serializers.SerializerMethodField()
 
     class Meta:
         model = Player
@@ -216,6 +217,15 @@ class PlayerSerializer(serializers.ModelSerializer):
         sess = self._get_pack_session(obj)
         if sess and sess.pack:
             return sess.pack.name
+        return None
+
+    def get_pack_card_bg(self, obj):
+        sess = self._get_pack_session(obj)
+        if sess and sess.pack and sess.pack.custom_card_bg:
+            try:
+                return sess.pack.custom_card_bg.url
+            except Exception:
+                return str(sess.pack.custom_card_bg)
         return None
 
     def _compute_stats_for_filter(self, obj, match_q=None):

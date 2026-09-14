@@ -57,7 +57,13 @@ const TIER_CONFIG = {
 
 export function isPackPlayer(player) {
   if (!player) return false;
-  return Boolean(player.is_from_pack || (player.custom_photo && String(player.custom_photo).includes('packs/')));
+  return Boolean(
+    player.is_from_pack ||
+    player.pack_tier ||
+    player.pack_card_bg ||
+    (player.custom_photo && String(player.custom_photo).includes('packs/')) ||
+    (player.rarity && ['LEGENDARY', 'EPIC', 'RARE'].includes(String(player.rarity).toUpperCase()))
+  );
 }
 
 export function getPackTierConfig(tierRaw = 'LEGENDARY') {

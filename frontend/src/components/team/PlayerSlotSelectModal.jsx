@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search, Star, Shield, User, AlertCircle, Check } from 'lucide-react';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import { isPlayerCompatibleWithPosition, isPlayerExactPosition } from './EFootballGamePlan';
+import { isPackPlayer, getPackTierConfig } from '../common/PackPlayerCard';
 
 export default function PlayerSlotSelectModal({
   isOpen = false,
@@ -108,6 +109,8 @@ export default function PlayerSlotSelectModal({
                   const isExact = isPlayerExactPosition(p, targetPos);
                   const isCompat = isPlayerCompatibleWithPosition(p, targetPos);
                   const photo = getPlayerPhotoUrl(p);
+                  const isPack = isPackPlayer(p);
+                  const packConfig = isPack ? getPackTierConfig(p.pack_tier || p.rarity) : null;
 
                   return (
                     <div
@@ -125,7 +128,11 @@ export default function PlayerSlotSelectModal({
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden flex items-center justify-center shrink-0">
+                        <div className={`w-10 h-10 rounded-xl bg-slate-950 border overflow-hidden flex items-center justify-center shrink-0 ${
+                          isPack
+                            ? `${packConfig?.borderColor || 'border-amber-400'} shadow-[0_0_8px_rgba(245,158,11,0.35)]`
+                            : 'border-slate-800'
+                        }`}>
                           {photo ? (
                             <img src={photo} alt={p.name} className="w-full h-full object-cover object-top" />
                           ) : (
@@ -133,11 +140,16 @@ export default function PlayerSlotSelectModal({
                           )}
                         </div>
                         <div>
-                          <div className="text-xs font-black text-white flex items-center gap-1.5">
+                          <div className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap">
                             <span>{p.name}</span>
                             {isExact && (
                               <span className="text-[10px] text-amber-400 flex items-center gap-0.5" title="پست تخصصی">
                                 <Star size={12} fill="#f59e0b" />
+                              </span>
+                            )}
+                            {isPack && (
+                              <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded-md ${packConfig?.badgeBg || 'bg-amber-500/20 text-amber-300'}`}>
+                                {p.pack_name || packConfig?.name?.split(' ')[0] || 'پک'}
                               </span>
                             )}
                           </div>

@@ -4,6 +4,16 @@ import { User, Plus, AlertTriangle } from 'lucide-react';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import { isPackPlayer, getPackTierConfig } from '../common/PackPlayerCard';
 import futCardBaseImg from '../../assets/fut_card_base.png';
+import legendaryCardBg from '../../assets/cards/legendary_card_bg.png';
+import epicCardBg from '../../assets/cards/epic_card_bg.png';
+import rareCardBg from '../../assets/cards/rare_card_bg.png';
+
+// Contour silhouette glow shadows per pack tier
+const PACK_GLOW_SHADOWS = {
+  LEGENDARY: 'drop-shadow-[0_0_10px_rgba(245,158,11,0.65)] hover:drop-shadow-[0_0_16px_rgba(251,191,36,0.85)]',
+  EPIC: 'drop-shadow-[0_0_10px_rgba(217,70,239,0.65)] hover:drop-shadow-[0_0_16px_rgba(232,121,249,0.85)]',
+  RARE: 'drop-shadow-[0_0_10px_rgba(6,182,212,0.65)] hover:drop-shadow-[0_0_16px_rgba(103,232,249,0.85)]',
+};
 
 // Color theme map for position badges matching site official positions
 export const POSITION_COLORS = {
@@ -186,7 +196,24 @@ export default function FutPitchCard({
   // Occupied FUT Player Card
   const photoUrl = getPlayerPhotoUrl(player);
   const isPack = isPackPlayer(player);
-  const packConfig = isPack ? getPackTierConfig(player?.pack_tier || player?.rarity) : null;
+  const rawTier = player?.pack_tier || player?.rarity || 'LEGENDARY';
+  const packConfig = isPack ? getPackTierConfig(rawTier) : null;
+  const isCustomPackBg = Boolean(isPack && player?.pack_card_bg);
+
+  // Background selection:
+  // 1. Custom uploaded pack card background (if present)
+  // 2. Default tier background (legendary, epic, rare)
+  // 3. futCardBaseImg for normal non-pack players
+  const cardBgImage = isCustomPackBg
+    ? player.pack_card_bg
+    : isPack
+    ? (packConfig?.bgImage || legendaryCardBg)
+    : futCardBaseImg;
+
+  const packGlowClass = isPack
+    ? (PACK_GLOW_SHADOWS[packConfig?.fxTier] || PACK_GLOW_SHADOWS.LEGENDARY)
+    : '';
+
   const ovr = player?.overall || 75;
   const isSuspended = Boolean((player?.suspension_matches > 0) || player?.is_suspended || player?.isSuspended);
   const isInjured = Boolean(player?.is_injured || player?.isInjured || (player?.injury_matches > 0));
@@ -199,10 +226,12 @@ export default function FutPitchCard({
     staminaPercent >= 30 ? 'bg-amber-400' : 'bg-rose-500';
 
   // Overall Color styling
-  const ovrColor =
-    ovr >= 90 ? 'text-amber-300' :
-    ovr >= 85 ? 'text-cyan-300' :
-    ovr >= 80 ? 'text-emerald-300' : 'text-slate-200';
+  const ovrColor = isPack && packConfig?.ovrColor
+    ? packConfig.ovrColor
+    : ovr >= 90 ? 'text-amber-300'
+    : ovr >= 85 ? 'text-cyan-300'
+    : ovr >= 80 ? 'text-emerald-300'
+    : 'text-slate-200';
 
   return (
     <div
@@ -217,19 +246,46 @@ export default function FutPitchCard({
             ? 'filter drop-shadow-[0_0_18px_rgba(0,243,255,0.95)]'
             : isGreenSlot
             ? 'filter drop-shadow-[0_0_16px_rgba(0,255,135,0.95)]'
-            : isPack && packConfig?.glowShadow
-            ? `${packConfig.glowShadow}`
+            : isPack
+            ? packGlowClass
             : 'drop-shadow-[0_8px_18px_rgba(0,0,0,0.85)]'
         }`}
       >
-        {/* Authentic Metallic Card Base Image */}
-        <img
-          src={futCardBaseImg}
-          alt=""
-          className={`absolute inset-0 w-full h-full object-contain pointer-events-none select-none ${
-            isSuspended ? 'grayscale contrast-125' : ''
-          }`}
-        />
+        {/* Authentic Card Base Image (Custom Pack BG, Tier Metallic BG, or Default FUT Shield) */}
+        {isCustomPackBg ? (
+          <div className="absolute inset-0 overflow-hidden rounded-[12px] sm:rounded-[18px]">
+            <img
+              src={cardBgImage}
+              alt=""
+              className={`w-full h-full object-cover pointer-events-none select-none ${
+                isSuspended ? 'grayscale contrast-125' : ''
+              }`}
+            />
+            {/* Metallic inner edge contour */}
+            <div
+              className={`absolute inset-0 rounded-[12px] sm:rounded-[18px] border pointer-events-none ${
+                packConfig?.borderColor || 'border-amber-400/70'
+              }`}
+            />
+          </div>
+        ) : (
+          <img
+            src={cardBgImage}
+            alt=""
+            className={`absolute inset-0 w-full h-full object-contain pointer-events-none select-none ${
+              isSuspended ? 'grayscale contrast-125' : ''
+            }`}
+          />
+        )}
+
+        {/* Pack Metallic Border contour if not selected/green */}
+        {isPack && !isCustomPackBg && !isSelected && !isGreenSlot && (
+          <div
+            className={`absolute inset-0 pointer-events-none rounded-[14px] sm:rounded-[18px] border transition-all ${
+              packConfig?.borderColor ? packConfig.borderColor.replace('/80', '/40') : 'border-amber-400/40'
+            }`}
+          />
+        )}
 
         {/* Glow border ring if selected or green */}
         {(isSelected || isGreenSlot) && (
@@ -295,11 +351,6 @@ export default function FutPitchCard({
               title="پست غیرتخصصی"
             >
               ⚠️
-            </span>
-          )}
-          {isPack && (
-            <span className="text-[8px] sm:text-[9px] text-amber-300 drop-shadow-[0_0_6px_rgba(245,158,11,0.8)]">
-              ✨
             </span>
           )}
         </div>
