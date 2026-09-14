@@ -4,7 +4,7 @@ from .views import (
     TeamViewSet, PlayerViewSet, PositionChoicesView,
     AdminPESTransfersOverviewView, AdminPESTransferClubDetailView, AdminPESTransferToggleView,
     AdminDisciplinaryOverviewView, AdminDisciplinaryRecordsView,
-    AdminDisciplinaryIssueView, AdminDisciplinaryRevokeView, TeamPenaltiesView
+    AdminDisciplinaryIssueView, AdminDisciplinaryRevokeView, AdminDisciplinaryUpdateView, TeamPenaltiesView
 )
 
 router = DefaultRouter()
@@ -26,6 +26,7 @@ urlpatterns = [
     path('teams/admin/disciplinary/records/', AdminDisciplinaryRecordsView.as_view(), name='admin-disciplinary-records'),
     path('teams/admin/disciplinary/issue/', AdminDisciplinaryIssueView.as_view(), name='admin-disciplinary-issue'),
     path('teams/admin/disciplinary/<int:penalty_id>/revoke/', AdminDisciplinaryRevokeView.as_view(), name='admin-disciplinary-revoke'),
+    path('teams/admin/disciplinary/<int:penalty_id>/update/', AdminDisciplinaryUpdateView.as_view(), name='admin-disciplinary-update'),
     path('teams/<int:team_id>/penalties/', TeamPenaltiesView.as_view(), name='team-penalties'),
     path('teams/my-penalties/', TeamPenaltiesView.as_view(), name='my-penalties'),
 
@@ -33,6 +34,7 @@ urlpatterns = [
     path('admin/disciplinary/records/', AdminDisciplinaryRecordsView.as_view()),
     path('admin/disciplinary/issue/', AdminDisciplinaryIssueView.as_view()),
     path('admin/disciplinary/<int:penalty_id>/revoke/', AdminDisciplinaryRevokeView.as_view()),
+    path('admin/disciplinary/<int:penalty_id>/update/', AdminDisciplinaryUpdateView.as_view()),
 
     path('', include(router.urls)),
 ]

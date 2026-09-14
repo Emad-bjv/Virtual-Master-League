@@ -7,7 +7,7 @@ import {
   RefreshCw, Calendar, Clock, AlertCircle, Sparkles, Send,
   RotateCcw, ChevronDown, Check, Info, FileText, ChevronLeft,
   Users, ArrowRight, ShieldCheck, Copy, Share2, Eye, ScrollText,
-  Bookmark
+  Bookmark, Edit3
 } from 'lucide-react';
 import { disciplinaryApi } from '../../services/api';
 import { useToast } from '../components/Toast';
@@ -149,6 +149,11 @@ export default function AdminDisciplinary() {
 
   // Detail Modal State
   const [detailPenalty, setDetailPenalty] = useState(null);
+
+  // Edit Modal State
+  const [selectedPenaltyForEdit, setSelectedPenaltyForEdit] = useState(null);
+  const [editFormData, setEditFormData] = useState(null);
+  const [editingPenalty, setEditingPenalty] = useState(false);
 
   // Selected team & tournament helpers
   const selectedTeam = useMemo(() => {
@@ -433,6 +438,69 @@ export default function AdminDisciplinary() {
       showToast(err.response?.data?.error || 'خطا در لغو حکم انضباطی', 'error');
     } finally {
       setRevoking(false);
+    }
+  };
+
+  // Open Edit Modal with populated form
+  const handleOpenEditModal = (penalty, e) => {
+    if (e) e.stopPropagation();
+    setSelectedPenaltyForEdit(penalty);
+    setEditFormData({
+      title: penalty.title || '',
+      reason: penalty.reason || '',
+      violation_type: penalty.violation_type || 'CUSTOM',
+      fine_budget_usd: penalty.fine_budget_usd || 0,
+      fine_gems: penalty.fine_gems || 0,
+      points_deduction: penalty.points_deduction || 0,
+      has_transfer_ban: Boolean(penalty.transfer_ban_until || penalty.transfer_ban_days > 0),
+      ban_mode: penalty.transfer_ban_until ? 'DATE' : 'DAYS',
+      transfer_ban_days: penalty.transfer_ban_days || 0,
+      transfer_ban_until: penalty.transfer_ban_until ? penalty.transfer_ban_until.slice(0, 16) : '',
+      is_warning: Boolean(penalty.is_warning),
+      case_number: penalty.case_number || '',
+      official_verdict_text: penalty.official_verdict_text || '',
+    });
+  };
+
+  // Submit Edited Penalty
+  const handleConfirmUpdatePenalty = async (e) => {
+    if (e) e.preventDefault();
+    if (!selectedPenaltyForEdit || !editFormData) return;
+    if (!editFormData.title.trim()) {
+      showToast('عنوان حکم نمی‌تواند خالی باشد.', 'warning');
+      return;
+    }
+    if (!editFormData.reason.trim()) {
+      showToast('شرح تخلف نمی‌تواند خالی باشد.', 'warning');
+      return;
+    }
+    try {
+      setEditingPenalty(true);
+      const payload = {
+        title: editFormData.title.trim(),
+        reason: editFormData.reason.trim(),
+        violation_type: editFormData.violation_type,
+        fine_budget_usd: parseFloat(editFormData.fine_budget_usd) || 0,
+        fine_gems: parseInt(editFormData.fine_gems, 10) || 0,
+        points_deduction: parseInt(editFormData.points_deduction, 10) || 0,
+        has_transfer_ban: editFormData.has_transfer_ban,
+        ban_mode: editFormData.ban_mode,
+        transfer_ban_days: editFormData.has_transfer_ban && editFormData.ban_mode === 'DAYS' ? parseInt(editFormData.transfer_ban_days, 10) || 0 : 0,
+        transfer_ban_until: editFormData.has_transfer_ban && editFormData.ban_mode === 'DATE' && editFormData.transfer_ban_until ? editFormData.transfer_ban_until : null,
+        is_warning: editFormData.is_warning,
+        case_number: (editFormData.case_number || '').trim(),
+        official_verdict_text: (editFormData.official_verdict_text || '').trim(),
+      };
+      const res = await disciplinaryApi.updatePenalty(selectedPenaltyForEdit.id, payload);
+      showToast(res.data?.status || 'حکم انضباطی با موفقیت بازنگری و اصلاح گردید.', 'success');
+      setSelectedPenaltyForEdit(null);
+      setEditFormData(null);
+      fetchOverview();
+      fetchRecords();
+    } catch (err) {
+      showToast(err.response?.data?.error || 'خطا در ویرایش و بازنگری حکم انضباطی', 'error');
+    } finally {
+      setEditingPenalty(false);
     }
   };
 
@@ -829,17 +897,28 @@ export default function AdminDisciplinary() {
                         </button>
 
                         {isActive && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedPenaltyForRevoke(penalty);
-                              setRevokeReason('');
-                            }}
-                            className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
-                          >
-                            <RotateCcw size={13} />
-                            <span>لغو / بخشش حکم</span>
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => handleOpenEditModal(penalty, e)}
+                              className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                            >
+                              <Edit3 size={13} />
+                              <span>ویرایش حکم</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedPenaltyForRevoke(penalty);
+                                setRevokeReason('');
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                            >
+                              <RotateCcw size={13} />
+                              <span>لغو / بخشش حکم</span>
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -1079,17 +1158,28 @@ export default function AdminDisciplinary() {
                         </button>
 
                         {isActive && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedPenaltyForRevoke(penalty);
-                              setRevokeReason('');
-                            }}
-                            className="p-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 transition-all cursor-pointer"
-                            title="لغو / بخشش حکم"
-                          >
-                            <RotateCcw size={14} />
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => handleOpenEditModal(penalty, e)}
+                              className="p-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition-all cursor-pointer"
+                              title="ویرایش و بازنگری حکم"
+                            >
+                              <Edit3 size={14} />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedPenaltyForRevoke(penalty);
+                                setRevokeReason('');
+                              }}
+                              className="p-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 transition-all cursor-pointer"
+                              title="لغو / بخشش حکم"
+                            >
+                              <RotateCcw size={14} />
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -1905,7 +1995,7 @@ export default function AdminDisciplinary() {
                   )}
                 </div>
 
-                <div className="mt-5 pt-3 border-t border-slate-800 flex justify-end">
+                <div className="mt-5 pt-3 border-t border-slate-800 flex justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setDetailPenalty(null)}
@@ -1913,6 +2003,21 @@ export default function AdminDisciplinary() {
                   >
                     بستن
                   </button>
+
+                  {detailPenalty.status === 'ACTIVE' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = detailPenalty;
+                        setDetailPenalty(null);
+                        handleOpenEditModal(target);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    >
+                      <Edit3 size={13} />
+                      <span>ویرایش حکم</span>
+                    </button>
+                  )}
                 </div>
               </motion.div>
             </div>
@@ -2051,6 +2156,21 @@ export default function AdminDisciplinary() {
                       بستن
                     </button>
 
+                    {fullVerdictModalPenalty.status === 'ACTIVE' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const p = fullVerdictModalPenalty;
+                          setFullVerdictModalPenalty(null);
+                          handleOpenEditModal(p);
+                        }}
+                        className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                      >
+                        <Edit3 size={14} />
+                        <span>ویرایش و بازنگری حکم</span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={(e) => handleCopyTelegramVerdict(fullVerdictModalPenalty, e)}
@@ -2058,6 +2178,507 @@ export default function AdminDisciplinary() {
                     >
                       <Copy size={14} />
                       <span>کپی متن جهت انتشار در تلگرام 📋</span>
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* EDIT PENALTY MODAL (Rendered via React Portal directly to document.body) */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {selectedPenaltyForEdit && editFormData && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
+              <div
+                className="fixed inset-0"
+                onClick={() => {
+                  if (!editingPenalty) setSelectedPenaltyForEdit(null);
+                }}
+              />
+
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="relative z-10 bg-slate-950 border border-amber-500/40 rounded-3xl w-full max-w-3xl my-auto p-6 text-right space-y-5 shadow-2xl shadow-amber-950/20 max-h-[90vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="flex items-center justify-between pb-4 border-b border-slate-800 shrink-0">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                      <Edit3 size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-white flex items-center gap-2">
+                        <span>ویرایش و بازنگری حکم انضباطی</span>
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-mono">
+                          {selectedPenaltyForEdit.case_number || `#${selectedPenaltyForEdit.id}`}
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        باشگاه طرف پرونده: <span className="text-amber-300 font-bold">{selectedPenaltyForEdit.team_name || selectedPenaltyForEdit.team?.name || 'باشگاه مربوطه'}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!editingPenalty) setSelectedPenaltyForEdit(null);
+                    }}
+                    className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer"
+                  >
+                    <XCircle size={18} />
+                  </button>
+                </div>
+
+                {/* Scrollable Form Content */}
+                <div className="overflow-y-auto space-y-4 pr-1 pl-1 flex-1">
+                  {/* Live Delta Engine Preview */}
+                  {(() => {
+                    const curUsd = Number(selectedPenaltyForEdit.fine_budget_usd) || 0;
+                    const newUsd = Number(editFormData.fine_budget_usd) || 0;
+                    const deltaUsd = newUsd - curUsd;
+
+                    const curGems = Number(selectedPenaltyForEdit.fine_gems) || 0;
+                    const newGems = Number(editFormData.fine_gems) || 0;
+                    const deltaGems = newGems - curGems;
+
+                    const curPts = Number(selectedPenaltyForEdit.points_deduction) || 0;
+                    const newPts = Number(editFormData.points_deduction) || 0;
+                    const deltaPts = newPts - curPts;
+
+                    return (
+                      <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-300">
+                          <span className="flex items-center gap-1.5 text-amber-300">
+                            <Scale size={14} />
+                            <span>محاسبه خودکار و تسویه تفاضلی (Delta Engine):</span>
+                          </span>
+                          <span className="text-[11px] text-slate-400">
+                            تفاضل مبالغ خودکار به حساب باشگاه واریز/کسر می‌گردد
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 text-xs">
+                          {/* USD Delta */}
+                          <div className={`p-2.5 rounded-xl border flex flex-col gap-0.5 ${
+                            deltaUsd > 0
+                              ? 'bg-rose-950/30 border-rose-500/30 text-rose-300'
+                              : deltaUsd < 0
+                              ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300'
+                              : 'bg-slate-950/50 border-slate-800 text-slate-400'
+                          }`}>
+                            <span className="text-[10px] text-slate-400">
+                              بودجه: {formatUSD(curUsd)} ← {formatUSD(newUsd)}
+                            </span>
+                            <span className="font-bold font-mono">
+                              {deltaUsd > 0 && `+ کسر ${formatUSD(deltaUsd)} مضاعف`}
+                              {deltaUsd < 0 && `- استرداد ${formatUSD(Math.abs(deltaUsd))} به باشگاه`}
+                              {deltaUsd === 0 && 'بدون تغییر مالی'}
+                            </span>
+                          </div>
+
+                          {/* Gems Delta */}
+                          <div className={`p-2.5 rounded-xl border flex flex-col gap-0.5 ${
+                            deltaGems > 0
+                              ? 'bg-rose-950/30 border-rose-500/30 text-rose-300'
+                              : deltaGems < 0
+                              ? 'bg-cyan-950/30 border-cyan-500/30 text-cyan-300'
+                              : 'bg-slate-950/50 border-slate-800 text-slate-400'
+                          }`}>
+                            <span className="text-[10px] text-slate-400">
+                              جم: {curGems} ← {newGems}
+                            </span>
+                            <span className="font-bold font-mono">
+                              {deltaGems > 0 && `+ کسر ${deltaGems} جم مضاعف`}
+                              {deltaGems < 0 && `- استرداد ${Math.abs(deltaGems)} جم`}
+                              {deltaGems === 0 && 'بدون تغییر جم'}
+                            </span>
+                          </div>
+
+                          {/* Points Delta */}
+                          <div className={`p-2.5 rounded-xl border flex flex-col gap-0.5 ${
+                            deltaPts > 0
+                              ? 'bg-rose-950/30 border-rose-500/30 text-rose-300'
+                              : deltaPts < 0
+                              ? 'bg-purple-950/30 border-purple-500/30 text-purple-300'
+                              : 'bg-slate-950/50 border-slate-800 text-slate-400'
+                          }`}>
+                            <span className="text-[10px] text-slate-400">
+                              کسر امتیاز: {curPts} ← {newPts}
+                            </span>
+                            <span className="font-bold font-mono">
+                              {deltaPts > 0 && `+ کسر ${deltaPts} امتیاز بیشتر`}
+                              {deltaPts < 0 && `- بازگشت ${Math.abs(deltaPts)} امتیاز`}
+                              {deltaPts === 0 && 'بدون تغییر جدول'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Title & Violation Type */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        عنوان حکم / پرونده:
+                      </label>
+                      <input
+                        type="text"
+                        value={editFormData.title}
+                        onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        دسته‌بندی تخلف:
+                      </label>
+                      <select
+                        value={editFormData.violation_type}
+                        onChange={(e) => setEditFormData({ ...editFormData, violation_type: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-amber-500/50"
+                      >
+                        <option value="CUSTOM">تخلف سفارشی / عمومی</option>
+                        <option value="MATCH_NO_SHOW">عدم حضور در مسابقه رسمی (No-Show)</option>
+                        <option value="ILLEGAL_LINEUP">استفاده از ترکیب غیرمجاز / بازیکن محروم</option>
+                        <option value="LATE_SUBMISSION">تاخیر مکرر در ثبت نتایج و اسکرین‌شات</option>
+                        <option value="BUDGET_VIOLATION">نقض قوانین سقف بودجه و فیرپلی مالی</option>
+                        <option value="CODE_OF_CONDUCT">رفتار غیرحرفه‌ای و بی‌احترامی در کامیونیتی</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Reason Textarea + Helper Chips */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-300 mb-1">
+                      شرح و مستندات تخلف:
+                    </label>
+                    <textarea
+                      value={editFormData.reason}
+                      onChange={(e) => setEditFormData({ ...editFormData, reason: e.target.value })}
+                      rows={3}
+                      required
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-amber-500/50 leading-relaxed"
+                    />
+
+                    {getViolationQuickChips(editFormData.violation_type)?.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                          <Bookmark size={11} className="text-amber-400" />
+                          برچسب‌های کمکی:
+                        </span>
+                        {getViolationQuickChips(editFormData.violation_type).map((chip) => (
+                          <button
+                            key={chip}
+                            type="button"
+                            onClick={() => {
+                              setEditFormData((prev) => {
+                                const current = (prev.reason || '').trim();
+                                if (current.includes(chip)) return prev;
+                                return {
+                                  ...prev,
+                                  reason: current ? `${current} - ${chip}` : chip,
+                                };
+                              });
+                            }}
+                            className="px-2 py-0.5 rounded-lg bg-slate-800/90 hover:bg-amber-500/20 hover:text-amber-300 text-slate-300 text-[10px] border border-slate-700/80 transition-all cursor-pointer"
+                          >
+                            + {chip}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Financial & Sanctions Inputs */}
+                  <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-4">
+                    <h4 className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                      <Scale size={14} />
+                      <span>تنظیم مقادیر مجازات و تحریم‌ها:</span>
+                    </h4>
+
+                    {/* USD & Gems fines */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1.5">
+                          <DollarSign size={13} className="text-emerald-400" />
+                          <span>جریمه نقدی بودجه ($ دلار):</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="5000"
+                          value={editFormData.fine_budget_usd}
+                          onChange={(e) => setEditFormData({ ...editFormData, fine_budget_usd: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-emerald-400 font-mono font-bold focus:outline-none"
+                        />
+                        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                          {[0, 10000, 50000, 100000, 250000].map((amt) => (
+                            <button
+                              key={amt}
+                              type="button"
+                              onClick={() => setEditFormData({ ...editFormData, fine_budget_usd: amt })}
+                              className="px-2 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 hover:text-white transition-all cursor-pointer"
+                            >
+                              {formatUSD(amt)}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1.5">
+                          <Gem size={13} className="text-cyan-400" />
+                          <span>جریمه جم (الماس):</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="10"
+                          value={editFormData.fine_gems}
+                          onChange={(e) => setEditFormData({ ...editFormData, fine_gems: e.target.value })}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-cyan-400 font-mono font-bold focus:outline-none"
+                        />
+                        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                          {[0, 50, 100, 200, 500].map((g) => (
+                            <button
+                              key={g}
+                              type="button"
+                              onClick={() => setEditFormData({ ...editFormData, fine_gems: g })}
+                              className="px-2 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 hover:text-white transition-all cursor-pointer"
+                            >
+                              {g} جم
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Points Deduction */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1.5">
+                        <Trophy size={13} className="text-purple-400" />
+                        <span>کسر امتیاز از جدول لیگ:</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="30"
+                        value={editFormData.points_deduction}
+                        onChange={(e) => setEditFormData({ ...editFormData, points_deduction: e.target.value })}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-purple-400 font-mono font-bold focus:outline-none"
+                      />
+                      <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                        {[0, 1, 3, 6, 9].map((pts) => (
+                          <button
+                            key={pts}
+                            type="button"
+                            onClick={() => setEditFormData({ ...editFormData, points_deduction: pts })}
+                            className="px-2 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 hover:text-white transition-all cursor-pointer"
+                          >
+                            {pts} امتیاز
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Transfer Ban */}
+                    <div className="pt-2 border-t border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={editFormData.has_transfer_ban}
+                            onChange={(e) => setEditFormData({ ...editFormData, has_transfer_ban: e.target.checked })}
+                            className="w-4 h-4 rounded text-rose-500 bg-slate-900 border-slate-700"
+                          />
+                          <span className="text-xs font-bold text-rose-300 flex items-center gap-1">
+                            <Ban size={13} />
+                            <span>محرومیت از نقل‌وانتقالات</span>
+                          </span>
+                        </label>
+
+                        {editFormData.has_transfer_ban && (
+                          <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => setEditFormData({ ...editFormData, ban_mode: 'DAYS' })}
+                              className={`px-2 py-0.5 rounded font-bold cursor-pointer ${
+                                editFormData.ban_mode === 'DAYS' ? 'bg-rose-500/30 text-rose-200' : 'text-slate-400'
+                              }`}
+                            >
+                              بر اساس روز
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditFormData({ ...editFormData, ban_mode: 'DATE' })}
+                              className={`px-2 py-0.5 rounded font-bold cursor-pointer ${
+                                editFormData.ban_mode === 'DATE' ? 'bg-rose-500/30 text-rose-200' : 'text-slate-400'
+                              }`}
+                            >
+                              تاریخ دقیق
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {editFormData.has_transfer_ban && (
+                        <div className="p-3 rounded-xl bg-rose-950/20 border border-rose-500/30 space-y-2">
+                          {editFormData.ban_mode === 'DAYS' ? (
+                            <div>
+                              <div className="flex items-center justify-between mb-1 text-xs">
+                                <span className="text-rose-200 font-bold">مدت محرومیت به روز:</span>
+                                <span className="text-rose-400 font-mono font-black">{editFormData.transfer_ban_days} روز</span>
+                              </div>
+                              <input
+                                type="number"
+                                min="1"
+                                max="365"
+                                value={editFormData.transfer_ban_days}
+                                onChange={(e) => setEditFormData({ ...editFormData, transfer_ban_days: e.target.value })}
+                                className="w-full bg-slate-950 border border-rose-500/40 rounded-xl px-3 py-1.5 text-xs text-rose-300 font-mono focus:outline-none"
+                              />
+                              <div className="flex items-center gap-1.5 mt-2">
+                                {[3, 7, 14, 30, 60, 90].map((d) => (
+                                  <button
+                                    key={d}
+                                    type="button"
+                                    onClick={() => setEditFormData({ ...editFormData, transfer_ban_days: d })}
+                                    className="px-2 py-0.5 rounded bg-rose-950/60 text-rose-200 text-[10px] border border-rose-500/30 cursor-pointer"
+                                  >
+                                    {d} روز
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <label className="block text-xs text-rose-200 font-bold mb-1">
+                                پایان محرومیت تا تاریخ و ساعت:
+                              </label>
+                              <input
+                                type="datetime-local"
+                                value={editFormData.transfer_ban_until}
+                                onChange={(e) => setEditFormData({ ...editFormData, transfer_ban_until: e.target.value })}
+                                className="w-full bg-slate-950 border border-rose-500/40 rounded-xl px-3 py-1.5 text-xs text-rose-300 font-bold focus:outline-none"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Warning Checkbox */}
+                    <div className="pt-2 border-t border-slate-800">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editFormData.is_warning}
+                          onChange={(e) => setEditFormData({ ...editFormData, is_warning: e.target.checked })}
+                          className="w-4 h-4 rounded text-amber-500 bg-slate-950 border-slate-700"
+                        />
+                        <span className="text-xs font-bold text-slate-300">
+                          ثبت اخطار رسمی کتبی در سوابق انضباطی
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Smart Official Verdict Text */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-b from-slate-950 via-[#120e18] to-slate-950 border border-amber-500/30 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <ScrollText size={16} className="text-amber-400" />
+                        <span className="text-xs font-bold text-amber-300">
+                          متن رسمی دادنامه قضایی:
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const verdict = generateDisciplinaryVerdict({
+                            violationType: editFormData.violation_type,
+                            teamName: selectedPenaltyForEdit.team_name || selectedPenaltyForEdit.team?.name || 'باشگاه مربوطه',
+                            tournamentName: selectedPenaltyForEdit.tournament_name || null,
+                            title: editFormData.title || '',
+                            reason: editFormData.reason,
+                            fineBudgetUsd: editFormData.fine_budget_usd,
+                            fineGems: editFormData.fine_gems,
+                            pointsDeduction: editFormData.points_deduction,
+                            transferBanDays: editFormData.has_transfer_ban && editFormData.ban_mode === 'DAYS' ? editFormData.transfer_ban_days : 0,
+                            transferBanUntil: editFormData.has_transfer_ban && editFormData.ban_mode === 'DATE' ? editFormData.transfer_ban_until : null,
+                            isWarning: editFormData.is_warning,
+                            variantIndex: 0,
+                            caseNumber: editFormData.case_number,
+                          });
+                          setEditFormData((prev) => ({
+                            ...prev,
+                            title: prev.title || verdict.title,
+                            official_verdict_text: verdict.fullVerdictText,
+                          }));
+                          showToast('متن دادنامه با موفقیت بازنویسی و با مقادیر جدید هماهنگ شد.', 'info');
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all active:scale-95"
+                      >
+                        <Sparkles size={12} className="text-amber-400" />
+                        <span>بازنویسی هوشمند دادنامه با ارقام جدید</span>
+                      </button>
+                    </div>
+
+                    <textarea
+                      value={editFormData.official_verdict_text}
+                      onChange={(e) => setEditFormData({ ...editFormData, official_verdict_text: e.target.value })}
+                      rows={5}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-xs text-white leading-relaxed focus:outline-none focus:border-amber-500/50"
+                      placeholder="متن کامل دادنامه رسمی..."
+                    />
+                  </div>
+                </div>
+
+                {/* Modal Footer Buttons */}
+                <div className="pt-4 border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
+                  <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                    <Info size={13} />
+                    <span>تغییرات بلافاصله پس از تایید بر داده‌های مالی، جدول و نقل‌وانتقالات اعمال می‌شوند.</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPenaltyForEdit(null)}
+                      disabled={editingPenalty}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      انصراف
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleConfirmUpdatePenalty}
+                      disabled={editingPenalty}
+                      className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs transition-all shadow-lg flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                    >
+                      {editingPenalty ? (
+                        <>
+                          <RefreshCw size={14} className="animate-spin" />
+                          <span>در حال ثبت و تسویه تفاضلی...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={14} />
+                          <span>ذخیره و اعمال بازنگری حکم</span>
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>

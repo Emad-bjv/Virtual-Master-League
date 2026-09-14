@@ -2370,6 +2370,205 @@ class AdminDisciplinaryRevokeView(views.APIView):
         })
 
 
+class AdminDisciplinaryUpdateView(views.APIView):
+    """
+    Updates / amends an existing active disciplinary penalty.
+    Calculates deltas for USD fines, gems fines, tournament points,
+    and recalculates transfer bans, adjusting club and league stats in real time.
+    """
+    permission_classes = [IsAdminOrDebug]
+
+    def post(self, request, penalty_id):
+        try:
+            penalty = ClubPenalty.objects.select_related('team', 'tournament').get(id=penalty_id)
+        except ClubPenalty.DoesNotExist:
+            return Response({'error': 'حکم انضباطی یافت نشد.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if penalty.status != 'ACTIVE':
+            return Response(
+                {'error': f'فقط احکام در وضعیت فعال قابل ویرایش هستند (وضعیت فعلی: {penalty.get_status_display()}).'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        data = request.data
+        team = penalty.team
+        now = timezone.now()
+
+        with db_transaction.atomic():
+            # 1. USD Budget Delta
+            old_usd = penalty.fine_budget_usd or Decimal('0.00')
+            try:
+                new_usd = Decimal(str(data.get('fine_budget_usd', old_usd) or 0))
+            except Exception:
+                new_usd = old_usd
+            if new_usd < Decimal('0.00'):
+                new_usd = Decimal('0.00')
+
+            delta_usd = new_usd - old_usd
+            if delta_usd > Decimal('0.00'):
+                # Deduct additional fine from team
+                team.budget = team.budget - delta_usd
+                team.save(update_fields=['budget'])
+                Transaction.objects.create(
+                    team=team,
+                    currency='BUDGET',
+                    transaction_type='DISCIPLINARY_FINE',
+                    amount=delta_usd,
+                    status='SUCCESS',
+                    description=f"افزایش جریمه نقدی در بازنگری حکم انضباطی #{penalty.id}: {penalty.title}"
+                )
+            elif delta_usd < Decimal('0.00'):
+                # Refund reduced amount
+                refund_usd = abs(delta_usd)
+                team.budget = team.budget + refund_usd
+                team.save(update_fields=['budget'])
+                Transaction.objects.create(
+                    team=team,
+                    currency='BUDGET',
+                    transaction_type='DISCIPLINARY_REFUND',
+                    amount=refund_usd,
+                    status='SUCCESS',
+                    description=f"استرداد و کاهش جریمه نقدی در بازنگری حکم #{penalty.id}: {penalty.title}"
+                )
+            penalty.fine_budget_usd = new_usd
+
+            # 2. Gems Delta
+            old_gems = penalty.fine_gems or 0
+            try:
+                new_gems = int(data.get('fine_gems', old_gems) or 0)
+            except Exception:
+                new_gems = old_gems
+            if new_gems < 0:
+                new_gems = 0
+
+            delta_gems = new_gems - old_gems
+            if delta_gems > 0:
+                team.gems = team.gems - delta_gems
+                team.save(update_fields=['gems'])
+                Transaction.objects.create(
+                    team=team,
+                    currency='GEMS',
+                    transaction_type='DISCIPLINARY_FINE',
+                    amount=delta_gems,
+                    status='SUCCESS',
+                    description=f"افزایش جریمه جم در بازنگری حکم #{penalty.id}: {penalty.title}"
+                )
+            elif delta_gems < 0:
+                refund_gems = abs(delta_gems)
+                team.gems = team.gems + refund_gems
+                team.save(update_fields=['gems'])
+                Transaction.objects.create(
+                    team=team,
+                    currency='GEMS',
+                    transaction_type='DISCIPLINARY_REFUND',
+                    amount=refund_gems,
+                    status='SUCCESS',
+                    description=f"استرداد جریمه جم در بازنگری حکم #{penalty.id}: {penalty.title}"
+                )
+            penalty.fine_gems = new_gems
+
+            # 3. Points Deduction Delta
+            old_points = penalty.points_deduction or 0
+            try:
+                new_points = int(data.get('points_deduction', old_points) or 0)
+            except Exception:
+                new_points = old_points
+            if new_points < 0:
+                new_points = 0
+
+            delta_points = new_points - old_points
+            if delta_points != 0 and penalty.tournament:
+                from matches.models import LeagueStanding
+                standing = LeagueStanding.objects.filter(team=team, tournament=penalty.tournament).first()
+                if standing:
+                    standing.points_deduction = max(0, standing.points_deduction + delta_points)
+                    standing.save(update_fields=['points_deduction'])
+            penalty.points_deduction = new_points
+
+            # 4. Transfer Ban Re-evaluation
+            has_transfer_ban = data.get('has_transfer_ban')
+            if has_transfer_ban is None:
+                # keep existing ban if not specified
+                pass
+            elif not has_transfer_ban:
+                penalty.transfer_ban_days = 0
+                penalty.transfer_ban_until = None
+            else:
+                ban_mode = data.get('ban_mode', 'DAYS')
+                if ban_mode == 'DAYS':
+                    days = int(data.get('transfer_ban_days', 0) or 0)
+                    penalty.transfer_ban_days = days
+                    penalty.transfer_ban_until = now + timedelta(days=days) if days > 0 else None
+                elif ban_mode == 'DATE':
+                    until_str = data.get('transfer_ban_until')
+                    if until_str:
+                        from django.utils.dateparse import parse_datetime
+                        dt = parse_datetime(until_str)
+                        if dt and timezone.is_naive(dt):
+                            dt = timezone.make_aware(dt)
+                        penalty.transfer_ban_until = dt
+                        penalty.transfer_ban_days = max(0, (dt - now).days) if dt and dt > now else 0
+                    else:
+                        penalty.transfer_ban_until = None
+                        penalty.transfer_ban_days = 0
+
+            # Re-evaluate team transfer ban status across all other active bans
+            other_active_bans = ClubPenalty.objects.filter(
+                team=team, status='ACTIVE'
+            ).exclude(id=penalty.id).filter(
+                transfer_ban_until__gt=now
+            ).order_by('-transfer_ban_until').first()
+
+            target_ban_until = None
+            if penalty.transfer_ban_until and penalty.transfer_ban_until > now:
+                target_ban_until = penalty.transfer_ban_until
+            if other_active_bans and other_active_bans.transfer_ban_until:
+                if target_ban_until is None or other_active_bans.transfer_ban_until > target_ban_until:
+                    target_ban_until = other_active_bans.transfer_ban_until
+
+            team.transfer_ban_until = target_ban_until
+            team.save(update_fields=['transfer_ban_until'])
+
+            # 5. Metadata and text fields
+            if 'title' in data and data['title']:
+                penalty.title = data['title'].strip()
+            if 'reason' in data and data['reason']:
+                penalty.reason = data['reason'].strip()
+            if 'official_verdict_text' in data:
+                penalty.official_verdict_text = (data['official_verdict_text'] or '').strip()
+            if 'case_number' in data and data['case_number']:
+                penalty.case_number = data['case_number'].strip()
+            if 'is_warning' in data:
+                penalty.is_warning = bool(data['is_warning'])
+
+            penalty.save()
+
+            # 6. Notify Coach
+            Notification.objects.create(
+                team=team,
+                category='DISCIPLINARY',
+                target_role='COACH',
+                title=f"⚖️ بازنگری و اصلاح حکم انضباطی: {penalty.title}",
+                message=f"حکم انضباطی شماره #{penalty.id} توسط مدیریت کمیته انضباطی بازنگری و اصلاح گردید.\nشرح دادنامه اصلاحی: {penalty.reason}"
+            )
+
+            # 7. Audit log
+            try:
+                log_admin_action(
+                    admin_user=request.user if request.user.is_authenticated else None,
+                    action_type='DISCIPLINARY_PENALTY_EDITED',
+                    target_team=team,
+                    reason=f"ویرایش حکم #{penalty.id}: {penalty.title}"
+                )
+            except Exception:
+                pass
+
+        return Response({
+            'status': 'حکم انضباطی با موفقیت بازنگری و اصلاح گردید.',
+            'penalty': ClubPenaltySerializer(penalty).data
+        })
+
+
 class TeamPenaltiesView(views.APIView):
     """
     Returns disciplinary penalties for a given team (or the current user's team).
