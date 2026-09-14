@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  Newspaper, RefreshCw, Copy, Check, Filter, Search, 
+import {
+  Newspaper, RefreshCw, Copy, Check, Filter, Search,
   ArrowRightLeft, CheckCircle2, XCircle, AlertCircle, AlertTriangle,
   Share2, DollarSign, Users, UserMinus, Flame, ExternalLink, Sparkles,
   Zap, ArrowUpRight, Trophy, Shield, Calendar, Clock, ShieldAlert,
-  RotateCcw, TrendingUp, TrendingDown, Eye, UserCheck, Scale,
+  RotateCcw, TrendingUp, TrendingDown, Eye, UserCheck, Scale, Gavel,
   ChevronRight, ChevronLeft, ChevronsRight, ChevronsLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -50,7 +50,7 @@ async function copyToClipboard(text) {
 
 export default function TransferNewsroom() {
   const { showToast } = useToast();
-  
+
   // Tab State
   const [activeMainTab, setActiveMainTab] = useState('NEWSROOM'); // 'NEWSROOM' | 'AUDIT'
 
@@ -247,7 +247,7 @@ export default function TransferNewsroom() {
     const headline = String(log?.news_headline || '');
     const content = String(log?.news_content || log?.description || '');
     const textToCopy = `${headline}\n\n${content}`;
-    
+
     const success = await copyToClipboard(textToCopy);
     if (success) {
       setCopiedId(log.id);
@@ -324,7 +324,7 @@ export default function TransferNewsroom() {
               </span>
             </div>
           )}
-          <button 
+          <button
             onClick={() => {
               if (activeMainTab === 'NEWSROOM') fetchLogs(currentPage, pageSize, filterType, searchQuery);
               else fetchAuditData(selectedAuditTeamId);
@@ -342,11 +342,10 @@ export default function TransferNewsroom() {
       <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
         <button
           onClick={() => setActiveMainTab('NEWSROOM')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black transition-all cursor-pointer ${
-            activeMainTab === 'NEWSROOM'
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeMainTab === 'NEWSROOM'
               ? 'bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/20 scale-[1.02]'
               : 'bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
-          }`}
+            }`}
         >
           <Newspaper size={16} />
           <span>اتاق خبر و رویدادهای زنده (Newsroom Feed)</span>
@@ -357,11 +356,10 @@ export default function TransferNewsroom() {
 
         <button
           onClick={() => setActiveMainTab('AUDIT')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black transition-all cursor-pointer ${
-            activeMainTab === 'AUDIT'
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black transition-all cursor-pointer ${activeMainTab === 'AUDIT'
               ? 'bg-gradient-to-r from-amber-500 to-rose-600 text-slate-950 shadow-lg shadow-amber-500/20 scale-[1.02]'
               : 'bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
-          }`}
+            }`}
         >
           <ShieldAlert size={16} className={activeMainTab === 'AUDIT' ? 'text-slate-950' : 'text-amber-400'} />
           <span>حسابرسی و ضد دلالی تیم‌ها (Anti-Brokerage Audit)</span>
@@ -438,11 +436,10 @@ export default function TransferNewsroom() {
                 <button
                   key={f.id}
                   onClick={() => handleFilterChange(f.id)}
-                  className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                    filterType === f.id
+                  className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${filterType === f.id
                       ? 'bg-cyan-500 text-slate-950 font-black shadow-md'
                       : 'bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
+                    }`}
                 >
                   {f.label}
                 </button>
@@ -492,40 +489,189 @@ export default function TransferNewsroom() {
 
                 const isLoan = details.offer_type === 'LOAN';
                 const isSwap = details.offer_type === 'SWAP';
-                const swapPlayers = details.swap_players_details || [];
+                const isDisciplinary = log.event_type === 'DISCIPLINARY_ACTION';
+                const penaltyDetails = log.penalty_details || {};
+
+                if (isDisciplinary) {
+                  return (
+                    <motion.div
+                      key={log.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="glass-panel rounded-3xl border border-amber-500/40 bg-gradient-to-b from-[#20100a] via-[#10080f] to-[#050911] transition-all shadow-xl relative overflow-hidden p-4 sm:p-5"
+                    >
+                      {/* Top Badge & Time Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-amber-500/20 pb-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-black px-3 py-1 rounded-xl tracking-wider font-sport flex items-center gap-1.5 shadow-md bg-gradient-to-r from-amber-500 to-red-600 text-slate-950">
+                            <Scale size={13} />
+                            <span>⚖️ رأی قطعی دادگاه کمیته انضباطی</span>
+                          </span>
+
+                          {penaltyDetails.case_number && (
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/30">
+                              {penaltyDetails.case_number}
+                            </span>
+                          )}
+
+                          <span className="text-xs font-black text-white">
+                            {log.news_headline}
+                          </span>
+                        </div>
+
+                        <div className="text-[11px] text-slate-400 font-sport dir-ltr flex items-center gap-1.5 self-start sm:self-auto">
+                          <Clock size={12} className="text-slate-500" />
+                          <span>{new Date(log.timestamp).toLocaleString('fa-IR')}</span>
+                        </div>
+                      </div>
+
+                      {/* Main Card Body */}
+                      <div className="py-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+                        {/* Left Column: Team Crest Frame */}
+                        <div className="lg:col-span-4 flex items-center gap-3.5 bg-[#08050e]/90 p-3 rounded-2xl border border-amber-500/20 shadow-inner">
+                          <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-b from-amber-950/50 to-slate-950 p-1 border border-amber-500/40 flex-shrink-0 flex items-center justify-center overflow-hidden shadow-lg">
+                            {penaltyDetails.team_logo ? (
+                              <img
+                                src={penaltyDetails.team_logo}
+                                alt={penaltyDetails.team_name || 'تیم'}
+                                className="w-full h-full object-contain rounded-xl p-1"
+                              />
+                            ) : (
+                              <Scale size={28} className="text-amber-400" />
+                            )}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[10px] text-amber-400 font-bold block">
+                              باشگاه متخلف پرونده:
+                            </span>
+                            <h4 className="text-sm font-black text-white truncate mt-0.5">
+                              {penaltyDetails.team_name || 'باشگاه تحت پیگرد'}
+                            </h4>
+                            <div className="text-xs text-rose-400 font-bold mt-1">
+                              {penaltyDetails.violation_type || 'تخلف انضباطی'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right Column: Sanctions Badges & Verdict Story */}
+                        <div className="lg:col-span-8 space-y-2.5">
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                            {Number(penaltyDetails.fine_budget_usd || 0) > 0 && (
+                              <span className="bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 px-3 py-1 rounded-xl font-bold flex items-center gap-1 shadow-sm">
+                                <DollarSign size={13} className="text-emerald-400" />
+                                <span>جریمه نقدی: ${Number(penaltyDetails.fine_budget_usd).toLocaleString()}</span>
+                              </span>
+                            )}
+
+                            {Number(penaltyDetails.fine_gems || 0) > 0 && (
+                              <span className="bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 px-3 py-1 rounded-xl font-bold flex items-center gap-1 shadow-sm">
+                                <span>💎 {penaltyDetails.fine_gems} جم</span>
+                              </span>
+                            )}
+
+                            {Number(penaltyDetails.points_deduction || 0) > 0 && (
+                              <span className="bg-purple-950/80 border border-purple-500/40 text-purple-300 px-3 py-1 rounded-xl font-bold flex items-center gap-1 shadow-sm">
+                                <Trophy size={13} className="text-purple-400" />
+                                <span>کسر {penaltyDetails.points_deduction} امتیاز جدول</span>
+                              </span>
+                            )}
+
+                            {penaltyDetails.transfer_ban_until && (
+                              <span className="bg-rose-950/80 border border-rose-500/40 text-rose-300 px-3 py-1 rounded-xl font-bold flex items-center gap-1 shadow-sm">
+                                <ShieldAlert size={13} className="text-rose-400" />
+                                <span>محرومیت از نقل‌وانتقالات</span>
+                              </span>
+                            )}
+
+                            {penaltyDetails.is_warning && (
+                              <span className="bg-amber-950/80 border border-amber-500/40 text-amber-300 px-3 py-1 rounded-xl font-bold flex items-center gap-1 shadow-sm">
+                                <AlertTriangle size={13} className="text-amber-400" />
+                                <span>اخطار کتبی رسمی</span>
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="bg-[#08050e]/70 p-3 rounded-2xl border border-slate-800/80 text-xs text-slate-200 leading-relaxed font-sans">
+                            <p className="line-clamp-3 whitespace-pre-line">
+                              {log.news_content || log.description}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Footer Actions */}
+                      <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2.5">
+                        <div className="text-[11px] text-amber-400/80 flex items-center gap-1.5">
+                          <Scale size={13} />
+                          <span>ابلاغیه رسمی سازمان لیگ مستر لیگ (VML)</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => handleCopyHeadlineOnly(log, e)}
+                            title="کپی تیتر دادنامه"
+                            className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                          >
+                            {isHeadlineCopied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                            <span>{isHeadlineCopied ? 'تیتر کپی شد!' : 'کپی تیتر'}</span>
+                          </button>
+
+                          <button
+                            onClick={() => setSelectedNewsModal(log)}
+                            className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-sm"
+                          >
+                            <Scale size={13} />
+                            <span>مشاهده دادنامه کامل</span>
+                          </button>
+
+                          <button
+                            onClick={(e) => handleCopyNews(log, e)}
+                            className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 font-sport shadow-lg ${
+                              isCopied
+                                ? 'bg-emerald-500 text-slate-950 font-black'
+                                : 'bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-slate-950'
+                            }`}
+                          >
+                            {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                            <span>{isCopied ? 'کپی شد! ✅' : 'کپی متن دادنامه 📋'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                }
 
                 return (
                   <motion.div
                     key={log.id}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`glass-panel rounded-3xl border transition-all shadow-xl relative overflow-hidden p-4 sm:p-5 ${
-                      isFinalized
+                    className={`glass-panel rounded-3xl border transition-all shadow-xl relative overflow-hidden p-4 sm:p-5 ${isFinalized
                         ? 'border-emerald-500/50 bg-gradient-to-b from-[#091a18] via-[#071118] to-[#050911]'
                         : isRollback
-                        ? 'border-rose-500/60 bg-gradient-to-b from-[#24080e] via-[#120709] to-[#050911]'
-                        : isCounter
-                        ? 'border-purple-500/50 bg-gradient-to-b from-[#170c26] via-[#0d0918] to-[#050911]'
-                        : isRelease || isLoanExpired
-                        ? 'border-amber-500/50 bg-gradient-to-b from-[#1a1309] via-[#0e0c08] to-[#050911]'
-                        : 'border-cyan-500/40 bg-gradient-to-b from-[#0a1326] via-[#070d18] to-[#050911]'
-                    }`}
+                          ? 'border-rose-500/60 bg-gradient-to-b from-[#24080e] via-[#120709] to-[#050911]'
+                          : isCounter
+                            ? 'border-purple-500/50 bg-gradient-to-b from-[#170c26] via-[#0d0918] to-[#050911]'
+                            : isRelease || isLoanExpired
+                              ? 'border-amber-500/50 bg-gradient-to-b from-[#1a1309] via-[#0e0c08] to-[#050911]'
+                              : 'border-cyan-500/40 bg-gradient-to-b from-[#0a1326] via-[#070d18] to-[#050911]'
+                      }`}
                   >
                     {/* Top Badge & Time Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-800/80 pb-3">
                       <div className="flex items-center gap-2 flex-wrap">
                         {/* Tag */}
-                        <span className={`text-[10px] font-black px-3 py-1 rounded-xl tracking-wider font-sport flex items-center gap-1.5 shadow-md ${
-                          isFinalized
+                        <span className={`text-[10px] font-black px-3 py-1 rounded-xl tracking-wider font-sport flex items-center gap-1.5 shadow-md ${isFinalized
                             ? 'bg-emerald-500 text-slate-950 shadow-emerald-500/20'
                             : isRollback
-                            ? 'bg-rose-600 text-white shadow-rose-600/30'
-                            : isCounter
-                            ? 'bg-purple-500 text-white shadow-purple-500/20'
-                            : isOffer
-                            ? 'bg-cyan-400 text-slate-950 shadow-cyan-500/20'
-                            : 'bg-amber-400 text-slate-950 shadow-amber-500/20'
-                        }`}>
+                              ? 'bg-rose-600 text-white shadow-rose-600/30'
+                              : isCounter
+                                ? 'bg-purple-500 text-white shadow-purple-500/20'
+                                : isOffer
+                                  ? 'bg-cyan-400 text-slate-950 shadow-cyan-500/20'
+                                  : 'bg-amber-400 text-slate-950 shadow-amber-500/20'
+                          }`}>
                           <Sparkles size={12} className="animate-pulse" />
                           <span>{isRollback ? '🚨 ابطال اضطراری معامله' : (details.romano_tag || (isFinalized ? '🚨 HERE WE GO!' : log.event_type_display))}</span>
                         </span>
@@ -543,14 +689,14 @@ export default function TransferNewsroom() {
 
                     {/* Main Card Body */}
                     <div className="py-4 grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
-                      
+
                       {/* Left Column: Player Face Frame */}
                       <div className="lg:col-span-4 flex items-center gap-3.5 bg-[#040711]/80 p-3 rounded-2xl border border-slate-800/90 shadow-inner">
                         <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-b from-slate-800 to-slate-950 p-1 border border-cyan-500/40 flex-shrink-0 flex items-center justify-center overflow-hidden shadow-lg group">
                           {playerPhoto ? (
-                            <img 
-                              src={playerPhoto} 
-                              alt={details.target_player_name || 'بازیکن'} 
+                            <img
+                              src={playerPhoto}
+                              alt={details.target_player_name || 'بازیکن'}
                               className="w-full h-full object-cover rounded-xl group-hover:scale-105 transition-transform"
                               onError={(e) => {
                                 e.target.style.display = 'none';
@@ -558,19 +704,18 @@ export default function TransferNewsroom() {
                               }}
                             />
                           ) : null}
-                          <div 
+                          <div
                             className={`w-full h-full items-center justify-center text-cyan-300 font-bold text-lg ${playerPhoto ? 'hidden' : 'flex'}`}
                           >
                             ⚽
                           </div>
                           {details.target_player_overall && (
-                            <span className={`absolute bottom-0 right-0 text-[10px] font-black font-sport px-1.5 py-0.5 rounded-tl-lg shadow ${
-                              Number(details.target_player_overall) >= 85 
-                                ? 'bg-emerald-500 text-slate-950' 
-                                : Number(details.target_player_overall) >= 80 
-                                ? 'bg-purple-500 text-white' 
-                                : 'bg-cyan-500 text-slate-950'
-                            }`}>
+                            <span className={`absolute bottom-0 right-0 text-[10px] font-black font-sport px-1.5 py-0.5 rounded-tl-lg shadow ${Number(details.target_player_overall) >= 85
+                                ? 'bg-emerald-500 text-slate-950'
+                                : Number(details.target_player_overall) >= 80
+                                  ? 'bg-purple-500 text-white'
+                                  : 'bg-cyan-500 text-slate-950'
+                              }`}>
                               {details.target_player_overall}
                             </span>
                           )}
@@ -681,11 +826,10 @@ export default function TransferNewsroom() {
 
                         <button
                           onClick={(e) => handleCopyNews(log, e)}
-                          className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 font-sport shadow-lg ${
-                            isCopied
+                          className={`px-4 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 font-sport shadow-lg ${isCopied
                               ? 'bg-emerald-500 text-slate-950 font-black'
                               : 'bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-slate-950'
-                          }`}
+                            }`}
                         >
                           {isCopied ? <Check size={14} /> : <Copy size={14} />}
                           <span>{isCopied ? 'کپی شد! ✅' : 'کپی متن رومانو 📋'}</span>
@@ -741,11 +885,10 @@ export default function TransferNewsroom() {
                       key={`page-${p}`}
                       onClick={() => handlePageChange(p)}
                       disabled={refreshing}
-                      className={`min-w-[34px] h-[34px] rounded-xl font-bold transition-all cursor-pointer ${
-                        isCurrent
+                      className={`min-w-[34px] h-[34px] rounded-xl font-bold transition-all cursor-pointer ${isCurrent
                           ? 'bg-gradient-to-r from-cyan-400 to-blue-500 text-slate-950 font-black shadow-lg shadow-cyan-500/30 scale-105'
                           : 'bg-slate-900 text-slate-300 hover:bg-slate-800 hover:text-white border border-slate-800/80'
-                      }`}
+                        }`}
                     >
                       {p}
                     </button>
@@ -772,11 +915,10 @@ export default function TransferNewsroom() {
                     key={size}
                     onClick={() => handlePageSizeChange(size)}
                     disabled={refreshing}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      pageSize === size
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${pageSize === size
                         ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
                         : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
-                    }`}
+                      }`}
                   >
                     {size}
                   </button>
@@ -808,11 +950,10 @@ export default function TransferNewsroom() {
             <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar text-xs font-bold font-sport">
               <button
                 onClick={() => handleSelectAuditTeam('all')}
-                className={`px-4 py-2 rounded-2xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 shadow-sm ${
-                  selectedAuditTeamId === 'all'
+                className={`px-4 py-2 rounded-2xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 shadow-sm ${selectedAuditTeamId === 'all'
                     ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black'
                     : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
-                }`}
+                  }`}
               >
                 <Users size={14} />
                 <span>همه تیم‌ها (دید کلی لیگ)</span>
@@ -822,11 +963,10 @@ export default function TransferNewsroom() {
                 <button
                   key={t.id}
                   onClick={() => handleSelectAuditTeam(t.id)}
-                  className={`px-3.5 py-2 rounded-2xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 border ${
-                    selectedAuditTeamId === t.id
+                  className={`px-3.5 py-2 rounded-2xl transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 border ${selectedAuditTeamId === t.id
                       ? 'bg-cyan-500 text-slate-950 font-black border-cyan-400 shadow-md scale-[1.02]'
                       : 'bg-slate-900/90 text-slate-300 hover:bg-slate-800 border-slate-800'
-                  }`}
+                    }`}
                 >
                   {t.logo ? (
                     <img src={t.logo} alt="" className="w-5 h-5 object-contain rounded-full" />
@@ -875,16 +1015,14 @@ export default function TransferNewsroom() {
               </div>
 
               {/* Card 3: Net Balance */}
-              <div className={`glass-panel p-4 rounded-2xl border flex items-center justify-between ${
-                auditData.summary.net_balance >= 0 
-                  ? 'border-cyan-500/30 bg-gradient-to-b from-cyan-950/20 to-slate-900/70' 
+              <div className={`glass-panel p-4 rounded-2xl border flex items-center justify-between ${auditData.summary.net_balance >= 0
+                  ? 'border-cyan-500/30 bg-gradient-to-b from-cyan-950/20 to-slate-900/70'
                   : 'border-amber-500/30 bg-gradient-to-b from-amber-950/20 to-slate-900/70'
-              }`}>
+                }`}>
                 <div>
                   <span className="text-[11px] text-cyan-300 font-bold block mb-1">تراز خالص نقل‌وانتقالات</span>
-                  <span className={`text-xl font-black font-sport ${
-                    auditData.summary.net_balance >= 0 ? 'text-[#00ff87]' : 'text-amber-400'
-                  }`}>
+                  <span className={`text-xl font-black font-sport ${auditData.summary.net_balance >= 0 ? 'text-[#00ff87]' : 'text-amber-400'
+                    }`}>
                     {auditData.summary.net_balance >= 0 ? '+' : ''}
                     ${Number(auditData.summary.net_balance || 0).toLocaleString()}
                   </span>
@@ -914,35 +1052,32 @@ export default function TransferNewsroom() {
               </div>
 
               {/* Card 5: Fraud / Brokerage Risk Score */}
-              <div className={`glass-panel p-4 rounded-2xl border flex items-center justify-between ${
-                auditData.summary.risk_score === 'HIGH'
+              <div className={`glass-panel p-4 rounded-2xl border flex items-center justify-between ${auditData.summary.risk_score === 'HIGH'
                   ? 'border-rose-500 bg-rose-950/40 shadow-rose-900/20 shadow-lg'
                   : auditData.summary.risk_score === 'MEDIUM'
-                  ? 'border-amber-500 bg-amber-950/30 shadow-amber-900/20 shadow-lg'
-                  : 'border-emerald-500/40 bg-emerald-950/20'
-              }`}>
+                    ? 'border-amber-500 bg-amber-950/30 shadow-amber-900/20 shadow-lg'
+                    : 'border-emerald-500/40 bg-emerald-950/20'
+                }`}>
                 <div>
                   <span className="text-[11px] text-slate-300 font-bold block mb-1">شاخص ریسک دلالی / تبانی</span>
-                  <span className={`text-xs font-black block mt-1 ${
-                    auditData.summary.risk_score === 'HIGH'
+                  <span className={`text-xs font-black block mt-1 ${auditData.summary.risk_score === 'HIGH'
                       ? 'text-rose-400'
                       : auditData.summary.risk_score === 'MEDIUM'
-                      ? 'text-amber-300'
-                      : 'text-emerald-400'
-                  }`}>
+                        ? 'text-amber-300'
+                        : 'text-emerald-400'
+                    }`}>
                     {auditData.summary.risk_label}
                   </span>
                   <span className="text-[10px] text-slate-400 block mt-1 font-sport">
                     {auditData.summary.high_flags_count} پرخطر | {auditData.summary.med_flags_count} متوسط
                   </span>
                 </div>
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                  auditData.summary.risk_score === 'HIGH'
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${auditData.summary.risk_score === 'HIGH'
                     ? 'bg-rose-600 text-white'
                     : auditData.summary.risk_score === 'MEDIUM'
-                    ? 'bg-amber-500 text-slate-950'
-                    : 'bg-emerald-500/20 text-emerald-400'
-                }`}>
+                      ? 'bg-amber-500 text-slate-950'
+                      : 'bg-emerald-500/20 text-emerald-400'
+                  }`}>
                   <ShieldAlert size={22} />
                 </div>
               </div>
@@ -966,13 +1101,12 @@ export default function TransferNewsroom() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {auditData.trading_partners.map(tp => (
-                  <div 
-                    key={tp.partner_id} 
-                    className={`p-3 rounded-2xl border flex items-center justify-between ${
-                      tp.is_suspicious 
-                        ? 'bg-rose-950/30 border-rose-500/50 shadow-md' 
+                  <div
+                    key={tp.partner_id}
+                    className={`p-3 rounded-2xl border flex items-center justify-between ${tp.is_suspicious
+                        ? 'bg-rose-950/30 border-rose-500/50 shadow-md'
                         : 'bg-slate-900/70 border-slate-800'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-2.5">
                       {tp.partner_logo ? (
@@ -991,9 +1125,8 @@ export default function TransferNewsroom() {
                     </div>
 
                     <div className="text-left">
-                      <span className={`text-xs font-black px-2 py-0.5 rounded-lg font-sport ${
-                        tp.is_suspicious ? 'bg-rose-600 text-white animate-pulse' : 'bg-slate-800 text-cyan-300'
-                      }`}>
+                      <span className={`text-xs font-black px-2 py-0.5 rounded-lg font-sport ${tp.is_suspicious ? 'bg-rose-600 text-white animate-pulse' : 'bg-slate-800 text-cyan-300'
+                        }`}>
                         {tp.total_deals} معامله
                       </span>
                       {tp.is_suspicious && (
@@ -1022,11 +1155,10 @@ export default function TransferNewsroom() {
                 <button
                   key={f.id}
                   onClick={() => setAuditFilterFlag(f.id)}
-                  className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
-                    auditFilterFlag === f.id
+                  className={`px-3 py-1.5 rounded-xl transition-all cursor-pointer whitespace-nowrap ${auditFilterFlag === f.id
                       ? 'bg-amber-500 text-slate-950 font-black shadow-md'
                       : 'bg-slate-800/80 text-slate-400 hover:text-white hover:bg-slate-800'
-                  }`}
+                    }`}
                 >
                   {f.label}
                 </button>
@@ -1071,13 +1203,12 @@ export default function TransferNewsroom() {
                     key={tx.history_id}
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`glass-panel p-4 sm:p-5 rounded-3xl border transition-all shadow-lg relative ${
-                      hasHighRisk
+                    className={`glass-panel p-4 sm:p-5 rounded-3xl border transition-all shadow-lg relative ${hasHighRisk
                         ? 'border-rose-500/60 bg-gradient-to-b from-[#1c080d] via-[#0d070b] to-[#040711]'
                         : hasMedRisk
-                        ? 'border-amber-500/50 bg-gradient-to-b from-[#181106] via-[#0d0b07] to-[#040711]'
-                        : 'border-slate-800 bg-[#070b16]'
-                    }`}
+                          ? 'border-amber-500/50 bg-gradient-to-b from-[#181106] via-[#0d0b07] to-[#040711]'
+                          : 'border-slate-800 bg-[#070b16]'
+                      }`}
                   >
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
                       {/* Player & Photo Column */}
@@ -1132,13 +1263,12 @@ export default function TransferNewsroom() {
                           </span>
 
                           {tx.price_ratio && tx.market_value > 0 && (
-                            <span className={`px-2.5 py-1 rounded-xl border font-bold text-[11px] ${
-                              tx.price_ratio > 2.5
+                            <span className={`px-2.5 py-1 rounded-xl border font-bold text-[11px] ${tx.price_ratio > 2.5
                                 ? 'bg-rose-950 text-rose-300 border-rose-500'
                                 : tx.price_ratio < 0.4
-                                ? 'bg-amber-950 text-amber-300 border-amber-500'
-                                : 'bg-slate-800 text-slate-300 border-slate-700'
-                            }`}>
+                                  ? 'bg-amber-950 text-amber-300 border-amber-500'
+                                  : 'bg-slate-800 text-slate-300 border-slate-700'
+                              }`}>
                               نسبت به ارزش بازار: {tx.price_ratio}x
                             </span>
                           )}
@@ -1152,14 +1282,13 @@ export default function TransferNewsroom() {
                         {tx.risk_flags && tx.risk_flags.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 pt-1">
                             {tx.risk_flags.map((rf, idx) => (
-                              <span 
-                                key={idx} 
+                              <span
+                                key={idx}
                                 title={rf.description}
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border flex items-center gap-1 ${
-                                  rf.level === 'HIGH'
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border flex items-center gap-1 ${rf.level === 'HIGH'
                                     ? 'bg-rose-950 text-rose-200 border-rose-500'
                                     : 'bg-amber-950 text-amber-200 border-amber-500'
-                                }`}
+                                  }`}
                               >
                                 <AlertTriangle size={10} />
                                 <span>{rf.title}</span>
@@ -1205,7 +1334,7 @@ export default function TransferNewsroom() {
           {selectedNewsModal && (
             <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md overflow-y-auto font-sans dir-rtl">
               <div className="fixed inset-0" onClick={() => setSelectedNewsModal(null)} />
-              
+
               <motion.div
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -1231,11 +1360,17 @@ export default function TransferNewsroom() {
                 <div className="rounded-2xl border border-cyan-500/30 overflow-hidden bg-gradient-to-b from-[#09152b] via-[#050b18] to-[#02050c] p-5 shadow-2xl space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
                     <div className="flex items-center gap-2">
-                      <span className="bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded font-sport animate-pulse">
-                        BREAKING
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded font-sport ${
+                        selectedNewsModal.event_type === 'DISCIPLINARY_ACTION'
+                          ? 'bg-amber-500 text-slate-950'
+                          : 'bg-red-600 text-white animate-pulse'
+                      }`}>
+                        {selectedNewsModal.event_type === 'DISCIPLINARY_ACTION' ? 'TRIBUNAL' : 'BREAKING'}
                       </span>
-                      <span className="text-xs font-black text-cyan-400 font-sport tracking-wider">
-                        VML EXCLUSIVE | FABRIZIO ROMANO
+                      <span className={`text-xs font-black font-sport tracking-wider ${
+                        selectedNewsModal.event_type === 'DISCIPLINARY_ACTION' ? 'text-amber-400' : 'text-cyan-400'
+                      }`}>
+                        {selectedNewsModal.event_type === 'DISCIPLINARY_ACTION' ? 'VML DISCIPLINARY TRIBUNAL' : 'VML EXCLUSIVE | FABRIZIO ROMANO'}
                       </span>
                     </div>
                     <span className="text-[11px] text-slate-400 font-sport">
@@ -1243,57 +1378,106 @@ export default function TransferNewsroom() {
                     </span>
                   </div>
 
-                  {selectedNewsModal.offer_details?.target_player_name && (
-                    <div className="flex items-center justify-between gap-4 bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
-                      <div className="flex items-center gap-3">
-                        <div className="w-14 h-14 rounded-xl bg-slate-950 border border-cyan-500/40 overflow-hidden p-0.5 flex items-center justify-center">
-                          {selectedNewsModal.offer_details?.target_player_photo ? (
-                            <img 
-                              src={selectedNewsModal.offer_details.target_player_photo} 
-                              alt="" 
-                              className="w-full h-full object-cover rounded-lg"
-                            />
-                          ) : (
-                            <span className="text-xl">⚽</span>
-                          )}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            {selectedNewsModal.offer_details.target_player_position && (
-                              <span className="text-[10px] font-black bg-cyan-950 text-cyan-300 px-1.5 py-0.5 rounded font-sport">
-                                {selectedNewsModal.offer_details.target_player_position}
+                  {selectedNewsModal.event_type === 'DISCIPLINARY_ACTION' ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-4 bg-gradient-to-r from-amber-950/40 via-slate-900 to-slate-950 p-3.5 rounded-2xl border border-amber-500/30">
+                        <div className="flex items-center gap-3">
+                          <div className="w-14 h-14 rounded-xl bg-slate-950 border border-amber-500/40 p-1 flex items-center justify-center">
+                            {selectedNewsModal.penalty_details?.team_logo ? (
+                              <img 
+                                src={selectedNewsModal.penalty_details.team_logo} 
+                                alt="" 
+                                className="w-full h-full object-contain rounded-lg"
+                              />
+                            ) : (
+                              <Scale className="text-amber-400" size={24} />
+                            )}
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-amber-400 font-bold block">
+                              طرف متخلف پرونده انضباطی:
+                            </span>
+                            <span className="text-xs font-black text-white">
+                              باشگاه {selectedNewsModal.penalty_details?.team_name || 'تیم'}
+                            </span>
+                            {selectedNewsModal.penalty_details?.case_number && (
+                              <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                                کلاسه دادنامه: {selectedNewsModal.penalty_details.case_number}
                               </span>
                             )}
-                            <span className="text-xs font-black text-white">
-                              {selectedNewsModal.offer_details.target_player_name}
-                            </span>
                           </div>
-                          {selectedNewsModal.offer_details.target_player_overall && (
-                            <span className="text-[11px] text-emerald-400 font-sport font-bold block mt-0.5">
-                              RATING: {selectedNewsModal.offer_details.target_player_overall}
-                            </span>
-                          )}
+                        </div>
+
+                        <div className="text-left">
+                          <span className="px-2.5 py-1 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold">
+                            رأی قطعی دادگاه
+                          </span>
                         </div>
                       </div>
 
-                      {selectedNewsModal.offer_details.cash_amount > 0 && (
-                        <div className="text-left font-sport">
-                          <span className="text-[10px] text-slate-400 block">FEE</span>
-                          <span className="text-sm font-black text-emerald-400">
-                            ${Number(selectedNewsModal.offer_details.cash_amount).toLocaleString()}
-                          </span>
+                      <div className="text-sm font-black text-amber-300 leading-snug border-b border-slate-800/80 pb-2.5">
+                        {selectedNewsModal.news_headline}
+                      </div>
+
+                      <div className="text-xs text-slate-200 leading-relaxed whitespace-pre-line bg-[#03060f]/80 p-3.5 rounded-xl border border-slate-800/70 select-text font-mono max-h-72 overflow-y-auto custom-scrollbar">
+                        {selectedNewsModal.penalty_details?.official_verdict_text || selectedNewsModal.news_content || selectedNewsModal.description}
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {selectedNewsModal.offer_details?.target_player_name && (
+                        <div className="flex items-center justify-between gap-4 bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
+                          <div className="flex items-center gap-3">
+                            <div className="w-14 h-14 rounded-xl bg-slate-950 border border-cyan-500/40 overflow-hidden p-0.5 flex items-center justify-center">
+                              {selectedNewsModal.offer_details?.target_player_photo ? (
+                                <img
+                                  src={selectedNewsModal.offer_details.target_player_photo}
+                                  alt=""
+                                  className="w-full h-full object-cover rounded-lg"
+                                />
+                              ) : (
+                                <span className="text-xl">⚽</span>
+                              )}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                {selectedNewsModal.offer_details.target_player_position && (
+                                  <span className="text-[10px] font-black bg-cyan-950 text-cyan-300 px-1.5 py-0.5 rounded font-sport">
+                                    {selectedNewsModal.offer_details.target_player_position}
+                                  </span>
+                                )}
+                                <span className="text-xs font-black text-white">
+                                  {selectedNewsModal.offer_details.target_player_name}
+                                </span>
+                              </div>
+                              {selectedNewsModal.offer_details.target_player_overall && (
+                                <span className="text-[11px] text-emerald-400 font-sport font-bold block mt-0.5">
+                                  RATING: {selectedNewsModal.offer_details.target_player_overall}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {selectedNewsModal.offer_details.cash_amount > 0 && (
+                            <div className="text-left font-sport">
+                              <span className="text-[10px] text-slate-400 block">FEE</span>
+                              <span className="text-sm font-black text-emerald-400">
+                                ${Number(selectedNewsModal.offer_details.cash_amount).toLocaleString()}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
-                    </div>
+
+                      <div className="text-sm font-black text-cyan-300 leading-snug border-b border-slate-800/80 pb-2.5">
+                        {selectedNewsModal.news_headline}
+                      </div>
+
+                      <div className="text-xs text-slate-200 leading-relaxed whitespace-pre-line bg-[#03060f]/80 p-3.5 rounded-xl border border-slate-800/70 select-text">
+                        {selectedNewsModal.news_content || selectedNewsModal.description}
+                      </div>
+                    </>
                   )}
-
-                  <div className="text-sm font-black text-cyan-300 leading-snug border-b border-slate-800/80 pb-2.5">
-                    {selectedNewsModal.news_headline}
-                  </div>
-
-                  <div className="text-xs text-slate-200 leading-relaxed whitespace-pre-line bg-[#03060f]/80 p-3.5 rounded-xl border border-slate-800/70 select-text">
-                    {selectedNewsModal.news_content || selectedNewsModal.description}
-                  </div>
                 </div>
 
                 <div className="flex items-center justify-end gap-2 pt-2">

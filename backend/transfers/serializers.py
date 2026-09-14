@@ -611,15 +611,37 @@ class TransferLogSerializer(serializers.ModelSerializer):
     news_headline = serializers.SerializerMethodField()
     news_content = serializers.SerializerMethodField()
     offer_details = serializers.SerializerMethodField()
+    penalty_details = serializers.SerializerMethodField()
 
     class Meta:
         model = TransferLog
         fields = [
             'id', 'event_type', 'event_type_display', 'description', 
-            'related_offer', 'timestamp', 'news_headline', 'news_content', 'offer_details'
+            'related_offer', 'timestamp', 'news_headline', 'news_content', 
+            'offer_details', 'penalty_details'
         ]
 
+    def get_penalty_details(self, obj):
+        if obj.event_type != 'DISCIPLINARY_ACTION':
+            return None
+        import json
+        try:
+            if obj.description and obj.description.strip().startswith('{'):
+                return json.loads(obj.description)
+        except Exception:
+            pass
+        return {
+            'title': 'حکم انضباطی',
+            'details_str': obj.description,
+            'official_verdict_text': obj.description
+        }
+
     def get_news_headline(self, obj):
+        if obj.event_type == 'DISCIPLINARY_ACTION':
+            pd = self.get_penalty_details(obj) or {}
+            t_name = pd.get('team_name') or 'باشگاه'
+            title = pd.get('title') or 'تخلف انضباطی'
+            return f"⚖️ دادنامه انضباطی: محکومیت باشگاه «{t_name}» ({title})"
         try:
             headline, _ = _get_romano_headline_and_content(obj)
             return headline
@@ -627,6 +649,9 @@ class TransferLogSerializer(serializers.ModelSerializer):
             return "📰 گزارش رسمی نقل‌وانتقالات مستر لیگ"
 
     def get_news_content(self, obj):
+        if obj.event_type == 'DISCIPLINARY_ACTION':
+            pd = self.get_penalty_details(obj) or {}
+            return pd.get('official_verdict_text') or pd.get('details_str') or str(obj.description or '')
         try:
             _, content = _get_romano_headline_and_content(obj)
             return content

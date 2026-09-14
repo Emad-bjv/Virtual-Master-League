@@ -6,10 +6,49 @@ import {
   Gem, Trophy, Ban, CheckCircle2, XCircle, Search, Filter,
   RefreshCw, Calendar, Clock, AlertCircle, Sparkles, Send,
   RotateCcw, ChevronDown, Check, Info, FileText, ChevronLeft,
-  Users, ArrowRight, ShieldCheck
+  Users, ArrowRight, ShieldCheck, Copy, Share2, Eye, ScrollText,
+  Bookmark
 } from 'lucide-react';
 import { disciplinaryApi } from '../../services/api';
 import { useToast } from '../components/Toast';
+import {
+  generateDisciplinaryVerdict,
+  formatVerdictForTelegram,
+  getViolationVariantsCount,
+  formatPersianDate
+} from '../../utils/disciplinaryTemplates';
+
+// Bulletproof Clipboard copy utility with fallback for non-secure / LAN contexts
+async function copyToClipboard(text) {
+  if (!text) return false;
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (err) {
+    console.warn('navigator.clipboard failed, attempting fallback textarea copy:', err);
+  }
+
+  try {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    textArea.style.opacity = '0';
+    textArea.setAttribute('readonly', '');
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    return successful;
+  } catch (err) {
+    console.error('Fallback execCommand copy failed:', err);
+    return false;
+  }
+}
 
 // Formats USD currency nicely
 const formatUSD = (val) => {
@@ -46,7 +85,7 @@ export default function AdminDisciplinary() {
   const { showToast } = useToast();
 
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState('RECORDS'); // 'RECORDS' | 'ISSUE' | 'CLUBS'
+  const [activeTab, setActiveTab] = useState('RECORDS'); // 'RECORDS' | 'VERDICTS' | 'ISSUE' | 'CLUBS'
 
   // Overview data
   const [overview, setOverview] = useState({
@@ -88,9 +127,18 @@ export default function AdminDisciplinary() {
     transfer_ban_until: '',
     is_warning: false,
     publish_to_newsroom: true,
+    case_number: '',
+    official_verdict_text: '',
   };
   const [formData, setFormData] = useState(initialFormState);
   const [submitting, setSubmitting] = useState(false);
+
+  // Smart Legal Engine Variant & Copy states
+  const [variantIndex, setVariantIndex] = useState(0);
+  const [copiedTelegramId, setCopiedTelegramId] = useState(null);
+
+  // Full Court Ruling Modal State
+  const [fullVerdictModalPenalty, setFullVerdictModalPenalty] = useState(null);
 
   // Revoke Modal State
   const [selectedPenaltyForRevoke, setSelectedPenaltyForRevoke] = useState(null);
@@ -99,6 +147,133 @@ export default function AdminDisciplinary() {
 
   // Detail Modal State
   const [detailPenalty, setDetailPenalty] = useState(null);
+
+  // Selected team & tournament helpers
+  const selectedTeam = useMemo(() => {
+    return (overview.teams || []).find((t) => String(t.id) === String(formData.team_id));
+  }, [overview.teams, formData.team_id]);
+
+  const selectedTournament = useMemo(() => {
+    return (overview.tournaments || []).find((t) => String(t.id) === String(formData.tournament_id));
+  }, [overview.tournaments, formData.tournament_id]);
+
+  // Live Smart Disciplinary Verdict Generator
+  const currentGeneratedVerdict = useMemo(() => {
+    return generateDisciplinaryVerdict({
+      violationType: formData.violation_type,
+      teamName: selectedTeam ? selectedTeam.name : 'باشگاه مربوطه',
+      tournamentName: selectedTournament ? selectedTournament.name : null,
+      title: formData.title,
+      reason: formData.reason,
+      fineBudgetUsd: formData.fine_budget_usd,
+      fineGems: formData.fine_gems,
+      pointsDeduction: formData.points_deduction,
+      transferBanDays: formData.has_transfer_ban && formData.ban_mode === 'DAYS' ? formData.transfer_ban_days : 0,
+      transferBanUntil: formData.has_transfer_ban && formData.ban_mode === 'DATE' ? formData.transfer_ban_until : null,
+      isWarning: formData.is_warning,
+      variantIndex,
+      caseNumber: formData.case_number,
+    });
+  }, [
+    formData.violation_type,
+    selectedTeam,
+    selectedTournament,
+    formData.title,
+    formData.reason,
+    formData.fine_budget_usd,
+    formData.fine_gems,
+    formData.points_deduction,
+    formData.has_transfer_ban,
+    formData.ban_mode,
+    formData.transfer_ban_days,
+    formData.transfer_ban_until,
+    formData.is_warning,
+    variantIndex,
+    formData.case_number,
+  ]);
+
+  // Handle cycling through non-repetitive judicial drafts
+  const handleCycleVariant = () => {
+    const totalVariants = getViolationVariantsCount(formData.violation_type);
+    const nextIndex = (variantIndex + 1) % totalVariants;
+    setVariantIndex(nextIndex);
+
+    const newVerdict = generateDisciplinaryVerdict({
+      violationType: formData.violation_type,
+      teamName: selectedTeam ? selectedTeam.name : 'باشگاه مربوطه',
+      tournamentName: selectedTournament ? selectedTournament.name : null,
+      title: '', // will pick template title
+      reason: formData.reason,
+      fineBudgetUsd: formData.fine_budget_usd,
+      fineGems: formData.fine_gems,
+      pointsDeduction: formData.points_deduction,
+      transferBanDays: formData.has_transfer_ban && formData.ban_mode === 'DAYS' ? formData.transfer_ban_days : 0,
+      transferBanUntil: formData.has_transfer_ban && formData.ban_mode === 'DATE' ? formData.transfer_ban_until : null,
+      isWarning: formData.is_warning,
+      variantIndex: nextIndex,
+      caseNumber: formData.case_number,
+    });
+
+    setFormData((prev) => ({
+      ...prev,
+      title: newVerdict.title,
+      official_verdict_text: newVerdict.fullVerdictText,
+    }));
+    showToast(`نگارش دادنامه تغییر کرد (قالب حقوقی ${nextIndex + 1} از ${totalVariants})`, 'info');
+  };
+
+  // Copy Telegram Post for an existing penalty
+  const handleCopyTelegramVerdict = async (penalty, e) => {
+    if (e) e.stopPropagation();
+    const text = formatVerdictForTelegram({
+      caseNumber: penalty.case_number || `VML-JD-${penalty.id}`,
+      teamName: penalty.team_name,
+      title: penalty.title,
+      reason: penalty.reason,
+      fineBudgetUsd: penalty.fine_budget_usd,
+      fineGems: penalty.fine_gems,
+      pointsDeduction: penalty.points_deduction,
+      transferBanUntil: penalty.transfer_ban_until,
+      transferBanDays: penalty.transfer_ban_days,
+      isWarning: penalty.is_warning,
+      tournamentName: penalty.tournament_name,
+      officialVerdictText: penalty.official_verdict_text,
+    });
+
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopiedTelegramId(penalty.id);
+      showToast('متن رسمی دادنامه به فرمت تلگرام کپی شد! 📋', 'success');
+      setTimeout(() => setCopiedTelegramId(null), 2500);
+    } else {
+      showToast('خطا در کپی متن!', 'error');
+    }
+  };
+
+  // Copy Draft Telegram Post directly from Issue Form
+  const handleCopyDraftTelegram = async () => {
+    const text = formatVerdictForTelegram({
+      caseNumber: formData.case_number || currentGeneratedVerdict.caseNumber,
+      teamName: selectedTeam?.name || 'باشگاه مربوطه',
+      title: formData.title || currentGeneratedVerdict.title,
+      reason: formData.reason,
+      fineBudgetUsd: formData.fine_budget_usd,
+      fineGems: formData.fine_gems,
+      pointsDeduction: formData.points_deduction,
+      transferBanUntil: formData.has_transfer_ban && formData.ban_mode === 'DATE' ? formData.transfer_ban_until : null,
+      transferBanDays: formData.has_transfer_ban && formData.ban_mode === 'DAYS' ? formData.transfer_ban_days : 0,
+      isWarning: formData.is_warning,
+      tournamentName: selectedTournament?.name,
+      officialVerdictText: formData.official_verdict_text || currentGeneratedVerdict.fullVerdictText,
+    });
+
+    const success = await copyToClipboard(text);
+    if (success) {
+      showToast('پیش‌نویس متن دادنامه برای تلگرام کپی شد! 📋', 'success');
+    } else {
+      showToast('خطا در کپی متن!', 'error');
+    }
+  };
 
   // Load Overview Data
   const fetchOverview = useCallback(async () => {
@@ -139,6 +314,20 @@ export default function AdminDisciplinary() {
 
   // Handle applying a standard template
   const handleSelectTemplate = (template) => {
+    const newVerdict = generateDisciplinaryVerdict({
+      violationType: template.code,
+      teamName: selectedTeam ? selectedTeam.name : 'باشگاه مربوطه',
+      tournamentName: selectedTournament ? selectedTournament.name : null,
+      title: template.title,
+      reason: template.description,
+      fineBudgetUsd: template.default_fine_usd,
+      fineGems: template.default_fine_gems,
+      pointsDeduction: template.default_points,
+      transferBanDays: template.default_ban_days,
+      isWarning: false,
+      variantIndex: 0,
+    });
+
     setFormData((prev) => ({
       ...prev,
       violation_type: template.code,
@@ -151,8 +340,10 @@ export default function AdminDisciplinary() {
       transfer_ban_days: template.default_ban_days,
       ban_mode: 'DAYS',
       transfer_ban_until: '',
+      official_verdict_text: newVerdict.fullVerdictText,
     }));
-    showToast(`قالب تخلف «${template.title}» اعمال شد`, 'info');
+    setVariantIndex(0);
+    showToast(`قالب تخلف «${template.title}» و دادنامه رسمی اعمال شد`, 'info');
   };
 
   // Quick Days Preset for Transfer Ban
@@ -184,6 +375,9 @@ export default function AdminDisciplinary() {
 
     try {
       setSubmitting(true);
+      const verdictText = (formData.official_verdict_text || currentGeneratedVerdict.fullVerdictText).trim();
+      const caseNum = (formData.case_number || currentGeneratedVerdict.caseNumber).trim();
+
       const payload = {
         team_id: parseInt(formData.team_id, 10),
         violation_type: formData.violation_type,
@@ -197,14 +391,16 @@ export default function AdminDisciplinary() {
         transfer_ban_until: formData.has_transfer_ban && formData.ban_mode === 'DATE' && formData.transfer_ban_until ? formData.transfer_ban_until : null,
         is_warning: formData.is_warning,
         publish_to_newsroom: formData.publish_to_newsroom,
+        case_number: caseNum,
+        official_verdict_text: verdictText,
       };
 
       await disciplinaryApi.issuePenalty(payload);
-      showToast('حکم انضباطی با موفقیت صادر و بر روی باشگاه اعمال شد.', 'success');
+      showToast('حکم و دادنامه انضباطی با موفقیت صادر و ابلاغ شد.', 'success');
       
-      // Reset form and switch to records view
+      // Reset form and switch to verdicts view
       setFormData(initialFormState);
-      setActiveTab('RECORDS');
+      setActiveTab('VERDICTS');
       fetchOverview();
       fetchRecords();
     } catch (err) {
@@ -312,9 +508,25 @@ export default function AdminDisciplinary() {
             }`}
           >
             <FileText size={15} />
-            <span>سوابق و احکام صادرشده</span>
+            <span>سوابق و پرونده‌ها</span>
             <span className="px-1.5 py-0.2 rounded-full bg-slate-800 text-[10px] text-slate-300">
               {overview.stats?.total_penalties || 0}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('VERDICTS')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'VERDICTS'
+                ? 'bg-gradient-to-r from-amber-500/30 to-red-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900/50'
+            }`}
+          >
+            <Scale size={15} className="text-amber-400" />
+            <span>تالار احکام و دادنامه‌های رسمی</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-[10px] text-amber-300 font-black">
+              رسمی
             </span>
           </button>
 
@@ -621,6 +833,247 @@ export default function AdminDisciplinary() {
                           >
                             <RotateCcw size={13} />
                             <span>لغو / بخشش حکم</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: OFFICIAL VERDICTS & TRIBUNAL PRESS ROOM                              */}
+      {/* ========================================================================= */}
+      {activeTab === 'VERDICTS' && (
+        <div className="space-y-4">
+          {/* Banner Info */}
+          <div className="p-5 rounded-3xl bg-gradient-to-r from-slate-950 via-[#150a08] to-slate-950 border border-amber-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                <Scale size={24} />
+              </div>
+              <div>
+                <h2 className="text-base font-black text-white flex items-center gap-2">
+                  <span>تالار احکام و دادنامه‌های رسمی کمیته انضباطی</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    VML JUDICIAL PRESS
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-400 mt-1">
+                  مشاهده بیانیه‌های رسمی، دانلود و کپی احکام صادره جهت انتشار عمومی در کانال‌های ارتباطی و تلگرام
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('ISSUE')}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-slate-950 font-black text-xs transition-all shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Gavel size={15} />
+                <span>صدور دادنامه جدید</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+              <div className="relative flex-1">
+                <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="جستجو در متن دادنامه، شماره پرونده یا نام تیم..."
+                  className="w-full pl-3 pr-9 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                value={teamFilter}
+                onChange={(e) => setTeamFilter(e.target.value)}
+                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-amber-500/50"
+              >
+                <option value="ALL">همه باشگاه‌ها</option>
+                {(overview.teams || []).map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Court Verdicts Cards */}
+          {loadingRecords ? (
+            <div className="p-12 text-center rounded-3xl bg-slate-900/40 border border-slate-800 flex flex-col items-center justify-center">
+              <div className="w-8 h-8 border-2 border-amber-400 border-t-transparent rounded-full animate-spin mb-3"></div>
+              <p className="text-xs text-slate-400 font-bold">در حال بارگذاری احکام و دادنامه‌ها...</p>
+            </div>
+          ) : records.length === 0 ? (
+            <div className="p-12 text-center rounded-3xl bg-slate-900/40 border border-slate-800">
+              <ScrollText size={48} className="mx-auto text-slate-600 mb-3" />
+              <h3 className="text-base font-bold text-slate-300">هیچ دادنامه انضباطی ثبت نشده است</h3>
+              <p className="text-xs text-slate-500 mt-1">با ثبت اولین حکم، دادنامه رسمی در این بخش درج خواهد شد.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {records.map((penalty) => {
+                const isActive = penalty.status === 'ACTIVE';
+                const isTelegramCopied = copiedTelegramId === penalty.id;
+                const caseNum = penalty.case_number || `VML-JD-${penalty.id}`;
+
+                return (
+                  <motion.div
+                    key={penalty.id}
+                    layout
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-3xl p-5 border border-amber-500/30 bg-gradient-to-b from-slate-900/90 via-[#0e0c14] to-slate-950 shadow-xl relative overflow-hidden flex flex-col justify-between"
+                  >
+                    {/* Top Court Header */}
+                    <div>
+                      <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-800/90 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="p-1 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                            <Scale size={14} />
+                          </span>
+                          <span className="font-mono font-bold text-amber-300 text-[11px]">
+                            {caseNum}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-slate-400">
+                            {formatDateFa(penalty.created_at)}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${
+                            isActive
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          }`}>
+                            {isActive ? 'لازم‌الاجرا' : 'بخشیده‌شده'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Team Info & Violation Category */}
+                      <div className="flex items-center gap-3 my-3">
+                        {penalty.team_logo ? (
+                          <img
+                            src={penalty.team_logo}
+                            alt={penalty.team_name}
+                            className="w-12 h-12 object-contain rounded-2xl bg-slate-950 p-1 border border-slate-800 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center font-black text-sm text-slate-400 shrink-0">
+                            {(penalty.team_name || 'تیم').slice(0, 2)}
+                          </div>
+                        )}
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-black text-white truncate m-0">
+                              {penalty.team_name}
+                            </h4>
+                            {penalty.tournament_name && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-950/60 text-purple-300 border border-purple-500/30">
+                                {penalty.tournament_name}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-amber-400 font-bold mt-0.5">
+                            {penalty.violation_type_display || penalty.violation_type}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Ruling Title & Excerpt */}
+                      <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800/80 mb-3 space-y-1.5">
+                        <div className="text-xs font-black text-slate-100 flex items-center gap-1.5">
+                          <Gavel size={13} className="text-amber-400 shrink-0" />
+                          <span>{penalty.title}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-3">
+                          {penalty.official_verdict_text || penalty.reason}
+                        </p>
+                      </div>
+
+                      {/* Sanction Badges */}
+                      <div className="flex flex-wrap items-center gap-1.5 mb-4">
+                        {penalty.fine_budget_usd > 0 && (
+                          <span className="px-2.5 py-1 rounded-lg bg-emerald-950/60 text-emerald-400 border border-emerald-500/30 text-[10.5px] font-bold flex items-center gap-1">
+                            <DollarSign size={11} />
+                            {formatUSD(penalty.fine_budget_usd)} جریمه
+                          </span>
+                        )}
+                        {penalty.fine_gems > 0 && (
+                          <span className="px-2.5 py-1 rounded-lg bg-cyan-950/60 text-cyan-400 border border-cyan-500/30 text-[10.5px] font-bold flex items-center gap-1">
+                            <Gem size={11} />
+                            {penalty.fine_gems} جم
+                          </span>
+                        )}
+                        {penalty.points_deduction > 0 && (
+                          <span className="px-2.5 py-1 rounded-lg bg-purple-950/60 text-purple-400 border border-purple-500/30 text-[10.5px] font-bold flex items-center gap-1">
+                            <Trophy size={11} />
+                            کسر {penalty.points_deduction} امتیاز
+                          </span>
+                        )}
+                        {penalty.transfer_ban_until && (
+                          <span className="px-2.5 py-1 rounded-lg bg-rose-950/60 text-rose-300 border border-rose-500/30 text-[10.5px] font-bold flex items-center gap-1">
+                            <Ban size={11} />
+                            محرومیت تا {formatDateFa(penalty.transfer_ban_until)}
+                          </span>
+                        )}
+                        {penalty.is_warning && (
+                          <span className="px-2.5 py-1 rounded-lg bg-amber-950/60 text-amber-300 border border-amber-500/30 text-[10.5px] font-bold flex items-center gap-1">
+                            <AlertTriangle size={11} />
+                            اخطار رسمی
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFullVerdictModalPenalty(penalty)}
+                        className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                      >
+                        <ScrollText size={13} />
+                        <span>مشاهده دادنامه کامل 📜</span>
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => handleCopyTelegramVerdict(penalty, e)}
+                          className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                        >
+                          {isTelegramCopied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                          <span>{isTelegramCopied ? 'کپی شد! ✅' : 'کپی متن تلگرام 📋'}</span>
+                        </button>
+
+                        {isActive && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPenaltyForRevoke(penalty);
+                              setRevokeReason('');
+                            }}
+                            className="p-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 transition-all cursor-pointer"
+                            title="لغو / بخشش حکم"
+                          >
+                            <RotateCcw size={14} />
                           </button>
                         )}
                       </div>
@@ -997,6 +1450,105 @@ export default function AdminDisciplinary() {
               </div>
             </div>
 
+            {/* Official Court Verdict Generator & Preview Section */}
+            <div className="p-5 rounded-2xl bg-gradient-to-b from-slate-950 via-[#120e18] to-slate-950 border border-amber-500/30 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    <ScrollText size={18} />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black text-amber-300">
+                      انشای هوشمند متن دادنامه و بیانیه رسمی (Smart Legal Engine)
+                    </h3>
+                    <p className="text-[11px] text-slate-400">
+                      تولید متون قضایی غیرتکراری و رسمی متناسب با تخلف، استناد به آیین‌نامه و آماده‌سازی جهت نشر خبری
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCycleVariant}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    title="تغییر ادبیات و نگارش دادنامه"
+                  >
+                    <RotateCcw size={13} />
+                    <span>تغییر نگارش دادنامه ({variantIndex + 1} از {getViolationVariantsCount(formData.violation_type)})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCopyDraftTelegram}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  >
+                    <Copy size={13} />
+                    <span>کپی پیش‌نویس تلگرام</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Court Case Number & Live Preview Card */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                    شماره رسمی پرونده دادنامه (Case Number):
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.case_number}
+                    onChange={(e) => setFormData({ ...formData, case_number: e.target.value })}
+                    placeholder={currentGeneratedVerdict.caseNumber}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-amber-300 focus:outline-none focus:border-amber-500/50"
+                  />
+                  <span className="text-[10px] text-slate-500 mt-1 block">در صورت خالی بودن، شماره خودکار تخصیص می‌یابد</span>
+                </div>
+
+                <div className="md:col-span-2 p-3 rounded-xl bg-slate-900/80 border border-slate-800/80 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-amber-400 font-bold">پیش‌نمایش ارکان دادنامه:</span>
+                    <span className="text-slate-500 font-mono">{formData.case_number || currentGeneratedVerdict.caseNumber}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-300">
+                    <strong>مرجع استناد:</strong> {currentGeneratedVerdict.legalRef}
+                  </div>
+                  <div className="text-[10px] text-slate-400 leading-relaxed">
+                    <strong>گردش‌کار:</strong> {currentGeneratedVerdict.preamble}
+                  </div>
+                </div>
+              </div>
+
+              {/* Full Verdict Textarea */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-300">
+                    متن کامل دادنامه رسمی (قابل ویرایش دستی توسط مدیر یا انتشار مستقیم):
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        official_verdict_text: currentGeneratedVerdict.fullVerdictText,
+                      }));
+                      showToast('متن دادنامه با مقادیر جاری بازسازی شد', 'info');
+                    }}
+                    className="text-[10px] text-amber-400 hover:text-amber-300 underline cursor-pointer"
+                  >
+                    بازسازی مجدد از قالب هوشمند
+                  </button>
+                </div>
+                <textarea
+                  value={formData.official_verdict_text || currentGeneratedVerdict.fullVerdictText}
+                  onChange={(e) => setFormData({ ...formData, official_verdict_text: e.target.value })}
+                  rows={8}
+                  className="w-full bg-slate-900/90 border border-slate-800 rounded-2xl p-4 text-xs font-mono text-slate-200 leading-relaxed focus:outline-none focus:border-amber-500/50 select-text"
+                  placeholder="متن کامل دادنامه رسمی در اینجا قرار می‌گیرد..."
+                />
+              </div>
+            </div>
+
             {/* Actions */}
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
               <button
@@ -1301,6 +1853,142 @@ export default function AdminDisciplinary() {
                   >
                     بستن
                   </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* ========================================================================= */}
+      {/* FULL COURT VERDICT MODAL (Mandatory React Portal)                         */}
+      {/* ========================================================================= */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {fullVerdictModalPenalty && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md overflow-y-auto font-sans dir-rtl">
+              <div className="fixed inset-0" onClick={() => setFullVerdictModalPenalty(null)} />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="relative z-10 bg-gradient-to-b from-slate-950 via-[#0d0a14] to-slate-950 border border-amber-500/40 rounded-3xl w-full max-w-2xl my-auto p-6 md:p-8 shadow-2xl text-slate-100 dir-rtl space-y-5"
+                onClick={(e) => e.stopPropagation()}
+                style={{ fontFamily: 'Vazirmatn, Tahoma, sans-serif' }}
+              >
+                {/* Court Letterhead */}
+                <div className="text-center border-b border-amber-500/30 pb-4 relative">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/40 mx-auto flex items-center justify-center text-amber-400 mb-2 shadow-lg shadow-amber-500/10">
+                    <Scale size={32} />
+                  </div>
+                  <div className="text-xs font-black text-amber-400 tracking-wider">
+                    سازمان لیگ فوتبال مجازی (VML) • فدراسیون ورزش‌های الکترونیک
+                  </div>
+                  <h2 className="text-lg font-black text-white mt-1">
+                    دادنامه رسمی شعبه اول کمیته انضباطی
+                  </h2>
+                  <div className="flex items-center justify-center gap-4 text-[11px] text-slate-400 mt-2 font-mono">
+                    <span>شماره دادنامه: <strong className="text-amber-300">{fullVerdictModalPenalty.case_number || `VML-JD-${fullVerdictModalPenalty.id}`}</strong></span>
+                    <span>•</span>
+                    <span>تاریخ صدور: <strong className="text-slate-200">{formatDateFa(fullVerdictModalPenalty.created_at)}</strong></span>
+                  </div>
+                </div>
+
+                {/* Offending Club Banner */}
+                <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    {fullVerdictModalPenalty.team_logo ? (
+                      <img
+                        src={fullVerdictModalPenalty.team_logo}
+                        alt=""
+                        className="w-12 h-12 object-contain rounded-xl bg-slate-950 p-1 border border-slate-800"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center font-bold text-slate-300">
+                        {(fullVerdictModalPenalty.team_name || 'تیم').slice(0, 2)}
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-[10px] text-slate-400 block">طرف متخلف پرونده:</span>
+                      <span className="text-sm font-black text-white">باشگاه {fullVerdictModalPenalty.team_name}</span>
+                    </div>
+                  </div>
+
+                  <div className="text-left">
+                    <span className={`px-2.5 py-1 rounded-xl text-xs font-bold ${
+                      fullVerdictModalPenalty.status === 'ACTIVE'
+                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                    }`}>
+                      {fullVerdictModalPenalty.status_display}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Full Official Verdict Text / Story */}
+                <div className="bg-slate-950/90 border border-slate-800/90 rounded-2xl p-4 max-h-80 overflow-y-auto text-xs leading-relaxed text-slate-200 whitespace-pre-wrap font-mono select-text custom-scrollbar">
+                  {fullVerdictModalPenalty.official_verdict_text || fullVerdictModalPenalty.reason}
+                </div>
+
+                {/* Sanction Badges Summary */}
+                <div className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
+                  <span className="text-[11px] font-bold text-amber-400 block">
+                    خلاصه تنبیهات اجرایی حکم:
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    {fullVerdictModalPenalty.fine_budget_usd > 0 && (
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 font-bold">
+                        {formatUSD(fullVerdictModalPenalty.fine_budget_usd)} جریمه نقدی
+                      </span>
+                    )}
+                    {fullVerdictModalPenalty.fine_gems > 0 && (
+                      <span className="px-2.5 py-1 rounded-lg bg-cyan-950/80 text-cyan-400 border border-cyan-500/30 font-bold">
+                        {fullVerdictModalPenalty.fine_gems} جم
+                      </span>
+                    )}
+                    {fullVerdictModalPenalty.points_deduction > 0 && (
+                      <span className="px-2.5 py-1 rounded-lg bg-purple-950/80 text-purple-400 border border-purple-500/30 font-bold">
+                        کسر {fullVerdictModalPenalty.points_deduction} امتیاز
+                      </span>
+                    )}
+                    {fullVerdictModalPenalty.transfer_ban_until && (
+                      <span className="px-2.5 py-1 rounded-lg bg-rose-950/80 text-rose-300 border border-rose-500/30 font-bold">
+                        محرومیت نقل‌وانتقالات تا {formatDateFa(fullVerdictModalPenalty.transfer_ban_until)}
+                      </span>
+                    )}
+                    {fullVerdictModalPenalty.is_warning && (
+                      <span className="px-2.5 py-1 rounded-lg bg-amber-950/80 text-amber-300 border border-amber-500/30 font-bold">
+                        اخطار کتبی رسمی
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-800">
+                  <div className="text-[11px] text-slate-500">
+                    دبیرخانه رکن قضایی لیگ مستر لیگ
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFullVerdictModalPenalty(null)}
+                      className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition-all cursor-pointer"
+                    >
+                      بستن
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(e) => handleCopyTelegramVerdict(fullVerdictModalPenalty, e)}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-400 hover:to-red-500 text-slate-950 font-black text-xs transition-all shadow-lg flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    >
+                      <Copy size={14} />
+                      <span>کپی متن جهت انتشار در تلگرام 📋</span>
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             </div>

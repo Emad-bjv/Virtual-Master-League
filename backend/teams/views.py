@@ -1908,6 +1908,26 @@ STANDARD_VIOLATIONS = [
         'description': 'رفتار ناشایست، بی‌احترامی به حریف یا لیدرهای لیگ در رسانه‌ها یا حین بازی.'
     },
     {
+        'code': 'REFEREE_ADMIN_INSULT',
+        'title': 'توهین به داور یا مسئولین برگزاری مسابقات',
+        'default_fine_usd': 120000,
+        'default_fine_gems': 60,
+        'default_points': 1,
+        'default_ban_days': 10,
+        'severity': 'HIGH',
+        'description': 'هرگونه الفاظ رکیک، توهین، هتک حرمت یا تهدید علیه داور و کادر اجرایی مسابقات.'
+    },
+    {
+        'code': 'INELIGIBLE_PLAYER',
+        'title': 'استفاده از بازیکن غیرمجاز یا محروم در ترکیب',
+        'default_fine_usd': 200000,
+        'default_fine_gems': 80,
+        'default_points': 3,
+        'default_ban_days': 7,
+        'severity': 'HIGH',
+        'description': 'بازی دادن بازیکن دارای محرومیت انضباطی، کارت قرمز، مصدومیت یا ثبت‌نشده در لیست رسمی.'
+    },
+    {
         'code': 'FORFEIT_RAGE_QUIT',
         'title': 'ترک بازی یکطرفه یا عدم انجام مسابقه',
         'default_fine_usd': 150000,
@@ -2092,6 +2112,8 @@ class AdminDisciplinaryIssueView(views.APIView):
         tournament_id = data.get('tournament_id')
         is_warning = bool(data.get('is_warning', False))
         publish_to_newsroom = bool(data.get('publish_to_newsroom', True))
+        case_number = (data.get('case_number') or '').strip()
+        official_verdict_text = (data.get('official_verdict_text') or '').strip()
 
         now = timezone.now()
         calculated_ban_until = None
@@ -2117,6 +2139,8 @@ class AdminDisciplinaryIssueView(views.APIView):
                 violation_type=violation_type,
                 title=title,
                 reason=reason,
+                case_number=case_number,
+                official_verdict_text=official_verdict_text,
                 fine_budget_usd=fine_budget_usd,
                 fine_gems=fine_gems,
                 tournament=tournament_obj,
@@ -2127,6 +2151,10 @@ class AdminDisciplinaryIssueView(views.APIView):
                 publish_to_newsroom=publish_to_newsroom,
                 status='ACTIVE'
             )
+
+            if not penalty.case_number:
+                penalty.case_number = f"VML-JD-{now.year}-{penalty.id:04d}"
+                penalty.save(update_fields=['case_number'])
 
             # 1. Financial deduction (Negative budget allowed as club debt)
             if fine_budget_usd > 0:
@@ -2191,11 +2219,33 @@ class AdminDisciplinaryIssueView(views.APIView):
                 message=f"باشگاه شما مشمول حکم انضباطی گردید.\nجزئیات: {details_str}\nشرح رای: {reason}"
             )
 
-            # 5. Newsroom log
+            # 5. Newsroom log with rich structured verdict payload
             if publish_to_newsroom:
+                import json
+                verdict_payload = {
+                    'penalty_id': penalty.id,
+                    'case_number': penalty.case_number,
+                    'team_id': team.id,
+                    'team_name': team.name,
+                    'team_logo': getattr(team.logo, 'url', None) if team.logo else None,
+                    'tournament_name': tournament_obj.name if tournament_obj else None,
+                    'violation_type': violation_type,
+                    'violation_type_display': penalty.get_violation_type_display(),
+                    'title': title,
+                    'reason': reason,
+                    'fine_budget_usd': float(fine_budget_usd),
+                    'fine_gems': fine_gems,
+                    'points_deduction': points_deduction,
+                    'transfer_ban_days': transfer_ban_days,
+                    'transfer_ban_until': calculated_ban_until.isoformat() if calculated_ban_until else None,
+                    'is_warning': is_warning,
+                    'official_verdict_text': penalty.official_verdict_text,
+                    'details_str': details_str,
+                    'created_at': penalty.created_at.isoformat() if penalty.created_at else now.isoformat(),
+                }
                 TransferLog.objects.create(
                     event_type='DISCIPLINARY_ACTION',
-                    description=f"⚖️ بیانیه کمیته انضباطی: باشگاه «{team.name}» به علت «{title}» محکوم شد ({details_str})."
+                    description=json.dumps(verdict_payload, ensure_ascii=False)
                 )
 
             # 6. Audit log

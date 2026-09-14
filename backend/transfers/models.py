@@ -183,6 +183,7 @@ class TransferLog(models.Model):
         ('LOAN_EXPIRED', 'پایان قرارداد قرضی'),
         ('FREE_AGENT_SIGNED', 'جذب بازیکن آزاد'),
         ('ADMIN_ROLLBACK', 'ابطال اضطراری توسط ادمین'),
+        ('DISCIPLINARY_ACTION', 'حکم و دادنامه کمیته انضباطی'),
     ]
 
     event_type = models.CharField(max_length=30, choices=EVENT_TYPES, verbose_name="نوع رویداد")

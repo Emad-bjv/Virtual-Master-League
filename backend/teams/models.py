@@ -577,10 +577,12 @@ class ClubPenalty(models.Model):
     VIOLATION_CHOICES = [
         ('MATCH_DELAY', 'تاخیر در حضور برای مسابقه'),
         ('NO_GAMEPLAN', 'عدم ثبت یا ارسال ترکیب قبل از مسابقه'),
-        ('MATCH_FIXING_CHEATING', 'تبانی، دستکاری نتایج یا تقلب'),
         ('UNSPORTSMANLIKE', 'توهین، الفاظ نامناسب یا رفتار غیرورزشی'),
-        ('TRANSFER_VIOLATION', 'تخلف در بازار نقل‌وانتقالات'),
+        ('REFEREE_ADMIN_INSULT', 'توهین به داور یا مسئولین برگزاری مسابقات'),
+        ('INELIGIBLE_PLAYER', 'استفاده از بازیکن غیرمجاز یا محروم در ترکیب'),
         ('FORFEIT_RAGE_QUIT', 'ترک بازی یکطرفه یا عدم انجام مسابقه'),
+        ('TRANSFER_VIOLATION', 'تخلف در بازار نقل‌وانتقالات'),
+        ('MATCH_FIXING_CHEATING', 'تبانی، دستکاری نتایج یا تقلب'),
         ('CUSTOM', 'سایر تخلفات (سفارشی)'),
     ]
 
@@ -599,6 +601,14 @@ class ClubPenalty(models.Model):
     )
     title = models.CharField(max_length=200, verbose_name="عنوان حکم انضباطی")
     reason = models.TextField(verbose_name="شرح تخلف و دلایل حکم")
+
+    # Official Court Ruling & Docket Info
+    case_number = models.CharField(
+        max_length=50, blank=True, default='', verbose_name="شماره دادنامه رسمی"
+    )
+    official_verdict_text = models.TextField(
+        blank=True, default='', verbose_name="متن کامل دادنامه قضایی"
+    )
 
     # Financial penalties
     fine_budget_usd = models.DecimalField(
