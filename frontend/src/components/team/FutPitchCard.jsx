@@ -7,6 +7,7 @@ import futCardBaseImg from '../../assets/fut_card_base.png';
 import legendaryCardBg from '../../assets/cards/legendary_card_bg.png';
 import epicCardBg from '../../assets/cards/epic_card_bg.png';
 import rareCardBg from '../../assets/cards/rare_card_bg.png';
+import { getCardKitName, getCardNameTypography } from '../../utils/playerNameUtils';
 
 // Contour silhouette glow shadows per pack tier
 const PACK_GLOW_SHADOWS = {
@@ -233,13 +234,28 @@ export default function FutPitchCard({
     : ovr >= 80 ? 'text-emerald-300'
     : 'text-slate-200';
 
+  const kitName = getCardKitName(player?.name);
+  const fullName = String(player?.name || 'بازیکن');
+
   return (
     <div
       onClick={onClick}
-      className={`flex flex-col items-center cursor-pointer select-none group transition-all duration-150 ${
+      title={fullName}
+      className={`relative flex flex-col items-center cursor-pointer select-none group transition-all duration-150 ${
         isDimmed ? 'opacity-35' : 'opacity-100'
       } ${isSelected ? 'scale-105' : 'hover:scale-103'}`}
     >
+      {/* Sleek Glassmorphism Floating Tooltip on Hover */}
+      <div className="hidden md:group-hover:flex absolute -top-8 left-1/2 -translate-x-1/2 z-50 pointer-events-none flex-col items-center animate-in fade-in zoom-in-95 duration-150 drop-shadow-xl">
+        <div className="px-2.5 py-1 rounded-xl bg-slate-950/95 backdrop-blur-md border border-white/20 text-[10px] font-bold text-white shadow-2xl flex items-center gap-1.5 whitespace-nowrap">
+          <span className={`font-sport font-black ${ovrColor}`}>{ovr}</span>
+          <span className="text-slate-500 font-normal">|</span>
+          <span dir="ltr" className="text-white font-black">{fullName}</span>
+          {player?.isCaptain && <span className="text-amber-400 font-black">©</span>}
+        </div>
+        <div className="w-1.5 h-1.5 -mt-1 rotate-45 bg-slate-950/95 border-r border-b border-white/20" />
+      </div>
+
       <div
         className={`relative ${widthClass} ${heightClass} flex items-center justify-center transition-all ${
           isSelected
@@ -385,9 +401,12 @@ export default function FutPitchCard({
 
         {/* Player Name Banner at Bottom of Card */}
         <div className="absolute bottom-1.5 sm:bottom-2.5 left-0.5 right-0.5 sm:left-1 sm:right-1 flex flex-col items-center leading-none px-0.5 sm:px-1 z-20">
-          <div className="text-[7px] xs:text-[8px] sm:text-[9.5px] md:text-[11px] font-black text-white truncate max-w-full text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
-            {player?.isCaptain && <span className="text-amber-400 ml-0.5">©</span>}
-            {player?.name || 'بازیکن'}
+          <div
+            dir="ltr"
+            className={`${getCardNameTypography(kitName)} text-white max-w-full text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] font-sport uppercase truncate select-none`}
+          >
+            {player?.isCaptain && <span className="text-amber-400 mr-0.5">©</span>}
+            {kitName}
           </div>
 
           {/* Micro Stamina Bar */}
