@@ -1,6 +1,6 @@
 /**
  * VML Disciplinary Tribunal Smart Legal Engine
- * Generates rich, authentic, and non-repetitive Persian judicial court rulings and official news statements.
+ * Generates rich, authentic, non-repetitive Persian judicial court rulings and official news statements.
  */
 
 // Helper to format currency and numbers
@@ -26,21 +26,23 @@ export const formatPersianDate = (isoDate) => {
 };
 
 /**
- * Multiple authentic judicial templates per violation category
+ * Multiple authentic judicial templates & realistic violation scenarios per violation category
  */
 export const VERDICT_VARIANTS = {
   REFEREE_ADMIN_INSULT: [
     {
       title: 'هتک حرمت و توهین مستقیم به داور مسابقه',
+      incidentExplanation: 'استعمال الفاظ رکیک، توهین و تهدید مستقیم نسبت به داور مسابقه در چت‌روم سرور پس از پایان بازی.',
       preamble: (team, tour) =>
         `در خصوص گزارش واصله از سوی دپارتمان داوری و ناظر رسمی ${tour ? `مسابقات ${tour}` : 'سازمان لیگ'} پیرامون وقایع انضباطی رخ‌داده توسط عوامل و منتسبین باشگاه «${team}»، جلسه فوق‌العاده شعبه اول کمیته انضباطی تشکیل گردید.`,
       findings: (reason) =>
-        `با عنایت به بازبینی مستندات دیداری، شنیداری و گزارش مکتوب کوبل داوری، احراز گردید که فرد یا افراد خاطی اقدام به استعمال الفاظ موهن، تهدید و بی‌احترامی نسبت به تیم داوری نموده‌اند که مصداق بارز نقض حریم اخلاق حرفه‌ای است. شرح واقعه: ${reason}`,
+        `با عنایت به بازبینی مستندات دیداری، شنیداری و گزارش مکتوب کوبل داوری، احراز گردید که فرد یا افراد خاطی اقدام به نقض حریم اخلاق حرفه‌ای نموده‌اند. شرح واقعه: ${reason}`,
       legalRef: 'مستنداً به مواد ۳۴، ۴۱ و بند «ب» آیین‌نامه انضباطی و انطباق آن با دستورالعمل مصونیت داوران',
       appealTerms: 'رأی صادره پس از ابلاغ لازم‌الاجرا بوده و ظرف مدت ۴۸ ساعت قابل تجدیدنظرخواهی در کمیته استیناف سازمان لیگ می‌باشد.',
     },
     {
       title: 'بی‌احترامی و رفتار موهن در قبال کادر اجرایی و مدیریت لیگ',
+      incidentExplanation: 'اظهارات موهن و خارج از شئون ورزشی علیه مسئولین اجرایی و ناظران در گروه رسمی تلگرام مسابقات.',
       preamble: (team, tour) =>
         `پرونده کلاسه مطروحه علیه باشگاه «${team}» در پی رفتارهای ساختارشکنانه و اظهارات خارج از شئون ورزشی علیه مسئولین برگزاری ${tour ? `رقابت‌های ${tour}` : 'لیگ'} در دستور کار رسیدگی فوری رکن قضایی قرار گرفت.`,
       findings: (reason) =>
@@ -50,6 +52,7 @@ export const VERDICT_VARIANTS = {
     },
     {
       title: 'اخلال در روند برگزاری و اهانت به ارکان قضاوت مسابقه',
+      incidentExplanation: 'ایجاد تشنج و هتاکی به ارکان قضاوت مسابقه در اعتراض به تصمیمات فنی داوری در جریان مسابقه زنده.',
       preamble: (team, tour) =>
         `رکن قضایی لیگ مجازی مستر لیگ، بر اساس وظایف ذاتی و صیانت از کرامت عوامل قضاوت در ${tour ? `تورنمنت ${tour}` : 'جام مسابقات'}، پرونده انضباطی باشگاه «${team}» را مورد رسیدگی دقیق قرار داد.`,
       findings: (reason) =>
@@ -62,6 +65,7 @@ export const VERDICT_VARIANTS = {
   INELIGIBLE_PLAYER: [
     {
       title: 'استفاده غیرقانونی از بازیکن دارای محرومیت انضباطی',
+      incidentExplanation: 'قرار دادن بازیکن دارای محرومیت قطعی ناشی از دریافت ۳ کارت زرد در ارنج مسابقه رسمی لیگ.',
       preamble: (team, tour) =>
         `در پی استعلام دپارتمان مسابقات و اعتراض رسمی ثبت‌شده در خصوص حضور بازیکن غیرمجاز در ترکیب تیم «${team}» در ${tour ? `چارچوب ${tour}` : 'مسابقات جاری'}، پرونده جهت صدور حکم مقتضی به این کمیته ارجاع شد.`,
       findings: (reason) =>
@@ -71,6 +75,7 @@ export const VERDICT_VARIANTS = {
     },
     {
       title: 'تخلف در بهره‌گیری از بازیکن مصدوم و نقض پروتکل سلامت',
+      incidentExplanation: 'دور زدن سیستم پزشکی و بازی دادن بازیکن مصدوم دارای منع پزشکی بدون مجوز رسمی سلامت.',
       preamble: (team, tour) =>
         `جلسه رسیدگی به تخلف اداری-فنی باشگاه «${team}» مبنی بر دور زدن سیستم پزشکی و لیست سلامت بازیکنان در مسابقه رسمی ${tour || 'لیگ'} تشکیل گردید.`,
       findings: (reason) =>
@@ -80,6 +85,7 @@ export const VERDICT_VARIANTS = {
     },
     {
       title: 'حضور بازیکن ثبت‌نشده و دور زدن فهرست رسمی مسابقه',
+      incidentExplanation: 'دستکاری اسلات‌های قانونی و بازی دادن بازیکن ثبت‌نشده و بدون قرارداد معتبر در ترکیب تیم.',
       preamble: (team, tour) =>
         `کمیته انضباطی سازمان لیگ در راستای شفاف‌سازی و عدالت رقابتی، مستندات مربوط به ارنج غیرقانونی تیم «${team}» در ${tour || 'مسابقات'} را مورد بررسی قرار داد.`,
       findings: (reason) =>
@@ -92,6 +98,7 @@ export const VERDICT_VARIANTS = {
   UNSPORTSMANLIKE: [
     {
       title: 'رفتار ناشایست و نقض موازین اخلاق ورزشی',
+      incidentExplanation: 'اتلاف وقت عمدی و مکرر در جریان بازی و نقض روح ورزش جوانمردانه.',
       preamble: (team, tour) =>
         `به دنبال حواشی ایجاد شده در جریان ${tour ? `دیدار تیم‌های مسابقات ${tour}` : 'مسابقه اخیر'} و بروز رفتارهای مغایر با روح جوانمردانه از سوی باشگاه «${team}»، جلسه انضباطی برگزار گردید.`,
       findings: (reason) =>
@@ -101,6 +108,7 @@ export const VERDICT_VARIANTS = {
     },
     {
       title: 'نقض اصول بازی جوانمردانه و حاشیه‌سازی رسانه‌ای',
+      incidentExplanation: 'انتشار بیانیه‌های تحریک‌آمیز و حاشیه‌سازی غیرورزشی علیه کادر فنی تیم حریف پیش از بازی.',
       preamble: (team, tour) =>
         `رکن قضایی سازمان لیگ در پی وصول شکایت باشگاه رقیب و گزارش‌های ثبت‌شده پیرامون بیانیه‌ها و اقدامات تنش‌زای باشگاه «${team}» تشکیل جلسه داد.`,
       findings: (reason) =>
@@ -113,6 +121,7 @@ export const VERDICT_VARIANTS = {
   MATCH_DELAY: [
     {
       title: 'تاخیر غیرموجه در حضور برای مسابقه رسمی',
+      incidentExplanation: 'تاخیر غیرموجه بیش از ۲۰ دقیقه در ورود به سرور مسابقه و معطلی کادر برگزاری و تیم حریف.',
       preamble: (team, tour) =>
         `پرونده تاخیر در برگزاری مسابقه ${tour ? `در چارچوب رقابت‌های ${tour}` : 'رسمی لیگ'} منتسب به باشگاه «${team}» در کمیته انضباطی مفتوح و بررسی شد.`,
       findings: (reason) =>
@@ -122,6 +131,7 @@ export const VERDICT_VARIANTS = {
     },
     {
       title: 'اخلال در کنداکتور رسمی و عدم رعایت وقت مقرر',
+      incidentExplanation: 'بی‌پاسخ ماندن تماس‌های مکرر داور و تاخیر ۲۵ دقیقه‌ای که منجر به برهم خوردن جدول پخش زنده شد.',
       preamble: (team, tour) =>
         `با توجه به سیاست‌های مصوب سازمان لیگ مبنی بر نظم آهنین و پخش زنده دقیق دیدارها، تاخیر حادث‌شده از سوی تیم «${team}» بررسی گردید.`,
       findings: (reason) =>
@@ -134,10 +144,11 @@ export const VERDICT_VARIANTS = {
   NO_GAMEPLAN: [
     {
       title: 'تخلف عدم تایید و ارسال ارنج پیش از بازی',
+      incidentExplanation: 'عدم ارسال و تایید چیدمان تاکتیکی و ترکیب نهایی تیم تا پایان موعد ضرب‌الاجل (Deadline).',
       preamble: (team, tour) =>
         `گزارش واحد فناوری و برگزاری مسابقات پیرامون عدم ثبت تاکتیک و ارنج نهایی تیم «${team}» در سامانه، در دستور کار کمیته انضباطی قرار گرفت.`,
       findings: (reason) =>
-        `سیستم اتوماسیون تایید می‌نماید که تا پایان مهلت رسمی ضرب‌الاجل (Deadline)، اقدامی جهت نهایی‌سازی ترکیب صورت نگرفته و سیستم ناچار به اعمال ترکیب پیش‌فرض شده است. شرح: ${reason}`,
+        `سیستم اتوماسیون تایید می‌نماید که تا پایان مهلت رسمی ضرب‌الاجل، اقدامی جهت نهایی‌سازی ترکیب صورت نگرفته و سیستم ناچار به اعمال ترکیب پیش‌فرض شده است. شرح: ${reason}`,
       legalRef: 'به استناد آیین‌نامه ثبت ترکیب و تدارک الکترونیک مسابقات لیگ',
       appealTerms: 'جریمه نقدی بلافاصله از بودجه تیم کسر شده و قطعی تلقی می‌گردد.',
     },
@@ -146,8 +157,9 @@ export const VERDICT_VARIANTS = {
   FORFEIT_RAGE_QUIT: [
     {
       title: 'ترک یکطرفه مسابقه رسمی و نقض تعهدات رقابتی',
+      incidentExplanation: 'قطع عمدی اتصال و خروج یکطرفه از بازی (Rage Quit) در نیمه دوم در شرایط دریافت گل‌های متوالی.',
       preamble: (team, tour) =>
-        `در خصوص مسابقه ${tour ? `از تورنمنت ${tour}` : 'رسمی'} که با اقدام به خروج پیش از موعد (Rage Quit) از سوی باشگاه «${team}» نیمه‌کاره ماند، کمیته انضباطی تشکیل جلسه داد.`,
+        `در خصوص مسابقه ${tour ? `از تورنمنت ${tour}` : 'رسمی'} که با اقدام به خروج پیش از موعد از سوی باشگاه «${team}» نیمه‌کاره ماند، کمیته انضباطی تشکیل جلسه داد.`,
       findings: (reason) =>
         `بررسی لاگ‌های سرور و گزارش فنی مسابقه اثبات نمود که قطع ارتباط عمدی و از روی انصراف یکطرفه بوده و موجب تضییع حقوق حریف و تماشاگران شده است. شرح مستندات: ${reason}`,
       legalRef: 'به استناد ماده ۶۲ آیین‌نامه انضباطی ناظر بر اعلام باخت فنی ۳-۰ و اعمال تنبیهات تکمیلی',
@@ -155,6 +167,7 @@ export const VERDICT_VARIANTS = {
     },
     {
       title: 'عدم حضور غیرموجه در میدان مسابقه و استنکاف از بازی',
+      incidentExplanation: 'غیبت کامل و عدم مراجعه به سرور بازی در زمان مسابقه رسمی بدون ارائه مدرک موجه.',
       preamble: (team, tour) =>
         `پرونده استنکاف تیم «${team}» از انجام بازی رسمی برابر حریف، با حضور اعضای رکن قضایی فدراسیون مورد بررسی حقوقی قرار گرفت.`,
       findings: (reason) =>
@@ -167,6 +180,7 @@ export const VERDICT_VARIANTS = {
   TRANSFER_VIOLATION: [
     {
       title: 'تخلف در بازار نقل‌وانتقالات و توافقات غیرقانونی',
+      incidentExplanation: 'ثبت انتقال صوری و مشکوک خارج از عرف بازار با هدف دور زدن سقف بودجه فیرپلی مالی (FFP).',
       preamble: (team, tour) =>
         `در پی پایش هوشمند سامانه حسابرسی معاملات (Transfer Audit System) و کشف معامله مشکوک منسوب به باشگاه «${team}»، پرونده جهت رسیدگی قضایی ارجاع گردید.`,
       findings: (reason) =>
@@ -179,6 +193,7 @@ export const VERDICT_VARIANTS = {
   MATCH_FIXING_CHEATING: [
     {
       title: 'فساد ورزشی، تبانی مستقیم و دستکاری تعمدی نتایج',
+      incidentExplanation: 'تبانی مستقیم دو تیم در دریافت گل‌های مشکوک و عمدی جهت دستکاری تفاضل گل و جدول رده‌بندی.',
       preamble: (team, tour) =>
         `جلسه اضطراری و فوق‌العاده رکن قضایی لیگ با حضور تمامی اعضا جهت رسیدگی به اتهام سنگین تبانی و فساد رقابتی منتسب به باشگاه «${team}» تشکیل شد.`,
       findings: (reason) =>
@@ -191,6 +206,7 @@ export const VERDICT_VARIANTS = {
   CUSTOM: [
     {
       title: 'تصمیم ویژه کمیته انضباطی پیرامون تخلفات خاص',
+      incidentExplanation: 'عدم رعایت موازین و مقررات رسمی مسابقات لیگ بر اساس گزارش مستند ناظر انضباطی.',
       preamble: (team, tour) =>
         `کمیته انضباطی فدراسیون مستر لیگ در خصوص پرونده انضباطی شماره خاص باشگاه «${team}» تشکیل جلسه داد.`,
       findings: (reason) =>
@@ -202,11 +218,87 @@ export const VERDICT_VARIANTS = {
 };
 
 /**
+ * Quick contextual tags / chips to easily customize violation details on click
+ */
+export const VIOLATION_QUICK_CHIPS = {
+  REFEREE_ADMIN_INSULT: [
+    'توهین در چت مسابقه',
+    'فحاشی در گروه تلگرام',
+    'تهدید کوبل داوری',
+    'هتک حرمت ناظر بازی',
+    'تحریک هواداران علیه داور',
+  ],
+  INELIGIBLE_PLAYER: [
+    'بازیکن ۳ اخطاره',
+    'بازیکن دارای محرومیت قطعی',
+    'بازیکن مصدوم بدون تاییدیه',
+    'بازیکن فاقد قرارداد رسمی',
+    'دستکاری لیست ۱۱ نفره',
+  ],
+  UNSPORTSMANLIKE: [
+    'اتلاف وقت عمدی در بازی',
+    'بیانیه تنش‌زا علیه حریف',
+    'تمسخر حریف در چت سرور',
+    'تشنج‌آفرینی در فضای مسابقه',
+  ],
+  MATCH_DELAY: [
+    'تاخیر ۱۵ دقیقه',
+    'تاخیر ۲۵ دقیقه',
+    'اخلال در کنداکتور پخش زنده',
+    'بی‌پاسخ ماندن تماس‌های ناظر',
+    'معطلی تیم حریف',
+  ],
+  NO_GAMEPLAN: [
+    'عدم تایید ترکیب در مهلت',
+    'اعمال ترکیب پیش‌فرض سیستمی',
+    'بی‌توجهی به ددلاین مسابقه',
+  ],
+  FORFEIT_RAGE_QUIT: [
+    'خروج در دقیقه ۶۰',
+    'ترک بازی پس از دریافت گل',
+    'قطع تعمدی اینترنت',
+    'غیبت کامل در سرور مسابقه',
+  ],
+  TRANSFER_VIOLATION: [
+    'دور زدن سقف بودجه FFP',
+    'معامله صوری و مشکوک',
+    'توافق مالی غیرقانونی',
+    'عدم ثبت قرارداد در سامانه',
+  ],
+  MATCH_FIXING_CHEATING: [
+    'تبانی آشکار در مسابقه',
+    'دستکاری توافقی نتیجه',
+    'دریافت گل‌های تعمدی',
+  ],
+  CUSTOM: [
+    'بر اساس گزارش ناظر رسمی',
+    'نقض تعهدات انضباطی',
+    'شکایت رسمی تیم رقیب',
+  ],
+};
+
+/**
  * Returns available variant count for a violation type
  */
 export const getViolationVariantsCount = (violationType) => {
   const variants = VERDICT_VARIANTS[violationType] || VERDICT_VARIANTS.CUSTOM;
   return variants.length;
+};
+
+/**
+ * Returns default smart explanation reason for a violation type and variant
+ */
+export const getViolationDefaultReason = (violationType, variantIndex = 0) => {
+  const variants = VERDICT_VARIANTS[violationType] || VERDICT_VARIANTS.CUSTOM;
+  const safeIndex = Math.abs(Number(variantIndex || 0)) % variants.length;
+  return variants[safeIndex]?.incidentExplanation || 'عدم رعایت موازین و مقررات رسمی مسابقات لیگ.';
+};
+
+/**
+ * Returns quick chips for a violation type
+ */
+export const getViolationQuickChips = (violationType) => {
+  return VIOLATION_QUICK_CHIPS[violationType] || VIOLATION_QUICK_CHIPS.CUSTOM;
 };
 
 /**
@@ -232,7 +324,7 @@ export const generateDisciplinaryVerdict = ({
   const template = variants[safeIndex] || variants[0];
 
   const effectiveTitle = title && title.trim() ? title.trim() : template.title;
-  const effectiveReason = reason && reason.trim() ? reason.trim() : 'عدم رعایت موازین و مقررات رسمی مسابقات لیگ.';
+  const effectiveReason = reason && reason.trim() ? reason.trim() : template.incidentExplanation;
   const now = new Date();
   const generatedCaseNumber = caseNumber || `VML-JD-${now.getFullYear()}-${String(Math.floor(1000 + Math.random() * 9000))}`;
 
@@ -266,7 +358,7 @@ export const generateDisciplinaryVerdict = ({
     ? sanctions.map((s, idx) => `  ${idx + 1}. ${s}`).join('\n')
     : '  ۱. تذکر رسمی کتبی و الزام به رعایت موازین اخلاقی مسابقات';
 
-  // Full composite verdict text
+  // Full composite verdict text with prominent factual breakdown section
   const fullVerdictText = `بسمه تعالی
 ⚖️ دادنامه رسمی رکن قضایی و کمیته انضباطی سازمان لیگ مستر لیگ (VML)
 شماره دادنامه: ${generatedCaseNumber} | تاریخ صدور: ${formatPersianDate(now)}
@@ -274,18 +366,21 @@ export const generateDisciplinaryVerdict = ({
 موضوع پرونده: ${effectiveTitle}
 طرف متخلف: باشگاه فرهنگی ورزشی «${teamName}»
 ${tournamentName ? `تورنمنت مربوطه: ${tournamentName}\n` : ''}
-گردش‌کار و شرح واقعه:
+۱. مقدمه و صلاحیت رکن قضایی:
 ${preambleText}
 
-مستندات و بررسی تخلف:
+۲. شرح و گردش‌کار تفصیلی تخلف (چرایی صدور حکم):
+${effectiveReason}
+
+۳. مستندات دادرسی و بررسی ادله:
 ${findingsText}
 
-انشای رأی دادگاه:
+۴. انشای رأی دادگاه و تنبیهات انضباطی:
 ${legalRefText}، رکن قضایی کمیته انضباطی تخلف باشگاه «${teamName}» را محرز و مسلم تشخیص داده و بدین‌وسیله مبادرت به صدور تنبیهات ذیل می‌نماید:
 
 ${sanctionsText}
 
-مهلت تجدیدنظرخواهی:
+۵. مهلت و شرایط تجدیدنظرخواهی:
 ${appealText}
 
 دبیرخانه کمیته انضباطی فدراسیون لیگ مجازی (VML)`;
@@ -294,11 +389,14 @@ ${appealText}
     caseNumber: generatedCaseNumber,
     headline: `⚖️ دادنامه انضباطی: محکومیت باشگاه «${teamName}» (${effectiveTitle})`,
     title: effectiveTitle,
+    reason: effectiveReason,
+    incidentExplanation: template.incidentExplanation,
     preamble: preambleText,
     findings: findingsText,
     legalRef: legalRefText,
     sanctionsList: sanctions,
     appealNotice: appealText,
+    quickChips: VIOLATION_QUICK_CHIPS[violationType] || [],
     fullVerdictText,
   };
 };
@@ -339,7 +437,7 @@ export const formatVerdictForTelegram = ({
 🔻 *باشگاه متخلف:* «${teamName || 'نامشخص'}»
 ${tournamentName ? `🏆 *تورنمنت:* ${tournamentName}\n` : ''}📌 *عنوان تخلف:* ${title || 'تخلف انضباطی'}
 
-📝 *شرح و ادله رأی:*
+📝 *شرح و چرایی صدور حکم:*
 ${reason || 'بر اساس گزارش رسمی ناظر مسابقات و مستندات سیستمی.'}
 
 ⛔ *تنبیهات قطعی و مجازات‌های مقرر:*

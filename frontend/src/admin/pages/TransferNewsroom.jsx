@@ -592,7 +592,16 @@ export default function TransferNewsroom() {
                             )}
                           </div>
 
-                          <div className="bg-[#08050e]/70 p-3 rounded-2xl border border-slate-800/80 text-xs text-slate-200 leading-relaxed font-sans">
+                          <div className="bg-[#08050e]/70 p-3 rounded-2xl border border-slate-800/80 text-xs text-slate-200 leading-relaxed font-sans space-y-2">
+                            {penaltyDetails.reason && (
+                              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200/95 leading-relaxed flex items-start gap-2">
+                                <span className="shrink-0 font-bold text-amber-400 flex items-center gap-1">
+                                  <AlertCircle size={12} />
+                                  شرح و چرایی صدور حکم:
+                                </span>
+                                <span className="line-clamp-2">{penaltyDetails.reason}</span>
+                              </div>
+                            )}
                             <p className="line-clamp-3 whitespace-pre-line">
                               {log.news_content || log.description}
                             </p>
@@ -1418,6 +1427,16 @@ export default function TransferNewsroom() {
                       <div className="text-sm font-black text-amber-300 leading-snug border-b border-slate-800/80 pb-2.5">
                         {selectedNewsModal.news_headline}
                       </div>
+
+                      {selectedNewsModal.penalty_details?.reason && (
+                        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200/95 leading-relaxed flex items-start gap-2.5">
+                          <AlertCircle size={15} className="text-amber-400 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold text-amber-300 block mb-0.5">📌 شرح وقوع و چرایی صدور حکم (مستندات پرونده):</span>
+                            <span>{selectedNewsModal.penalty_details.reason}</span>
+                          </div>
+                        </div>
+                      )}
 
                       <div className="text-xs text-slate-200 leading-relaxed whitespace-pre-line bg-[#03060f]/80 p-3.5 rounded-xl border border-slate-800/70 select-text font-mono max-h-72 overflow-y-auto custom-scrollbar">
                         {selectedNewsModal.penalty_details?.official_verdict_text || selectedNewsModal.news_content || selectedNewsModal.description}

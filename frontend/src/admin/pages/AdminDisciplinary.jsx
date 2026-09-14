@@ -15,7 +15,9 @@ import {
   generateDisciplinaryVerdict,
   formatVerdictForTelegram,
   getViolationVariantsCount,
-  formatPersianDate
+  formatPersianDate,
+  getViolationDefaultReason,
+  getViolationQuickChips
 } from '../../utils/disciplinaryTemplates';
 
 // Bulletproof Clipboard copy utility with fallback for non-secure / LAN contexts
@@ -116,7 +118,7 @@ export default function AdminDisciplinary() {
     team_id: '',
     violation_type: 'MATCH_DELAY',
     title: '',
-    reason: '',
+    reason: getViolationDefaultReason('MATCH_DELAY', 0),
     fine_budget_usd: 50000,
     fine_gems: 0,
     tournament_id: '',
@@ -198,12 +200,14 @@ export default function AdminDisciplinary() {
     const nextIndex = (variantIndex + 1) % totalVariants;
     setVariantIndex(nextIndex);
 
+    const nextReason = getViolationDefaultReason(formData.violation_type, nextIndex) || formData.reason;
+
     const newVerdict = generateDisciplinaryVerdict({
       violationType: formData.violation_type,
       teamName: selectedTeam ? selectedTeam.name : 'باشگاه مربوطه',
       tournamentName: selectedTournament ? selectedTournament.name : null,
       title: '', // will pick template title
-      reason: formData.reason,
+      reason: nextReason,
       fineBudgetUsd: formData.fine_budget_usd,
       fineGems: formData.fine_gems,
       pointsDeduction: formData.points_deduction,
@@ -217,6 +221,7 @@ export default function AdminDisciplinary() {
     setFormData((prev) => ({
       ...prev,
       title: newVerdict.title,
+      reason: nextReason,
       official_verdict_text: newVerdict.fullVerdictText,
     }));
     showToast(`نگارش دادنامه تغییر کرد (قالب حقوقی ${nextIndex + 1} از ${totalVariants})`, 'info');
@@ -314,12 +319,13 @@ export default function AdminDisciplinary() {
 
   // Handle applying a standard template
   const handleSelectTemplate = (template) => {
+    const autoReason = getViolationDefaultReason(template.code, 0) || template.description;
     const newVerdict = generateDisciplinaryVerdict({
       violationType: template.code,
       teamName: selectedTeam ? selectedTeam.name : 'باشگاه مربوطه',
       tournamentName: selectedTournament ? selectedTournament.name : null,
       title: template.title,
-      reason: template.description,
+      reason: autoReason,
       fineBudgetUsd: template.default_fine_usd,
       fineGems: template.default_fine_gems,
       pointsDeduction: template.default_points,
@@ -332,7 +338,7 @@ export default function AdminDisciplinary() {
       ...prev,
       violation_type: template.code,
       title: template.title,
-      reason: template.description,
+      reason: autoReason,
       fine_budget_usd: template.default_fine_usd,
       fine_gems: template.default_fine_gems,
       points_deduction: template.default_points,
@@ -997,12 +1003,21 @@ export default function AdminDisciplinary() {
                       </div>
 
                       {/* Ruling Title & Excerpt */}
-                      <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800/80 mb-3 space-y-1.5">
+                      <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-800/80 mb-3 space-y-2">
                         <div className="text-xs font-black text-slate-100 flex items-center gap-1.5">
                           <Gavel size={13} className="text-amber-400 shrink-0" />
                           <span>{penalty.title}</span>
                         </div>
-                        <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-3">
+                        {penalty.reason && (
+                          <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200/95 leading-relaxed flex items-start gap-2">
+                            <span className="shrink-0 font-bold text-amber-400 flex items-center gap-1">
+                              <AlertCircle size={12} />
+                              شرح و چرایی تخلف:
+                            </span>
+                            <span className="line-clamp-2">{penalty.reason}</span>
+                          </div>
+                        )}
+                        <p className="text-[11px] text-slate-300 leading-relaxed line-clamp-2">
                           {penalty.official_verdict_text || penalty.reason}
                         </p>
                       </div>
@@ -1176,7 +1191,16 @@ export default function AdminDisciplinary() {
                 </label>
                 <select
                   value={formData.violation_type}
-                  onChange={(e) => setFormData({ ...formData, violation_type: e.target.value })}
+                  onChange={(e) => {
+                    const newType = e.target.value;
+                    const autoReason = getViolationDefaultReason(newType, 0);
+                    setFormData((prev) => ({
+                      ...prev,
+                      violation_type: newType,
+                      reason: autoReason || prev.reason,
+                    }));
+                    setVariantIndex(0);
+                  }}
                   className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-amber-500/50"
                 >
                   {(overview.standard_violations || []).map((v) => (
@@ -1205,9 +1229,15 @@ export default function AdminDisciplinary() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                  شرح تخلف و مستندات رای کمیته انضباطی <span className="text-rose-400">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-300">
+                    شرح تخلف و چرایی صدور حکم (مستندات پرونده) <span className="text-rose-400">*</span>
+                  </label>
+                  <span className="text-[11px] text-amber-400/90 font-medium flex items-center gap-1">
+                    <Sparkles size={12} />
+                    تولید هوشمند متناسب با تخلف (قابل ویرایش)
+                  </span>
+                </div>
                 <textarea
                   value={formData.reason}
                   onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
@@ -1216,6 +1246,36 @@ export default function AdminDisciplinary() {
                   required
                   className="w-full bg-slate-950 border border-slate-800 rounded-2xl p-4 text-xs text-white focus:outline-none focus:border-amber-500/50 leading-relaxed"
                 />
+
+                {/* Quick Helper Chips */}
+                {getViolationQuickChips(formData.violation_type)?.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                    <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                      <Bookmark size={11} className="text-amber-400" />
+                      برچسب‌های کمکی سریع (کلیک برای افزودن به متن):
+                    </span>
+                    {getViolationQuickChips(formData.violation_type).map((chip) => (
+                      <button
+                        key={chip}
+                        type="button"
+                        onClick={() => {
+                          setFormData((prev) => {
+                            const current = (prev.reason || '').trim();
+                            if (current.includes(chip)) return prev;
+                            return {
+                              ...prev,
+                              reason: current ? `${current} - ${chip}` : chip,
+                            };
+                          });
+                        }}
+                        className="px-2 py-0.5 rounded-lg bg-slate-800/90 hover:bg-amber-500/20 hover:text-amber-300 text-slate-300 text-[10.5px] border border-slate-700/80 hover:border-amber-500/40 transition-all cursor-pointer active:scale-95 flex items-center gap-1"
+                      >
+                        <span className="text-amber-400 font-bold">+</span>
+                        <span>{chip}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1925,6 +1985,17 @@ export default function AdminDisciplinary() {
                     </span>
                   </div>
                 </div>
+
+                {/* Incident Rationale Callout */}
+                {fullVerdictModalPenalty.reason && (
+                  <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200/95 leading-relaxed flex items-start gap-2.5">
+                    <AlertCircle size={16} className="text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-black text-amber-300 block mb-0.5">📌 چرایی صدور حکم و شرح تفصیلی تخلف:</span>
+                      <span>{fullVerdictModalPenalty.reason}</span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Full Official Verdict Text / Story */}
                 <div className="bg-slate-950/90 border border-slate-800/90 rounded-2xl p-4 max-h-80 overflow-y-auto text-xs leading-relaxed text-slate-200 whitespace-pre-wrap font-mono select-text custom-scrollbar">
