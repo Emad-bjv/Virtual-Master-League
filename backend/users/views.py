@@ -13,19 +13,20 @@ from .serializers import (
 )
 
 
-def normalize_digits(text):
+def normalize_text_and_digits(text):
     if not text:
-        return text
+        return ""
     persian_arabic_to_english = {
         '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4',
         '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9',
         '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
         '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',
+        'ي': 'ی', 'ك': 'ک', 'ة': 'ه',
     }
     res = []
     for ch in str(text):
         res.append(persian_arabic_to_english.get(ch, ch))
-    return "".join(res)
+    return "".join(res).strip()
 
 
 class CoachPasswordLoginView(APIView):
@@ -45,6 +46,7 @@ class CoachPasswordLoginView(APIView):
 
         username = str(raw_username).strip()
         norm_username = normalize_digits(username)
+        fa_norm_username = normalize_text_and_digits(username)
         password = str(raw_password).strip()
         norm_password = normalize_digits(password)
 
@@ -52,12 +54,16 @@ class CoachPasswordLoginView(APIView):
         user = None
         lookup_candidates = [
             norm_username,
+            fa_norm_username,
             username,
             f"coach_{norm_username}",
+            f"coach_{fa_norm_username}",
             f"coach_{username}",
         ]
         if norm_username.startswith('coach_'):
             lookup_candidates.append(norm_username[6:])
+        if fa_norm_username.startswith('coach_'):
+            lookup_candidates.append(fa_norm_username[6:])
         if username.startswith('coach_'):
             lookup_candidates.append(username[6:])
 
@@ -71,16 +77,13 @@ class CoachPasswordLoginView(APIView):
         # 2. Fallback: Team name lookup
         if not user:
             from teams.models import Team
-            team = Team.objects.filter(name__iexact=norm_username).first()
-            if not team:
-                team = Team.objects.filter(name__iexact=username).first()
-            if not team:
-                team = Team.objects.filter(name__icontains=norm_username).first()
-            if not team:
-                team = Team.objects.filter(name__icontains=username).first()
-
-            if team and team.manager:
-                user = team.manager
+            for t_name in [fa_norm_username, norm_username, username]:
+                team = Team.objects.filter(name__iexact=t_name).first()
+                if not team:
+                    team = Team.objects.filter(name__icontains=t_name).first()
+                if team and team.manager:
+                    user = team.manager
+                    break
 
         if not user:
             return Response({'error': 'نام کاربری یا رمز عبور اشتباه است.'}, status=status.HTTP_401_UNAUTHORIZED)
@@ -88,7 +91,14 @@ class CoachPasswordLoginView(APIView):
         # 3. Check password (strict check + normalized digits check)
         is_password_correct = user.check_password(password) or user.check_password(norm_password)
 
-        # Fallback for legacy / uninitialized coach accounts
+        # Fallback 1: Plaintext password match in DB (auto-upgrade to secure hash)
+        if not is_password_correct:
+            if user.password == password or user.password == norm_password:
+                user.set_password(password)
+                user.save(update_fields=['password'])
+                is_password_correct = True
+
+        # Fallback 2: Legacy / uninitialized coach accounts
         if not is_password_correct and (not user.has_usable_password() or not user.password):
             if password in ['123456', 'admin', norm_username, username]:
                 user.set_password(password)
