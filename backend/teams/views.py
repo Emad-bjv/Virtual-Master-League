@@ -1697,11 +1697,56 @@ class AdminPESTransfersOverviewView(views.APIView):
         # Clubs with pending changes are prioritized to the front
         clubs_data.sort(key=lambda x: (-x['pending_transfers_count'], x['name']))
 
+        # Latest completed transfers across the entire league
+        recent_transfers_qs = (
+            TransferHistory.objects.all()
+            .select_related('player', 'seller_team', 'buyer_team', 'player__base_team', 'player__team')
+            .order_by('-transferred_at', '-id')[:100]
+        )
+        recent_transfers_data = []
+        for th in recent_transfers_qs:
+            p = th.player
+            recent_transfers_data.append({
+                'id': th.id,
+                'player_id': p.id if p else None,
+                'player_name': p.name if p else 'بازیکن حذف شده',
+                'player_photo': resolve_player_photo_url(p) if p else '/players/default.png',
+                'player_position': p.position if p else '',
+                'player_overall': p.overall if p else 0,
+                'player_nationality': p.nationality if p else '',
+                'player_age': p.age if p else None,
+                'pes_transfer_applied': p.pes_transfer_applied if p else True,
+                'current_team': {
+                    'id': p.team.id if (p and p.team) else None,
+                    'name': p.team.name if (p and p.team) else 'بدون تیم',
+                    'logo': resolve_team_logo(p.team) if (p and p.team) else None,
+                } if p else None,
+                'base_team': {
+                    'id': p.base_team.id if (p and p.base_team) else None,
+                    'name': p.base_team.name if (p and p.base_team) else 'نامشخص',
+                    'logo': resolve_team_logo(p.base_team) if (p and p.base_team) else None,
+                } if p else None,
+                'seller_team': {
+                    'id': th.seller_team.id if th.seller_team else None,
+                    'name': th.seller_team.name if th.seller_team else 'بازیکن آزاد',
+                    'logo': resolve_team_logo(th.seller_team) if th.seller_team else None,
+                },
+                'buyer_team': {
+                    'id': th.buyer_team.id if th.buyer_team else None,
+                    'name': th.buyer_team.name if th.buyer_team else 'بازیکن آزاد / فسخ',
+                    'logo': resolve_team_logo(th.buyer_team) if th.buyer_team else None,
+                },
+                'price_usd': float(th.price_usd or 0),
+                'transfer_type': th.transfer_type,
+                'transferred_at': th.transferred_at.strftime('%Y-%m-%d %H:%M') if th.transferred_at else None,
+            })
+
         return Response({
             'total_pending_league': total_pending_league,
             'total_clubs_with_pending': total_clubs_with_pending,
             'total_clubs': len(clubs_data),
-            'clubs': clubs_data
+            'clubs': clubs_data,
+            'recent_transfers': recent_transfers_data,
         })
 
 

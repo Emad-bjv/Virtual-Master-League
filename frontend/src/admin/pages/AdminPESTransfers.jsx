@@ -48,10 +48,19 @@ export default function AdminPESTransfers() {
     total_pending_league: 0,
     total_clubs_with_pending: 0,
     total_clubs: 0,
-    clubs: []
+    clubs: [],
+    recent_transfers: []
   });
   const [loadingOverview, setLoadingOverview] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Main View Tab: 'RECENT' (Latest League Transfers) | 'CLUBS' (Clubs & Squads Grid)
+  const [mainViewTab, setMainViewTab] = useState('RECENT');
+
+  // Recent Transfers Search & Filter
+  const [recentSearch, setRecentSearch] = useState('');
+  const [recentFilterMode, setRecentFilterMode] = useState('ALL'); // 'ALL' | 'PENDING_ONLY' | 'APPLIED_ONLY'
+  const [recentPosCategory, setRecentPosCategory] = useState('ALL'); // 'ALL' | 'FW' | 'MF' | 'DF' | 'GK'
 
   // Club Search & Filter
   const [clubSearch, setClubSearch] = useState('');
@@ -249,6 +258,103 @@ export default function AdminPESTransfers() {
     }
   };
 
+  // Toggle individual transfer's pes_transfer_applied state from Recent Feed
+  const handleToggleAppliedFromRecent = async (transfer) => {
+    if (!transfer?.player_id) return;
+    const nextState = !transfer.pes_transfer_applied;
+    const oldState = transfer.pes_transfer_applied;
+    const playerId = transfer.player_id;
+
+    // Optimistic UI update in overview.recent_transfers
+    setOverview((prev) => {
+      const updatedRecent = (prev.recent_transfers || []).map((t) => {
+        if (t.player_id === playerId) {
+          return { ...t, pes_transfer_applied: nextState };
+        }
+        return t;
+      });
+
+      const pendingDelta = nextState ? -1 : 1;
+      const newTotalPending = Math.max(0, (prev.total_pending_league || 0) + pendingDelta);
+
+      const updatedClubs = (prev.clubs || []).map((c) => {
+        if (c.id === transfer.buyer_team?.id) {
+          const newClubPending = Math.max(0, (c.pending_transfers_count || 0) + pendingDelta);
+          return { ...c, pending_transfers_count: newClubPending };
+        }
+        return c;
+      });
+
+      return {
+        ...prev,
+        total_pending_league: newTotalPending,
+        clubs: updatedClubs,
+        recent_transfers: updatedRecent
+      };
+    });
+
+    try {
+      setToggleLoadingId(playerId);
+      await pesTransferApi.toggleApplied({
+        player_id: playerId,
+        applied: nextState
+      });
+      showToast(
+        nextState
+          ? `بازیکن «${transfer.player_name}» به عنوان اعمال‌شده در بازی علامت خورد.`
+          : `وضعیت «${transfer.player_name}» به در انتظار اعمال تغییر یافت.`,
+        'success'
+      );
+    } catch (err) {
+      console.error('Failed to toggle applied state from recent:', err);
+      showToast('خطا در ذخیره وضعیت اعمال در PES', 'error');
+      // Rollback
+      setOverview((prev) => ({
+        ...prev,
+        recent_transfers: (prev.recent_transfers || []).map((t) => {
+          if (t.player_id === playerId) return { ...t, pes_transfer_applied: oldState };
+          return t;
+        })
+      }));
+    } finally {
+      setToggleLoadingId(null);
+    }
+  };
+
+  // Filtered Recent Transfers
+  const filteredRecentTransfers = useMemo(() => {
+    const list = overview.recent_transfers || [];
+    return list.filter((t) => {
+      const q = String(recentSearch || '').trim().toLowerCase();
+      const matchesSearch = !q ||
+        String(t.player_name || '').toLowerCase().includes(q) ||
+        String(t.seller_team?.name || '').toLowerCase().includes(q) ||
+        String(t.buyer_team?.name || '').toLowerCase().includes(q) ||
+        String(t.base_team?.name || '').toLowerCase().includes(q) ||
+        String(t.player_position || '').toLowerCase().includes(q);
+
+      let matchesPending = true;
+      if (recentFilterMode === 'PENDING_ONLY') {
+        matchesPending = !t.pes_transfer_applied;
+      } else if (recentFilterMode === 'APPLIED_ONLY') {
+        matchesPending = !!t.pes_transfer_applied;
+      }
+
+      let matchesPos = true;
+      if (recentPosCategory === 'FW') {
+        matchesPos = ['CF', 'SS', 'LWF', 'RWF'].includes(t.player_position);
+      } else if (recentPosCategory === 'MF') {
+        matchesPos = ['AMF', 'CMF', 'DMF', 'LMF', 'RMF'].includes(t.player_position);
+      } else if (recentPosCategory === 'DF') {
+        matchesPos = ['CB', 'LB', 'RB'].includes(t.player_position);
+      } else if (recentPosCategory === 'GK') {
+        matchesPos = t.player_position === 'GK';
+      }
+
+      return matchesSearch && matchesPending && matchesPos;
+    });
+  }, [overview.recent_transfers, recentSearch, recentFilterMode, recentPosCategory]);
+
   // Filtered Clubs for Overview Grid
   const filteredClubs = useMemo(() => {
     return (overview.clubs || []).filter((club) => {
@@ -336,167 +442,557 @@ export default function AdminPESTransfers() {
 
           <button
             type="button"
-            onClick={() => {
-              if (selectedClubId) fetchClubDetail(selectedClubId);
-              fetchOverview(true);
+            onClick={async () => {
+              if (selectedClubId) await fetchClubDetail(selectedClubId);
+              await fetchOverview(true);
+              showToast('اطلاعات و آخرین نقل‌وانتقالات بروزرسانی شد', 'success');
             }}
             disabled={refreshing}
-            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-300 hover:text-white transition-all cursor-pointer disabled:opacity-50"
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/40 transition-all cursor-pointer disabled:opacity-50 active:scale-95"
             title="بروزرسانی داده‌ها"
           >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin text-cyan-400' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            <span>{refreshing ? 'در حال بروزرسانی...' : 'بروزرسانی تغییرات'}</span>
           </button>
         </div>
       </header>
 
       {/* ===================================================================== */}
-      {/* VIEW 1: CLUBS GRID OVERVIEW (When no club is actively selected)       */}
+      {/* VIEW 1: MAIN LEAGUE VIEW (When no club is actively selected)          */}
       {/* ===================================================================== */}
       {!selectedClubId && (
         <div>
-          {/* Controls Bar: Search & Filter */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-6 bg-slate-900/50 p-3 rounded-2xl border border-slate-800/80 backdrop-blur-md">
-            <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={clubSearch}
-                onChange={(e) => setClubSearch(e.target.value)}
-                placeholder="جستجوی نام باشگاه..."
-                className="w-full pl-3 pr-10 py-2 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/60 transition-colors"
-              />
-              {clubSearch && (
-                <button
-                  type="button"
-                  onClick={() => setClubSearch('')}
-                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs cursor-pointer"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          {/* Main View Mode Selector Tabs */}
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-800/80">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => setOnlyPendingClubs(!onlyPendingClubs)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                  onlyPendingClubs
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-lg shadow-amber-500/10'
-                    : 'bg-slate-950/80 text-slate-400 border border-slate-800 hover:text-slate-200'
+                onClick={() => setMainViewTab('RECENT')}
+                className={`px-4 py-2.5 rounded-2xl text-xs font-black flex items-center gap-2.5 transition-all cursor-pointer ${
+                  mainViewTab === 'RECENT'
+                    ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-slate-950 shadow-lg shadow-emerald-500/20'
+                    : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700'
                 }`}
               >
-                <Flame className={`w-3.5 h-3.5 ${onlyPendingClubs ? 'text-amber-400 fill-amber-400/20' : 'text-slate-500'}`} />
-                <span>فقط تیم‌های دارای تغییر ({overview.total_clubs_with_pending})</span>
+                <ArrowRightLeft className="w-4 h-4" />
+                <span>آخرین نقل‌وانتقالات لیگ (زنده)</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-black ${
+                  mainViewTab === 'RECENT' ? 'bg-slate-950/30 text-slate-950' : 'bg-slate-800 text-cyan-300'
+                }`}>
+                  {(overview.recent_transfers || []).length}
+                </span>
+                {overview.total_pending_league > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-md bg-amber-500 text-slate-950 text-[10px] font-black flex items-center gap-0.5 animate-pulse">
+                    <Flame className="w-3 h-3" />
+                    {overview.total_pending_league} نیازمند ثبت
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMainViewTab('CLUBS')}
+                className={`px-4 py-2.5 rounded-2xl text-xs font-black flex items-center gap-2.5 transition-all cursor-pointer ${
+                  mainViewTab === 'CLUBS'
+                    ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-slate-950 shadow-lg shadow-emerald-500/20'
+                    : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>بررسی به تفکیک باشگاه‌ها</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-black ${
+                  mainViewTab === 'CLUBS' ? 'bg-slate-950/30 text-slate-950' : 'bg-slate-800 text-slate-300'
+                }`}>
+                  {overview.total_clubs}
+                </span>
+                {overview.total_clubs_with_pending > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-mono">
+                    {overview.total_clubs_with_pending} تیم دارای تغییر
+                  </span>
+                )}
               </button>
             </div>
+
+            {/* Direct Quick Refresh Button in tab header */}
+            <button
+              type="button"
+              onClick={async () => {
+                await fetchOverview(true);
+                showToast('تغییرات با موفقیت بروزرسانی شد', 'success');
+              }}
+              disabled={refreshing}
+              className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-850 border border-slate-800 text-xs font-bold text-slate-300 hover:text-cyan-400 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-cyan-400' : ''}`} />
+              <span>بروزرسانی زنده</span>
+            </button>
           </div>
 
-          {/* Loading Skeleton */}
-          {loadingOverview ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {Array.from({ length: 8 }).map((_, idx) => (
-                <div key={idx} className="h-44 rounded-2xl bg-slate-900/60 border border-slate-800 animate-pulse p-4 flex flex-col justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-14 h-14 rounded-2xl bg-slate-800" />
-                    <div className="space-y-2 flex-1">
-                      <div className="h-4 bg-slate-800 rounded w-3/4" />
-                      <div className="h-3 bg-slate-800 rounded w-1/2" />
-                    </div>
-                  </div>
-                  <div className="h-8 bg-slate-800 rounded-xl" />
+          {/* ================================================================= */}
+          {/* TAB 1: RECENT TRANSFERS FEED (آخرین نقل‌وانتقالات لیگ)              */}
+          {/* ================================================================= */}
+          {mainViewTab === 'RECENT' && (
+            <div>
+              {/* Toolbar: Search, Filters & Counters */}
+              <div className="flex flex-col lg:flex-row items-center justify-between gap-3 mb-6 bg-slate-900/60 p-3.5 rounded-2xl border border-slate-800/90 backdrop-blur-md">
+                {/* Search Bar */}
+                <div className="relative w-full lg:w-80">
+                  <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={recentSearch}
+                    onChange={(e) => setRecentSearch(e.target.value)}
+                    placeholder="جستجوی بازیکن، تیم مبدا، مقصد یا مبدا PES..."
+                    className="w-full pl-3 pr-10 py-2 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/60 transition-colors"
+                  />
+                  {recentSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setRecentSearch('')}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
-              ))}
-            </div>
-          ) : filteredClubs.length === 0 ? (
-            <div className="py-16 text-center rounded-3xl bg-slate-900/40 border border-slate-800">
-              <AlertCircle className="w-10 h-10 text-slate-500 mx-auto mb-3" />
-              <p className="text-sm text-slate-300 font-bold">هیچ باشگاهی مطابق فیلتر یافت نشد.</p>
-              <p className="text-xs text-slate-500 mt-1">می‌توانید فیلترها را حذف کرده یا جستجو را پاک نمایید.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredClubs.map((club) => {
-                const hasPending = (club.pending_transfers_count || 0) > 0;
-                return (
-                  <motion.div
-                    key={club.id}
-                    whileHover={{ scale: 1.02, y: -2 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => handleSelectClub(club.id)}
-                    className={`relative rounded-2xl p-4 cursor-pointer transition-all duration-200 border flex flex-col justify-between overflow-hidden group ${
-                      hasPending
-                        ? 'bg-gradient-to-b from-amber-950/20 via-slate-900/90 to-slate-950 border-amber-500/40 shadow-lg shadow-amber-950/30 hover:border-amber-400 hover:shadow-amber-500/20'
-                        : 'bg-slate-900/70 hover:bg-slate-900 border-slate-800/90 hover:border-slate-700 shadow-md'
+
+                {/* Filter Status: All vs Pending vs Applied */}
+                <div className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setRecentFilterMode('ALL')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      recentFilterMode === 'ALL'
+                        ? 'bg-slate-200 text-slate-950 shadow-md font-black'
+                        : 'bg-slate-950/80 text-slate-400 hover:text-slate-200 border border-slate-800'
                     }`}
                   >
-                    {/* Top glow accent for pending */}
-                    {hasPending && (
-                      <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 shadow-[0_0_12px_#f59e0b]" />
-                    )}
+                    همه نقل‌ها ({(overview.recent_transfers || []).length})
+                  </button>
 
-                    {/* Club Header Info */}
-                    <div>
-                      <div className="flex items-start justify-between gap-2.5 mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-13 h-13 rounded-2xl bg-slate-950/90 border border-slate-800 p-1.5 flex items-center justify-center shrink-0 shadow-inner group-hover:border-cyan-500/40 transition-colors">
-                            {club.logo ? (
-                              <img
-                                src={club.logo}
-                                alt={club.name}
-                                className="w-full h-full object-contain drop-shadow"
-                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                              />
-                            ) : (
-                              <Shield className="w-6 h-6 text-slate-600" />
-                            )}
+                  <button
+                    type="button"
+                    onClick={() => setRecentFilterMode('PENDING_ONLY')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      recentFilterMode === 'PENDING_ONLY'
+                        ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-black'
+                        : 'bg-slate-950/80 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    <Flame className="w-3.5 h-3.5" />
+                    <span>در انتظار ثبت در PES ({(overview.recent_transfers || []).filter(t => !t.pes_transfer_applied).length})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setRecentFilterMode('APPLIED_ONLY')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      recentFilterMode === 'APPLIED_ONLY'
+                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20 font-black'
+                        : 'bg-slate-950/80 text-slate-400 hover:text-slate-200 border border-slate-800'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>اعمال شده‌ها ({(overview.recent_transfers || []).filter(t => t.pes_transfer_applied).length})</span>
+                  </button>
+                </div>
+
+                {/* Position Filter Chips */}
+                <div className="flex items-center gap-1 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0">
+                  {['ALL', 'FW', 'MF', 'DF', 'GK'].map((cat) => {
+                    const labels = { ALL: 'همه پست‌ها', FW: 'مهاجم', MF: 'هافبک', DF: 'مدافع', GK: 'گلر' };
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setRecentPosCategory(cat)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer shrink-0 ${
+                          recentPosCategory === cat
+                            ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50'
+                            : 'bg-slate-950/60 text-slate-400 hover:text-slate-300 border border-slate-800/80'
+                        }`}
+                      >
+                        {labels[cat]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Recent Transfers Cards Grid */}
+              {loadingOverview ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Array.from({ length: 6 }).map((_, idx) => (
+                    <div key={idx} className="h-64 rounded-2xl bg-slate-900/60 border border-slate-800 animate-pulse p-4" />
+                  ))}
+                </div>
+              ) : filteredRecentTransfers.length === 0 ? (
+                <div className="py-16 text-center rounded-3xl bg-slate-900/40 border border-slate-800">
+                  <AlertCircle className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+                  <p className="text-sm text-slate-300 font-bold">هیچ نقلی مطابق با فیلترها یافت نشد.</p>
+                  {(recentSearch || recentFilterMode !== 'ALL' || recentPosCategory !== 'ALL') && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRecentSearch('');
+                        setRecentFilterMode('ALL');
+                        setRecentPosCategory('ALL');
+                      }}
+                      className="mt-3 px-4 py-1.5 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-xs font-bold hover:bg-cyan-500/30 cursor-pointer"
+                    >
+                      پاک کردن همه فیلترها
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredRecentTransfers.map((transfer) => {
+                    const isPending = !transfer.pes_transfer_applied;
+                    const flag = getNationalityFlag(transfer.player_nationality);
+
+                    return (
+                      <div
+                        key={transfer.id}
+                        className={`rounded-2xl border p-4 flex flex-col justify-between transition-all duration-200 relative overflow-hidden group ${
+                          isPending
+                            ? 'bg-gradient-to-b from-amber-950/30 via-slate-900/95 to-slate-950 border-amber-500/50 shadow-xl shadow-amber-950/20 hover:border-amber-400'
+                            : 'bg-slate-900/80 hover:bg-slate-900 border-slate-800 hover:border-slate-700/80 shadow-md'
+                        }`}
+                      >
+                        {/* Top glowing strip for pending */}
+                        {isPending && (
+                          <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 shadow-[0_0_10px_#f59e0b]" />
+                        )}
+
+                        <div>
+                          {/* Top Status & Date Header */}
+                          <div className="flex items-center justify-between gap-2 pb-2.5 mb-3 border-b border-slate-800/80 text-xs">
+                            <div>
+                              {isPending ? (
+                                <span className="inline-flex items-center gap-1.5 text-[11px] font-black px-2.5 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
+                                  <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400/30" />
+                                  در انتظار ثبت در بازی PES
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                  در بازی PES اعمال شده
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1 text-[11px] text-slate-400 font-mono">
+                              <Clock className="w-3 h-3 text-slate-500" />
+                              <span>{transfer.transferred_at || 'اخیراً'}</span>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="text-sm font-black text-white group-hover:text-cyan-400 transition-colors line-clamp-1 m-0">
-                              {club.name}
-                            </h3>
-                            <span className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 font-mono">
-                              <Users className="w-3 h-3 text-slate-500" />
-                              {club.total_players} بازیکن در ترکیب
-                            </span>
+
+                          {/* Player Identity Row */}
+                          <div className="flex items-start gap-3.5 mb-3">
+                            <div className="relative w-15 h-19 rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shrink-0 shadow-inner flex items-center justify-center">
+                              <img
+                                src={transfer.player_photo || '/players/default.png'}
+                                alt={transfer.player_name}
+                                className="w-full h-full object-cover object-top"
+                                onError={(e) => {
+                                  e.currentTarget.onerror = null;
+                                  e.currentTarget.src = '/players/default.png';
+                                }}
+                              />
+                              <span className={`absolute bottom-1 right-1 px-1.5 py-0.2 rounded text-[9px] font-black font-mono border ${POSITION_COLORS[transfer.player_position] || 'bg-slate-800 text-slate-300'}`}>
+                                {transfer.player_position}
+                              </span>
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-1.5">
+                                <h4 className="text-sm font-black text-white truncate m-0 group-hover:text-cyan-400 transition-colors" title={transfer.player_name}>
+                                  {transfer.player_name}
+                                </h4>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyPlayerName(transfer.player_name, `recent-${transfer.id}`)}
+                                  className={`p-1.5 rounded-lg border text-xs transition-all cursor-pointer shrink-0 ${
+                                    copiedId === `recent-${transfer.id}`
+                                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+                                      : 'bg-slate-800/80 text-slate-400 hover:text-white border-slate-700/60 hover:bg-slate-700'
+                                  }`}
+                                  title="کپی کردن نام بازیکن جهت سرچ سریع در بازی PES"
+                                >
+                                  {copiedId === `recent-${transfer.id}` ? (
+                                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                <span className={`px-2 py-0.5 rounded-lg text-xs font-black font-mono border shadow-sm ${getOvrColorClass(transfer.player_overall)}`}>
+                                  {transfer.player_overall} OVR
+                                </span>
+                                {transfer.player_age && (
+                                  <span className="text-[11px] text-slate-400 font-mono">
+                                    {transfer.player_age} سال
+                                  </span>
+                                )}
+                                <span className="text-[11px] text-slate-300 flex items-center gap-1 bg-slate-950/60 px-2 py-0.5 rounded-lg border border-slate-800/60">
+                                  <span>{flag}</span>
+                                  <span className="truncate max-w-[80px]">{transfer.player_nationality || 'نامشخص'}</span>
+                                </span>
+                              </div>
+
+                              {/* PES Base Team Badge */}
+                              <div className="mt-2.5 px-2.5 py-1 rounded-lg bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-between text-[11px]">
+                                <span className="text-cyan-300 font-medium">مبدا جستجو در PES:</span>
+                                <span className="text-cyan-200 font-bold font-mono truncate max-w-[130px]" title={transfer.base_team?.name}>
+                                  {transfer.base_team?.name || 'نامشخص'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Transfer Flow Box: Seller ➔ Buyer */}
+                          <div className="p-3 rounded-2xl bg-slate-950/80 border border-slate-800/80 mb-3">
+                            <div className="flex items-center justify-between gap-2">
+                              {/* Seller Club */}
+                              <div
+                                onClick={() => transfer.seller_team?.id && handleSelectClub(transfer.seller_team.id)}
+                                className={`flex items-center gap-2 flex-1 min-w-0 ${transfer.seller_team?.id ? 'cursor-pointer hover:opacity-80' : ''}`}
+                                title="کلیک برای مشاهده ترکیب باشگاه مبدا"
+                              >
+                                <div className="w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 p-0.5 shrink-0 flex items-center justify-center">
+                                  {transfer.seller_team?.logo ? (
+                                    <img src={transfer.seller_team.logo} alt={transfer.seller_team.name} className="w-full h-full object-contain" />
+                                  ) : (
+                                    <Shield className="w-3.5 h-3.5 text-slate-600" />
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-[10px] text-slate-500 block leading-tight">از تیم</span>
+                                  <span className="text-xs font-bold text-slate-300 truncate block">
+                                    {transfer.seller_team?.name || 'آزاد'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Transfer Fee & Arrow */}
+                              <div className="flex flex-col items-center shrink-0 px-2">
+                                <div className="w-6 h-6 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-cyan-400">
+                                  <ArrowRightLeft className="w-3 h-3" />
+                                </div>
+                                <span className="text-[10px] text-emerald-400 font-mono font-bold mt-1">
+                                  {formatCurrency(transfer.price_usd)}
+                                </span>
+                              </div>
+
+                              {/* Buyer Club */}
+                              <div
+                                onClick={() => transfer.buyer_team?.id && handleSelectClub(transfer.buyer_team.id)}
+                                className={`flex items-center gap-2 flex-1 min-w-0 justify-end text-left ${transfer.buyer_team?.id ? 'cursor-pointer hover:opacity-80' : ''}`}
+                                title="کلیک برای مشاهده ترکیب باشگاه مقصد"
+                              >
+                                <div className="min-w-0 text-right">
+                                  <span className="text-[10px] text-slate-500 block leading-tight">به تیم</span>
+                                  <span className="text-xs font-bold text-white truncate block">
+                                    {transfer.buyer_team?.name || 'آزاد'}
+                                  </span>
+                                </div>
+                                <div className="w-7 h-7 rounded-lg bg-slate-900 border border-slate-800 p-0.5 shrink-0 flex items-center justify-center">
+                                  {transfer.buyer_team?.logo ? (
+                                    <img src={transfer.buyer_team.logo} alt={transfer.buyer_team.name} className="w-full h-full object-contain" />
+                                  ) : (
+                                    <Shield className="w-3.5 h-3.5 text-slate-600" />
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Badges / Counters Row */}
-                      <div className="flex flex-wrap items-center gap-1.5 my-2">
-                        {hasPending ? (
-                          <div className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1.5 shadow-sm animate-pulse">
-                            <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                            <span>{club.pending_transfers_count} انتقال در انتظار</span>
-                          </div>
-                        ) : (
-                          <div className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-bold flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>بروزرسانی کامل</span>
-                          </div>
+                        {/* Action Toggle Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleAppliedFromRecent(transfer)}
+                          disabled={toggleLoadingId === transfer.player_id || !transfer.player_id}
+                          className={`w-full py-2.5 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 mt-1 ${
+                            isPending
+                              ? 'bg-amber-500/20 hover:bg-emerald-600 text-amber-300 hover:text-white border border-amber-500/40 hover:border-emerald-500 shadow-lg shadow-amber-950/30'
+                              : 'bg-emerald-600/20 hover:bg-slate-800 text-emerald-400 hover:text-slate-300 border border-emerald-500/40'
+                          }`}
+                        >
+                          {toggleLoadingId === transfer.player_id ? (
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                          ) : isPending ? (
+                            <>
+                              <Square className="w-4 h-4 text-amber-400" />
+                              <span>ثبت در بازی PES (کلیک کنید)</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckSquare className="w-4 h-4 text-emerald-400" />
+                              <span>✓ در بازی اعمال شد (تغییر وضعیت)</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ================================================================= */}
+          {/* TAB 2: CLUBS OVERVIEW (تفکیک باشگاه‌ها)                              */}
+          {/* ================================================================= */}
+          {mainViewTab === 'CLUBS' && (
+            <div>
+              {/* Controls Bar: Search & Filter */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-6 bg-slate-900/50 p-3 rounded-2xl border border-slate-800/80 backdrop-blur-md">
+                <div className="relative w-full sm:w-80">
+                  <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={clubSearch}
+                    onChange={(e) => setClubSearch(e.target.value)}
+                    placeholder="جستجوی نام باشگاه..."
+                    className="w-full pl-3 pr-10 py-2 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500/60 transition-colors"
+                  />
+                  {clubSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setClubSearch('')}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setOnlyPendingClubs(!onlyPendingClubs)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                      onlyPendingClubs
+                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-lg shadow-amber-500/10'
+                        : 'bg-slate-950/80 text-slate-400 border border-slate-800 hover:text-slate-200'
+                    }`}
+                  >
+                    <Flame className={`w-3.5 h-3.5 ${onlyPendingClubs ? 'text-amber-400 fill-amber-400/20' : 'text-slate-500'}`} />
+                    <span>فقط تیم‌های دارای تغییر ({overview.total_clubs_with_pending})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Loading Skeleton */}
+              {loadingOverview ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {Array.from({ length: 8 }).map((_, idx) => (
+                    <div key={idx} className="h-44 rounded-2xl bg-slate-900/60 border border-slate-800 animate-pulse p-4 flex flex-col justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-14 h-14 rounded-2xl bg-slate-800" />
+                        <div className="space-y-2 flex-1">
+                          <div className="h-4 bg-slate-800 rounded w-3/4" />
+                          <div className="h-3 bg-slate-800 rounded w-1/2" />
+                        </div>
+                      </div>
+                      <div className="h-8 bg-slate-800 rounded-xl" />
+                    </div>
+                  ))}
+                </div>
+              ) : filteredClubs.length === 0 ? (
+                <div className="py-16 text-center rounded-3xl bg-slate-900/40 border border-slate-800">
+                  <AlertCircle className="w-10 h-10 text-slate-500 mx-auto mb-3" />
+                  <p className="text-sm text-slate-300 font-bold">هیچ باشگاهی مطابق فیلتر یافت نشد.</p>
+                  <p className="text-xs text-slate-500 mt-1">می‌توانید فیلترها را حذف کرده یا جستجو را پاک نمایید.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {filteredClubs.map((club) => {
+                    const hasPending = (club.pending_transfers_count || 0) > 0;
+                    return (
+                      <motion.div
+                        key={club.id}
+                        whileHover={{ scale: 1.02, y: -2 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleSelectClub(club.id)}
+                        className={`relative rounded-2xl p-4 cursor-pointer transition-all duration-200 border flex flex-col justify-between overflow-hidden group ${
+                          hasPending
+                            ? 'bg-gradient-to-b from-amber-950/20 via-slate-900/90 to-slate-950 border-amber-500/40 shadow-lg shadow-amber-950/30 hover:border-amber-400 hover:shadow-amber-500/20'
+                            : 'bg-slate-900/70 hover:bg-slate-900 border-slate-800/90 hover:border-slate-700 shadow-md'
+                        }`}
+                      >
+                        {/* Top glow accent for pending */}
+                        {hasPending && (
+                          <div className="absolute top-0 right-0 left-0 h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 shadow-[0_0_12px_#f59e0b]" />
                         )}
 
-                        {club.departures_count > 0 && (
-                          <div className="px-2 py-1 rounded-lg bg-slate-800/80 text-slate-400 border border-slate-700/60 text-[10px] font-mono">
-                            {club.departures_count} خروجی
+                        {/* Club Header Info */}
+                        <div>
+                          <div className="flex items-start justify-between gap-2.5 mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-13 h-13 rounded-2xl bg-slate-950/90 border border-slate-800 p-1.5 flex items-center justify-center shrink-0 shadow-inner group-hover:border-cyan-500/40 transition-colors">
+                                {club.logo ? (
+                                  <img
+                                    src={club.logo}
+                                    alt={club.name}
+                                    className="w-full h-full object-contain drop-shadow"
+                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                  />
+                                ) : (
+                                  <Shield className="w-6 h-6 text-slate-600" />
+                                )}
+                              </div>
+                              <div>
+                                <h3 className="text-sm font-black text-white group-hover:text-cyan-400 transition-colors line-clamp-1 m-0">
+                                  {club.name}
+                                </h3>
+                                <span className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5 font-mono">
+                                  <Users className="w-3 h-3 text-slate-500" />
+                                  {club.total_players} بازیکن در ترکیب
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* Bottom Action Footer */}
-                    <div className="pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs mt-3">
-                      <span className="text-slate-400 group-hover:text-slate-200 text-[11px] font-medium transition-colors">
-                        مشاهده اسکواد تیم
-                      </span>
-                      <div className="w-6 h-6 rounded-lg bg-slate-800/80 flex items-center justify-center text-slate-400 group-hover:text-cyan-400 group-hover:bg-cyan-500/20 transition-all">
-                        <ChevronLeft className="w-4 h-4" />
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
+                          {/* Badges / Counters Row */}
+                          <div className="flex flex-wrap items-center gap-1.5 my-2">
+                            {hasPending ? (
+                              <div className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-bold flex items-center gap-1.5 shadow-sm animate-pulse">
+                                <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                                <span>{club.pending_transfers_count} انتقال در انتظار</span>
+                              </div>
+                            ) : (
+                              <div className="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-bold flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>بروزرسانی کامل</span>
+                              </div>
+                            )}
+
+                            {club.departures_count > 0 && (
+                              <div className="px-2 py-1 rounded-lg bg-slate-800/80 text-slate-400 border border-slate-700/60 text-[10px] font-mono">
+                                {club.departures_count} خروجی
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Bottom Action Footer */}
+                        <div className="pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs mt-3">
+                          <span className="text-slate-400 group-hover:text-slate-200 text-[11px] font-medium transition-colors">
+                            مشاهده اسکواد تیم
+                          </span>
+                          <div className="w-6 h-6 rounded-lg bg-slate-800/80 flex items-center justify-center text-slate-400 group-hover:text-cyan-400 group-hover:bg-cyan-500/20 transition-all">
+                            <ChevronLeft className="w-4 h-4" />
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
