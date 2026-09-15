@@ -313,8 +313,9 @@ class TransferLogListView(generics.ListAPIView):
                 Q(description__icontains=search) |
                 Q(related_offer__target_player__name__icontains=search) |
                 Q(related_offer__sender_team__name__icontains=search) |
-                Q(related_offer__receiver_team__name__icontains=search)
-            )
+                Q(related_offer__receiver_team__name__icontains=search) |
+                Q(related_offer__swap_players__name__icontains=search)
+            ).distinct()
 
         return qs
 

@@ -119,6 +119,9 @@ export default function TransferNewsroom() {
       if (!isBackground) {
         showToast('خطا در دریافت لاگ‌ها و گزارشات نقل‌وانتقالات', 'error');
       }
+      setLogs([]);
+      setTotalCount(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
       if (!isBackground) setRefreshing(false);
@@ -471,17 +474,17 @@ export default function TransferNewsroom() {
                 <p className="font-bold text-sm">هیچ رویداد یا لاگ نقل‌وانتقالاتی مطابق با فیلتر یافت نشد.</p>
               </div>
             ) : (
-              filteredLogs.map((log) => {
-                const isFinalized = log.event_type === 'TRANSFER_FINALIZED';
-                const isCounter = log.event_type === 'COUNTER_OFFER';
-                const isOffer = log.event_type === 'OFFER_MADE';
-                const isRelease = log.event_type === 'PLAYER_RELEASED';
-                const isRollback = log.event_type === 'ADMIN_ROLLBACK';
-                const isLoanExpired = log.event_type === 'LOAN_EXPIRED';
-                const isCopied = copiedId === log.id;
-                const isHeadlineCopied = copiedHeadlineId === log.id;
+              (filteredLogs || []).filter(Boolean).map((log) => {
+                const isFinalized = log?.event_type === 'TRANSFER_FINALIZED';
+                const isCounter = log?.event_type === 'COUNTER_OFFER';
+                const isOffer = log?.event_type === 'OFFER_MADE';
+                const isRelease = log?.event_type === 'PLAYER_RELEASED';
+                const isRollback = log?.event_type === 'ADMIN_ROLLBACK';
+                const isLoanExpired = log?.event_type === 'LOAN_EXPIRED';
+                const isCopied = copiedId === log?.id;
+                const isHeadlineCopied = copiedHeadlineId === log?.id;
 
-                const details = log.offer_details || {};
+                const details = log?.offer_details || {};
                 const playerPhoto = details.target_player_photo || (details.target_player_name ? getPlayerPhotoUrl(details.target_player_name, {
                   position: details.target_player_position,
                   overall: details.target_player_overall
@@ -489,8 +492,9 @@ export default function TransferNewsroom() {
 
                 const isLoan = details.offer_type === 'LOAN';
                 const isSwap = details.offer_type === 'SWAP';
-                const isDisciplinary = log.event_type === 'DISCIPLINARY_ACTION';
-                const penaltyDetails = log.penalty_details || {};
+                const swapPlayers = details.swap_players_details || [];
+                const isDisciplinary = log?.event_type === 'DISCIPLINARY_ACTION';
+                const penaltyDetails = log?.penalty_details || {};
 
                 if (isDisciplinary) {
                   return (
@@ -791,16 +795,16 @@ export default function TransferNewsroom() {
                           </p>
                         </div>
 
-                        {isSwap && swapPlayers.length > 0 && (
+                        {isSwap && (swapPlayers || []).length > 0 && (
                           <div className="bg-purple-950/30 border border-purple-500/30 p-2.5 rounded-xl flex items-center gap-2 flex-wrap text-xs">
                             <span className="text-purple-300 font-bold flex items-center gap-1 text-[11px]">
                               <ArrowRightLeft size={12} />
                               <span>مهره‌های معاوضه‌ای:</span>
                             </span>
-                            {swapPlayers.map(sp => (
-                              <span key={sp.id} className="bg-purple-900/60 text-purple-200 border border-purple-500/40 px-2 py-0.5 rounded-lg text-[10.5px] font-bold font-sport flex items-center gap-1">
-                                <span>{sp.name}</span>
-                                <span className="text-cyan-300">({sp.position} - {sp.overall})</span>
+                            {(swapPlayers || []).map((sp, idx) => (
+                              <span key={sp?.id || idx} className="bg-purple-900/60 text-purple-200 border border-purple-500/40 px-2 py-0.5 rounded-lg text-[10.5px] font-bold font-sport flex items-center gap-1">
+                                <span>{sp?.name || 'بازیکن'}</span>
+                                <span className="text-cyan-300">({sp?.position || '-'} - {sp?.overall || '-'})</span>
                               </span>
                             ))}
                           </div>
@@ -1477,7 +1481,7 @@ export default function TransferNewsroom() {
                             </div>
                           </div>
 
-                          {selectedNewsModal.offer_details.cash_amount > 0 && (
+                          {Number(selectedNewsModal.offer_details?.cash_amount || 0) > 0 && (
                             <div className="text-left font-sport">
                               <span className="text-[10px] text-slate-400 block">FEE</span>
                               <span className="text-sm font-black text-emerald-400">
@@ -1485,6 +1489,23 @@ export default function TransferNewsroom() {
                               </span>
                             </div>
                           )}
+                        </div>
+                      )}
+
+                      {selectedNewsModal.offer_details?.swap_players_details && selectedNewsModal.offer_details.swap_players_details.length > 0 && (
+                        <div className="bg-purple-950/40 border border-purple-500/40 p-3 rounded-2xl space-y-1.5">
+                          <span className="text-xs text-purple-300 font-bold flex items-center gap-1.5">
+                            <ArrowRightLeft size={13} />
+                            <span>مهره‌های معاوضه‌ای توافق‌شده:</span>
+                          </span>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedNewsModal.offer_details.swap_players_details.map((sp, idx) => (
+                              <span key={sp?.id || idx} className="bg-purple-900/70 text-purple-200 border border-purple-500/40 px-2.5 py-1 rounded-xl text-xs font-bold font-sport flex items-center gap-1.5">
+                                <span>{sp?.name || 'بازیکن'}</span>
+                                <span className="text-cyan-300">({sp?.position || '-'} | OVR {sp?.overall || '-'})</span>
+                              </span>
+                            ))}
+                          </div>
                         </div>
                       )}
 

@@ -9,6 +9,7 @@ import {
   Key, ShieldCheck, ShieldAlert, Gamepad2, Scale, Lock, LogIn, CheckCircle2, UserCheck, AlertCircle
 } from 'lucide-react';
 import { hasAdminPermission } from '../utils/adminPermissions';
+import ErrorBoundary from '../components/common/ErrorBoundary';
 
 const isUserAdminRole = (u) => {
   if (!u) return false;
@@ -513,7 +514,9 @@ const AdminLayoutContent = () => {
 
       <main className="admin-content">
         {isCurrentPathAllowed() ? (
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         ) : (
           <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 space-y-4">
             <div className="w-16 h-16 rounded-3xl bg-rose-950/40 border border-rose-500/40 flex items-center justify-center text-rose-400 shadow-xl shadow-rose-950/40">

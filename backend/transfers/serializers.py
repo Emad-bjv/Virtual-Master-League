@@ -175,8 +175,10 @@ def _get_romano_headline_and_content(obj):
         cash_num = float(o.cash_amount or 0)
         swap_list = list(o.swap_players.all())
         if tp:
-            seller_name = o.receiver_team.name if tp.team_id == o.sender_team_id else o.sender_team.name
-            buyer_name = o.sender_team.name if tp.team_id == o.sender_team_id else o.receiver_team.name
+            seller_team = o.receiver_team if tp.team_id == o.sender_team_id else o.sender_team
+            buyer_team = o.sender_team if tp.team_id == o.sender_team_id else o.receiver_team
+            seller_name = seller_team.name if seller_team else "باشگاه مبدأ"
+            buyer_name = buyer_team.name if buyer_team else "باشگاه مقصد"
         else:
             seller_name = o.sender_team.name if o.sender_team else "باشگاه مبدأ"
             buyer_name = o.receiver_team.name if o.receiver_team else "باشگاه مقصد"
@@ -663,10 +665,10 @@ class TransferLogSerializer(serializers.ModelSerializer):
             o = obj.related_offer
             if o:
                 tp = o.target_player
-                seller_name = o.receiver_team.name if tp and tp.team_id == o.sender_team_id else (o.sender_team.name if o.sender_team else None)
-                buyer_name = o.sender_team.name if tp and tp.team_id == o.sender_team_id else (o.receiver_team.name if o.receiver_team else None)
                 seller_team = o.receiver_team if tp and tp.team_id == o.sender_team_id else o.sender_team
                 buyer_team = o.sender_team if tp and tp.team_id == o.sender_team_id else o.receiver_team
+                seller_name = seller_team.name if seller_team else None
+                buyer_name = buyer_team.name if buyer_team else None
 
                 romano_tag = "🚨 HERE WE GO!"
                 if obj.event_type == 'TRANSFER_FINALIZED':
