@@ -45,10 +45,10 @@ class CoachPasswordLoginView(APIView):
             return Response({'error': 'نام کاربری و رمز عبور الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
 
         username = str(raw_username).strip()
-        norm_username = normalize_digits(username)
+        norm_username = normalize_text_and_digits(username)
         fa_norm_username = normalize_text_and_digits(username)
         password = str(raw_password).strip()
-        norm_password = normalize_digits(password)
+        norm_password = normalize_text_and_digits(password)
 
         # 1. Look up user with all variations
         user = None
