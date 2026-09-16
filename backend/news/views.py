@@ -16,7 +16,16 @@ class NewsFeedListView(generics.ListAPIView):
     permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
-        qs = LeagueNews.objects.filter(is_published=True).select_related('related_player', 'related_team', 'related_match')
+        qs = LeagueNews.objects.filter(is_published=True).select_related(
+            'related_player', 'related_team', 'related_match', 'related_match__tournament'
+        )
+
+        # Dynamically exclude news for suspended tournaments (e.g. League or Cup with is_active=False)
+        qs = qs.filter(
+            Q(related_match__isnull=True) |
+            Q(related_match__tournament__isnull=True) |
+            Q(related_match__tournament__is_active=True)
+        )
 
         category = self.request.query_params.get('category')
         if category and category.upper() != 'ALL':
@@ -42,7 +51,15 @@ class NewsDetailView(generics.RetrieveAPIView):
     """
     serializer_class = LeagueNewsSerializer
     permission_classes = [permissions.AllowAny]
-    queryset = LeagueNews.objects.filter(is_published=True)
+
+    def get_queryset(self):
+        return LeagueNews.objects.filter(is_published=True).select_related(
+            'related_player', 'related_team', 'related_match', 'related_match__tournament'
+        ).filter(
+            Q(related_match__isnull=True) |
+            Q(related_match__tournament__isnull=True) |
+            Q(related_match__tournament__is_active=True)
+        )
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -113,7 +130,9 @@ class AdminNewsListView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAdminUser]
 
     def get_queryset(self):
-        qs = LeagueNews.objects.all().select_related('related_player', 'related_team', 'related_match')
+        qs = LeagueNews.objects.all().select_related(
+            'related_player', 'related_team', 'related_match', 'related_match__tournament'
+        )
         category = self.request.query_params.get('category')
         if category and category.upper() != 'ALL':
             qs = qs.filter(category=category.upper())

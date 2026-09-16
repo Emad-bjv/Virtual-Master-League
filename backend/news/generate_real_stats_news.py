@@ -34,10 +34,19 @@ from matches.models import Match
 from transfers.models import TransferHistory
 
 
+from django.db.models import Q
+
+
 def generate_upcoming_fixture_news():
-    """Generates preview news for the top upcoming scheduled match in Gameweek 1."""
-    match = Match.objects.filter(status__in=['SCHEDULED', 'TIMED']).order_by('id').first()
-    if not match:
+    """Generates preview news for the top upcoming scheduled match in an active tournament."""
+    match = Match.objects.filter(
+        status__in=['SCHEDULED', 'TIMED'],
+        home_team__isnull=False,
+        away_team__isnull=False
+    ).filter(
+        Q(tournament__isnull=False, tournament__is_active=True)
+    ).select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('id').first()
+    if not match or not match.home_team or not match.away_team:
         return None
 
     home_name = match.home_team.name

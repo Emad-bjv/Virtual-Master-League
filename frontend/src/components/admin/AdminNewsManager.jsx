@@ -314,6 +314,17 @@ export default function AdminNewsManager({ showToast }) {
                         مخفی از مربیان
                       </span>
                     )}
+                    {article.tournament_is_active === false && (
+                      <span
+                        className="text-[9.5px] font-black px-2 py-0.5 rounded-md bg-amber-950/90 text-amber-300 border border-amber-500/50 flex items-center gap-1 shadow-sm"
+                        title={`مسابقات ${article.tournament_name || 'تورنمنت'} در حالت تعلیق قرار دارد و این خبر موقتاً از مربیان پنهان است.`}
+                      >
+                        <span>⏸️ تورنمنت معلق</span>
+                        {article.tournament_name && (
+                          <span className="text-[9px] text-amber-400/80 font-normal">({article.tournament_name})</span>
+                        )}
+                      </span>
+                    )}
                     <span className="text-[10px] text-slate-500 font-sport">
                       {article.time_ago} • بازدید: {article.views_count}
                     </span>
@@ -405,6 +416,18 @@ export default function AdminNewsManager({ showToast }) {
                   </div>
 
                   <form onSubmit={handleSaveArticle} className="space-y-3.5 overflow-y-auto custom-scrollbar flex-1 pr-1">
+                    {editingArticle?.tournament_is_active === false && (
+                      <div className="p-3 rounded-2xl bg-amber-950/40 border border-amber-500/50 text-amber-300 text-[11px] leading-relaxed flex items-start gap-2">
+                        <AlertCircle size={16} className="shrink-0 text-amber-400 mt-0.5" />
+                        <div>
+                          <p className="font-bold">تورنمنت مرتبط با این مسابقه در حالت تعلیق است!</p>
+                          <p className="text-slate-300 mt-0.5">
+                            مسابقات «{editingArticle.tournament_name || 'تورنمنت'}» معلق بوده و این خبر به صورت خودکار از دید مربیان و صفحه اصلی پنهان است تا زمانی که تعلیق تورنمنت در هاب مسابقات لغو شود.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Title */}
                     <div>
                       <label className="text-slate-300 font-bold block mb-1">تیتر خبر *</label>

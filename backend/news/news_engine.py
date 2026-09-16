@@ -113,7 +113,11 @@ def generate_match_news(match):
     """
     from news.models import LeagueNews
 
-    if not match or match.status != 'FINISHED':
+    if not match or match.status != 'FINISHED' or not match.home_team or not match.away_team:
+        return None
+
+    # Guard against suspended tournaments (e.g. League or Cup with is_active=False)
+    if match.tournament and not match.tournament.is_active:
         return None
 
     home = match.home_team
@@ -303,9 +307,17 @@ def generate_upcoming_fixture_news():
     """Generates preview news for the top upcoming scheduled match in Gameweek 1."""
     from matches.models import Match
     from news.models import LeagueNews
+    from django.db.models import Q
 
-    match = Match.objects.filter(status__in=['SCHEDULED', 'TIMED']).order_by('id').first()
-    if not match:
+    # Only pick upcoming matches from currently ACTIVE tournaments with confirmed teams
+    match = Match.objects.filter(
+        status__in=['SCHEDULED', 'TIMED'],
+        home_team__isnull=False,
+        away_team__isnull=False
+    ).filter(
+        Q(tournament__isnull=False, tournament__is_active=True)
+    ).select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager', 'tournament').order_by('id').first()
+    if not match or not match.home_team or not match.away_team:
         return None
 
     home_name = match.home_team.name
@@ -464,8 +476,13 @@ def backfill_historical_news(limit=25):
 
     created_count = 0
 
-    # 1. Matches backfill (most recent finished matches)
-    recent_matches = Match.objects.filter(status='FINISHED').order_by('-id')[:limit]
+    # 1. Matches backfill (most recent finished matches of active tournaments)
+    from django.db.models import Q
+    recent_matches = Match.objects.filter(
+        status='FINISHED'
+    ).filter(
+        Q(tournament__isnull=True) | Q(tournament__is_active=True)
+    ).order_by('-id')[:limit]
     for m in recent_matches:
         news = generate_match_news(m)
         if news:

@@ -11,6 +11,8 @@ class LeagueNewsSerializer(serializers.ModelSerializer):
     related_team_logo = serializers.SerializerMethodField()
     user_reaction = serializers.SerializerMethodField()
     time_ago = serializers.SerializerMethodField()
+    tournament_name = serializers.SerializerMethodField()
+    tournament_is_active = serializers.SerializerMethodField()
 
     class Meta:
         model = LeagueNews
@@ -20,10 +22,21 @@ class LeagueNewsSerializer(serializers.ModelSerializer):
             'views_count', 'reactions_count', 'user_reaction', 'author_name',
             'related_player', 'related_player_name', 'related_player_photo',
             'related_team', 'related_team_name', 'related_team_logo',
-            'related_match', 'source_event_type', 'source_event_id',
+            'related_match', 'tournament_name', 'tournament_is_active',
+            'source_event_type', 'source_event_id',
             'created_at', 'updated_at', 'time_ago'
         ]
         read_only_fields = ['id', 'views_count', 'reactions_count', 'created_at', 'updated_at']
+
+    def get_tournament_name(self, obj):
+        if obj.related_match and obj.related_match.tournament:
+            return obj.related_match.tournament.name
+        return None
+
+    def get_tournament_is_active(self, obj):
+        if obj.related_match and obj.related_match.tournament:
+            return obj.related_match.tournament.is_active
+        return None
 
     def get_related_player_photo(self, obj):
         if obj.related_player and obj.related_player.custom_photo:
