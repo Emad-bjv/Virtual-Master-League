@@ -445,12 +445,15 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
 
         {/* Real News Cards / Skeleton / Empty State */}
         {loadingNews ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="rounded-2xl overflow-hidden bg-slate-900/60 border border-slate-800 p-3 animate-pulse space-y-3">
-                <div className="w-full h-32 bg-slate-800/60 rounded-xl" />
-                <div className="h-4 bg-slate-800/80 rounded w-3/4" />
-                <div className="h-3 bg-slate-800/50 rounded w-1/2" />
+              <div key={i} className="rounded-2xl overflow-hidden bg-slate-900/60 border border-slate-800/80 p-3 animate-pulse space-y-3 flex flex-col justify-between">
+                <div className="w-full aspect-[16/9] bg-slate-800/60 rounded-xl" />
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 bg-slate-800/80 rounded w-5/6" />
+                  <div className="h-3 bg-slate-800/50 rounded w-1/2" />
+                </div>
+                <div className="h-3 bg-slate-800/40 rounded w-1/3 pt-2" />
               </div>
             ))}
           </div>
@@ -478,58 +481,87 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {(displayNews || []).map((news) => (
-              <div
-                key={news.id}
-                onClick={() => setSelectedNews(news.raw || news)}
-                className="group relative rounded-2xl overflow-hidden bg-slate-900/90 border border-slate-800 hover:border-amber-500/50 shadow-lg cursor-pointer transition-all active:scale-[0.98] flex flex-col"
-              >
-                {/* News Thumbnail */}
-                <div className="relative w-full h-36 sm:h-32 bg-slate-950 overflow-hidden">
-                  <img
-                    src={news.image || news.image_url || '/images/vml_news_trophy.webp'}
-                    alt={news.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    onError={(e) => { e.currentTarget.src = '/images/vml_news_trophy.webp'; }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-black/30" />
-                  
-                  {/* Category Badge */}
-                  <span className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider shadow-md bg-amber-500 text-slate-950">
-                    {news.categoryLabel || news.category_display || news.category}
-                  </span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            {(displayNews || []).map((news) => {
+              const imgSrc = news.image || news.image_url || '/images/vml_news_trophy.webp';
+              const isLogo = imgSrc.includes('/logos/') || imgSrc.includes('logo');
+              const isPlayer = imgSrc.includes('player_photos') || imgSrc.includes('messi');
 
-                  {news.is_pinned && (
-                    <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md text-[9px] font-black bg-amber-500/90 text-slate-950 shadow">
-                      📌 {lang === 'fa' ? 'سنجاق' : 'PINNED'}
-                    </span>
-                  )}
+              return (
+                <div
+                  key={news.id}
+                  onClick={() => setSelectedNews(news.raw || news)}
+                  className="group relative rounded-2xl overflow-hidden bg-[#090f1d] border border-slate-800/90 hover:border-amber-500/60 hover:shadow-[0_8px_30px_rgba(245,158,11,0.15)] shadow-lg cursor-pointer transition-all duration-300 active:scale-[0.98] flex flex-col h-full"
+                >
+                  {/* Smart 16:9 Image Frame with Ambient Backdrop */}
+                  <div className="relative w-full aspect-[16/9] bg-slate-950 overflow-hidden flex items-center justify-center">
+                    {/* Ambient Blurred Background Layer */}
+                    <div
+                      className="absolute inset-0 bg-cover bg-center filter blur-lg scale-110 opacity-35"
+                      style={{ backgroundImage: `url(${imgSrc})` }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#090f1d] via-black/20 to-black/30" />
 
-                  {news.is_breaking && (
-                    <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md text-[9px] font-black bg-rose-600 text-white animate-pulse">
-                      🔥 {lang === 'fa' ? 'فوری' : 'BREAKING'}
-                    </span>
-                  )}
-                </div>
+                    {/* Sharp Foreground Image */}
+                    <img
+                      src={imgSrc}
+                      alt={news.title}
+                      className={`relative z-10 transition-transform duration-500 group-hover:scale-105 ${
+                        isLogo
+                          ? 'max-h-[75%] max-w-[75%] object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.8)]'
+                          : isPlayer
+                          ? 'h-full w-full object-cover object-top'
+                          : 'h-full w-full object-cover'
+                      }`}
+                      onError={(e) => { e.currentTarget.src = '/images/vml_news_trophy.webp'; }}
+                    />
 
-                {/* News Content */}
-                <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
-                  <h4 className="text-xs sm:text-sm font-black text-white group-hover:text-amber-300 transition-colors line-clamp-2 leading-tight">
-                    {news.title}
-                  </h4>
-                  <div className="flex items-center justify-between text-[10.5px] text-slate-400 pt-1 border-t border-slate-800/80">
-                    <span className="flex items-center gap-1">
-                      <Clock size={11} className="text-amber-400" />
-                      {news.timeAgo || news.time_ago}
+                    {/* Category Badge */}
+                    <span className="absolute bottom-2.5 left-2.5 z-20 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider shadow-md bg-amber-500 text-slate-950">
+                      {news.categoryLabel || news.category_display || news.category}
                     </span>
-                    <span className="text-cyan-400 group-hover:underline font-bold">
-                      {t('readMore')}
-                    </span>
+
+                    {/* Pinned Badge */}
+                    {news.is_pinned && (
+                      <span className="absolute top-2.5 left-2.5 z-20 px-2 py-0.5 rounded-md text-[9.5px] font-black bg-amber-400 text-slate-950 shadow-md flex items-center gap-1">
+                        📌 {lang === 'fa' ? 'سنجاق' : 'PINNED'}
+                      </span>
+                    )}
+
+                    {/* Breaking Badge */}
+                    {news.is_breaking && (
+                      <span className="absolute top-2.5 right-2.5 z-20 px-2 py-0.5 rounded-md text-[9px] font-black bg-rose-600 text-white animate-pulse shadow-md">
+                        🔥 {lang === 'fa' ? 'فوری' : 'BREAKING'}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* News Content Body with Equal Heights */}
+                  <div className="p-3.5 flex-1 flex flex-col justify-between space-y-2.5">
+                    <div className="space-y-1">
+                      <h4 className="text-xs sm:text-sm font-black text-white group-hover:text-amber-300 transition-colors line-clamp-2 min-h-[2.6rem] leading-snug">
+                        {news.title}
+                      </h4>
+                      {news.subtitle && (
+                        <p className="text-[11px] font-bold text-amber-400/90 truncate">
+                          {news.subtitle}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
+                      <span className="flex items-center gap-1">
+                        <Clock size={12} className="text-amber-400" />
+                        {news.timeAgo || news.time_ago}
+                      </span>
+                      <span className="text-cyan-400 group-hover:underline font-bold text-xs">
+                        {t('readMore')}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

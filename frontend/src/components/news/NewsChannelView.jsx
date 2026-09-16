@@ -264,7 +264,7 @@ export default function NewsChannelView({ onBack }) {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4.5">
           {(newsList || []).map((item) => {
             const isCopied = copiedId === item.id;
             const reactions = item.reactions_count || {};
@@ -275,14 +275,14 @@ export default function NewsChannelView({ onBack }) {
                 key={item.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`rounded-3xl border transition-all overflow-hidden shadow-xl flex flex-col ${
+                className={`rounded-3xl border transition-all overflow-hidden shadow-xl flex flex-col h-full ${
                   item.is_pinned
                     ? 'bg-gradient-to-b from-slate-900/95 to-slate-950/95 border-amber-500/50 shadow-amber-500/10'
-                    : 'bg-slate-900/80 border-slate-800/90 hover:border-cyan-500/40'
+                    : 'bg-[#0b1222] border-slate-800/90 hover:border-cyan-500/40'
                 }`}
               >
                 {/* Header ribbon */}
-                <div className="px-4 py-2.5 border-b border-slate-800/80 flex items-center justify-between text-xs bg-slate-950/40">
+                <div className="px-4 py-2.5 border-b border-slate-800/80 flex items-center justify-between text-xs bg-slate-950/40 shrink-0">
                   <div className="flex items-center gap-2">
                     <span className="text-[10.5px] font-black px-2 py-0.5 rounded-lg bg-cyan-950 text-cyan-400 border border-cyan-500/30">
                       {item.category_display}
@@ -301,7 +301,7 @@ export default function NewsChannelView({ onBack }) {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleCopy(item)}
-                      className="text-slate-400 hover:text-white transition-colors p-1"
+                      className="text-slate-400 hover:text-white transition-colors p-1 cursor-pointer"
                       title="کپی متن خبر"
                     >
                       {isCopied ? <Check size={14} className="text-emerald-400" /> : <Share2 size={14} />}
@@ -309,41 +309,62 @@ export default function NewsChannelView({ onBack }) {
                   </div>
                 </div>
 
-                {/* Media Image Banner */}
-                {item.image_url && (
-                  <div
-                    onClick={() => setSelectedArticle(item)}
-                    className="relative w-full h-44 sm:h-52 bg-slate-950 overflow-hidden cursor-pointer group"
-                  >
-                    <img
-                      src={item.image_url.startsWith('http') || item.image_url.startsWith('/') ? item.image_url : getTeamLogoUrl(item.image_url)}
-                      alt={item.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      onError={(e) => {
-                        e.target.src = '/images/vml_news_trophy.webp';
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-black/20" />
-                    
-                    {item.related_team_name && (
-                      <div className="absolute top-3 right-3 bg-slate-950/85 backdrop-blur-md px-2.5 py-1 rounded-xl border border-slate-700 text-[11px] font-bold text-white flex items-center gap-1.5">
-                        <span>{item.related_team_name}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Media Image Banner with 16:9 Smart Framing */}
+                {item.image_url && (() => {
+                  const rawSrc = item.image_url.startsWith('http') || item.image_url.startsWith('/')
+                    ? item.image_url
+                    : getTeamLogoUrl(item.image_url);
+                  const isLogo = rawSrc.includes('/logos/') || rawSrc.includes('logo');
+                  const isPlayer = rawSrc.includes('player_photos') || rawSrc.includes('messi');
+
+                  return (
+                    <div
+                      onClick={() => setSelectedArticle(item)}
+                      className="relative w-full aspect-[16/9] bg-slate-950 overflow-hidden cursor-pointer group flex items-center justify-center shrink-0"
+                    >
+                      {/* Ambient Blurred Backdrop */}
+                      <div
+                        className="absolute inset-0 bg-cover bg-center filter blur-lg scale-110 opacity-35"
+                        style={{ backgroundImage: `url(${rawSrc})` }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0b1222] via-black/20 to-black/30" />
+
+                      {/* Foreground Sharp Image */}
+                      <img
+                        src={rawSrc}
+                        alt={item.title}
+                        className={`relative z-10 transition-transform duration-500 group-hover:scale-105 ${
+                          isLogo
+                            ? 'max-h-[75%] max-w-[75%] object-contain drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)]'
+                            : isPlayer
+                            ? 'h-full w-full object-cover object-top'
+                            : 'h-full w-full object-cover'
+                        }`}
+                        onError={(e) => {
+                          e.target.src = '/images/vml_news_trophy.webp';
+                        }}
+                      />
+
+                      {item.related_team_name && (
+                        <div className="absolute top-3 right-3 z-20 bg-slate-950/85 backdrop-blur-md px-2.5 py-1 rounded-xl border border-slate-700 text-[11px] font-bold text-white flex items-center gap-1.5 shadow-md">
+                          <span>{item.related_team_name}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Text Content */}
                 <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
                   <div className="space-y-1.5">
                     <h2
                       onClick={() => setSelectedArticle(item)}
-                      className="font-black text-white text-sm sm:text-base hover:text-cyan-300 transition-colors cursor-pointer leading-snug"
+                      className="font-black text-white text-sm sm:text-base hover:text-cyan-300 transition-colors cursor-pointer leading-snug line-clamp-2 min-h-[2.8rem]"
                     >
                       {item.title}
                     </h2>
                     {item.subtitle && (
-                      <p className="text-[11.5px] font-bold text-cyan-400">
+                      <p className="text-[11.5px] font-bold text-cyan-400 truncate">
                         {item.subtitle}
                       </p>
                     )}
@@ -352,8 +373,8 @@ export default function NewsChannelView({ onBack }) {
                     </p>
                   </div>
 
-                  {/* Actions & Reactions */}
-                  <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2">
+                  {/* Actions & Reactions Sticky at bottom */}
+                  <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 mt-auto">
                     {/* Reaction buttons */}
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {(REACTION_OPTIONS || []).map((r) => {
@@ -380,9 +401,9 @@ export default function NewsChannelView({ onBack }) {
                     {/* Read more button */}
                     <button
                       onClick={() => setSelectedArticle(item)}
-                      className="text-xs font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors mr-auto"
+                      className="text-xs font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors mr-auto cursor-pointer"
                     >
-                      <span>مشاهده کامل گزارش</span>
+                      <span>مشاهده کامل</span>
                       <ChevronLeft size={14} />
                     </button>
                   </div>

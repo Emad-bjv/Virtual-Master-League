@@ -288,11 +288,11 @@ export default function AdminNewsManager({ showToast }) {
             >
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 {/* Thumbnail */}
-                <div className="w-14 h-14 rounded-xl bg-slate-900 border border-slate-800 overflow-hidden shrink-0">
+                <div className="w-14 h-14 rounded-xl bg-slate-900 border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center p-0.5">
                   <img
                     src={article.image_url || '/images/vml_news_trophy.webp'}
                     alt=""
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                     onError={(e) => {
                       e.target.src = '/images/vml_news_trophy.webp';
                     }}

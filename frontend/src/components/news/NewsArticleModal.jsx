@@ -101,27 +101,48 @@ export default function NewsArticleModal({ isOpen, onClose, article, onReact }) 
 
           {/* Scrollable Article Body */}
           <div className="overflow-y-auto custom-scrollbar flex-1 pr-1 space-y-4">
-            {/* Featured Image */}
-            {article.image_url && (
-              <div className="relative w-full h-48 sm:h-64 rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 shadow-xl">
-                <img
-                  src={article.image_url.startsWith('http') || article.image_url.startsWith('/') ? article.image_url : getTeamLogoUrl(article.image_url)}
-                  alt={title}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.src = '/images/vml_news_trophy.webp';
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0e1626] via-transparent to-transparent opacity-80" />
-                
-                {/* Related Team Crest or Player Badge if available */}
-                {article.related_team_name && (
-                  <div className="absolute bottom-3 right-3 bg-slate-950/90 backdrop-blur-md px-3 py-1 rounded-xl border border-slate-700 flex items-center gap-2">
-                    <span className="text-xs font-bold text-white">{article.related_team_name}</span>
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Featured Image with 16:9 Smart Framing */}
+            {article.image_url && (() => {
+              const rawSrc = article.image_url.startsWith('http') || article.image_url.startsWith('/')
+                ? article.image_url
+                : getTeamLogoUrl(article.image_url);
+              const isLogo = rawSrc.includes('/logos/') || rawSrc.includes('logo');
+              const isPlayer = rawSrc.includes('player_photos') || rawSrc.includes('messi');
+
+              return (
+                <div className="relative w-full aspect-[16/9] max-h-[300px] rounded-2xl overflow-hidden bg-slate-950 border border-slate-800/90 shadow-2xl flex items-center justify-center">
+                  {/* Ambient Blurred Backdrop */}
+                  <div
+                    className="absolute inset-0 bg-cover bg-center filter blur-xl scale-115 opacity-40"
+                    style={{ backgroundImage: `url(${rawSrc})` }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0e1626] via-transparent to-black/30" />
+
+                  {/* Sharp Foreground Image */}
+                  <img
+                    src={rawSrc}
+                    alt={title}
+                    className={`relative z-10 ${
+                      isLogo
+                        ? 'max-h-[75%] max-w-[75%] object-contain drop-shadow-[0_6px_20px_rgba(0,0,0,0.9)]'
+                        : isPlayer
+                        ? 'h-full w-full object-cover object-top'
+                        : 'h-full w-full object-cover'
+                    }`}
+                    onError={(e) => {
+                      e.target.src = '/images/vml_news_trophy.webp';
+                    }}
+                  />
+
+                  {/* Related Team Crest or Player Badge */}
+                  {article.related_team_name && (
+                    <div className="absolute bottom-3 right-3 z-20 bg-slate-950/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700 flex items-center gap-2 shadow-lg">
+                      <span className="text-xs font-bold text-white">{article.related_team_name}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Title & Subtitle */}
             <div className="space-y-1.5">
