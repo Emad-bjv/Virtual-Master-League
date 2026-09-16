@@ -23,6 +23,7 @@ import PenaltyShootoutModal from './PenaltyShootoutModal';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import { PACKAGE_TAGS, CUSTOM_TAG_PALETTES, resolveItemTag } from '../../utils/storePackageTags';
 import { useTranslation } from 'react-i18next';
+import notificationSoundService from '../../services/notificationSound';
 import AdminManagement from '../../admin/pages/AdminManagement';
 import { hasAdminPermission } from '../../utils/adminPermissions';
 
@@ -996,6 +997,19 @@ export default function AdminDashboard({
     };
   };
 
+  // Real-time Tactical Attitude Level Alert State (Admin Referee Room)
+  const [attitudeAlertBanner, setAttitudeAlertBanner] = useState(null);
+  const prevAttitudeLevelsRef = useRef({ home: null, away: null, matchId: null });
+
+  useEffect(() => {
+    if (attitudeAlertBanner) {
+      const timer = setTimeout(() => {
+        setAttitudeAlertBanner(null);
+      }, 15000);
+      return () => clearTimeout(timer);
+    }
+  }, [attitudeAlertBanner?.timestamp]);
+
   // Fetch full live match state from server
   const fetchLiveMatchState = async (matchId) => {
     if (!matchId) return;
@@ -1004,6 +1018,48 @@ export default function AdminDashboard({
       if (res.data) {
         setLiveMatchDetails(res.data);
         if (res.data.match) {
+          const m = res.data.match;
+          const newHomeLevel = m.home_attitude_level ?? 0;
+          const newAwayLevel = m.away_attitude_level ?? 0;
+          const prev = prevAttitudeLevelsRef.current;
+
+          // Check if attitude level changed
+          if (prev.matchId === matchId) {
+            const homeChanged = prev.home !== null && prev.home !== newHomeLevel;
+            const awayChanged = prev.away !== null && prev.away !== newAwayLevel;
+
+            if (homeChanged || awayChanged) {
+              const changedSide = homeChanged ? 'home' : 'away';
+              const teamName = homeChanged
+                ? (m.home_team_name || m.home || 'تیم میزبان')
+                : (m.away_team_name || m.away || 'تیم میهمان');
+              const level = homeChanged ? newHomeLevel : newAwayLevel;
+              const LEVEL_LABELS = {
+                '-1': 'دفاعی (-1) 🛡️',
+                '0': 'عادی و متعادل (0) ⚖️',
+                '1': 'هجومی (+1) ⚡',
+                '2': 'تمام‌تهاجمی (+2) - مدافع وسط جلو ⚔️',
+              };
+
+              setAttitudeAlertBanner({
+                teamName,
+                side: changedSide,
+                sideLabel: homeChanged ? 'میزبان' : 'میهمان',
+                level,
+                levelLabel: LEVEL_LABELS[String(level)] || 'متعادل',
+                timestamp: Date.now(),
+              });
+
+              notificationSoundService.playMatchAlertChime(true);
+            }
+          }
+
+          prevAttitudeLevelsRef.current = {
+            matchId,
+            home: newHomeLevel,
+            away: newAwayLevel,
+          };
+
           setSelectedLiveMatch((prev) => ({
             ...prev,
             ...res.data.match,
@@ -5960,6 +6016,57 @@ export default function AdminDashboard({
           ) : (
             /* --- ACTIVE 4-TAB REFEREE MATCH MANAGEMENT DESK (R5) --- */
             <div className="space-y-4">
+              {/* REAL-TIME TACTICAL ATTITUDE LEVEL ALERT BANNER */}
+              <AnimatePresence>
+                {attitudeAlertBanner && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -15, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -15, scale: 0.98 }}
+                    className={`p-4 rounded-3xl border shadow-2xl flex items-center justify-between gap-3 text-white transition-all ${
+                      attitudeAlertBanner.level === 2
+                        ? 'bg-gradient-to-r from-rose-950 via-red-900 to-rose-950 border-rose-400 shadow-[0_0_30px_rgba(244,63,94,0.5)] animate-pulse'
+                        : attitudeAlertBanner.level === 1
+                        ? 'bg-gradient-to-r from-amber-950 via-yellow-900 to-amber-950 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.4)]'
+                        : attitudeAlertBanner.level === -1
+                        ? 'bg-gradient-to-r from-blue-950 via-sky-900 to-blue-950 border-blue-400 shadow-[0_0_25px_rgba(59,130,246,0.4)]'
+                        : 'bg-gradient-to-r from-emerald-950 via-teal-900 to-emerald-950 border-emerald-400 shadow-[0_0_25px_rgba(16,185,129,0.35)]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-black/40 border border-white/20 flex items-center justify-center text-xl shrink-0 shadow-inner">
+                        {attitudeAlertBanner.level === 2 ? '⚔️' : attitudeAlertBanner.level === 1 ? '⚡' : attitudeAlertBanner.level === -1 ? '🛡️' : '⚖️'}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-black text-sm sm:text-base">
+                            اعلام فوری تغییر فاز بازی ({attitudeAlertBanner.sideLabel}): {attitudeAlertBanner.teamName}
+                          </span>
+                          <span className="text-[10px] font-sport font-black px-2.5 py-0.5 rounded-full bg-black/60 border border-white/30">
+                            LEVEL {attitudeAlertBanner.level > 0 ? `+${attitudeAlertBanner.level}` : attitudeAlertBanner.level}
+                          </span>
+                        </div>
+                        <p className="text-xs text-white/90 font-bold mt-0.5">
+                          {attitudeAlertBanner.level === 2
+                            ? '🚨 توجه داور: تیم به حالت «تمام‌تهاجمی (+2)» رفت! یکی از مدافعان میانی (CB) در این فاز به عنوان مهاجم در حملات حضور خواهد داشت.'
+                            : attitudeAlertBanner.level === 1
+                            ? '⚡ توجه داور: تیم به فاز «هجومی (+1)» رفت؛ پرس سنگین‌تر و هجوم گسترده‌تر در زمین حریف.'
+                            : attitudeAlertBanner.level === -1
+                            ? '🛡️ توجه داور: تیم به فاز «دفاعی (-1)» رفت؛ عقب‌نشینی خطوط و متراکم کردن محوطه دفاعی.'
+                            : '⚖️ توجه داور: تیم به فاز «متعادل و عادی (0)» بازگشت.'}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setAttitudeAlertBanner(null)}
+                      className="p-2 rounded-xl bg-black/30 hover:bg-black/50 text-white/80 hover:text-white transition-colors cursor-pointer shrink-0"
+                    >
+                      <X size={16} />
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Selected Match Master Header */}
               <div className="glass-panel p-4 rounded-3xl border border-cyan-500/50 bg-gradient-to-r from-slate-950 via-slate-900 to-purple-950/40 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div className="flex items-center gap-3">
@@ -5974,7 +6081,7 @@ export default function AdminDashboard({
                     <ArrowLeft size={18} />
                   </button>
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold text-cyan-400 bg-cyan-950 px-2 py-0.5 rounded-lg border border-cyan-500/30 font-sport">
                         {selectedLiveMatch.round_name || 'هفته اول'} • بازی #{selectedLiveMatch.id}
                       </span>
@@ -5985,12 +6092,58 @@ export default function AdminDashboard({
                         </span>
                       )}
                     </div>
-                    <h3 className="font-black text-white text-base sm:text-lg mt-0.5 flex items-center gap-2">
-                      <span>{selectedLiveMatch.home_team_name || selectedLiveMatch.home}</span>
+                    <h3 className="font-black text-white text-base sm:text-lg mt-1 flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <span>{selectedLiveMatch.home_team_name || selectedLiveMatch.home}</span>
+                        {/* Home Attitude Level Live Badge */}
+                        {(() => {
+                          const lvl = selectedLiveMatch.home_attitude_level ?? 0;
+                          return (
+                            <span
+                              className={`text-[10.5px] font-black px-2 py-0.5 rounded-lg border flex items-center gap-1 transition-all ${
+                                lvl === 2
+                                  ? 'bg-rose-950 border-rose-500 text-rose-300 shadow-[0_0_10px_rgba(244,63,94,0.4)] animate-pulse'
+                                  : lvl === 1
+                                  ? 'bg-amber-950 border-amber-500 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.3)]'
+                                  : lvl === -1
+                                  ? 'bg-blue-950 border-blue-500 text-blue-300 shadow-[0_0_8px_rgba(59,130,246,0.3)]'
+                                  : 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300'
+                              }`}
+                              title={`فاز بازی میزبان: ${lvl === 2 ? 'تمام‌تهاجمی (+2 - مدافع وسط جلو)' : lvl === 1 ? 'هجومی (+1)' : lvl === -1 ? 'دفاعی (-1)' : 'متعادل (0)'}`}
+                            >
+                              <span>{lvl === 2 ? '⚔️ تمام‌تهاجمی (+2)' : lvl === 1 ? '⚡ هجومی (+1)' : lvl === -1 ? '🛡️ دفاعی (-1)' : '⚖️ متعادل'}</span>
+                            </span>
+                          );
+                        })()}
+                      </div>
+
                       <span className="text-[#00ff87] font-sport font-black px-2 py-0.5 bg-slate-950 rounded-lg border border-slate-800">
                         {selectedLiveMatch.home_score ?? 0} - {selectedLiveMatch.away_score ?? 0}
                       </span>
-                      <span>{selectedLiveMatch.away_team_name || selectedLiveMatch.away}</span>
+
+                      <div className="flex items-center gap-1.5">
+                        <span>{selectedLiveMatch.away_team_name || selectedLiveMatch.away}</span>
+                        {/* Away Attitude Level Live Badge */}
+                        {(() => {
+                          const lvl = selectedLiveMatch.away_attitude_level ?? 0;
+                          return (
+                            <span
+                              className={`text-[10.5px] font-black px-2 py-0.5 rounded-lg border flex items-center gap-1 transition-all ${
+                                lvl === 2
+                                  ? 'bg-rose-950 border-rose-500 text-rose-300 shadow-[0_0_10px_rgba(244,63,94,0.4)] animate-pulse'
+                                  : lvl === 1
+                                  ? 'bg-amber-950 border-amber-500 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.3)]'
+                                  : lvl === -1
+                                  ? 'bg-blue-950 border-blue-500 text-blue-300 shadow-[0_0_8px_rgba(59,130,246,0.3)]'
+                                  : 'bg-emerald-950/70 border-emerald-500/50 text-emerald-300'
+                              }`}
+                              title={`فاز بازی میهمان: ${lvl === 2 ? 'تمام‌تهاجمی (+2 - مدافع وسط جلو)' : lvl === 1 ? 'هجومی (+1)' : lvl === -1 ? 'دفاعی (-1)' : 'متعادل (0)'}`}
+                            >
+                              <span>{lvl === 2 ? '⚔️ تمام‌تهاجمی (+2)' : lvl === 1 ? '⚡ هجومی (+1)' : lvl === -1 ? '🛡️ دفاعی (-1)' : '⚖️ متعادل'}</span>
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </h3>
                   </div>
                 </div>

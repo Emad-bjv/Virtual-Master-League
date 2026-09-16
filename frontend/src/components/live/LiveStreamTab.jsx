@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Tv, Radio, Activity, CheckCircle2, Sliders, X, Shield, Clock, Timer, Lock, Info, Play, AlertCircle, RefreshCw, ArrowLeftRight, Check, CheckCircle, AlertTriangle, Layers, ListChecks } from 'lucide-react';
+import { Tv, Radio, Activity, CheckCircle2, Sliders, X, Shield, Clock, Timer, Lock, Info, Play, AlertCircle, RefreshCw, ArrowLeftRight, Check, CheckCircle, AlertTriangle, Layers, ListChecks, ChevronUp, ChevronDown, Zap, Swords } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import EFootballGamePlan from '../team/EFootballGamePlan';
 import LiveMatchStandby from './LiveMatchStandby';
@@ -49,6 +49,10 @@ export default function LiveStreamTab({
   const [isSubmittingChanges, setIsSubmittingChanges] = useState(false);
   const [liveWorkingLineup, setLiveWorkingLineup] = useState(null);
   const initialBaselineRef = useRef({ tactics: null, formation: null, startingXi: null });
+  
+  // Tactical Attack/Defense Attitude Level State (-1 Defensive, 0 Balanced, +1 Attacking, +2 All-Out Attack)
+  const [showAttitudeGuideModal, setShowAttitudeGuideModal] = useState(false);
+  const [isUpdatingAttitude, setIsUpdatingAttitude] = useState(false);
   
   // Tactical GamePlan State
   const [isTacticsExpanded, setIsTacticsExpanded] = useState(false);
@@ -444,6 +448,20 @@ export default function LiveStreamTab({
                 )
               );
             }
+          } else if (data.type === 'attitude_level_changed') {
+            setActiveMatch((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                home_attitude_level: data.home_attitude_level !== undefined ? data.home_attitude_level : (data.is_home ? data.level : prev.home_attitude_level),
+                away_attitude_level: data.away_attitude_level !== undefined ? data.away_attitude_level : (!data.is_home ? data.level : prev.away_attitude_level),
+              };
+            });
+            handleProcessLiveEvent({
+              type: 'ATTITUDE',
+              custom_text: data.message || `تغییر فاز تاکتیکی تیم ${data.team_name}: ${data.level_name}`,
+              team_name: data.team_name,
+            });
           }
 
           if (data.type === 'match_status') {
@@ -926,6 +944,52 @@ export default function LiveStreamTab({
     }
   };
 
+  const handleUpdateAttitudeLevel = async (newLevel) => {
+    if (!currentMatch?.id) return;
+    if (newLevel < -1 || newLevel > 2) return;
+    
+    const isHome = isUserHome;
+    const previousHomeLevel = currentMatch.home_attitude_level ?? 0;
+    const previousAwayLevel = currentMatch.away_attitude_level ?? 0;
+
+    // Optimistic UI update
+    setActiveMatch((prev) => ({
+      ...(prev || {}),
+      home_attitude_level: isHome ? newLevel : (prev?.home_attitude_level ?? 0),
+      away_attitude_level: !isHome ? newLevel : (prev?.away_attitude_level ?? 0),
+    }));
+
+    const LEVEL_TITLES = {
+      '-1': 'دفاعی 🛡️',
+      '0': 'عادی و متعادل ⚖️',
+      '1': 'هجومی ⚡',
+      '2': 'تمام‌تهاجمی (مدافع جلو) ⚔️',
+    };
+
+    try {
+      setIsUpdatingAttitude(true);
+      await matchApi.updateAttitudeLevel(currentMatch.id, {
+        team_id: teamData?.id,
+        level: newLevel,
+      });
+
+      notificationSoundService.playMatchAlertChime();
+      setSaveToast(`⚡ فاز تاکتیکی به «${LEVEL_TITLES[newLevel]}» تغییر یافت و فوراً به اتاق داوری اعلام شد.`);
+      setTimeout(() => setSaveToast(''), 5000);
+    } catch (err) {
+      console.error('Failed to update attitude level:', err);
+      setActiveMatch((prev) => ({
+        ...(prev || {}),
+        home_attitude_level: previousHomeLevel,
+        away_attitude_level: previousAwayLevel,
+      }));
+      setSaveToast('خطا در تغییر فاز بازی. لطفاً دوباره تلاش نمایید.');
+      setTimeout(() => setSaveToast(''), 4000);
+    } finally {
+      setIsUpdatingAttitude(false);
+    }
+  };
+
   // -------------------------------------------------------------
   // CURRENT MATCH SELECTION & 3-PHASE SMART STATE MACHINE
   // -------------------------------------------------------------
@@ -1130,6 +1194,142 @@ export default function LiveStreamTab({
           <span>{saveToast}</span>
         </motion.div>
       )}
+
+      {/* REAL-TIME PES/EFOOTBALL 4-STEP TACTICAL ATTITUDE HUD */}
+      {(() => {
+        const userTeamAttitudeLevel = isUserHome
+          ? (currentMatch?.home_attitude_level ?? 0)
+          : (currentMatch?.away_attitude_level ?? 0);
+        const activeTeamTitle = isCoachWithTeam ? (teamData?.name || 'تیم شما') : (isUserHome ? homeName : awayName);
+
+        return (
+          <div className={`fc-card-elevated p-3.5 sm:p-4 rounded-3xl border transition-all duration-500 shadow-2xl relative overflow-hidden ${
+            userTeamAttitudeLevel === 2
+              ? 'bg-gradient-to-r from-rose-950/80 via-[#0a050e] to-rose-950/80 border-rose-500/60 shadow-[0_0_25px_rgba(244,63,94,0.35)]'
+              : userTeamAttitudeLevel === 1
+              ? 'bg-gradient-to-r from-amber-950/70 via-[#0d0c05] to-amber-950/70 border-amber-500/50 shadow-[0_0_20px_rgba(245,158,11,0.25)]'
+              : userTeamAttitudeLevel === -1
+              ? 'bg-gradient-to-r from-blue-950/70 via-[#050a14] to-blue-950/70 border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.25)]'
+              : 'bg-gradient-to-r from-emerald-950/50 via-[#05080e] to-slate-900 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.15)]'
+          }`}>
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-3.5">
+              {/* Left Side: Status & Description */}
+              <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-start">
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-inner transition-all duration-300 shrink-0 ${
+                    userTeamAttitudeLevel === 2
+                      ? 'bg-rose-500/20 border-rose-500 text-rose-400 animate-pulse'
+                      : userTeamAttitudeLevel === 1
+                      ? 'bg-amber-500/20 border-amber-500 text-amber-400'
+                      : userTeamAttitudeLevel === -1
+                      ? 'bg-blue-500/20 border-blue-500 text-blue-400'
+                      : 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
+                  }`}>
+                    {userTeamAttitudeLevel === 2 ? (
+                      <Swords size={20} className="animate-bounce" />
+                    ) : userTeamAttitudeLevel === 1 ? (
+                      <Zap size={20} />
+                    ) : userTeamAttitudeLevel === -1 ? (
+                      <Shield size={20} />
+                    ) : (
+                      <Sliders size={20} />
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs sm:text-sm font-black text-white">
+                        تنظیم فاز تیمی: {activeTeamTitle}
+                      </span>
+                      <span className={`text-[10.5px] font-sport font-black px-2.5 py-0.5 rounded-full border shadow-sm ${
+                        userTeamAttitudeLevel === 2
+                          ? 'bg-rose-500 text-slate-950 border-rose-300 animate-pulse'
+                          : userTeamAttitudeLevel === 1
+                          ? 'bg-amber-400 text-slate-950 border-amber-300'
+                          : userTeamAttitudeLevel === -1
+                          ? 'bg-blue-500 text-white border-blue-300'
+                          : 'bg-emerald-400 text-slate-950 border-emerald-300'
+                      }`}>
+                        {userTeamAttitudeLevel === 2 ? 'LEVEL +2 • تمام‌تهاجمی' : userTeamAttitudeLevel === 1 ? 'LEVEL +1 • هجومی' : userTeamAttitudeLevel === -1 ? 'LEVEL -1 • دفاعی' : 'LEVEL 0 • عادی و متعادل'}
+                      </span>
+                    </div>
+                    <p className="text-[11.5px] text-slate-300 font-medium mt-0.5">
+                      {userTeamAttitudeLevel === 2
+                        ? '⚔️ فاز تمام‌تهاجمی: هجوم سراسری + مدافع وسط به خط حمله اضافه شد!'
+                        : userTeamAttitudeLevel === 1
+                        ? '⚡ فاز هجومی: پرس خط مقدم تشدید شده و آهنگ بازی تهاجمی است.'
+                        : userTeamAttitudeLevel === -1
+                        ? '🛡️ فاز دفاعی: عقب‌نشینی خطوط و تمرکز حداکثری بر دفاع و ضدحمله.'
+                        : '⚖️ فاز عادی: توازن میان دفاع و حمله طبق تاکتیک اصلی مسابقه.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tactical Guide Button */}
+                <button
+                  onClick={() => setShowAttitudeGuideModal(true)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 hover:text-white text-xs font-black flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer shrink-0"
+                  title="مشاهده راهنمای کامل ۴ سطح فاز بازی"
+                >
+                  <Info size={14} className="text-cyan-400" />
+                  <span>راهنما</span>
+                </button>
+              </div>
+
+              {/* Right Side: 4-Step Segmented Bar & Steppers */}
+              <div className="flex items-center gap-2 w-full lg:w-auto justify-center lg:justify-end">
+                {/* Step Down (Less Attacking / More Defensive) */}
+                <button
+                  onClick={() => handleUpdateAttitudeLevel(Math.max(-1, userTeamAttitudeLevel - 1))}
+                  disabled={isUpdatingAttitude || userTeamAttitudeLevel <= -1 || (!isCoachWithTeam && !isAdmin)}
+                  className="p-2 sm:p-2.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed transition-all active:scale-90 shadow-md cursor-pointer"
+                  title="یک سطح دفاعی‌تر (پایین)"
+                >
+                  <ChevronDown size={18} />
+                </button>
+
+                {/* 4 Interactive Segmented Level Pills */}
+                <div className="flex items-center bg-[#05080e]/95 p-1 rounded-2xl border border-slate-800 shadow-inner gap-1">
+                  {[
+                    { level: -1, label: 'دفاعی', num: '-1', icon: Shield, activeClass: 'bg-blue-600 text-white border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.6)]' },
+                    { level: 0, label: 'متعادل', num: '0', icon: Check, activeClass: 'bg-emerald-600 text-white border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.6)]' },
+                    { level: 1, label: 'هجومی', num: '+1', icon: Zap, activeClass: 'bg-amber-500 text-slate-950 border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.6)]' },
+                    { level: 2, label: 'تمام‌تهاجمی', num: '+2', icon: Swords, activeClass: 'bg-rose-600 text-white border-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.7)] animate-pulse' },
+                  ].map((item) => {
+                    const isCurrent = userTeamAttitudeLevel === item.level;
+                    const IconComp = item.icon;
+                    return (
+                      <button
+                        key={item.level}
+                        onClick={() => handleUpdateAttitudeLevel(item.level)}
+                        disabled={isUpdatingAttitude || (!isCoachWithTeam && !isAdmin)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 border cursor-pointer disabled:cursor-not-allowed ${
+                          isCurrent
+                            ? item.activeClass
+                            : 'bg-transparent text-slate-400 hover:text-white border-transparent hover:bg-slate-900/60'
+                        }`}
+                      >
+                        <IconComp size={13} />
+                        <span>{item.label}</span>
+                        <span className="font-sport font-black text-[11px] opacity-80">{item.num}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Step Up (More Attacking / Up) */}
+                <button
+                  onClick={() => handleUpdateAttitudeLevel(Math.min(2, userTeamAttitudeLevel + 1))}
+                  disabled={isUpdatingAttitude || userTeamAttitudeLevel >= 2 || (!isCoachWithTeam && !isAdmin)}
+                  className="p-2 sm:p-2.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white disabled:opacity-25 disabled:cursor-not-allowed transition-all active:scale-90 shadow-md cursor-pointer"
+                  title="یک سطح هجومی‌تر (بالا)"
+                >
+                  <ChevronUp size={18} />
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 1. APARAT LIVE VIDEO STREAM PLAYER CONTAINER */}
       <div className="fc-card-elevated p-2 md:p-3 rounded-3xl border border-slate-700/60 space-y-2 shadow-2xl relative overflow-hidden bg-[#05080e]">
@@ -1640,6 +1840,142 @@ export default function LiveStreamTab({
                       </p>
                     </div>
                   )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* ATTACK/DEFENSE TACTICAL ATTITUDE GUIDE MODAL (PES / EFOOTBALL) */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showAttitudeGuideModal && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md overflow-y-auto">
+              <div className="fixed inset-0" onClick={() => setShowAttitudeGuideModal(false)} />
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="relative z-10 bg-slate-950 rounded-3xl w-full max-w-2xl my-auto p-5 sm:p-6 border border-cyan-500/40 shadow-2xl space-y-4 dir-rtl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-cyan-950 border border-cyan-500/50 flex items-center justify-center text-cyan-400">
+                      <Sliders size={20} />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-sm sm:text-base text-white">راهنمای سطوح تاکتیکی بازی (PES Attitude Levels)</h3>
+                      <p className="text-[11px] text-slate-400">تنظیم بلادرنگ فاز حمله و دفاع توسط سرمربی در جریان پخش زنده مسابقه</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowAttitudeGuideModal(false)}
+                    className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-700 transition-colors cursor-pointer"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* 4 Levels Explanations */}
+                <div className="space-y-3 max-h-[65vh] overflow-y-auto pr-1 custom-scrollbar">
+                  {/* Level +2 */}
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-950/70 to-slate-900 border border-rose-500/40 space-y-1.5 shadow-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-rose-500/20 border border-rose-500 flex items-center justify-center text-rose-400">
+                          <Swords size={16} />
+                        </span>
+                        <span className="font-black text-white text-xs sm:text-sm">سطح ۲+ : تمام‌تهاجمی (All-Out Attack)</span>
+                      </div>
+                      <span className="text-[10px] font-sport font-black px-2 py-0.5 rounded-md bg-rose-500 text-slate-950 border border-rose-300 animate-pulse">
+                        LEVEL +2 • CB FORWARD
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      <strong>مکانیزم تاکتیکی:</strong> بالاترین سطح تهاجمی ممکن در مسابقه. در این حالت، علاوه بر پیشروی حداکثری مهاجمان و هافبک‌ها، <strong>یکی از مدافعان وسط اصلی (CB) رسماً خط دفاع را رها کرده و به خط حمله ملحق می‌شود</strong> تا در محوطه جریمه حریف برای زدن ضربات سر و استفاده از سانترها حضور یابد.
+                    </p>
+                    <div className="text-[11px] text-rose-300 bg-rose-950/60 p-2 rounded-xl border border-rose-500/30 flex items-center gap-1.5">
+                      <Zap size={14} className="shrink-0" />
+                      <span><strong>کاربرد کلیدی:</strong> دقایق پایانی بازی وقتی از حریف عقب هستید و برای جبران نتیجه نیاز به ریسک همه‌جانبه دارید.</span>
+                    </div>
+                  </div>
+
+                  {/* Level +1 */}
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-950/60 to-slate-900 border border-amber-500/40 space-y-1.5 shadow-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500 flex items-center justify-center text-amber-400">
+                          <Zap size={16} />
+                        </span>
+                        <span className="font-black text-white text-xs sm:text-sm">سطح ۱+ : هجومی (Attacking)</span>
+                      </div>
+                      <span className="text-[10px] font-sport font-black px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 border border-amber-300">
+                        LEVEL +1 • HIGH PRESS
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      <strong>مکانیزم تاکتیکی:</strong> خطوط تهاجمی تیم جلوتر کشیده می‌شوند، شدت پرس در زمین حریف افزایش می‌یابد و هافبک‌ها و وینگربک‌ها مشارکت مستقیم‌تری در حملات دارند تا حریف تحت فشار مداوم قرار گیرد.
+                    </p>
+                    <div className="text-[11px] text-amber-300 bg-amber-950/60 p-2 rounded-xl border border-amber-500/30 flex items-center gap-1.5">
+                      <Zap size={14} className="shrink-0" />
+                      <span><strong>کاربرد کلیدی:</strong> وقتی به گل نیاز دارید یا حریف در لاک دفاعی رفته و می‌خواهید نبض بازی را در دست بگیرید.</span>
+                    </div>
+                  </div>
+
+                  {/* Level 0 */}
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/50 to-slate-900 border border-emerald-500/40 space-y-1.5 shadow-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-500 flex items-center justify-center text-emerald-400">
+                          <Check size={16} />
+                        </span>
+                        <span className="font-black text-white text-xs sm:text-sm">سطح ۰ : عادی و متعادل (Balanced - پیش‌فرض)</span>
+                      </div>
+                      <span className="text-[10px] font-sport font-black px-2 py-0.5 rounded-md bg-emerald-400 text-slate-950 border border-emerald-300">
+                        LEVEL 0 • DEFAULT
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      <strong>مکانیزم تاکتیکی:</strong> ساختار استاندارد و متعادل بازی. تیم دقیقاً طبق چیدمان، سبک بازی و تاکتیک‌های ثبت‌شده در پلن مسابقه کار می‌کند و فواصل خطوط در تعادل ایده‌آل قرار دارند.
+                    </p>
+                  </div>
+
+                  {/* Level -1 */}
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-950/60 to-slate-900 border border-blue-500/40 space-y-1.5 shadow-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-7 h-7 rounded-lg bg-blue-500/20 border border-blue-500 flex items-center justify-center text-blue-400">
+                          <Shield size={16} />
+                        </span>
+                        <span className="font-black text-white text-xs sm:text-sm">سطح ۱- : دفاعی (Defensive)</span>
+                      </div>
+                      <span className="text-[10px] font-sport font-black px-2 py-0.5 rounded-md bg-blue-500 text-white border border-blue-300">
+                        LEVEL -1 • SOLID DEFENSE
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      <strong>مکانیزم تاکتیکی:</strong> تیم در یک‌سوم دفاعی خودی جمع می‌شود، بلوک دفاعی فشرده تشکیل می‌دهد و اولویت اول حفظ دروازه و ممانعت از نفوذ حریف است. موقعیت‌های گلزنی بیشتر روی ضدحملات سریع برنامه‌ریزی می‌شوند.
+                    </p>
+                    <div className="text-[11px] text-blue-300 bg-blue-950/60 p-2 rounded-xl border border-blue-500/30 flex items-center gap-1.5">
+                      <Shield size={14} className="shrink-0" />
+                      <span><strong>کاربرد کلیدی:</strong> برای حفظ نتیجه برد در دقایق حساس پایانی یا کنترل بازی برابر حریفان بسیار قدرتمند.</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Note */}
+                <div className="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                  <span>⚡ هرگونه تغییر فاز بلافاصله و بدون تاخیر در اتاق داوری ادمین نمایش داده می‌شود.</span>
+                  <button
+                    onClick={() => setShowAttitudeGuideModal(false)}
+                    className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs cursor-pointer transition-colors shrink-0"
+                  >
+                    متوجه شدم
+                  </button>
                 </div>
               </motion.div>
             </div>

@@ -1815,7 +1815,172 @@ class AdminMatchControlRoomView(APIView):
             })
             return Response({'status': 'clock_synced', 'current_minute': match.current_minute, 'stoppage_time': match.stoppage_time}, status=status.HTTP_200_OK)
 
+        # 13. UPDATE ATTITUDE LEVEL (Admin direct arbiter control)
+        elif action == 'UPDATE_ATTITUDE_LEVEL':
+            team_side = request.data.get('side', 'home')
+            try:
+                level = int(request.data.get('level', 0))
+            except (TypeError, ValueError):
+                level = 0
+            if level not in [-1, 0, 1, 2]:
+                level = 0
+
+            is_home = (team_side == 'home')
+            if is_home:
+                match.home_attitude_level = level
+                match.save(update_fields=['home_attitude_level'])
+                team = match.home_team
+            else:
+                match.away_attitude_level = level
+                match.save(update_fields=['away_attitude_level'])
+                team = match.away_team
+
+            ATTITUDE_NAMES = {-1: 'دفاعی', 0: 'متعادل', 1: 'هجومی', 2: 'تمام‌تهاجمی (مدافع جلو)'}
+            level_name = ATTITUDE_NAMES.get(level, 'متعادل')
+            team_name = team.name if team else ('میزبان' if is_home else 'میهمان')
+
+            event_payload = {
+                'type': 'attitude_level_changed',
+                'match_id': match.id,
+                'team_id': team.id if team else None,
+                'team_name': team_name,
+                'is_home': is_home,
+                'level': level,
+                'level_name': level_name,
+                'home_attitude_level': match.home_attitude_level,
+                'away_attitude_level': match.away_attitude_level,
+                'minute': match.current_minute or 0,
+                'message': f'⚡ تغییر فاز تاکتیکی داوری {team_name}: {level_name}',
+            }
+            broadcast_match_event(match.id, event_payload)
+
+            return Response({
+                'status': 'attitude_updated',
+                'home_attitude_level': match.home_attitude_level,
+                'away_attitude_level': match.away_attitude_level,
+                'match': MatchDetailSerializer(match).data
+            }, status=status.HTTP_200_OK)
+
         return Response({'error': 'عملیات نامعتبر است (Invalid action)'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class MatchAttitudeUpdateView(APIView):
+    """
+    Real-time tactical attack/defense attitude level endpoint.
+    Levels:
+      -1: DEFENSIVE (دفاعی)
+       0: BALANCED (متعادل - پیش‌فرض)
+       1: ATTACKING (هجومی)
+       2: ALL_OUT_ATTACK (تمام‌تهاجمی - مدافع وسط جلو)
+    Allows authorized team coach or admin to set attitude level.
+    Broadcasts real-time WebSocket event and notifies admin referee desk immediately.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, match_id):
+        match = get_object_or_404(
+            Match.objects.select_related('home_team', 'away_team', 'home_team__manager', 'away_team__manager'),
+            id=match_id
+        )
+
+        try:
+            level = int(request.data.get('level'))
+        except (TypeError, ValueError):
+            return Response({'error': 'مقدار سطح فاز بازی نامعتبر است (level must be an integer).'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if level not in [-1, 0, 1, 2]:
+            return Response({'error': 'سطح فاز بازی باید یکی از مقادیر ۱-، ۰، ۱ یا ۲ باشد.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        team_id = request.data.get('team_id')
+        is_admin = request.user.is_staff or request.user.is_superuser
+
+        target_team = None
+        is_home = None
+
+        if team_id:
+            try:
+                team_id = int(team_id)
+            except (ValueError, TypeError):
+                return Response({'error': 'team_id نامعتبر است.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if match.home_team_id == team_id:
+                target_team = match.home_team
+                is_home = True
+            elif match.away_team_id == team_id:
+                target_team = match.away_team
+                is_home = False
+            else:
+                return Response({'error': 'تیم مورد نظر در این مسابقه حضور ندارد.'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            if match.home_team and match.home_team.manager_id == request.user.id:
+                target_team = match.home_team
+                is_home = True
+            elif match.away_team and match.away_team.manager_id == request.user.id:
+                target_team = match.away_team
+                is_home = False
+            elif is_admin:
+                target_team = match.home_team
+                is_home = True
+            else:
+                return Response({'error': 'شما سرمربی هیچ‌یک از دو تیم این مسابقه نیستید.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if not is_admin and target_team and target_team.manager_id != request.user.id:
+            return Response({'error': 'شما تنها مجاز به تغییر فاز تاکتیکی تیم خود هستید.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if is_home:
+            match.home_attitude_level = level
+            match.save(update_fields=['home_attitude_level'])
+        else:
+            match.away_attitude_level = level
+            match.save(update_fields=['away_attitude_level'])
+
+        ATTITUDE_NAMES = {
+            -1: 'دفاعی',
+            0: 'متعادل',
+            1: 'هجومی',
+            2: 'تمام‌تهاجمی (مدافع جلو)'
+        }
+        level_name = ATTITUDE_NAMES.get(level, 'متعادل')
+        side_label = 'میزبان' if is_home else 'میهمان'
+        team_display_name = target_team.name if target_team else ('میزبان' if is_home else 'میهمان')
+
+        event_payload = {
+            'type': 'attitude_level_changed',
+            'match_id': match.id,
+            'team_id': target_team.id if target_team else None,
+            'team_name': team_display_name,
+            'is_home': is_home,
+            'level': level,
+            'level_name': level_name,
+            'home_attitude_level': match.home_attitude_level,
+            'away_attitude_level': match.away_attitude_level,
+            'minute': match.current_minute or 0,
+            'message': f'⚡ تغییر فاز تاکتیکی تیم {team_display_name} ({side_label}): {level_name}',
+            'timestamp': timezone.now().isoformat(),
+        }
+
+        broadcast_match_event(match.id, event_payload)
+        notify_admin({
+            'type': 'attitude_level_changed',
+            'match_id': match.id,
+            'team_name': team_display_name,
+            'side': side_label,
+            'level': level,
+            'level_name': level_name,
+            'message': f'⚡ تغییر فاز بازی تیم {team_display_name}: {level_name}',
+        })
+
+        return Response({
+            'success': True,
+            'match_id': match.id,
+            'team_id': target_team.id if target_team else None,
+            'team_name': team_display_name,
+            'is_home': is_home,
+            'level': level,
+            'level_name': level_name,
+            'home_attitude_level': match.home_attitude_level,
+            'away_attitude_level': match.away_attitude_level,
+        }, status=status.HTTP_200_OK)
 
 
 class LiveInGameChangeListView(APIView):

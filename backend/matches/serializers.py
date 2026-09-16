@@ -293,6 +293,7 @@ class MatchDetailSerializer(serializers.ModelSerializer):
             'home_preset_name', 'away_preset_name',
             'home_has_custom_player_edits', 'away_has_custom_player_edits',
             'home_formation', 'away_formation',
+            'home_attitude_level', 'away_attitude_level',
             'events', 'team_stats', 'player_stats', 'substitution_requests', 'in_game_changes'
         ]
 

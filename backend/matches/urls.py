@@ -22,6 +22,7 @@ from .views import (
     ActiveLiveMatchContextView,
     MatchLiveStateView,
     AdminMatchControlRoomView,
+    MatchAttitudeUpdateView,
     GameweekStatusView,
     LiveInGameChangeBatchSubmitView,
     LiveInGameChangeListView,
@@ -55,6 +56,7 @@ urlpatterns = [
     path('matches/live-context/', ActiveLiveMatchContextView.as_view(), name='active-live-context'),
     path('matches/<int:match_id>/live-state/', MatchLiveStateView.as_view(), name='match-live-state'),
     path('matches/<int:match_id>/control/', AdminMatchControlRoomView.as_view(), name='admin-match-control'),
+    path('matches/<int:match_id>/attitude/', MatchAttitudeUpdateView.as_view(), name='match-attitude-update'),
     # Existing endpoints
     path('matches/substitute/', LiveSubstitutionCreateView.as_view(), name='live-substitute'),
     path('matches/upcoming/', UpcomingMatchesView.as_view(), name='matches-upcoming'),

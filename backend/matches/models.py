@@ -83,6 +83,14 @@ class Match(models.Model):
         default=False, verbose_name="جدول پردازش شده؟",
         help_text="آیا این بازی در جدول رده‌بندی ثبت و محاسبه شده است؟"
     )
+    home_attitude_level = models.IntegerField(
+        default=0,
+        verbose_name="فاز تاکتیکی میزبان (-1 دفاعی، 0 متعادل، 1 هجومی، 2 تمام‌تهاجمی)"
+    )
+    away_attitude_level = models.IntegerField(
+        default=0,
+        verbose_name="فاز تاکتیکی میهمان (-1 دفاعی، 0 متعادل، 1 هجومی، 2 تمام‌تهاجمی)"
+    )
 
     # --- Cup / Bracket Fields ---
     tournament = models.ForeignKey(

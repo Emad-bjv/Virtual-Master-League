@@ -292,6 +292,7 @@ export const matchApi = {
   getInGameChanges: (matchId, teamId) => api.get(`/matches/${matchId}/in-game-changes/list/`, { params: { team_id: teamId } }),
   applyInGameChange: (matchId, changeId) => api.post(`/matches/${matchId}/in-game-changes/${changeId}/apply/`),
   rejectInGameChange: (matchId, changeId) => api.post(`/matches/${matchId}/in-game-changes/${changeId}/reject/`),
+  updateAttitudeLevel: (matchId, payload) => api.post(`/matches/${matchId}/attitude/`, payload),
 };
 
 export const notificationApi = {
