@@ -30,7 +30,7 @@ export default function BottomNav({ activeTab, onTabChange, featureFlags = {} })
             <button
               key={item.id}
               onClick={() => onTabChange(item.id)}
-              className={`relative flex flex-col items-center justify-center py-1 sm:py-1.5 px-1 sm:px-2.5 rounded-2xl transition-all duration-200 min-w-[42px] sm:min-w-[50px] min-h-[48px] touch-manipulation group ${
+              className={`relative flex flex-col items-center justify-center py-1 sm:py-1.5 px-0.5 sm:px-2.5 rounded-2xl transition-all duration-150 min-w-[38px] sm:min-w-[50px] min-h-[48px] touch-manipulation select-none active:scale-90 cursor-pointer group ${
                 isActive
                   ? 'text-cyan-400 font-black'
                   : 'text-slate-400 hover:text-slate-200'

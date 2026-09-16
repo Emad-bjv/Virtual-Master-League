@@ -6,6 +6,7 @@ import EFootballGamePlan from '../team/EFootballGamePlan';
 import LiveMatchStandby from './LiveMatchStandby';
 import PostMatchRecapView from './PostMatchRecapView';
 import api, { matchApi, teamApi } from '../../services/api';
+import { setScreenKeepAwake } from '../../services/nativeApp';
 import CustomSelect from '../common/CustomSelect';
 import { TACTICAL_GUIDES } from '../../utils/tacticalGuides';
 import notificationSoundService from '../../services/notificationSound';
@@ -53,6 +54,18 @@ export default function LiveStreamTab({
   // Tactical Attack/Defense Attitude Level State (-1 Defensive, 0 Balanced, +1 Attacking, +2 All-Out Attack)
   const [showAttitudeGuideModal, setShowAttitudeGuideModal] = useState(false);
   const [isUpdatingAttitude, setIsUpdatingAttitude] = useState(false);
+
+  // Keep screen awake during live match on mobile devices
+  useEffect(() => {
+    if (activeMatch) {
+      setScreenKeepAwake(true);
+    } else {
+      setScreenKeepAwake(false);
+    }
+    return () => {
+      setScreenKeepAwake(false);
+    };
+  }, [Boolean(activeMatch)]);
   
   // Tactical GamePlan State
   const [isTacticsExpanded, setIsTacticsExpanded] = useState(false);
@@ -1663,7 +1676,7 @@ export default function LiveStreamTab({
                   <button
                     onClick={() => handleSaveGamePlan({ currentFormation: liveWorkingLineup?.formation || serverFormation || formation, startingXi: liveWorkingLineup?.startingXi || decoratedStartingXi, substitutes: liveWorkingLineup?.substitutes || decoratedSubstitutes })}
                     disabled={isSubmittingChanges}
-                    className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black px-7 py-3 rounded-2xl shadow-xl transition-all text-xs flex items-center justify-center gap-2 cursor-pointer active:scale-95 border border-emerald-300 font-sport disabled:opacity-50"
+                    className="w-full sm:w-auto min-h-[48px] bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black px-7 py-3 rounded-2xl shadow-xl transition-all text-xs flex items-center justify-center gap-2 cursor-pointer active:scale-95 border border-emerald-300 font-sport disabled:opacity-50 select-none touch-manipulation"
                   >
                     <span className="text-sm">⚡</span>
                     <span>{isSubmittingChanges ? 'در حال بررسی تفاوت‌ها و ارسال...' : 'ارسال ترکیب و تاکتیک به داوری'}</span>

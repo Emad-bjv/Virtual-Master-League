@@ -1998,7 +1998,7 @@ export default function EFootballGamePlan({
           </div>
           <button
             onClick={() => (onSave || onSaveGamePlan)({ startingXi, substitutes, reserves, currentFormation })}
-            className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black px-8 py-3 rounded-2xl shadow-xl hover:shadow-cyan-500/20 transition-all text-xs md:text-sm flex items-center justify-center gap-2 border border-emerald-300 cursor-pointer active:scale-95 font-sport"
+            className="w-full sm:w-auto min-h-[48px] bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black px-8 py-3 rounded-2xl shadow-xl hover:shadow-cyan-500/20 transition-all text-xs md:text-sm flex items-center justify-center gap-2 border border-emerald-300 cursor-pointer active:scale-95 font-sport select-none touch-manipulation"
           >
             <span>ارسال ترکیب و تاکتیک به داوری</span>
             <span className="text-base">⚡</span>

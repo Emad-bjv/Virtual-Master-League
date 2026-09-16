@@ -1,6 +1,9 @@
 import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './index.css';
+import { initNativeApp } from './services/nativeApp';
+import { useNativeBackButton } from './hooks/useNativeBackButton';
+import NetworkBanner from './components/common/NetworkBanner';
 
 // Core routes - lazy loaded for instant initial bundle delivery
 const MainDashboard = lazy(() => import('./pages/MainDashboard'));
@@ -41,9 +44,21 @@ const PageLoadingFallback = () => (
   </div>
 );
 
+// Native Mobile Lifecycle & Navigation Listener
+function NativeAppInitializer() {
+  useNativeBackButton();
+
+  React.useEffect(() => {
+    initNativeApp();
+  }, []);
+
+  return <NetworkBanner />;
+}
+
 function App() {
   return (
     <Router>
+      <NativeAppInitializer />
       <Suspense fallback={<PageLoadingFallback />}>
         <Routes>
           <Route path="/" element={<CoachLogin />} />
