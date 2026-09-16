@@ -5,6 +5,29 @@
 
 export const PHOTO_CACHE_TAG = 'v=20260827_2';
 
+/**
+ * Ensures media URLs starting with /media/ or media/ resolve to the production backend server,
+ * preventing 404s inside Android Capacitor WebViews where origin is http://localhost.
+ */
+export function formatMediaUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  const trimmed = url.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('/media/') || trimmed.startsWith('media/')) {
+    const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+    const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+    const serverOrigin = apiBase
+      ? apiBase.replace(/\/api\/?$/, '')
+      : (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+          ? window.location.origin
+          : 'http://37.32.36.252');
+    return `${serverOrigin}${cleanPath}`;
+  }
+  return trimmed;
+}
+
 export function getPlayerPhotoUrl(player, extraContext = null) {
   if (!player) return null;
 
@@ -13,6 +36,9 @@ export function getPlayerPhotoUrl(player, extraContext = null) {
     const rawName = player.trim();
     if (rawName.startsWith('http') || rawName.startsWith('/assets/') || rawName.startsWith('/players/')) {
       return rawName;
+    }
+    if (rawName.startsWith('/media/') || rawName.startsWith('media/')) {
+      return formatMediaUrl(rawName);
     }
     
     // Disambiguate known duplicate short names when string is passed
@@ -48,9 +74,10 @@ export function getPlayerPhotoUrl(player, extraContext = null) {
   }
 
   // Object-based resolution
-  if (player.photo_url && !player.photo_url.includes('undefined')) return player.photo_url;
-  if (player.image) return player.image;
-  if (player.avatar) return player.avatar;
+  const directPhoto = player.photo_url || player.custom_photo_url || player.custom_photo || player.image || player.avatar;
+  if (directPhoto && typeof directPhoto === 'string' && !directPhoto.includes('undefined')) {
+    return formatMediaUrl(directPhoto);
+  }
 
   const name = (player.name || player.player_name || '').trim();
   if (!name) return null;

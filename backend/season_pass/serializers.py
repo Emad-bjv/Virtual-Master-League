@@ -27,10 +27,18 @@ class SeasonPassLevelSerializer(serializers.ModelSerializer):
         ]
 
 
+from teams.serializers import resolve_player_photo_url
+
+
 class AssignedLegendSerializer(serializers.ModelSerializer):
+    photo_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Player
-        fields = ['id', 'name', 'position', 'overall', 'age', 'base_stamina', 'rarity']
+        fields = ['id', 'name', 'position', 'overall', 'age', 'base_stamina', 'rarity', 'photo_url']
+
+    def get_photo_url(self, obj):
+        return resolve_player_photo_url(obj)
 
 
 class TeamSeasonPassSerializer(serializers.ModelSerializer):

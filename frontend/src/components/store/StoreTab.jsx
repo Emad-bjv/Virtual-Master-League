@@ -1438,9 +1438,9 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                 <div className="flex flex-col md:flex-row items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
                     <div className="w-16 h-20 rounded-2xl bg-slate-950 border-2 border-amber-400/80 overflow-hidden shrink-0 flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.3)]">
-                      {getPlayerPhotoUrl(legend.name) ? (
+                      {getPlayerPhotoUrl(legend) ? (
                         <img
-                          src={getPlayerPhotoUrl(legend.name)}
+                          src={getPlayerPhotoUrl(legend)}
                           alt={String(legend.name)}
                           loading="lazy"
                           decoding="async"
@@ -1570,9 +1570,9 @@ export default function StoreTab({ teamData, initialSub = 'gems', onRefreshTeam 
                   </span>
                   <div className="p-3 rounded-2xl bg-amber-950/50 border border-amber-500/60 flex items-center gap-3">
                     <div className="w-14 h-16 rounded-xl bg-slate-950 border-2 border-amber-400 overflow-hidden shrink-0 flex items-center justify-center shadow-md">
-                      {getPlayerPhotoUrl(claimedRewardPopup.legend_player.name) ? (
+                      {getPlayerPhotoUrl(claimedRewardPopup.legend_player) ? (
                         <img
-                          src={getPlayerPhotoUrl(claimedRewardPopup.legend_player.name)}
+                          src={getPlayerPhotoUrl(claimedRewardPopup.legend_player)}
                           alt={String(claimedRewardPopup.legend_player.name)}
                           loading="lazy"
                           decoding="async"
