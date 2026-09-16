@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, Eye, Flag, Trash2, Zap, Clock, Shield, Sparkles, Send,
   Plus, Minus, ArrowLeftRight, Bell, CheckCircle, BarChart2, Award, User, X,
   CreditCard, Gem, FileImage, UploadCloud, XCircle, Filter, Image, CheckCheck,
-  Edit2, Package, ToggleLeft, ToggleRight, Layers, Tag, Gift, Users, Flame, Swords, Crown
+  Edit2, Package, ToggleLeft, ToggleRight, Layers, Tag, Gift, Users, Flame, Swords, Crown, FastForward
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api, { adminApi, matchApi, teamApi, economyApi, battleRoyaleApi } from '../../services/api';
@@ -216,7 +216,7 @@ export default function AdminDashboard({
   const [lineupModalMatch, setLineupModalMatch] = useState(null);
   const [lineupModalDefaultSide, setLineupModalDefaultSide] = useState('home');
 
-  const CUP_STAGES = useMemo(() => ['یک‌شانزدهم نهایی', 'یک‌هشتم نهایی', 'یک‌چهارم نهایی', 'نیمه‌نهایی', 'فینال'], []);
+  const FALLBACK_CUP_STAGES = useMemo(() => ['یک‌شانزدهم نهایی', 'یک‌هشتم نهایی', 'یک‌چهارم نهایی', 'نیمه‌نهایی', 'فینال'], []);
 
   // Fetch initial system data
   const loadMatchesAndWeeks = async () => {
@@ -651,13 +651,86 @@ export default function AdminDashboard({
     });
   }, [allMatches, selectedGameweek, matchFilter]);
 
+  // Dynamic Cup Stages derived from tournament bracket structure & matches
+  const dynamicCupStages = useMemo(() => {
+    if (cupBracketData?.rounds && cupBracketData.rounds.length > 0) {
+      return (cupBracketData.rounds || []).map((r) => {
+        const rMatches = (cupMatches || []).filter((m) => {
+          const mNorm = String(m?.round_name || '').replace(/\u200c/g, '').trim();
+          const rNorm = String(r?.name || '').replace(/\u200c/g, '').trim();
+          return mNorm === rNorm || mNorm.includes(rNorm) || rNorm.includes(mNorm);
+        });
+        const mList = rMatches.length > 0 ? rMatches : (r?.matches || []);
+        const total = mList.length;
+        const finished = mList.filter((m) => m?.status === 'FINISHED').length;
+        const live = mList.filter((m) => m?.status === 'LIVE').length;
+        return {
+          name: r?.name || 'مرحله حذفی',
+          total,
+          finished,
+          live,
+          is_finished: total > 0 && finished === total,
+          is_active: live > 0 || (finished < total && total > 0),
+        };
+      });
+    }
+    if (cupMatches && cupMatches.length > 0) {
+      const stageMap = new Map();
+      cupMatches.forEach((m) => {
+        const rName = String(m?.round_name || 'حذفی').trim();
+        if (!stageMap.has(rName)) {
+          stageMap.set(rName, { total: 0, finished: 0, live: 0 });
+        }
+        const s = stageMap.get(rName);
+        s.total += 1;
+        if (m?.status === 'FINISHED') s.finished += 1;
+        else if (m?.status === 'LIVE') s.live += 1;
+      });
+      return Array.from(stageMap.entries()).map(([name, s]) => ({
+        name,
+        total: s.total,
+        finished: s.finished,
+        live: s.live,
+        is_finished: s.total > 0 && s.finished === s.total,
+        is_active: s.live > 0 || (s.finished < s.total && s.total > 0),
+      }));
+    }
+    return (FALLBACK_CUP_STAGES || []).map((name) => ({
+      name,
+      total: 0,
+      finished: 0,
+      live: 0,
+      is_finished: false,
+      is_active: false,
+    }));
+  }, [cupBracketData, cupMatches, FALLBACK_CUP_STAGES]);
+
+  const CUP_STAGES = useMemo(() => {
+    return (dynamicCupStages || []).length > 0 ? dynamicCupStages.map((s) => s.name) : FALLBACK_CUP_STAGES;
+  }, [dynamicCupStages, FALLBACK_CUP_STAGES]);
+
+  // Sync selectedCupStage to the earliest active (unplayed/live) stage
+  useEffect(() => {
+    if ((dynamicCupStages || []).length > 0) {
+      const exists = dynamicCupStages.some((s) => s.name === selectedCupStage);
+      if (!exists) {
+        const activeStage = dynamicCupStages.find((s) => s.live > 0) ||
+                            dynamicCupStages.find((s) => !s.is_finished && s.total > 0) ||
+                            dynamicCupStages[0];
+        if (activeStage?.name) {
+          setSelectedCupStage(activeStage.name);
+        }
+      }
+    }
+  }, [dynamicCupStages, selectedCupStage]);
+
   // Cup stage filter memo (isolated per selected cup stage)
   const stageFilteredCupMatches = useMemo(() => {
     return (cupMatches || []).filter((m) => {
       if (!m) return false;
-      const normStage = (m.round_name || '').replace(/\u200c/g, '').trim();
-      const normSelected = (selectedCupStage || '').replace(/\u200c/g, '').trim();
-      if (!normStage.includes(normSelected) && !normSelected.includes(normStage)) {
+      const normStage = String(m?.round_name || '').replace(/\u200c/g, '').trim();
+      const normSelected = String(selectedCupStage || '').replace(/\u200c/g, '').trim();
+      if (normSelected && !normStage.includes(normSelected) && !normSelected.includes(normStage)) {
         return false;
       }
       if (matchFilter === 'ALL') return true;
@@ -672,16 +745,24 @@ export default function AdminDashboard({
   const brChampion = useMemo(() => brBracketData?.champion || null, [brBracketData]);
   const brStats = useMemo(() => brBracketData?.stats || { total_matches: 0, finished_matches: 0, remaining_matches: 0 }, [brBracketData]);
 
-  // Sync active selected round if empty
+  // Sync active selected round to earliest active round if empty or finished
   useEffect(() => {
-    if (brWbRounds.length > 0 && (!selectedBrWbRound || !brWbRounds.some((r) => r.name === selectedBrWbRound))) {
-      setSelectedBrWbRound(brWbRounds[0].name);
+    if ((brWbRounds || []).length > 0) {
+      const exists = brWbRounds.some((r) => r.name === selectedBrWbRound);
+      if (!exists) {
+        const activeR = brWbRounds.find((r) => (r.matches || []).some((m) => m.status !== 'FINISHED')) || brWbRounds[0];
+        if (activeR?.name) setSelectedBrWbRound(activeR.name);
+      }
     }
   }, [brWbRounds, selectedBrWbRound]);
 
   useEffect(() => {
-    if (brLbRounds.length > 0 && (!selectedBrLbRound || !brLbRounds.some((r) => r.name === selectedBrLbRound))) {
-      setSelectedBrLbRound(brLbRounds[0].name);
+    if ((brLbRounds || []).length > 0) {
+      const exists = brLbRounds.some((r) => r.name === selectedBrLbRound);
+      if (!exists) {
+        const activeR = brLbRounds.find((r) => (r.matches || []).some((m) => m.status !== 'FINISHED')) || brLbRounds[0];
+        if (activeR?.name) setSelectedBrLbRound(activeR.name);
+      }
     }
   }, [brLbRounds, selectedBrLbRound]);
 
@@ -749,6 +830,32 @@ export default function AdminDashboard({
       sessionStorage.setItem('vml_admin_referee_desk_tab', refereeDeskTab);
     } catch (_e) {}
   }, [refereeDeskTab]);
+
+  // Upcoming matches and direct feeder next match for the active live referee desk
+  const tournamentUpcomingMatches = useMemo(() => {
+    if (!selectedLiveMatch) return [];
+    const isKnockout = Boolean(selectedLiveMatch.is_knockout || selectedLiveMatch.tournament_type === 'CUP');
+    const isBr = Boolean(selectedLiveMatch.tournament_type === 'BATTLE_ROYALE' || tournamentMode === 'battle_royale');
+    if (isKnockout && (cupMatches || []).length > 0) {
+      return (cupMatches || []).filter((m) => m && m.id !== selectedLiveMatch.id);
+    }
+    if (isBr && (allBrMatchesChronological || []).length > 0) {
+      return (allBrMatchesChronological || []).filter((m) => m && m.id !== selectedLiveMatch.id);
+    }
+    return (allMatches || []).filter((m) => m && m.id !== selectedLiveMatch.id);
+  }, [selectedLiveMatch, cupMatches, allBrMatchesChronological, allMatches, tournamentMode]);
+
+  const directNextMatch = useMemo(() => {
+    if (!selectedLiveMatch) return null;
+    const targetId = Number(selectedLiveMatch.next_match || selectedLiveMatch.next_match_id);
+    if (!targetId) return null;
+    return (
+      (cupMatches || []).find((m) => m?.id === targetId) ||
+      (allBrMatchesChronological || []).find((m) => m?.id === targetId) ||
+      (allMatches || []).find((m) => m?.id === targetId) ||
+      null
+    );
+  }, [selectedLiveMatch, cupMatches, allBrMatchesChronological, allMatches]);
 
   const [liveMatchDetails, setLiveMatchDetails] = useState(null);
   const [selectedLiveTeamSwitch, setSelectedLiveTeamSwitch] = useState('home'); // 'home' | 'away'
@@ -1381,6 +1488,14 @@ export default function AdminDashboard({
         showNotification(`عملیات داوری (${action}) با موفقیت در سرور اعمال و همگام‌سازی شد.`);
         fetchLiveMatchState(selectedLiveMatch.id);
         loadMatchesAndWeeks();
+        if (selectedCupTournamentId) {
+          loadCupMatches(selectedCupTournamentId);
+          fetchCupBracket(selectedCupTournamentId);
+        }
+        if (selectedBrTournamentId) {
+          loadBattleRoyaleMatches(selectedBrTournamentId);
+          fetchBattleRoyaleBracket(selectedBrTournamentId);
+        }
       }
     } catch (err) {
       showNotification(`خطا در ثبت دستور داور: ${err.response?.data?.error || 'خطای اتصال به سرور'}`, 'error');
@@ -4014,32 +4129,27 @@ export default function AdminDashboard({
 
                         {/* Horizontal Stage Selector Ribbon */}
                         <div className="pt-2 border-t border-slate-800/80">
-                          <span className="text-[10px] text-slate-400 block mb-1.5 font-bold">انتخاب مرحله حذفی مسابقات:</span>
+                          <span className="text-[10px] text-slate-400 block mb-1.5 font-bold">انتخاب مرحله حذفی مسابقات (به ترتیب براکت و صعود):</span>
                           <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
-                            {CUP_STAGES.map((stageName) => {
-                              const isSelected = selectedCupStage === stageName;
-                              const normStage = stageName.replace(/\u200c/g, '').trim();
-                              const stageMatches = (cupMatches || []).filter((m) => {
-                                const mNorm = (m.round_name || '').replace(/\u200c/g, '').trim();
-                                return mNorm.includes(normStage) || normStage.includes(mNorm);
-                              });
-                              const hasLive = stageMatches.some((m) => m.status === 'LIVE');
-                              const allFin = stageMatches.length > 0 && stageMatches.every((m) => m.status === 'FINISHED');
-
+                            {(dynamicCupStages || []).map((stg) => {
+                              const isSelected = selectedCupStage === stg.name;
                               return (
                                 <button
-                                  key={stageName}
-                                  onClick={() => setSelectedCupStage(stageName)}
+                                  key={stg.name}
+                                  type="button"
+                                  onClick={() => setSelectedCupStage(stg.name)}
                                   className={`px-3.5 py-1.5 rounded-2xl text-xs font-sport font-black whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
                                     isSelected
                                       ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 border-2 border-amber-300 shadow-lg shadow-amber-950/50 scale-105'
                                       : 'bg-slate-900/90 text-slate-300 border border-slate-800 hover:border-slate-600'
                                   }`}
                                 >
-                                  {hasLive && <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>}
-                                  {allFin && <Check size={12} className="text-emerald-400" />}
-                                  <span>{stageName}</span>
-                                  <span className="text-[10px] opacity-75">({stageMatches.length})</span>
+                                  {stg.live > 0 && <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>}
+                                  {stg.is_finished && <Check size={12} className="text-emerald-400" />}
+                                  <span>{stg.name}</span>
+                                  <span className="text-[10px] opacity-75">
+                                    ({stg.finished}/{stg.total})
+                                  </span>
                                 </button>
                               );
                             })}
@@ -4070,10 +4180,14 @@ export default function AdminDashboard({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                           {stageFilteredCupMatches.map((m) => {
                             const isEditing = editingMatchId === m.id;
-                            const homeName = m.home_team_name || 'میزبان';
-                            const awayName = m.away_team_name || 'میهمان';
-                            const homeLogo = getTeamLogoUrl(m.home_team_logo || homeName);
-                            const awayLogo = getTeamLogoUrl(m.away_team_logo || awayName);
+                            const hasHomeTeam = Boolean(m.home_team || m.home_team_id || (m.home_team_name && m.home_team_name !== 'None' && m.home_team_name !== 'نامشخص'));
+                            const hasAwayTeam = Boolean(m.away_team || m.away_team_id || (m.away_team_name && m.away_team_name !== 'None' && m.away_team_name !== 'نامشخص'));
+                            const isBothTeamsReady = hasHomeTeam && hasAwayTeam;
+
+                            const homeName = hasHomeTeam ? m.home_team_name : 'در انتظار برنده (TBD)';
+                            const awayName = hasAwayTeam ? m.away_team_name : 'در انتظار برنده (TBD)';
+                            const homeLogo = hasHomeTeam ? getTeamLogoUrl(m.home_team_logo || homeName) : null;
+                            const awayLogo = hasAwayTeam ? getTeamLogoUrl(m.away_team_logo || awayName) : null;
                             const isLive = m.status === 'LIVE';
                             const isFinished = m.status === 'FINISHED';
                             const hasPenalties = m.home_penalties != null && m.away_penalties != null;
@@ -4290,14 +4404,23 @@ export default function AdminDashboard({
                                     <div className="flex items-center justify-between gap-3 my-2 px-2">
                                       {/* Home */}
                                       <div className="flex items-center gap-2.5 w-[42%] justify-start">
-                                        <div className="w-10 h-10 rounded-2xl bg-slate-950 border border-slate-700 p-1.5 shrink-0 flex items-center justify-center shadow-md">
-                                          {homeLogo ? (
+                                        <div className={`w-10 h-10 rounded-2xl border p-1.5 shrink-0 flex items-center justify-center shadow-md ${
+                                          hasHomeTeam ? 'bg-slate-950 border-slate-700' : 'bg-amber-950/40 border-amber-500/40 text-amber-400'
+                                        }`}>
+                                          {hasHomeTeam && homeLogo ? (
                                             <img src={homeLogo} alt={homeName} className="w-full h-full object-contain" />
-                                          ) : (
+                                          ) : hasHomeTeam ? (
                                             <span className="font-bold text-xs">{homeName.slice(0, 2)}</span>
+                                          ) : (
+                                            <Clock size={16} className="text-amber-400" />
                                           )}
                                         </div>
-                                        <span className="font-black text-xs sm:text-sm text-white truncate">{homeName}</span>
+                                        <div className="min-w-0">
+                                          <span className={`font-black text-xs sm:text-sm truncate block ${hasHomeTeam ? 'text-white' : 'text-amber-300/90 font-bold'}`}>
+                                            {homeName}
+                                          </span>
+                                          {!hasHomeTeam && <span className="text-[9.5px] text-slate-500 block">اسلات صعود #{m.id}</span>}
+                                        </div>
                                       </div>
 
                                       {/* Center Score / VS / Penalties */}
@@ -4320,12 +4443,21 @@ export default function AdminDashboard({
 
                                       {/* Away */}
                                       <div className="flex items-center gap-2.5 w-[42%] justify-end text-left">
-                                        <span className="font-black text-xs sm:text-sm text-white truncate text-right">{awayName}</span>
-                                        <div className="w-10 h-10 rounded-2xl bg-slate-950 border border-slate-700 p-1.5 shrink-0 flex items-center justify-center shadow-md">
-                                          {awayLogo ? (
+                                        <div className="min-w-0 text-right">
+                                          <span className={`font-black text-xs sm:text-sm truncate block ${hasAwayTeam ? 'text-white' : 'text-amber-300/90 font-bold'}`}>
+                                            {awayName}
+                                          </span>
+                                          {!hasAwayTeam && <span className="text-[9.5px] text-slate-500 block">اسلات صعود #{m.id}</span>}
+                                        </div>
+                                        <div className={`w-10 h-10 rounded-2xl border p-1.5 shrink-0 flex items-center justify-center shadow-md ${
+                                          hasAwayTeam ? 'bg-slate-950 border-slate-700' : 'bg-amber-950/40 border-amber-500/40 text-amber-400'
+                                        }`}>
+                                          {hasAwayTeam && awayLogo ? (
                                             <img src={awayLogo} alt={awayName} className="w-full h-full object-contain" />
-                                          ) : (
+                                          ) : hasAwayTeam ? (
                                             <span className="font-bold text-xs">{awayName.slice(0, 2)}</span>
+                                          ) : (
+                                            <Clock size={16} className="text-amber-400" />
                                           )}
                                         </div>
                                       </div>
@@ -4420,19 +4552,42 @@ export default function AdminDashboard({
                                     </div>
 
                                     {/* Action CTA to Referee Room */}
-                                    <div
-                                      onClick={() => {
-                                        setSelectedLiveMatch(m);
-                                        setRefereeDeskTab('live_desk');
-                                      }}
-                                      className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs cursor-pointer group hover:bg-slate-950/40 p-1 rounded-xl transition-all"
-                                    >
-                                      <span className="text-[11px] text-slate-400">سرمربیان: {m.home_team_name?.split(' ')[0]} vs {m.away_team_name?.split(' ')[0]}</span>
-                                      <span className="text-amber-400 group-hover:text-amber-300 font-bold flex items-center gap-1">
-                                        <span>ورود به میز داوری و کنترل مسابقه</span>
-                                        <ChevronLeftIcon />
-                                      </span>
-                                    </div>
+                                    {isBothTeamsReady ? (
+                                      <div
+                                        onClick={() => {
+                                          setSelectedLiveMatch(m);
+                                          setRefereeDeskTab('live_desk');
+                                        }}
+                                        className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs cursor-pointer group hover:bg-amber-950/30 p-1 rounded-xl transition-all"
+                                      >
+                                        <span className="text-[11px] text-slate-400">
+                                          سرمربیان: {(m.home_team_name || 'میزبان').split(' ')[0]} vs {(m.away_team_name || 'میهمان').split(' ')[0]}
+                                        </span>
+                                        <span className="text-amber-400 group-hover:text-amber-300 font-bold flex items-center gap-1">
+                                          <span>ورود به میز داوری و کنترل مسابقه ⚡</span>
+                                          <ChevronLeftIcon />
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs p-1 rounded-xl bg-slate-950/40">
+                                        <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1.5">
+                                          <Clock size={12} className="text-amber-400 animate-pulse" />
+                                          <span>در انتظار تعیین تیم‌های صعودکننده به این مرحله</span>
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleStartEditMatch(m);
+                                          }}
+                                          className="px-2.5 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-500/30 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-sm"
+                                          title="تنظیم دستی تیم‌های این مسابقه"
+                                        >
+                                          <Edit2 size={11} />
+                                          <span>تنظیم دستی تیم‌ها</span>
+                                        </button>
+                                      </div>
+                                    )}
                                   </>
                                 )}
                               </div>
@@ -5176,10 +5331,14 @@ export default function AdminDashboard({
                     const renderBrMatchCard = (m, extraBadge = null) => {
                       if (!m) return null;
                       const isEditing = editingMatchId === m.id;
-                      const homeName = m.home_team_name || m.home || 'نامشخص';
-                      const awayName = m.away_team_name || m.away || 'نامشخص';
-                      const homeLogo = getTeamLogoUrl(m.home_team_logo || homeName);
-                      const awayLogo = getTeamLogoUrl(m.away_team_logo || awayName);
+                      const hasHomeTeam = Boolean(m.home_team || m.home_team_id || (m.home_team_name && m.home_team_name !== 'None' && m.home_team_name !== 'نامشخص'));
+                      const hasAwayTeam = Boolean(m.away_team || m.away_team_id || (m.away_team_name && m.away_team_name !== 'None' && m.away_team_name !== 'نامشخص'));
+                      const isBothTeamsReady = hasHomeTeam && hasAwayTeam;
+
+                      const homeName = hasHomeTeam ? (m.home_team_name || m.home) : 'در انتظار برنده (TBD)';
+                      const awayName = hasAwayTeam ? (m.away_team_name || m.away) : 'در انتظار برنده (TBD)';
+                      const homeLogo = hasHomeTeam ? getTeamLogoUrl(m.home_team_logo || homeName) : null;
+                      const awayLogo = hasAwayTeam ? getTeamLogoUrl(m.away_team_logo || awayName) : null;
                       const isLive = m.status === 'LIVE';
                       const isFinished = m.status === 'FINISHED';
                       const hasPenalties = m.home_penalties != null && m.away_penalties != null;
@@ -5403,17 +5562,23 @@ export default function AdminDashboard({
                               <div className="flex items-center justify-between gap-3 my-2 px-2">
                                 {/* Home */}
                                 <div className="flex items-center gap-2.5 w-[42%] justify-start">
-                                  <div className="w-10 h-10 rounded-2xl bg-slate-950 border border-slate-700 p-1.5 shrink-0 flex items-center justify-center shadow-md">
-                                    {homeLogo ? (
+                                  <div className={`w-10 h-10 rounded-2xl border p-1.5 shrink-0 flex items-center justify-center shadow-md ${
+                                    hasHomeTeam ? 'bg-slate-950 border-slate-700' : 'bg-rose-950/40 border-rose-500/40 text-rose-400'
+                                  }`}>
+                                    {hasHomeTeam && homeLogo ? (
                                       <img src={homeLogo} alt={homeName} className="w-full h-full object-contain" />
-                                    ) : (
+                                    ) : hasHomeTeam ? (
                                       <span className="text-xs font-black text-slate-400">{(homeName || 'T').slice(0, 2)}</span>
+                                    ) : (
+                                      <Clock size={16} className="text-rose-400" />
                                     )}
                                   </div>
                                   <div className="min-w-0">
-                                    <span className="text-xs sm:text-sm font-black text-white truncate block">{homeName}</span>
+                                    <span className={`text-xs sm:text-sm truncate block ${hasHomeTeam ? 'text-white font-black' : 'text-rose-300 font-bold'}`}>
+                                      {homeName}
+                                    </span>
                                     <span className="text-[10px] text-slate-400 block truncate">
-                                      مربی: {m.home_coach_name || 'ثبت نشده'}
+                                      {hasHomeTeam ? `مربی: ${m.home_coach_name || 'ثبت نشده'}` : `اسلات براکت #${m.id}`}
                                     </span>
                                   </div>
                                 </div>
@@ -5439,16 +5604,22 @@ export default function AdminDashboard({
                                 {/* Away */}
                                 <div className="flex items-center gap-2.5 w-[42%] justify-end text-left">
                                   <div className="min-w-0 text-right">
-                                    <span className="text-xs sm:text-sm font-black text-white truncate block">{awayName}</span>
+                                    <span className={`text-xs sm:text-sm truncate block ${hasAwayTeam ? 'text-white font-black' : 'text-rose-300 font-bold'}`}>
+                                      {awayName}
+                                    </span>
                                     <span className="text-[10px] text-slate-400 block truncate">
-                                      مربی: {m.away_coach_name || 'ثبت نشده'}
+                                      {hasAwayTeam ? `مربی: ${m.away_coach_name || 'ثبت نشده'}` : `اسلات براکت #${m.id}`}
                                     </span>
                                   </div>
-                                  <div className="w-10 h-10 rounded-2xl bg-slate-950 border border-slate-700 p-1.5 shrink-0 flex items-center justify-center shadow-md">
-                                    {awayLogo ? (
+                                  <div className={`w-10 h-10 rounded-2xl border p-1.5 shrink-0 flex items-center justify-center shadow-md ${
+                                    hasAwayTeam ? 'bg-slate-950 border-slate-700' : 'bg-rose-950/40 border-rose-500/40 text-rose-400'
+                                  }`}>
+                                    {hasAwayTeam && awayLogo ? (
                                       <img src={awayLogo} alt={awayName} className="w-full h-full object-contain" />
-                                    ) : (
+                                    ) : hasAwayTeam ? (
                                       <span className="text-xs font-black text-slate-400">{(awayName || 'T').slice(0, 2)}</span>
+                                    ) : (
+                                      <Clock size={16} className="text-rose-400" />
                                     )}
                                   </div>
                                 </div>
@@ -5543,19 +5714,42 @@ export default function AdminDashboard({
                               </div>
 
                               {/* Action CTA to Referee Room */}
-                              <div
-                                onClick={() => {
-                                  setSelectedLiveMatch(m);
-                                  setRefereeDeskTab('live_desk');
-                                }}
-                                className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs cursor-pointer group hover:bg-slate-950/40 p-1 rounded-xl transition-all"
-                              >
-                                <span className="text-[11px] text-slate-400">سرمربیان: {String(m.home_team_name || '').split(' ')[0]} vs {String(m.away_team_name || '').split(' ')[0]}</span>
-                                <span className="text-rose-400 group-hover:text-rose-300 font-bold flex items-center gap-1">
-                                  <span>ورود به میز داوری و کنترل مسابقه</span>
-                                  <ChevronLeftIcon />
-                                </span>
-                              </div>
+                              {isBothTeamsReady ? (
+                                <div
+                                  onClick={() => {
+                                    setSelectedLiveMatch(m);
+                                    setRefereeDeskTab('live_desk');
+                                  }}
+                                  className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs cursor-pointer group hover:bg-rose-950/30 p-1 rounded-xl transition-all"
+                                >
+                                  <span className="text-[11px] text-slate-400">
+                                    سرمربیان: {String(m.home_team_name || 'میزبان').split(' ')[0]} vs {String(m.away_team_name || 'میهمان').split(' ')[0]}
+                                  </span>
+                                  <span className="text-rose-400 group-hover:text-rose-300 font-bold flex items-center gap-1">
+                                    <span>ورود به میز داوری و کنترل مسابقه ⚡</span>
+                                    <ChevronLeftIcon />
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs p-1 rounded-xl bg-slate-950/40">
+                                  <span className="text-[11px] text-rose-400 font-bold flex items-center gap-1.5">
+                                    <Clock size={12} className="text-rose-400 animate-pulse" />
+                                    <span>در انتظار تعیین تیم‌های صعودکننده به این مرحله</span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleStartEditMatch(m);
+                                    }}
+                                    className="px-2.5 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-rose-300 border border-rose-500/30 text-[10px] font-bold flex items-center gap-1 cursor-pointer transition-all shadow-sm"
+                                    title="تنظیم دستی تیم‌های این مسابقه"
+                                  >
+                                    <Edit2 size={11} />
+                                    <span>تنظیم دستی تیم‌ها</span>
+                                  </button>
+                                </div>
+                              )}
                             </>
                           )}
                         </div>
@@ -5768,7 +5962,7 @@ export default function AdminDashboard({
                       setShowPostMatchCardView(false);
                     }}
                     className="p-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-2xl border border-slate-700 transition-colors cursor-pointer"
-                    title="بازگشت به لیست بازی‌های لیگ"
+                    title="بازگشت به لیست مسابقات"
                   >
                     <ArrowLeft size={18} />
                   </button>
@@ -5940,6 +6134,123 @@ export default function AdminDashboard({
                   })()}
                 </div>
               </div>
+
+              {/* SMART NEXT MATCH & NEXT STAGE TRANSITION CARD */}
+              {Boolean(directNextMatch || (tournamentUpcomingMatches || []).length > 0) && (
+                <div className={`p-3.5 rounded-3xl border transition-all shadow-xl ${
+                  isMatchFinished
+                    ? 'bg-gradient-to-r from-emerald-950/80 via-slate-900 to-cyan-950/80 border-emerald-500/60 shadow-emerald-950/40'
+                    : 'bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-slate-800'
+                }`}>
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                    {/* Next Match Info Block */}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`p-2.5 rounded-2xl border shrink-0 ${
+                        isMatchFinished
+                          ? 'bg-gradient-to-br from-emerald-500 to-teal-500 text-slate-950 border-emerald-300 shadow-lg shadow-emerald-500/30'
+                          : 'bg-slate-900 text-cyan-400 border-slate-700'
+                      }`}>
+                        <FastForward size={20} className={isMatchFinished ? 'animate-pulse' : ''} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-xs font-black ${isMatchFinished ? 'text-[#00ff87]' : 'text-slate-300'}`}>
+                            {isMatchFinished ? '✓ این مسابقه پایان یافت! مرحله بعد مسابقات:' : 'مسابقه بعدی این مرحله / مرحله بعد:'}
+                          </span>
+                          {directNextMatch && (
+                            <span className="text-[10.5px] px-2 py-0.5 rounded-lg bg-slate-950 text-cyan-300 border border-cyan-500/40 font-sport font-black">
+                              {directNextMatch.round_name || 'مرحله بعد'} • بازی #{directNextMatch.id}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-xs sm:text-sm font-black text-white truncate mt-1 flex items-center gap-2">
+                          {directNextMatch ? (
+                            <>
+                              <span className={directNextMatch.home_team_name ? 'text-white' : 'text-amber-400 font-bold'}>
+                                {directNextMatch.home_team_name || 'در انتظار برنده (TBD)'}
+                              </span>
+                              <span className="text-slate-500 text-[11px] font-sport">VS</span>
+                              <span className={directNextMatch.away_team_name ? 'text-white' : 'text-amber-400 font-bold'}>
+                                {directNextMatch.away_team_name || 'در انتظار برنده (TBD)'}
+                              </span>
+                              {directNextMatch.status === 'FINISHED' && (
+                                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950 px-1.5 py-0.2 rounded border border-emerald-500/30">
+                                  پایان‌یافته ({directNextMatch.home_score} - {directNextMatch.away_score})
+                                </span>
+                              )}
+                              {directNextMatch.status === 'LIVE' && (
+                                <span className="text-[10px] text-rose-400 font-bold bg-rose-950 px-1.5 py-0.2 rounded border border-rose-500/30 animate-pulse">
+                                  🔴 در حال برگزاری
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-slate-400 text-xs">
+                              مسابقات مرحله بعد یا سایر بازی‌های این تورنمنت:
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Switcher & Primary Action */}
+                    <div className="flex items-center gap-2.5 w-full md:w-auto justify-end flex-wrap">
+                      {directNextMatch && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedLiveMatch(directNextMatch);
+                            setShowPostMatchCardView(false);
+                            showNotification(`ورود به اتاق داوری مسابقه مرحله بعد: بازی #${directNextMatch.id} (${directNextMatch.round_name || 'مرحله بعد'})`);
+                          }}
+                          className={`px-4 py-2 rounded-2xl font-black text-xs transition-all flex items-center gap-2 cursor-pointer shadow-lg active:scale-95 shrink-0 ${
+                            isMatchFinished
+                              ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-slate-950 border border-emerald-300 shadow-emerald-950/50 hover:brightness-110'
+                              : 'bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-cyan-500/40'
+                          }`}
+                        >
+                          <span>ورود به داوری مسابقه بعدی ⚡</span>
+                          <ChevronLeftIcon />
+                        </button>
+                      )}
+
+                      {(tournamentUpcomingMatches || []).length > 0 && (
+                        <div className="relative">
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              const targetId = Number(e.target.value);
+                              if (!targetId) return;
+                              const targetM = (tournamentUpcomingMatches || []).find((m) => m?.id === targetId);
+                              if (targetM) {
+                                setSelectedLiveMatch(targetM);
+                                setShowPostMatchCardView(false);
+                                showNotification(`انتقال به بازی #${targetM.id} (${targetM.round_name || 'مسابقه'})`);
+                              }
+                            }}
+                            className="bg-slate-950 border border-slate-700 hover:border-slate-500 rounded-2xl px-3 py-2 text-xs text-cyan-300 font-bold focus:outline-none cursor-pointer shadow-md"
+                          >
+                            <option value="">
+                              -- جابجایی بین سایر مسابقات ({tournamentUpcomingMatches.length} بازی) --
+                            </option>
+                            {tournamentUpcomingMatches.map((m) => {
+                              const mStatus = m?.status === 'FINISHED' ? '✓ پایان' : m?.status === 'LIVE' ? '🔴 زنده' : '⏳ برنامه';
+                              const hTitle = m?.home_team_name || 'TBD';
+                              const aTitle = m?.away_team_name || 'TBD';
+                              return (
+                                <option key={m.id} value={m.id}>
+                                  #{m.id} [{m.round_name || 'مرحله'}] {hTitle} vs {aTitle} ({mStatus})
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* POST MATCH COMPARISON CARD (If toggled or directly visible for finished matches) */}
               {showPostMatchCardView && (
