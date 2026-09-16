@@ -56,18 +56,24 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
   // Selected news modal
   const [selectedNews, setSelectedNews] = useState(null);
   const [realNews, setRealNews] = useState([]);
+  const [loadingNews, setLoadingNews] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
+    setLoadingNews(true);
     newsApi.getNews({ page_size: 4 })
       .then((res) => {
         if (!isMounted) return;
         const list = Array.isArray(res?.data) ? res.data : (res?.data?.results || []);
-        if (list.length > 0) {
-          setRealNews(list);
-        }
+        setRealNews(list || []);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error('Failed to load news for home tab:', err);
+        if (isMounted) setRealNews([]);
+      })
+      .finally(() => {
+        if (isMounted) setLoadingNews(false);
+      });
     return () => { isMounted = false; };
   }, []);
 
@@ -154,72 +160,28 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
 
   const { dateStr, timeStr } = formatMatchDisplayDate(nextMatch?.date, lang === 'fa');
 
-  // Interactive News items matching reference image
-  const newsList = useMemo(() => [
-    {
-      id: 'news-1',
-      category: 'Transfer',
-      categoryLabel: t('tagTransfer'),
-      title: lang === 'fa' ? 'آیا مسی به بارسلونا بازمی‌گردد؟' : 'Messi returns to Barcelona?',
-      timeAgo: lang === 'fa' ? '۲ ساعت پیش' : '2 hours ago',
-      image: '/images/vml_news_messi.webp',
-      summary: lang === 'fa'
-        ? 'گزارش‌های معتبر از مذاکرات پر سر و صدای پنجره نقل‌وانتقالات برای پیوستن اسطوره فوتبال به تیم سابق خود در لیگ مستر مجازی حکایت دارد.'
-        : 'Shocking transfer market reports emerge as negotiations advance for the legendary Argentine forward to make a historic return to Camp Nou in VML Season 1.',
-      content: lang === 'fa'
-        ? 'طبق اعلام رسمی اتاق خبر VML، مدیران باشگاه مذاکرات اولیه را با ایجنت‌های مجاز آغاز کرده‌اند. این انتقال در صورت توافق، رکورد ارزش‌گذاری پنجره نقل‌وانتقالات این فصل را خواهد شکست.'
-        : 'According to reliable VML transfer newsroom sources, preliminary club talks have commenced with authorized agents. If finalized, this deal will break all seasonal market records.',
-    },
-    {
-      id: 'news-2',
-      category: 'League',
-      categoryLabel: t('tagLeague'),
-      title: lang === 'fa' ? 'فصل اول لیگ VML رسماً آغاز شد!' : 'Season 1 is officially underway!',
-      timeAgo: lang === 'fa' ? '۵ ساعت پیش' : '5 hours ago',
-      image: '/images/vml_news_trophy.webp',
-      summary: lang === 'fa'
-        ? 'هیجان‌انگیزترین تورنمنت مستر لیگ با حضور ۲۰ تیم مدعی و جوایز میلیونی کریپتو و کوین کلید خورد.'
-        : 'The most anticipated Master League esports tournament kicks off with 20 elite teams competing for glory, cryptocurrency rewards, and the coveted VML Gold Trophy.',
-      content: lang === 'fa'
-        ? 'هفته اول مسابقات با داوری هوشمند و سیستم امتیازدهی پیشرفته برگزار می‌شود. تمامی مربیان موظفند ترکیب اصلی خود را تا ۳۰ دقیقه قبل از سوت آغاز بازی تایید و ارسال فرمایند.'
-        : 'Week 1 matches are supervised by real-time automated refereeing. All head coaches must submit their final 11 squad at least 30 minutes prior to kickoff.',
-    },
-    {
-      id: 'news-3',
-      category: 'Tactics',
-      categoryLabel: t('tagTactics'),
-      title: lang === 'fa' ? '۵ ترکیب برنده و مرگبار در فصل جدید' : 'Top 5 formations in VML',
-      timeAgo: lang === 'fa' ? '۸ ساعت پیش' : '8 hours ago',
-      image: '/images/vml_news_tactics.webp',
-      summary: lang === 'fa'
-        ? 'بررسی تخصصی سیستم‌های ۴-۳-۳ تهاجمی و ۴-۲-۱-۳ ضدحمله که توسط قهرمانان مستر لیگ استفاده می‌شوند.'
-        : 'In-depth tactical breakdown of the most dominant formations, high-press counter-attacks, and positioning strategies in the current competitive meta.',
-      content: lang === 'fa'
-        ? 'با توجه به آپدیت جدید هوش مصنوعی شبیه‌ساز گیم‌پلی، هماهنگی خط هافبک و سرعت وینگرها در سیستم‌های شناور نقشی تعیین‌کننده در ثبت گل‌های تماشایی ایفا می‌کند.'
-        : 'Following the latest simulation engine update, midfield spacing and rapid winger transitions in modern 4-3-3 fluid schemes yield the highest win rates across competitive fixtures.',
-    },
-  ], [lang, t]);
-
+  // Authentic real-time news items directly from VML Press & Newsroom
   const displayNews = useMemo(() => {
-    if (realNews.length > 0) {
-      return realNews.slice(0, 3).map((item) => ({
-        id: item.id,
-        category: item.category,
-        categoryLabel: item.category_display || (item.category === 'TRANSFER' ? t('tagTransfer') : item.category === 'MATCH' ? t('tagLeague') : t('tagTactics')),
-        title: item.title,
-        subtitle: item.subtitle,
-        timeAgo: item.time_ago || (lang === 'fa' ? 'امروز' : 'Today'),
-        image: item.image_url || '/images/vml_news_trophy.webp',
-        summary: item.summary,
-        content: item.content,
-        is_breaking: item.is_breaking,
-        reactions_count: item.reactions_count,
-        user_reaction: item.user_reaction,
-        raw: item,
-      }));
+    if (!Array.isArray(realNews) || realNews.length === 0) {
+      return [];
     }
-    return newsList;
-  }, [realNews, newsList, lang, t]);
+    return realNews.slice(0, 4).map((item) => ({
+      id: item.id,
+      category: item.category,
+      categoryLabel: item.category_display || (item.category === 'TRANSFER' ? t('tagTransfer') : item.category === 'MATCH' ? t('tagLeague') : t('tagTactics')),
+      title: item.title,
+      subtitle: item.subtitle,
+      timeAgo: item.time_ago || (lang === 'fa' ? 'امروز' : 'Today'),
+      image: item.image_url || '/images/vml_news_trophy.webp',
+      summary: item.summary,
+      content: item.content,
+      is_breaking: Boolean(item.is_breaking),
+      is_pinned: Boolean(item.is_pinned),
+      reactions_count: item.reactions_count || {},
+      user_reaction: item.user_reaction,
+      raw: item,
+    }));
+  }, [realNews, lang, t]);
 
   const ArrowIcon = isRtl ? ChevronLeft : ChevronRight;
 
@@ -481,54 +443,95 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
           </button>
         </div>
 
-        {/* Horizontal scrollable cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {(displayNews || []).map((news) => (
-            <div
-              key={news.id}
-              onClick={() => setSelectedNews(news.raw || news)}
-              className="group relative rounded-2xl overflow-hidden bg-slate-900/90 border border-slate-800 hover:border-amber-500/50 shadow-lg cursor-pointer transition-all active:scale-[0.98] flex flex-col"
-            >
-              {/* News Thumbnail */}
-              <div className="relative w-full h-36 sm:h-32 bg-slate-950 overflow-hidden">
-                <img
-                  src={news.image || news.image_url || '/images/vml_news_trophy.webp'}
-                  alt={news.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  onError={(e) => { e.currentTarget.src = '/images/vml_news_trophy.webp'; }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-black/30" />
-                
-                {/* Category Badge */}
-                <span className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider shadow-md bg-amber-500 text-slate-950">
-                  {news.categoryLabel || news.category_display || news.category}
-                </span>
-
-                {news.is_breaking && (
-                  <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md text-[9px] font-black bg-rose-600 text-white animate-pulse">
-                    🔥 {lang === 'fa' ? 'فوری' : 'BREAKING'}
-                  </span>
-                )}
+        {/* Real News Cards / Skeleton / Empty State */}
+        {loadingNews ? (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="rounded-2xl overflow-hidden bg-slate-900/60 border border-slate-800 p-3 animate-pulse space-y-3">
+                <div className="w-full h-32 bg-slate-800/60 rounded-xl" />
+                <div className="h-4 bg-slate-800/80 rounded w-3/4" />
+                <div className="h-3 bg-slate-800/50 rounded w-1/2" />
               </div>
+            ))}
+          </div>
+        ) : displayNews.length === 0 ? (
+          <div className="rounded-2xl bg-gradient-to-r from-slate-950 via-[#0a1226] to-slate-950 border border-slate-800/80 p-5 text-center space-y-3">
+            <div className="w-12 h-12 mx-auto rounded-2xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+              <Megaphone size={24} />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-bold text-white text-sm">
+                {lang === 'fa' ? 'اتاق خبر و مطبوعات رسمی VML' : 'VML Official Newsroom'}
+              </h4>
+              <p className="text-xs text-slate-400 max-w-md mx-auto">
+                {lang === 'fa'
+                  ? 'تمام رویدادهای زنده، مصاحبه‌ها، نقل‌وانتقالات و نتایج بازی‌ها در چنل مطبوعات مخابره می‌شوند.'
+                  : 'Live match reports, transfer bombs, and disciplinary updates are broadcasted in the press channel.'}
+              </p>
+            </div>
+            <button
+              onClick={() => onNavigateTab?.('news_channel')}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all active:scale-95 shadow-md cursor-pointer"
+            >
+              <span>{lang === 'fa' ? 'ورود به چنل مطبوعات' : 'Enter News Channel'}</span>
+              <ArrowIcon size={14} />
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {(displayNews || []).map((news) => (
+              <div
+                key={news.id}
+                onClick={() => setSelectedNews(news.raw || news)}
+                className="group relative rounded-2xl overflow-hidden bg-slate-900/90 border border-slate-800 hover:border-amber-500/50 shadow-lg cursor-pointer transition-all active:scale-[0.98] flex flex-col"
+              >
+                {/* News Thumbnail */}
+                <div className="relative w-full h-36 sm:h-32 bg-slate-950 overflow-hidden">
+                  <img
+                    src={news.image || news.image_url || '/images/vml_news_trophy.webp'}
+                    alt={news.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    onError={(e) => { e.currentTarget.src = '/images/vml_news_trophy.webp'; }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-black/30" />
+                  
+                  {/* Category Badge */}
+                  <span className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider shadow-md bg-amber-500 text-slate-950">
+                    {news.categoryLabel || news.category_display || news.category}
+                  </span>
 
-              {/* News Content */}
-              <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
-                <h4 className="text-xs sm:text-sm font-black text-white group-hover:text-amber-300 transition-colors line-clamp-2 leading-tight">
-                  {news.title}
-                </h4>
-                <div className="flex items-center justify-between text-[10.5px] text-slate-400 pt-1 border-t border-slate-800/80">
-                  <span className="flex items-center gap-1">
-                    <Clock size={11} className="text-amber-400" />
-                    {news.timeAgo || news.time_ago}
-                  </span>
-                  <span className="text-cyan-400 group-hover:underline font-bold">
-                    {t('readMore')}
-                  </span>
+                  {news.is_pinned && (
+                    <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md text-[9px] font-black bg-amber-500/90 text-slate-950 shadow">
+                      📌 {lang === 'fa' ? 'سنجاق' : 'PINNED'}
+                    </span>
+                  )}
+
+                  {news.is_breaking && (
+                    <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md text-[9px] font-black bg-rose-600 text-white animate-pulse">
+                      🔥 {lang === 'fa' ? 'فوری' : 'BREAKING'}
+                    </span>
+                  )}
+                </div>
+
+                {/* News Content */}
+                <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
+                  <h4 className="text-xs sm:text-sm font-black text-white group-hover:text-amber-300 transition-colors line-clamp-2 leading-tight">
+                    {news.title}
+                  </h4>
+                  <div className="flex items-center justify-between text-[10.5px] text-slate-400 pt-1 border-t border-slate-800/80">
+                    <span className="flex items-center gap-1">
+                      <Clock size={11} className="text-amber-400" />
+                      {news.timeAgo || news.time_ago}
+                    </span>
+                    <span className="text-cyan-400 group-hover:underline font-bold">
+                      {t('readMore')}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Interactive News Reading Modal with Reactions & Real Data */}
