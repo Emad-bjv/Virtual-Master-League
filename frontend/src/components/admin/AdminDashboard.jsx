@@ -6242,6 +6242,7 @@ export default function AdminDashboard({
                           initialSubstitutes={activeSideData.subs}
                           initialReserves={activeSideData.reserves}
                           matchState={halfStatus || currentMatchStatus}
+                          currentMinute={eventMinute}
                           onPushLiveEvent={handleOnPushPitchEvent}
                           onLineupChange={handleAdminPitchLineupChange}
                           hideReserves={false}

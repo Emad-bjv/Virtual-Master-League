@@ -382,6 +382,7 @@ export default function EFootballGamePlan({
   onSaveGamePlan,
   isAdminMode = false,
   onPushLiveEvent,
+  currentMinute = 45,
 }) {
   // Helper to match DB short formations (e.g. '4-3-3') to full presets (e.g. '4-3-3 (4-2-1-3)')
   const getResolvedFormation = (form) => {
@@ -704,6 +705,14 @@ export default function EFootballGamePlan({
   const [selectedBenchPlayerId, setSelectedBenchPlayerId] = useState(null);
   const [highlightedPosition, setHighlightedPosition] = useState(null);
   const [adminQuickDockPlayer, setAdminQuickDockPlayer] = useState(null);
+  const [quickEventMinute, setQuickEventMinute] = useState(currentMinute || 45);
+
+  useEffect(() => {
+    if (currentMinute !== undefined && currentMinute !== null) {
+      setQuickEventMinute(currentMinute);
+    }
+  }, [currentMinute]);
+
   const [statusMsg, setStatusMsg] = useState('');
   const [quickSubModal, setQuickSubModal] = useState({ isOpen: false, sourcePlayer: null, targetType: null });
 
@@ -976,6 +985,7 @@ export default function EFootballGamePlan({
 
     // 2. Dispatch to parent callback (which handles backend logging, scores, and broadcast)
     if (onPushLiveEvent) {
+      const chosenMinute = parseInt(quickEventMinute, 10) || currentMinute || 45;
       onPushLiveEvent({
         id: Date.now(),
         type: pushType,
@@ -984,6 +994,7 @@ export default function EFootballGamePlan({
         player: targetPlayer.id,
         player_name: targetPlayer.name,
         team: teamName,
+        minute: chosenMinute,
         text,
         icon,
       });
@@ -1011,9 +1022,15 @@ export default function EFootballGamePlan({
     if (!clickedPlayer) return;
     setHighlightedPosition(null);
 
-    // In Admin Mode: Toggle the quick FotMob-style floating action dock directly above this player!
+    // In Admin Mode: Toggle the floating action bar for this player!
     if (isAdminMode) {
-      setAdminQuickDockPlayer((prev) => (String(prev?.id) === String(clickedPlayer.id) ? null : clickedPlayer));
+      setAdminQuickDockPlayer((prev) => {
+        if (String(prev?.id) === String(clickedPlayer.id)) {
+          return null;
+        }
+        setQuickEventMinute(currentMinute || 45);
+        return clickedPlayer;
+      });
       return;
     }
 
@@ -1055,9 +1072,15 @@ export default function EFootballGamePlan({
     if (!clickedBenchPlayer) return;
     setHighlightedPosition(null);
 
-    // In Admin Mode: Toggle the quick FotMob-style floating action dock directly above this bench player!
+    // In Admin Mode: Toggle the floating action bar for this bench player!
     if (isAdminMode) {
-      setAdminQuickDockPlayer((prev) => (String(prev?.id) === String(clickedBenchPlayer.id) ? null : { ...clickedBenchPlayer, isBench: true }));
+      setAdminQuickDockPlayer((prev) => {
+        if (String(prev?.id) === String(clickedBenchPlayer.id)) {
+          return null;
+        }
+        setQuickEventMinute(currentMinute || 45);
+        return { ...clickedBenchPlayer, isBench: true };
+      });
       return;
     }
 
@@ -1745,87 +1768,6 @@ export default function EFootballGamePlan({
                         : 'cursor-pointer'
                     }`}
                   >
-                    {/* FotMob Style Rapid Action Emoji Dock (Admin Mode) */}
-                    {isAdminMode && String(adminQuickDockPlayer?.id) === String(player.id) && (
-                      <div
-                        className={`absolute ${(projected.y ?? 50) < 22 ? 'top-[115%]' : 'bottom-[115%]'} left-1/2 -translate-x-1/2 z-[100] flex items-center gap-1 p-1 sm:p-1.5 rounded-2xl bg-slate-950/95 backdrop-blur-xl border-2 border-cyan-500/70 shadow-[0_0_30px_rgba(6,182,212,0.45)] animate-in fade-in zoom-in-90 duration-150 select-none whitespace-nowrap`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => handleAdminQuickEvent(player, 'GOAL')}
-                          title="ثبت گل (⚽)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/60 hover:scale-110 active:scale-95 flex items-center justify-center text-sm sm:text-base cursor-pointer transition-all shadow-sm"
-                        >
-                          ⚽
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAdminQuickEvent(player, 'ASSIST')}
-                          title="ثبت پاس‌گل (🅰️)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/60 hover:scale-110 active:scale-95 flex items-center justify-center text-sm sm:text-base cursor-pointer transition-all shadow-sm"
-                        >
-                          🅰️
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAdminQuickEvent(player, 'YELLOW')}
-                          title="کارت زرد (🟨)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-950/80 hover:bg-amber-900 border border-amber-500/60 hover:scale-110 active:scale-95 flex items-center justify-center text-sm sm:text-base cursor-pointer transition-all shadow-sm"
-                        >
-                          🟨
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAdminQuickEvent(player, 'RED')}
-                          title="کارت قرمز مستقیم (🟥)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/60 hover:scale-110 active:scale-95 flex items-center justify-center text-sm sm:text-base cursor-pointer transition-all shadow-sm"
-                        >
-                          🟥
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAdminQuickEvent(player, 'PENALTY_SCORED')}
-                          title="گل پنالتی (🎯)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-teal-950/80 hover:bg-teal-900 border border-teal-500/60 hover:scale-110 active:scale-95 flex items-center justify-center text-sm sm:text-base cursor-pointer transition-all shadow-sm"
-                        >
-                          🎯
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAdminQuickEvent(player, 'OWN_GOAL')}
-                          title="گل به خودی (🤦‍♂️)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-red-950/80 hover:bg-red-900 border border-red-500/60 hover:scale-110 active:scale-95 flex items-center justify-center text-sm sm:text-base cursor-pointer transition-all shadow-sm"
-                        >
-                          🤦‍♂️
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAdminQuickEvent(player, 'INJURY')}
-                          title="مصدومیت (🚑)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-purple-950/80 hover:bg-purple-900 border border-purple-500/60 hover:scale-110 active:scale-95 flex items-center justify-center text-sm sm:text-base cursor-pointer transition-all shadow-sm"
-                        >
-                          🚑
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAdminQuickEvent(player, 'UNDO')}
-                          title="لغو آخرین رویداد این بازیکن (↩️)"
-                          className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:scale-110 active:scale-95 flex items-center justify-center text-xs sm:text-sm text-slate-300 hover:text-white cursor-pointer transition-all shadow-sm"
-                        >
-                          ↩️
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAdminQuickDockPlayer(null)}
-                          title="بستن"
-                          className="w-6 h-6 rounded-lg bg-slate-900/90 text-slate-400 hover:text-white flex items-center justify-center text-xs cursor-pointer ml-0.5"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    )}
-
                     <FutPitchCard
                       player={player}
                       slotPos={slotPos}
@@ -1969,46 +1911,6 @@ export default function EFootballGamePlan({
 
                 return (
                   <div key={sub.id || `bench-${idx}`} className="relative shrink-0">
-                    {/* Admin Mode Rapid Dock */}
-                    {isAdminMode && String(adminQuickDockPlayer?.id) === String(sub.id) && (
-                      <div
-                        className="absolute bottom-[110%] left-1/2 -translate-x-1/2 z-[100] flex items-center gap-1 p-1 sm:p-1.5 rounded-2xl bg-slate-950/95 backdrop-blur-xl border-2 border-cyan-500/70 shadow-[0_0_30px_rgba(6,182,212,0.45)] animate-in fade-in zoom-in-90 duration-150 select-none whitespace-nowrap"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => handleAdminQuickEvent(sub, 'GOAL')}
-                          title="ثبت گل (⚽)"
-                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/60 flex items-center justify-center text-xs sm:text-sm cursor-pointer"
-                        >
-                          ⚽
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAdminQuickEvent(sub, 'YELLOW')}
-                          title="کارت زرد (🟨)"
-                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-amber-950/80 hover:bg-amber-900 border border-amber-500/60 flex items-center justify-center text-xs sm:text-sm cursor-pointer"
-                        >
-                          🟨
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleAdminQuickEvent(sub, 'RED')}
-                          title="کارت قرمز (🟥)"
-                          className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-500/60 flex items-center justify-center text-xs sm:text-sm cursor-pointer"
-                        >
-                          🟥
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAdminQuickDockPlayer(null)}
-                          className="w-5 h-5 rounded-lg bg-slate-900 text-slate-400 hover:text-white flex items-center justify-center text-xs cursor-pointer ml-0.5"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    )}
-
                     <FutPitchCard
                       player={sub}
                       slotPos={natPos || 'SUB'}
@@ -2308,6 +2210,204 @@ export default function EFootballGamePlan({
                       </button>
                     );
                   })}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* ADMIN RAPID EVENT FLOATING ACTION BAR (Mounted to document.body via Portal) */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isAdminMode && adminQuickDockPlayer && (
+            <div
+              className="fixed inset-0 z-[99999] flex flex-col justify-end items-center p-3 sm:p-6 bg-black/60 backdrop-blur-[2px] overflow-y-auto"
+              onClick={() => setAdminQuickDockPlayer(null)}
+            >
+              <motion.div
+                initial={{ y: 80, opacity: 0, scale: 0.95 }}
+                animate={{ y: 0, opacity: 1, scale: 1 }}
+                exit={{ y: 80, opacity: 0, scale: 0.95 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+                className="relative z-10 w-full max-w-2xl bg-[#080d1a]/95 backdrop-blur-2xl border-2 border-cyan-500/70 shadow-[0_0_50px_rgba(6,182,212,0.45)] rounded-3xl p-3 sm:p-4 my-auto sm:my-0 sm:mb-2 space-y-3 select-none"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header: Player Info, Minute Selector, Close */}
+                <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {/* Player Avatar */}
+                    <div className="relative w-11 h-11 rounded-2xl overflow-hidden bg-slate-950 border border-cyan-500/50 shrink-0 shadow-md">
+                      {getPlayerPhotoUrl(adminQuickDockPlayer) ? (
+                        <img
+                          src={getPlayerPhotoUrl(adminQuickDockPlayer)}
+                          alt={adminQuickDockPlayer.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { e.target.style.display = 'none'; }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center font-black text-cyan-300 text-xs">
+                          {String(adminQuickDockPlayer.name || 'PL').slice(0, 2)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Name & Badges */}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-black text-white text-sm truncate">
+                          {adminQuickDockPlayer.name}
+                        </span>
+                        {adminQuickDockPlayer.isBench && (
+                          <span className="px-1.5 py-0.2 rounded bg-amber-950/90 text-amber-300 border border-amber-500/40 text-[9.5px] font-bold shrink-0">
+                            نیمکت
+                          </span>
+                        )}
+                        <span className="font-sport font-black text-[10px] px-2 py-0.5 rounded-lg bg-slate-900 text-cyan-300 border border-cyan-500/30 shrink-0">
+                          {adminQuickDockPlayer.position || adminQuickDockPlayer.naturalPosition || 'PL'}
+                        </span>
+                      </div>
+                      
+                      {/* Active Player In-Match Stats */}
+                      <div className="flex items-center gap-2 text-[10.5px] text-slate-400 font-sport mt-0.5 flex-wrap">
+                        <span>{teamName}</span>
+                        {Number(adminQuickDockPlayer.in_match_goals || 0) > 0 && (
+                          <span className="text-emerald-300 font-bold bg-emerald-950/80 px-1.5 py-0.2 rounded border border-emerald-500/30">
+                            ⚽ {adminQuickDockPlayer.in_match_goals}
+                          </span>
+                        )}
+                        {Number(adminQuickDockPlayer.in_match_assists || 0) > 0 && (
+                          <span className="text-blue-300 font-bold bg-blue-950/80 px-1.5 py-0.2 rounded border border-blue-500/30">
+                            🅰️ {adminQuickDockPlayer.in_match_assists}
+                          </span>
+                        )}
+                        {Number(adminQuickDockPlayer.yellowCards || 0) > 0 && (
+                          <span className="text-amber-300 font-bold bg-amber-950/80 px-1.5 py-0.2 rounded border border-amber-500/30">
+                            🟨 {adminQuickDockPlayer.yellowCards}
+                          </span>
+                        )}
+                        {adminQuickDockPlayer.isRed && (
+                          <span className="text-rose-300 font-bold bg-rose-950/80 px-1.5 py-0.2 rounded border border-rose-500/30">
+                            🟥 اخراج
+                          </span>
+                        )}
+                        {adminQuickDockPlayer.isInjured && (
+                          <span className="text-red-300 font-bold bg-red-950/80 px-1.5 py-0.2 rounded border border-red-500/30">
+                            🚑 مصدوم
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Minute Adjuster & Close Button */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-700/80 px-2.5 py-1 rounded-xl">
+                      <span className="text-[11px] text-slate-400 font-bold whitespace-nowrap">دقیقه:</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="130"
+                        value={quickEventMinute}
+                        onChange={(e) => setQuickEventMinute(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                        className="w-12 bg-slate-950 border border-cyan-500/50 rounded-lg text-center text-cyan-300 font-sport font-black text-xs py-0.5 focus:outline-none focus:border-cyan-400"
+                      />
+                      <span className="text-[11px] text-cyan-400 font-sport font-bold">'</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setAdminQuickDockPlayer(null)}
+                      className="w-8 h-8 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-700 flex items-center justify-center text-sm cursor-pointer transition-colors shrink-0"
+                      title="بستن پنجره"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Buttons Grid */}
+                <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAdminQuickEvent(adminQuickDockPlayer, 'GOAL')}
+                    title="ثبت گل"
+                    className="p-2 rounded-2xl bg-emerald-950/70 hover:bg-emerald-600 border border-emerald-500/50 hover:border-emerald-400 text-emerald-200 hover:text-white transition-all duration-150 flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 group shadow-sm"
+                  >
+                    <span className="text-xl group-hover:scale-110 transition-transform">⚽</span>
+                    <span className="text-[11px] font-bold">گل</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAdminQuickEvent(adminQuickDockPlayer, 'ASSIST')}
+                    title="ثبت پاس‌گل"
+                    className="p-2 rounded-2xl bg-blue-950/70 hover:bg-blue-600 border border-blue-500/50 hover:border-blue-400 text-blue-200 hover:text-white transition-all duration-150 flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 group shadow-sm"
+                  >
+                    <span className="text-xl group-hover:scale-110 transition-transform">🅰️</span>
+                    <span className="text-[11px] font-bold">پاس‌گل</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAdminQuickEvent(adminQuickDockPlayer, 'YELLOW')}
+                    title="ثبت کارت زرد"
+                    className="p-2 rounded-2xl bg-amber-950/70 hover:bg-amber-600 border border-amber-500/50 hover:border-amber-400 text-amber-200 hover:text-white transition-all duration-150 flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 group shadow-sm"
+                  >
+                    <span className="text-xl group-hover:scale-110 transition-transform">🟨</span>
+                    <span className="text-[11px] font-bold">کارت زرد</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAdminQuickEvent(adminQuickDockPlayer, 'RED')}
+                    title="کارت قرمز مستقیم"
+                    className="p-2 rounded-2xl bg-rose-950/70 hover:bg-rose-600 border border-rose-500/50 hover:border-rose-400 text-rose-200 hover:text-white transition-all duration-150 flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 group shadow-sm"
+                  >
+                    <span className="text-xl group-hover:scale-110 transition-transform">🟥</span>
+                    <span className="text-[11px] font-bold">کارت قرمز</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAdminQuickEvent(adminQuickDockPlayer, 'PENALTY_SCORED')}
+                    title="گل از روی پنالتی"
+                    className="p-2 rounded-2xl bg-teal-950/70 hover:bg-teal-600 border border-teal-500/50 hover:border-teal-400 text-teal-200 hover:text-white transition-all duration-150 flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 group shadow-sm"
+                  >
+                    <span className="text-xl group-hover:scale-110 transition-transform">🎯</span>
+                    <span className="text-[11px] font-bold">پنالتی</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAdminQuickEvent(adminQuickDockPlayer, 'OWN_GOAL')}
+                    title="گل به خودی"
+                    className="p-2 rounded-2xl bg-purple-950/70 hover:bg-purple-600 border border-purple-500/50 hover:border-purple-400 text-purple-200 hover:text-white transition-all duration-150 flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 group shadow-sm"
+                  >
+                    <span className="text-xl group-hover:scale-110 transition-transform">🤦‍♂️</span>
+                    <span className="text-[11px] font-bold">به خودی</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAdminQuickEvent(adminQuickDockPlayer, 'INJURY')}
+                    title="مصدومیت بازیکن"
+                    className="p-2 rounded-2xl bg-red-950/70 hover:bg-red-600 border border-red-500/50 hover:border-red-400 text-red-200 hover:text-white transition-all duration-150 flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 group shadow-sm"
+                  >
+                    <span className="text-xl group-hover:scale-110 transition-transform">🚑</span>
+                    <span className="text-[11px] font-bold">مصدومیت</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAdminQuickEvent(adminQuickDockPlayer, 'UNDO')}
+                    title="لغو رویداد اخیر این بازیکن"
+                    className="p-2 rounded-2xl bg-slate-900/80 hover:bg-slate-700 border border-slate-600 hover:border-slate-500 text-slate-300 hover:text-white transition-all duration-150 flex flex-col items-center justify-center gap-1 cursor-pointer active:scale-95 group shadow-sm"
+                  >
+                    <span className="text-xl group-hover:scale-110 transition-transform">↩️</span>
+                    <span className="text-[11px] font-bold">لغو</span>
+                  </button>
                 </div>
               </motion.div>
             </div>
