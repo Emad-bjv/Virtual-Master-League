@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, Eye, Flag, Trash2, Zap, Clock, Shield, Sparkles, Send,
   Plus, Minus, ArrowLeftRight, Bell, CheckCircle, BarChart2, Award, User, X,
   CreditCard, Gem, FileImage, UploadCloud, XCircle, Filter, Image, CheckCheck,
-  Edit2, Package, ToggleLeft, ToggleRight, Layers, Tag, Gift, Users, Flame, Swords, Crown, FastForward
+  Edit2, Package, ToggleLeft, ToggleRight, Layers, Tag, Gift, Users, Flame, Swords, Crown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api, { adminApi, matchApi, teamApi, economyApi, battleRoyaleApi } from '../../services/api';
@@ -748,31 +748,33 @@ export default function AdminDashboard({
   // Sync active selected round to earliest active round if empty or finished
   useEffect(() => {
     if ((brWbRounds || []).length > 0) {
-      const exists = brWbRounds.some((r) => r.name === selectedBrWbRound);
+      const exists = brWbRounds.some((r) => (r.round_name || r.name || String(r.round_number)) === selectedBrWbRound);
       if (!exists) {
         const activeR = brWbRounds.find((r) => (r.matches || []).some((m) => m.status !== 'FINISHED')) || brWbRounds[0];
-        if (activeR?.name) setSelectedBrWbRound(activeR.name);
+        const rKey = activeR?.round_name || activeR?.name || String(activeR?.round_number || '');
+        if (rKey) setSelectedBrWbRound(rKey);
       }
     }
   }, [brWbRounds, selectedBrWbRound]);
 
   useEffect(() => {
     if ((brLbRounds || []).length > 0) {
-      const exists = brLbRounds.some((r) => r.name === selectedBrLbRound);
+      const exists = brLbRounds.some((r) => (r.round_name || r.name || String(r.round_number)) === selectedBrLbRound);
       if (!exists) {
         const activeR = brLbRounds.find((r) => (r.matches || []).some((m) => m.status !== 'FINISHED')) || brLbRounds[0];
-        if (activeR?.name) setSelectedBrLbRound(activeR.name);
+        const rKey = activeR?.round_name || activeR?.name || String(activeR?.round_number || '');
+        if (rKey) setSelectedBrLbRound(rKey);
       }
     }
   }, [brLbRounds, selectedBrLbRound]);
 
   const currentBrWbMatches = useMemo(() => {
-    const round = brWbRounds.find((r) => r.name === selectedBrWbRound) || brWbRounds[0];
+    const round = brWbRounds.find((r) => (r.round_name || r.name || String(r.round_number)) === selectedBrWbRound) || brWbRounds[0];
     return round?.matches || [];
   }, [brWbRounds, selectedBrWbRound]);
 
   const currentBrLbMatches = useMemo(() => {
-    const round = brLbRounds.find((r) => r.name === selectedBrLbRound) || brLbRounds[0];
+    const round = brLbRounds.find((r) => (r.round_name || r.name || String(r.round_number)) === selectedBrLbRound) || brLbRounds[0];
     return round?.matches || [];
   }, [brLbRounds, selectedBrLbRound]);
 
@@ -831,31 +833,6 @@ export default function AdminDashboard({
     } catch (_e) {}
   }, [refereeDeskTab]);
 
-  // Upcoming matches and direct feeder next match for the active live referee desk
-  const tournamentUpcomingMatches = useMemo(() => {
-    if (!selectedLiveMatch) return [];
-    const isKnockout = Boolean(selectedLiveMatch.is_knockout || selectedLiveMatch.tournament_type === 'CUP');
-    const isBr = Boolean(selectedLiveMatch.tournament_type === 'BATTLE_ROYALE' || tournamentMode === 'battle_royale');
-    if (isKnockout && (cupMatches || []).length > 0) {
-      return (cupMatches || []).filter((m) => m && m.id !== selectedLiveMatch.id);
-    }
-    if (isBr && (allBrMatchesChronological || []).length > 0) {
-      return (allBrMatchesChronological || []).filter((m) => m && m.id !== selectedLiveMatch.id);
-    }
-    return (allMatches || []).filter((m) => m && m.id !== selectedLiveMatch.id);
-  }, [selectedLiveMatch, cupMatches, allBrMatchesChronological, allMatches, tournamentMode]);
-
-  const directNextMatch = useMemo(() => {
-    if (!selectedLiveMatch) return null;
-    const targetId = Number(selectedLiveMatch.next_match || selectedLiveMatch.next_match_id);
-    if (!targetId) return null;
-    return (
-      (cupMatches || []).find((m) => m?.id === targetId) ||
-      (allBrMatchesChronological || []).find((m) => m?.id === targetId) ||
-      (allMatches || []).find((m) => m?.id === targetId) ||
-      null
-    );
-  }, [selectedLiveMatch, cupMatches, allBrMatchesChronological, allMatches]);
 
   const [liveMatchDetails, setLiveMatchDetails] = useState(null);
   const [selectedLiveTeamSwitch, setSelectedLiveTeamSwitch] = useState('home'); // 'home' | 'away'
@@ -5331,8 +5308,16 @@ export default function AdminDashboard({
                     const renderBrMatchCard = (m, extraBadge = null) => {
                       if (!m) return null;
                       const isEditing = editingMatchId === m.id;
-                      const hasHomeTeam = Boolean(m.home_team || m.home_team_id || (m.home_team_name && m.home_team_name !== 'None' && m.home_team_name !== 'نامشخص'));
-                      const hasAwayTeam = Boolean(m.away_team || m.away_team_id || (m.away_team_name && m.away_team_name !== 'None' && m.away_team_name !== 'نامشخص'));
+                      const hasHomeTeam = Boolean(
+                        (m.home_team || m.home_team_id) &&
+                        m.home_team_name &&
+                        !['None', 'نامشخص', 'مشخص نشده (TBD)', 'TBD', 'در انتظار برنده (TBD)'].includes(String(m.home_team_name).trim())
+                      );
+                      const hasAwayTeam = Boolean(
+                        (m.away_team || m.away_team_id) &&
+                        m.away_team_name &&
+                        !['None', 'نامشخص', 'مشخص نشده (TBD)', 'TBD', 'در انتظار برنده (TBD)'].includes(String(m.away_team_name).trim())
+                      );
                       const isBothTeamsReady = hasHomeTeam && hasAwayTeam;
 
                       const homeName = hasHomeTeam ? (m.home_team_name || m.home) : 'در انتظار برنده (TBD)';
@@ -5762,21 +5747,32 @@ export default function AdminDashboard({
                         {brSubTab === 'winners' && (
                           <div className="space-y-3">
                             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-                              {(brWbRounds || []).map((r) => {
-                                const isSelected = (selectedBrWbRound || brWbRounds[0]?.name) === r.name;
+                              {(brWbRounds || []).map((r, idx) => {
+                                const rKey = r.round_name || r.name || String(r.round_number || idx + 1);
+                                const rLabel = r.round_name || r.name || `دور ${r.round_number || idx + 1}`;
+                                const isSelected = (selectedBrWbRound || brWbRounds[0]?.round_name || brWbRounds[0]?.name || String(brWbRounds[0]?.round_number || '')) === rKey;
+                                const totalCount = (r.matches || []).length;
+                                const finishedCount = (r.matches || []).filter((m) => m.status === 'FINISHED').length;
+                                const isRoundDone = totalCount > 0 && finishedCount === totalCount;
+                                const hasLive = (r.matches || []).some((m) => m.status === 'LIVE');
+
                                 return (
                                   <button
-                                    key={r.name}
+                                    key={rKey}
                                     type="button"
-                                    onClick={() => setSelectedBrWbRound(r.name)}
+                                    onClick={() => setSelectedBrWbRound(rKey)}
                                     className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer flex items-center gap-2 ${
                                       isSelected
                                         ? 'bg-cyan-600 text-white shadow-md shadow-cyan-950/50 scale-[1.02] border border-cyan-400/40'
                                         : 'bg-slate-950/80 text-slate-400 hover:text-slate-200 border border-slate-800'
                                     }`}
                                   >
-                                    <span>{r.name}</span>
-                                    <span className="text-[10px] font-sport opacity-75">({(r.matches || []).length})</span>
+                                    {hasLive && <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />}
+                                    <span>{rLabel}</span>
+                                    <span className="text-[10px] font-sport opacity-75">
+                                      ({finishedCount > 0 ? `${finishedCount}/${totalCount}` : totalCount})
+                                    </span>
+                                    {isRoundDone && <Check size={12} className="text-emerald-400" />}
                                   </button>
                                 );
                               })}
@@ -5804,13 +5800,20 @@ export default function AdminDashboard({
                         {brSubTab === 'losers' && (
                           <div className="space-y-3">
                             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-                              {(brLbRounds || []).map((r) => {
-                                const isSelected = (selectedBrLbRound || brLbRounds[0]?.name) === r.name;
+                              {(brLbRounds || []).map((r, idx) => {
+                                const rKey = r.round_name || r.name || String(r.round_number || idx + 1);
+                                const rLabel = r.round_name || r.name || `دور ${r.round_number || idx + 1}`;
+                                const isSelected = (selectedBrLbRound || brLbRounds[0]?.round_name || brLbRounds[0]?.name || String(brLbRounds[0]?.round_number || '')) === rKey;
+                                const totalCount = (r.matches || []).length;
+                                const finishedCount = (r.matches || []).filter((m) => m.status === 'FINISHED').length;
+                                const isRoundDone = totalCount > 0 && finishedCount === totalCount;
+                                const hasLive = (r.matches || []).some((m) => m.status === 'LIVE');
+
                                 return (
                                   <button
-                                    key={r.name}
+                                    key={rKey}
                                     type="button"
-                                    onClick={() => setSelectedBrLbRound(r.name)}
+                                    onClick={() => setSelectedBrLbRound(rKey)}
                                     className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all shrink-0 cursor-pointer flex items-center gap-2 ${
                                       isSelected
                                         ? 'bg-orange-600 text-white shadow-md shadow-orange-950/50 scale-[1.02] border border-orange-400/40'
@@ -5818,8 +5821,12 @@ export default function AdminDashboard({
                                     }`}
                                   >
                                     <Flame size={12} className={isSelected ? 'text-amber-300' : 'text-slate-500'} />
-                                    <span>{r.name}</span>
-                                    <span className="text-[10px] font-sport opacity-75">({(r.matches || []).length})</span>
+                                    {hasLive && <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />}
+                                    <span>{rLabel}</span>
+                                    <span className="text-[10px] font-sport opacity-75">
+                                      ({finishedCount > 0 ? `${finishedCount}/${totalCount}` : totalCount})
+                                    </span>
+                                    {isRoundDone && <Check size={12} className="text-emerald-400" />}
                                   </button>
                                 );
                               })}
@@ -6135,122 +6142,6 @@ export default function AdminDashboard({
                 </div>
               </div>
 
-              {/* SMART NEXT MATCH & NEXT STAGE TRANSITION CARD */}
-              {Boolean(directNextMatch || (tournamentUpcomingMatches || []).length > 0) && (
-                <div className={`p-3.5 rounded-3xl border transition-all shadow-xl ${
-                  isMatchFinished
-                    ? 'bg-gradient-to-r from-emerald-950/80 via-slate-900 to-cyan-950/80 border-emerald-500/60 shadow-emerald-950/40'
-                    : 'bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-slate-800'
-                }`}>
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-                    {/* Next Match Info Block */}
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`p-2.5 rounded-2xl border shrink-0 ${
-                        isMatchFinished
-                          ? 'bg-gradient-to-br from-emerald-500 to-teal-500 text-slate-950 border-emerald-300 shadow-lg shadow-emerald-500/30'
-                          : 'bg-slate-900 text-cyan-400 border-slate-700'
-                      }`}>
-                        <FastForward size={20} className={isMatchFinished ? 'animate-pulse' : ''} />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-xs font-black ${isMatchFinished ? 'text-[#00ff87]' : 'text-slate-300'}`}>
-                            {isMatchFinished ? '✓ این مسابقه پایان یافت! مرحله بعد مسابقات:' : 'مسابقه بعدی این مرحله / مرحله بعد:'}
-                          </span>
-                          {directNextMatch && (
-                            <span className="text-[10.5px] px-2 py-0.5 rounded-lg bg-slate-950 text-cyan-300 border border-cyan-500/40 font-sport font-black">
-                              {directNextMatch.round_name || 'مرحله بعد'} • بازی #{directNextMatch.id}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="text-xs sm:text-sm font-black text-white truncate mt-1 flex items-center gap-2">
-                          {directNextMatch ? (
-                            <>
-                              <span className={directNextMatch.home_team_name ? 'text-white' : 'text-amber-400 font-bold'}>
-                                {directNextMatch.home_team_name || 'در انتظار برنده (TBD)'}
-                              </span>
-                              <span className="text-slate-500 text-[11px] font-sport">VS</span>
-                              <span className={directNextMatch.away_team_name ? 'text-white' : 'text-amber-400 font-bold'}>
-                                {directNextMatch.away_team_name || 'در انتظار برنده (TBD)'}
-                              </span>
-                              {directNextMatch.status === 'FINISHED' && (
-                                <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950 px-1.5 py-0.2 rounded border border-emerald-500/30">
-                                  پایان‌یافته ({directNextMatch.home_score} - {directNextMatch.away_score})
-                                </span>
-                              )}
-                              {directNextMatch.status === 'LIVE' && (
-                                <span className="text-[10px] text-rose-400 font-bold bg-rose-950 px-1.5 py-0.2 rounded border border-rose-500/30 animate-pulse">
-                                  🔴 در حال برگزاری
-                                </span>
-                              )}
-                            </>
-                          ) : (
-                            <span className="text-slate-400 text-xs">
-                              مسابقات مرحله بعد یا سایر بازی‌های این تورنمنت:
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Quick Switcher & Primary Action */}
-                    <div className="flex items-center gap-2.5 w-full md:w-auto justify-end flex-wrap">
-                      {directNextMatch && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedLiveMatch(directNextMatch);
-                            setShowPostMatchCardView(false);
-                            showNotification(`ورود به اتاق داوری مسابقه مرحله بعد: بازی #${directNextMatch.id} (${directNextMatch.round_name || 'مرحله بعد'})`);
-                          }}
-                          className={`px-4 py-2 rounded-2xl font-black text-xs transition-all flex items-center gap-2 cursor-pointer shadow-lg active:scale-95 shrink-0 ${
-                            isMatchFinished
-                              ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 text-slate-950 border border-emerald-300 shadow-emerald-950/50 hover:brightness-110'
-                              : 'bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-cyan-500/40'
-                          }`}
-                        >
-                          <span>ورود به داوری مسابقه بعدی ⚡</span>
-                          <ChevronLeftIcon />
-                        </button>
-                      )}
-
-                      {(tournamentUpcomingMatches || []).length > 0 && (
-                        <div className="relative">
-                          <select
-                            value=""
-                            onChange={(e) => {
-                              const targetId = Number(e.target.value);
-                              if (!targetId) return;
-                              const targetM = (tournamentUpcomingMatches || []).find((m) => m?.id === targetId);
-                              if (targetM) {
-                                setSelectedLiveMatch(targetM);
-                                setShowPostMatchCardView(false);
-                                showNotification(`انتقال به بازی #${targetM.id} (${targetM.round_name || 'مسابقه'})`);
-                              }
-                            }}
-                            className="bg-slate-950 border border-slate-700 hover:border-slate-500 rounded-2xl px-3 py-2 text-xs text-cyan-300 font-bold focus:outline-none cursor-pointer shadow-md"
-                          >
-                            <option value="">
-                              -- جابجایی بین سایر مسابقات ({tournamentUpcomingMatches.length} بازی) --
-                            </option>
-                            {tournamentUpcomingMatches.map((m) => {
-                              const mStatus = m?.status === 'FINISHED' ? '✓ پایان' : m?.status === 'LIVE' ? '🔴 زنده' : '⏳ برنامه';
-                              const hTitle = m?.home_team_name || 'TBD';
-                              const aTitle = m?.away_team_name || 'TBD';
-                              return (
-                                <option key={m.id} value={m.id}>
-                                  #{m.id} [{m.round_name || 'مرحله'}] {hTitle} vs {aTitle} ({mStatus})
-                                </option>
-                              );
-                            })}
-                          </select>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* POST MATCH COMPARISON CARD (If toggled or directly visible for finished matches) */}
               {showPostMatchCardView && (
