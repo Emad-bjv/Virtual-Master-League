@@ -35,6 +35,7 @@ class CoachPasswordLoginView(APIView):
     Supports login via username (with/without coach_ prefix, Persian/English digits),
     phone number, or assigned team name.
     """
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -127,6 +128,7 @@ class QuickLoginView(APIView):
     """
     Fast 1-click JWT authentication for development / testing.
     """
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):

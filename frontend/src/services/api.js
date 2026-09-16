@@ -44,12 +44,15 @@ export const cachedGet = async (url, config = {}, ttlMs = 25000) => {
   return promise;
 };
 
-// Request Interceptor: Attach JWT Bearer token if available
+// Request Interceptor: Attach JWT Bearer token if available (skip for auth login endpoints)
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('vml_token') || localStorage.getItem('access_token');
-    if (token && token !== 'null' && token !== 'undefined') {
-      config.headers.Authorization = `Bearer ${token}`;
+    const isAuthLogin = config.url && (config.url.includes('/users/auth/login') || config.url.includes('/users/auth/quick'));
+    if (!isAuthLogin) {
+      const token = localStorage.getItem('vml_token') || localStorage.getItem('access_token');
+      if (token && token !== 'null' && token !== 'undefined') {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     // Allow Axios & Browser to properly set multipart/form-data with boundary when data is FormData
     if (config.data instanceof FormData) {

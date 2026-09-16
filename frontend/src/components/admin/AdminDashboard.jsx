@@ -939,17 +939,30 @@ export default function AdminDashboard({
           // Populate in-game changes from server
           if (res.data.match.in_game_changes) {
             const hId = res.data.match.home_team || res.data.match.homeId;
-            const pending = res.data.match.in_game_changes.filter((c) => c.status === 'PENDING').map((c) => ({
-              ...c,
-              teamSide: (c.team === hId || c.team_id === hId) ? 'home' : 'away',
-              timestamp: c.created_at ? new Date(c.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : '',
-            }));
-            const processed = res.data.match.in_game_changes.filter((c) => c.status !== 'PENDING').map((c) => ({
-              ...c,
-              teamSide: (c.team === hId || c.team_id === hId) ? 'home' : 'away',
-              processedAt: c.applied_at ? new Date(c.applied_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : (c.created_at ? new Date(c.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : ''),
-            }));
-            setPendingChangesQueue(pending);
+            const hNum = Number(typeof hId === 'object' ? (hId.id || hId.pk) : hId);
+            const pending = res.data.match.in_game_changes.filter((c) => c.status === 'PENDING').map((c) => {
+              const cNum = Number(typeof c.team === 'object' ? (c.team.id || c.team.pk) : (c.team || c.team_id));
+              const isHome = c.is_home !== undefined ? Boolean(c.is_home) : (c.teamSide ? c.teamSide === 'home' : (cNum === hNum));
+              return {
+                ...c,
+                teamSide: isHome ? 'home' : 'away',
+                timestamp: c.created_at ? new Date(c.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : '',
+              };
+            });
+            const processed = res.data.match.in_game_changes.filter((c) => c.status !== 'PENDING').map((c) => {
+              const cNum = Number(typeof c.team === 'object' ? (c.team.id || c.team.pk) : (c.team || c.team_id));
+              const isHome = c.is_home !== undefined ? Boolean(c.is_home) : (c.teamSide ? c.teamSide === 'home' : (cNum === hNum));
+              return {
+                ...c,
+                teamSide: isHome ? 'home' : 'away',
+                processedAt: c.applied_at ? new Date(c.applied_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : (c.created_at ? new Date(c.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : ''),
+              };
+            });
+            setPendingChangesQueue((prev) => {
+              const existingIds = new Set(pending.map((p) => p.id));
+              const freshUnsaved = (prev || []).filter((p) => !existingIds.has(p.id) && p.status === 'PENDING');
+              return [...freshUnsaved, ...pending];
+            });
             setProcessedChangesHistory(processed);
           }
         }
@@ -978,7 +991,7 @@ export default function AdminDashboard({
   useEffect(() => {
     if (selectedLiveMatch?.id) {
       fetchLiveMatchState(selectedLiveMatch.id);
-      const interval = setInterval(() => fetchLiveMatchState(selectedLiveMatch.id), 4000);
+      const interval = setInterval(() => fetchLiveMatchState(selectedLiveMatch.id), 2500);
       return () => clearInterval(interval);
     }
   }, [selectedLiveMatch?.id]);
@@ -1185,105 +1198,148 @@ export default function AdminDashboard({
         ? '127.0.0.1:8000'
         : window.location.host;
     const wsUrl = `${protocol}//${host}/ws/match/${selectedLiveMatch.id}/`;
+
     let ws = null;
-    try {
-      ws = new WebSocket(wsUrl);
-      ws.onmessage = async (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          const getMatchTeamId = (val) => {
-            if (!val) return null;
-            if (typeof val === 'object') return val.id || val.pk || null;
-            const n = Number(val);
-            return isNaN(n) ? val : n;
-          };
-          const currentHomeTeamId = getMatchTeamId(selectedLiveMatch.home_team) || getMatchTeamId(selectedLiveMatch.home_team_id) || getMatchTeamId(selectedLiveMatch.homeId);
-          const isHomeTeam = Number(data.team_id) === Number(currentHomeTeamId);
+    let reconnectTimer = null;
+    let pingTimer = null;
+    let isMounted = true;
 
-          if (data.type === 'coach_tactics_submitted') {
-            const teamName = data.team_name || (isHomeTeam ? selectedLiveMatch.home_team_name : selectedLiveMatch.away_team_name);
-            const newRequest = {
-              id: Date.now() + Math.random(),
-              type: 'TACTICS',
-              teamSide: isHomeTeam ? 'home' : 'away',
-              team_id: data.team_id,
-              team_name: teamName,
-              formation: data.formation || 'ترکیب جدید',
-              tactics: data.tactics || {},
-              players: data.players || [],
-              minute: eventMinute,
-              timestamp: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              status: 'PENDING',
-            };
+    const connectWs = () => {
+      if (!isMounted) return;
+      try {
+        ws = new WebSocket(wsUrl);
 
-            setSelectedLiveMatch((prev) => prev ? ({
-              ...prev,
-              home_lineup_ready: isHomeTeam ? true : prev.home_lineup_ready,
-              away_lineup_ready: !isHomeTeam ? true : prev.away_lineup_ready,
-            }) : prev);
-
-            setPendingChangesQueue((prev) => [newRequest, ...prev]);
-            showNotification(`🔔 ترکیب و تاکتیک‌های جدید از سوی سرمربی «${teamName}» به صورت زنده دریافت شد.`, 'info');
-            await reloadTeamGameplans();
-            await fetchLiveMatchState(selectedLiveMatch.id);
-          } else if (data.type === 'new_in_game_change') {
-            if (data.changes && Array.isArray(data.changes)) {
-              const formattedChanges = data.changes.map((c) => ({
-                ...c,
-                teamSide: isHomeTeam ? 'home' : 'away',
-                timestamp: c.created_at ? new Date(c.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
-              }));
-              setPendingChangesQueue((prev) => [
-                ...formattedChanges.filter((c) => !prev.some((p) => p.id === c.id)),
-                ...prev,
-              ]);
+        ws.onopen = () => {
+          clearInterval(pingTimer);
+          pingTimer = setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              try { ws.send(JSON.stringify({ type: 'ping' })); } catch (_e) {}
             }
-            showNotification(`🔔 تغییرات حین بازی جدید از سوی سرمربی «${data.team_name}» دریافت شد.`, 'info');
-            await reloadTeamGameplans();
-            await fetchLiveMatchState(selectedLiveMatch.id);
-          } else if (data.type === 'sub_request') {
-            const newSub = {
-              id: data.request_id || Date.now(),
-              type: 'SUBSTITUTION',
-              teamSide: isHomeTeam ? 'home' : 'away',
-              team_id: data.team_id,
-              team_name: data.team_name || (isHomeTeam ? selectedLiveMatch.home_team_name : selectedLiveMatch.away_team_name),
-              player_out_name: data.player_out_name || 'بازیکن خروجی',
-              player_in_name: data.player_in_name || 'بازیکن تعویضی',
-              player_out_id: data.player_out_id,
-              player_in_id: data.player_in_id,
-              minute: data.minute || eventMinute,
-              timestamp: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-              status: 'PENDING',
-            };
+          }, 25000);
+        };
 
-            setPendingChangesQueue((prev) => [newSub, ...prev]);
-            showNotification(`🔄 درخواست تعویض زنده از سوی «${newSub.team_name}» ثبت شد.`, 'info');
-            await reloadTeamGameplans();
-            await fetchLiveMatchState(selectedLiveMatch.id);
-          } else if (
-            data.type === 'match_status' ||
-            data.type === 'half_time' ||
-            data.type === 'second_half_started' ||
-            data.type === 'match_finished' ||
-            data.type === 'new_event' ||
-            data.type === 'event_deleted' ||
-            data.type === 'substitution' ||
-            data.type === 'coach_tactics_submitted' ||
-            data.type === 'coach_tactics_updated' ||
-            data.type === 'coach_tactics_applied' ||
-            data.type === 'gameplan_submitted' ||
-            data.type === 'live_tactics_updated' ||
-            data.type === 'in_game_change_applied'
-          ) {
-            fetchLiveMatchState(selectedLiveMatch.id);
-            reloadTeamGameplans();
+        ws.onmessage = async (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === 'pong') return;
+
+            const getMatchTeamId = (val) => {
+              if (!val) return null;
+              if (typeof val === 'object') return val.id || val.pk || null;
+              const n = Number(val);
+              return isNaN(n) ? val : n;
+            };
+            const currentHomeTeamId = getMatchTeamId(selectedLiveMatch.home_team) || getMatchTeamId(selectedLiveMatch.home_team_id) || getMatchTeamId(selectedLiveMatch.homeId);
+            const isHomeTeam = data.is_home !== undefined ? Boolean(data.is_home) : (Number(data.team_id) === Number(currentHomeTeamId));
+
+            if (data.type === 'coach_tactics_submitted') {
+              const teamName = data.team_name || (isHomeTeam ? selectedLiveMatch.home_team_name : selectedLiveMatch.away_team_name);
+              const newRequest = {
+                id: Date.now() + Math.random(),
+                type: 'TACTICS',
+                teamSide: isHomeTeam ? 'home' : 'away',
+                team_id: data.team_id,
+                team_name: teamName,
+                formation: data.formation || 'ترکیب جدید',
+                tactics: data.tactics || {},
+                players: data.players || [],
+                minute: eventMinute,
+                timestamp: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                status: 'PENDING',
+              };
+
+              setSelectedLiveMatch((prev) => prev ? ({
+                ...prev,
+                home_lineup_ready: isHomeTeam ? true : prev.home_lineup_ready,
+                away_lineup_ready: !isHomeTeam ? true : prev.away_lineup_ready,
+              }) : prev);
+
+              setPendingChangesQueue((prev) => [newRequest, ...prev]);
+              notificationSoundService.playMatchAlertChime();
+              showNotification(`🔔 ترکیب و تاکتیک‌های جدید از سوی سرمربی «${teamName}» به صورت زنده دریافت شد.`, 'info');
+              await reloadTeamGameplans();
+              await fetchLiveMatchState(selectedLiveMatch.id);
+            } else if (data.type === 'new_in_game_change') {
+              if (data.changes && Array.isArray(data.changes)) {
+                const formattedChanges = data.changes.map((c) => ({
+                  ...c,
+                  teamSide: c.is_home !== undefined ? (c.is_home ? 'home' : 'away') : (c.teamSide || (isHomeTeam ? 'home' : 'away')),
+                  timestamp: c.created_at ? new Date(c.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+                }));
+                setPendingChangesQueue((prev) => [
+                  ...formattedChanges.filter((c) => !prev.some((p) => p.id === c.id)),
+                  ...prev,
+                ]);
+              }
+              notificationSoundService.playMatchAlertChime();
+              showNotification(`🔔 تغییرات حین بازی جدید از سوی سرمربی «${data.team_name}» دریافت شد.`, 'info');
+              await reloadTeamGameplans();
+              await fetchLiveMatchState(selectedLiveMatch.id);
+            } else if (data.type === 'sub_request') {
+              const newSub = {
+                id: data.request_id || Date.now(),
+                type: 'SUBSTITUTION',
+                teamSide: isHomeTeam ? 'home' : 'away',
+                team_id: data.team_id,
+                team_name: data.team_name || (isHomeTeam ? selectedLiveMatch.home_team_name : selectedLiveMatch.away_team_name),
+                player_out_name: data.player_out_name || 'بازیکن خروجی',
+                player_in_name: data.player_in_name || 'بازیکن تعویضی',
+                player_out_id: data.player_out_id,
+                player_in_id: data.player_in_id,
+                minute: data.minute || eventMinute,
+                timestamp: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                status: 'PENDING',
+              };
+
+              setPendingChangesQueue((prev) => [newSub, ...prev]);
+              notificationSoundService.playMatchAlertChime();
+              showNotification(`🔄 درخواست تعویض زنده از سوی «${newSub.team_name}» ثبت شد.`, 'info');
+              await reloadTeamGameplans();
+              await fetchLiveMatchState(selectedLiveMatch.id);
+            } else if (
+              data.type === 'match_status' ||
+              data.type === 'half_time' ||
+              data.type === 'second_half_started' ||
+              data.type === 'match_finished' ||
+              data.type === 'new_event' ||
+              data.type === 'event_deleted' ||
+              data.type === 'substitution' ||
+              data.type === 'coach_tactics_submitted' ||
+              data.type === 'coach_tactics_updated' ||
+              data.type === 'coach_tactics_applied' ||
+              data.type === 'gameplan_submitted' ||
+              data.type === 'live_tactics_updated' ||
+              data.type === 'in_game_change_applied'
+            ) {
+              fetchLiveMatchState(selectedLiveMatch.id);
+              reloadTeamGameplans();
+            }
+          } catch (_e) {}
+        };
+
+        ws.onclose = () => {
+          clearInterval(pingTimer);
+          if (isMounted) {
+            reconnectTimer = setTimeout(connectWs, 3000);
           }
-        } catch (_e) {}
-      };
-    } catch (_e) {}
+        };
+
+        ws.onerror = () => {
+          try { ws.close(); } catch (_e) {}
+        };
+      } catch (_e) {
+        if (isMounted) {
+          reconnectTimer = setTimeout(connectWs, 3500);
+        }
+      }
+    };
+
+    connectWs();
 
     return () => {
+      isMounted = false;
+      clearInterval(pingTimer);
+      clearTimeout(reconnectTimer);
       if (ws) ws.close();
     };
   }, [selectedLiveMatch?.id]);

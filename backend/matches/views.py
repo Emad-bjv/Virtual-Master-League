@@ -1885,12 +1885,17 @@ class LiveInGameChangeBatchSubmitView(APIView):
 
         serialized = LiveInGameChangeSerializer(created_objs, many=True).data
         match_detail = MatchDetailSerializer(match).data
+        is_home = bool(match.home_team_id == team.id)
+        for item in serialized:
+            item['is_home'] = is_home
+            item['teamSide'] = 'home' if is_home else 'away'
 
         broadcast_match_event(match_id, {
             'type': 'new_in_game_change',
             'match_id': match.id,
             'team_id': team.id,
             'team_name': team.name,
+            'is_home': is_home,
             'changes': serialized,
             'match': match_detail
         })
@@ -1904,6 +1909,7 @@ class LiveInGameChangeBatchSubmitView(APIView):
                 'match_id': match.id,
                 'team_id': team.id,
                 'team_name': team.name,
+                'is_home': is_home,
                 'changes': serialized,
             })
         except Exception:
