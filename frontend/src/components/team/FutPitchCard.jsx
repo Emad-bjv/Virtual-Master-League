@@ -33,6 +33,30 @@ export const POSITION_COLORS = {
   CF: 'bg-red-500/20 text-red-300 border-red-500/40',
 };
 
+// Clean Authentic Soccer Ball Icon matching FotMob / Sofascore
+export const SoccerBallIcon = ({ className = 'w-3.5 h-3.5' }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="10" fill="#ffffff" stroke="#0f172a" strokeWidth="1.8" />
+    <polygon points="12,7 15.5,9.5 14,14 10,14 8.5,9.5" fill="#0f172a" />
+    <line x1="12" y1="7" x2="12" y2="2" stroke="#0f172a" strokeWidth="1.5" />
+    <line x1="15.5" y1="9.5" x2="20.5" y2="7.5" stroke="#0f172a" strokeWidth="1.5" />
+    <line x1="14" y1="14" x2="18.5" y2="18" stroke="#0f172a" strokeWidth="1.5" />
+    <line x1="10" y1="14" x2="5.5" y2="18" stroke="#0f172a" strokeWidth="1.5" />
+    <line x1="8.5" y1="9.5" x2="3.5" y2="7.5" stroke="#0f172a" strokeWidth="1.5" />
+  </svg>
+);
+
+// Clean Authentic Soccer Cleat / Boot Icon matching Sofascore Assist Badge
+export const SoccerCleatIcon = ({ className = 'w-3.5 h-3.5' }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M21.5 13.2c-.3-.8-1-1.4-1.8-1.7l-4.2-1.4c-1.1-.4-2.2-.9-3.2-1.6l-1.5-1.1c-.6-.4-1.4-.7-2.1-.7H6.2c-.8 0-1.5.4-1.9 1.1L3.1 9.4C2.4 10.5 2 11.7 2 13v1c0 .6.4 1 1 1h16.8c.8 0 1.5-.5 1.7-1.3l.2-.5h-.2z" />
+    <rect x="4.5" y="15.5" width="2" height="2" rx="0.5" />
+    <rect x="8.5" y="15.5" width="2" height="2" rx="0.5" />
+    <rect x="14" y="15.5" width="2" height="2" rx="0.5" />
+    <rect x="17.5" y="15.5" width="2" height="2" rx="0.5" />
+  </svg>
+);
+
 /**
  * High-performance FUT Shield Card for Squad Builder Pitch & Bench
  * Powered by authentic EA FC / FUT card frame asset
@@ -219,6 +243,28 @@ export default function FutPitchCard({
   const isSuspended = Boolean((player?.suspension_matches > 0) || player?.is_suspended || player?.isSuspended);
   const isInjured = Boolean(player?.is_injured || player?.isInjured || (player?.injury_matches > 0));
 
+  // In-Match Live Badges data (FotMob / Sofascore style: Goals, Assists, Cards, Sub Minute, Rating)
+  const goals = Number(player?.in_match_goals ?? player?.goals ?? 0);
+  const assists = Number(player?.in_match_assists ?? player?.assists ?? 0);
+  const yellowCards = Number(player?.yellowCards ?? 0);
+  const isRed = Boolean(player?.isRed || yellowCards >= 2);
+  const subMinute = player?.subMinute || player?.sub_minute || null;
+  const rawRating = player?.match_rating ?? player?.rating ?? player?.live_rating ?? null;
+  const numRating = rawRating != null && !isNaN(Number(rawRating)) ? Number(rawRating) : null;
+  const isMotm = Boolean(player?.isMotm || player?.motm || (numRating && numRating >= 8.5));
+  const displayRating = numRating != null ? numRating.toFixed(1) : null;
+
+  // Responsive badge scale classes for Normal vs Bench card sizes
+  const badgeSizeClass = isBench
+    ? 'w-4.5 h-4.5 xs:w-5 xs:h-5 sm:w-6 sm:h-6'
+    : 'w-5 h-5 xs:w-5.5 xs:h-5.5 sm:w-6.5 sm:h-6.5 md:w-7 md:h-7';
+  const badgeIconSizeClass = isBench
+    ? 'w-2.5 h-2.5 xs:w-3 xs:h-3 sm:w-3.5 sm:h-3.5'
+    : 'w-3.5 h-3.5 xs:w-4 xs:h-4 sm:w-4.5 sm:h-4.5';
+  const badgeCountSizeClass = isBench
+    ? 'text-[6.5px] xs:text-[7px] sm:text-[8px] w-3 h-3 xs:w-3.5 xs:h-3.5'
+    : 'text-[7.5px] xs:text-[8px] sm:text-[9px] w-3.5 h-3.5 xs:w-4 xs:h-4 sm:w-4.5 sm:h-4.5';
+
   // Stamina calculation
   const staminaPercent = Math.max(5, Math.min(100, Math.round(Number(player?.stamina ?? player?.virtual_stamina ?? 90))));
   const staminaColorClass =
@@ -371,29 +417,118 @@ export default function FutPitchCard({
           )}
         </div>
 
-        {/* Live / Admin Mode Badges */}
-        {(isLiveMode || isAdminMode) && ((player.in_match_goals || 0) > 0 || player.yellowCards > 0 || player.isRed) && (
-          <div className="absolute top-0.5 sm:top-1 left-1/2 -translate-x-1/2 z-30 flex items-center gap-0.5 pointer-events-none drop-shadow">
-            {(player.in_match_goals || 0) > 0 && (
-              <span className="px-1 rounded-full bg-slate-950 text-emerald-300 text-[7px] sm:text-[8px] font-black border border-emerald-400 font-sport">
-                ⚽{player.in_match_goals > 1 ? `×${player.in_match_goals}` : ''}
-              </span>
-            )}
-            {player.yellowCards === 1 && <span className="text-[7px] sm:text-[8px]">🟨</span>}
-            {(player.yellowCards === 2 || player.isRed) && <span className="text-[7px] sm:text-[8px]">🟥</span>}
+        {/* ========================================================= */}
+        {/* FOTMOB / SOFASCORE LIVE MATCH CORNER BADGES               */}
+        {/* ========================================================= */}
+
+        {/* 1. GOAL BADGE (Bottom-Right: White circular badge with authentic soccer ball) */}
+        {goals > 0 && (
+          <div
+            className="absolute -bottom-1 -right-1 xs:-bottom-1.5 xs:-right-1.5 sm:-bottom-2 sm:-right-2 z-30 flex items-center pointer-events-none drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)] select-none"
+            title={`${goals} گل ثبت‌شده`}
+          >
+            <div className={`relative ${badgeSizeClass} rounded-full bg-white border-2 border-white shadow-md flex items-center justify-center`}>
+              <SoccerBallIcon className={badgeIconSizeClass} />
+              {goals > 1 && (
+                <span className={`absolute -top-1 -right-1 bg-emerald-600 text-white font-sport font-black ${badgeCountSizeClass} rounded-full border border-white flex items-center justify-center shadow`}>
+                  {goals}
+                </span>
+              )}
+            </div>
           </div>
         )}
 
-        {/* In-Game Status (Injured / Suspended) */}
+        {/* 2. ASSIST BADGE (Bottom-Left: White circular badge with authentic black soccer boot) */}
+        {assists > 0 && (
+          <div
+            className="absolute -bottom-1 -left-1 xs:-bottom-1.5 xs:-left-1.5 sm:-bottom-2 sm:-left-2 z-30 flex items-center pointer-events-none drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)] select-none"
+            title={`${assists} پاس‌گل ثبت‌شده`}
+          >
+            <div className={`relative ${badgeSizeClass} rounded-full bg-white border-2 border-white shadow-md flex items-center justify-center text-slate-950`}>
+              <SoccerCleatIcon className={`${badgeIconSizeClass} text-slate-950`} />
+              {assists > 1 && (
+                <span className={`absolute -top-1 -left-1 bg-cyan-600 text-white font-sport font-black ${badgeCountSizeClass} rounded-full border border-white flex items-center justify-center shadow`}>
+                  {assists}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 3. SUBSTITUTED OUT BADGE (Top-Left: Match minute + red circle with white exit arrow) */}
+        {subMinute && (
+          <div
+            className="absolute -top-3.5 -left-1.5 sm:-top-4.5 sm:-left-2 z-30 flex flex-col items-center pointer-events-none drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] select-none"
+            title={`تعویض در دقیقه ${subMinute}`}
+          >
+            <span className="text-[7.5px] xs:text-[8.5px] sm:text-[10px] font-sport font-black text-cyan-300 drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] leading-none mb-0.5">
+              {subMinute}'
+            </span>
+            <div className={`${badgeSizeClass} rounded-full bg-rose-600 border-2 border-white flex items-center justify-center text-white shadow-md`}>
+              <svg viewBox="0 0 24 24" className={`${badgeIconSizeClass} text-white stroke-[3.5]`} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12" />
+                <polyline points="12 19 5 12 12 5" />
+              </svg>
+            </div>
+          </div>
+        )}
+
+        {/* 4. YELLOW / RED CARD BADGE (Top-Left, offset if substituted out) */}
+        {(yellowCards > 0 || isRed) && (
+          <div
+            className={`absolute z-30 flex items-center pointer-events-none drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)] select-none ${
+              subMinute
+                ? '-top-1 left-3.5 sm:left-4.5'
+                : '-top-1.5 -left-1.5 sm:-top-2 sm:-left-2'
+            }`}
+            title={isRed ? 'کارت قرمز (اخراج)' : 'کارت زرد'}
+          >
+            {isRed ? (
+              <div className="w-4 h-5 xs:w-4.5 xs:h-5.5 sm:w-5 sm:h-6.5 rounded-md bg-rose-600 border-2 border-white shadow-md flex items-center justify-center text-[8px] sm:text-[9px] font-black text-white font-sport">
+                {yellowCards === 2 ? '🟨🟥' : '🟥'}
+              </div>
+            ) : (
+              <div className="w-4 h-5 xs:w-4.5 xs:h-5.5 sm:w-5 sm:h-6.5 rounded-md bg-amber-400 border-2 border-white shadow-md flex items-center justify-center text-[8px] sm:text-[9px] font-black text-slate-950 font-sport">
+                🟨
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 5. MATCH RATING BADGE (Top-Right: Pill badge like Sofascore 8.7★ / 7.6) */}
+        {displayRating && (
+          <div
+            className="absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2 z-30 pointer-events-none drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)] select-none"
+            title={`نمره فنی مسابقه: ${displayRating}`}
+          >
+            <div
+              className={`px-1.5 py-0.2 sm:px-2 sm:py-0.5 rounded-full border-2 border-white font-sport font-black text-[8px] xs:text-[9px] sm:text-[10.5px] flex items-center gap-0.5 shadow-md ${
+                isMotm || numRating >= 8.0
+                  ? 'bg-sky-500 text-white shadow-[0_0_8px_rgba(14,165,233,0.7)]'
+                  : numRating >= 7.0
+                  ? 'bg-[#00d084] text-slate-950 shadow-[0_0_8px_rgba(0,208,132,0.6)]'
+                  : numRating >= 6.0
+                  ? 'bg-amber-400 text-slate-950'
+                  : 'bg-rose-500 text-white'
+              }`}
+            >
+              <span>{displayRating}</span>
+              {isMotm && <span className="text-[7.5px] sm:text-[9px] leading-none">★</span>}
+            </div>
+          </div>
+        )}
+
+        {/* 6. IN-GAME INJURY / SUSPENSION STATUS (Center Overlay) */}
         {(isSuspended || isInjured) && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none select-none">
             {isSuspended ? (
               <span className="px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded-md bg-red-950/95 border border-red-500 text-red-300 font-black text-[7px] sm:text-[9px] whitespace-nowrap shadow-lg">
                 🟥 محروم
               </span>
             ) : (
-              <span className="px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded-md bg-rose-950/95 border border-rose-500 text-rose-300 font-black text-[7px] sm:text-[9px] whitespace-nowrap shadow-lg">
-                🩹 مصدوم
+              <span className="px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded-md bg-rose-950/95 border border-rose-500 text-rose-300 font-black text-[7px] sm:text-[9px] whitespace-nowrap shadow-lg flex items-center gap-0.5">
+                <span>🩹</span>
+                <span>مصدوم</span>
               </span>
             )}
           </div>
@@ -406,6 +541,9 @@ export default function FutPitchCard({
             className={`${getCardNameTypography(kitName)} text-white max-w-full text-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] font-sport uppercase truncate select-none`}
           >
             {player?.isCaptain && <span className="text-amber-400 mr-0.5">©</span>}
+            {(player?.shirt_number || player?.number) ? (
+              <span className="text-cyan-300 font-black mr-1">{player.shirt_number || player.number}</span>
+            ) : null}
             {kitName}
           </div>
 

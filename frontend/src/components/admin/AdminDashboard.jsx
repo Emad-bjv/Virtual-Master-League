@@ -970,17 +970,34 @@ export default function AdminDashboard({
         // Live badge synchronization: update home & away player cards with FotMob badges
         if (res.data.events && Array.isArray(res.data.events)) {
           const evs = res.data.events;
+          const stats = res.data.match?.player_stats || [];
+          const getRating = (playerId) => {
+            const s = (stats || []).find((st) => String(st.player_id || st.player || st.id) === String(playerId));
+            return s?.rating || s?.match_rating || null;
+          };
           setTeamGameplanData((prev) => ({
             ...prev,
             home: {
               ...prev.home,
-              starters: (prev.home?.starters || []).map((p) => computePlayerMatchBadges(p, evs)),
-              subs: (prev.home?.subs || []).map((p) => computePlayerMatchBadges(p, evs)),
+              starters: (prev.home?.starters || []).map((p) => {
+                const b = computePlayerMatchBadges(p, evs);
+                return { ...b, match_rating: getRating(p.id) || p.match_rating || p.rating };
+              }),
+              subs: (prev.home?.subs || []).map((p) => {
+                const b = computePlayerMatchBadges(p, evs);
+                return { ...b, match_rating: getRating(p.id) || p.match_rating || p.rating };
+              }),
             },
             away: {
               ...prev.away,
-              starters: (prev.away?.starters || []).map((p) => computePlayerMatchBadges(p, evs)),
-              subs: (prev.away?.subs || []).map((p) => computePlayerMatchBadges(p, evs)),
+              starters: (prev.away?.starters || []).map((p) => {
+                const b = computePlayerMatchBadges(p, evs);
+                return { ...b, match_rating: getRating(p.id) || p.match_rating || p.rating };
+              }),
+              subs: (prev.away?.subs || []).map((p) => {
+                const b = computePlayerMatchBadges(p, evs);
+                return { ...b, match_rating: getRating(p.id) || p.match_rating || p.rating };
+              }),
             },
           }));
         }
