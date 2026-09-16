@@ -614,11 +614,15 @@ def advance_battle_royale_winner(match: Match) -> dict:
     return result
 
 
-def serialize_battle_royale_bracket(tournament: Tournament) -> dict:
+def serialize_battle_royale_bracket(tournament: Tournament, user=None) -> dict:
     """
     Serializes full Battle Royale bracket grouped into Winners Bracket rounds,
     Losers Bracket rounds, Grand Final, and current standings/champion.
+    If user is provided and is a coach, rival team tactics/presets are masked.
     """
+    is_admin = bool(user and (getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False)))
+    user_team_id = getattr(getattr(user, 'coach_profile', None), 'team_id', None) or (user.team.id if getattr(user, 'team', None) else None) if user else None
+
     matches = (
         Match.objects.filter(tournament=tournament)
         .select_related('home_team', 'away_team', 'next_match', 'loser_next_match')
@@ -673,12 +677,16 @@ def serialize_battle_royale_bracket(tournament: Tournament) -> dict:
 
         home_ready = is_team_lineup_ready(m, m.home_team_id) if m.home_team_id else False
         away_ready = is_team_lineup_ready(m, m.away_team_id) if m.away_team_id else False
-        home_preset = get_team_gameplan_attr(m, m.home_team_id, 'preset_name', '') if m.home_team_id else ''
-        away_preset = get_team_gameplan_attr(m, m.away_team_id, 'preset_name', '') if m.away_team_id else ''
-        home_custom = bool(get_team_gameplan_attr(m, m.home_team_id, 'has_custom_player_edits', False)) if m.home_team_id else False
-        away_custom = bool(get_team_gameplan_attr(m, m.away_team_id, 'has_custom_player_edits', False)) if m.away_team_id else False
-        home_form = get_team_gameplan_attr(m, m.home_team_id, 'formation', '4-3-3') if m.home_team_id else '4-3-3'
-        away_form = get_team_gameplan_attr(m, m.away_team_id, 'formation', '4-3-3') if m.away_team_id else '4-3-3'
+
+        can_view_home = is_admin or (user_team_id and m.home_team_id == user_team_id)
+        can_view_away = is_admin or (user_team_id and m.away_team_id == user_team_id)
+
+        home_preset = get_team_gameplan_attr(m, m.home_team_id, 'preset_name', '') if (m.home_team_id and can_view_home) else ''
+        away_preset = get_team_gameplan_attr(m, m.away_team_id, 'preset_name', '') if (m.away_team_id and can_view_away) else ''
+        home_custom = bool(get_team_gameplan_attr(m, m.home_team_id, 'has_custom_player_edits', False)) if (m.home_team_id and can_view_home) else False
+        away_custom = bool(get_team_gameplan_attr(m, m.away_team_id, 'has_custom_player_edits', False)) if (m.away_team_id and can_view_away) else False
+        home_form = get_team_gameplan_attr(m, m.home_team_id, 'formation', '4-3-3') if (m.home_team_id and can_view_home) else '4-3-3'
+        away_form = get_team_gameplan_attr(m, m.away_team_id, 'formation', '4-3-3') if (m.away_team_id and can_view_away) else '4-3-3'
         home_coach = m.home_team.manager.username if (m.home_team and m.home_team.manager) else 'نامشخص'
         away_coach = m.away_team.manager.username if (m.away_team and m.away_team.manager) else 'نامشخص'
 

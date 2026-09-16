@@ -21,6 +21,7 @@ export default function BattleRoyaleBracket({ tournamentId, isAdmin = false, onM
     user = null;
   }
   const userTeamId = user?.team_id || user?.team?.id || null;
+  const isUserAdmin = Boolean(isAdmin || user?.is_superuser || user?.is_staff || user?.role === 'ADMIN');
 
   const [bracketData, setBracketData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -500,6 +501,8 @@ export default function BattleRoyaleBracket({ tournamentId, isAdmin = false, onM
                               highlightedTeamId={highlightedTeamId}
                               onTeamHover={setHighlightedTeamId}
                               onLineupClick={handleNavigateToLineup}
+                              userTeamId={userTeamId}
+                              isAdmin={isUserAdmin}
                               onClick={() => {
                                 setSelectedMatch(m);
                                 if (onMatchClick) onMatchClick(m);
@@ -662,6 +665,8 @@ export default function BattleRoyaleBracket({ tournamentId, isAdmin = false, onM
                             highlightedTeamId={highlightedTeamId}
                             onTeamHover={setHighlightedTeamId}
                             onLineupClick={handleNavigateToLineup}
+                            userTeamId={userTeamId}
+                            isAdmin={isUserAdmin}
                             onClick={() => {
                               setSelectedMatch(m);
                               if (onMatchClick) onMatchClick(m);
@@ -721,6 +726,8 @@ export default function BattleRoyaleBracket({ tournamentId, isAdmin = false, onM
                 highlightedTeamId={highlightedTeamId}
                 onTeamHover={setHighlightedTeamId}
                 onLineupClick={handleNavigateToLineup}
+                userTeamId={userTeamId}
+                isAdmin={isUserAdmin}
                 onClick={() => {
                   setSelectedMatch(mainGf);
                   if (onMatchClick) onMatchClick(mainGf);
@@ -769,6 +776,8 @@ export default function BattleRoyaleBracket({ tournamentId, isAdmin = false, onM
                 highlightedTeamId={highlightedTeamId}
                 onTeamHover={setHighlightedTeamId}
                 onLineupClick={handleNavigateToLineup}
+                userTeamId={userTeamId}
+                isAdmin={isUserAdmin}
                 onClick={() => {
                   setSelectedMatch(resetGf);
                   if (onMatchClick) onMatchClick(resetGf);
@@ -1206,6 +1215,8 @@ function EsportsMatchCard({
   onTeamHover,
   onLineupClick,
   onClick,
+  userTeamId,
+  isAdmin,
 }) {
   if (!match) return null;
 
@@ -1229,6 +1240,10 @@ function EsportsMatchCard({
   const awayLabel = awayIsTbd
     ? match.away_feeder_label || 'برنده دور قبل'
     : String(match.away_team_name || '');
+
+  // Only show tactics/presets for the coach's own team or for an admin
+  const canViewHomeTactic = Boolean(isAdmin || (userTeamId && match.home_team_id === userTeamId));
+  const canViewAwayTactic = Boolean(isAdmin || (userTeamId && match.away_team_id === userTeamId));
 
   return (
     <motion.div
@@ -1309,7 +1324,7 @@ function EsportsMatchCard({
             }`}
           >
             <span className="truncate">{homeLabel}</span>
-            {match.home_preset_name ? (
+            {canViewHomeTactic && match.home_preset_name ? (
               <span className="text-[8.5px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1 py-0.2 rounded font-black shrink-0">
                 ⚡ {match.home_preset_name}
               </span>
@@ -1373,7 +1388,7 @@ function EsportsMatchCard({
             }`}
           >
             <span className="truncate">{awayLabel}</span>
-            {match.away_preset_name ? (
+            {canViewAwayTactic && match.away_preset_name ? (
               <span className="text-[8.5px] bg-rose-500/20 text-rose-300 border border-rose-500/30 px-1 py-0.2 rounded font-black shrink-0">
                 ⚡ {match.away_preset_name}
               </span>

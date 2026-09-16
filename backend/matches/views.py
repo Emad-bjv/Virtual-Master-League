@@ -2836,7 +2836,7 @@ class BattleRoyaleBracketView(APIView):
     def get(self, request, tournament_id):
         from .battle_royale_engine import serialize_battle_royale_bracket
         tournament = get_object_or_404(Tournament, id=tournament_id)
-        data = serialize_battle_royale_bracket(tournament)
+        data = serialize_battle_royale_bracket(tournament, user=request.user)
         return Response(data, status=status.HTTP_200_OK)
 
 
@@ -2859,7 +2859,7 @@ class BattleRoyaleActiveView(APIView):
                 'message': 'هیچ تورنمنت نبرد رویال فعالی وجود ندارد.'
             }, status=status.HTTP_200_OK)
 
-        data = serialize_battle_royale_bracket(tournament)
+        data = serialize_battle_royale_bracket(tournament, user=request.user)
         data['active'] = True
         return Response(data, status=status.HTTP_200_OK)
 
@@ -2946,12 +2946,20 @@ class BattleRoyaleScheduleView(APIView):
             .select_related('home_team', 'away_team')
             .order_by('date', 'id')
         )
+        user = getattr(request, 'user', None)
+        is_admin = bool(user and (getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False)))
+        user_team_id = getattr(getattr(user, 'coach_profile', None), 'team_id', None) or (user.team.id if getattr(user, 'team', None) else None) if user else None
+
         schedule_by_date = {}
         for m in matches:
             date_key = m.date.strftime('%Y-%m-%d') if m.date else 'بدون تاریخ'
             if date_key not in schedule_by_date:
                 schedule_by_date[date_key] = []
             from matches.serializers import is_team_lineup_ready, get_team_gameplan_attr
+
+            can_view_home = is_admin or (user_team_id and m.home_team_id == user_team_id)
+            can_view_away = is_admin or (user_team_id and m.away_team_id == user_team_id)
+
             schedule_by_date[date_key].append({
                 'id': m.id,
                 'round_name': m.round_name,
@@ -2967,10 +2975,10 @@ class BattleRoyaleScheduleView(APIView):
                 'away_coach_name': m.away_team.manager.username if (m.away_team and m.away_team.manager) else 'نامشخص',
                 'home_lineup_ready': is_team_lineup_ready(m, m.home_team_id) if m.home_team_id else False,
                 'away_lineup_ready': is_team_lineup_ready(m, m.away_team_id) if m.away_team_id else False,
-                'home_preset_name': get_team_gameplan_attr(m, m.home_team_id, 'preset_name', '') if m.home_team_id else '',
-                'away_preset_name': get_team_gameplan_attr(m, m.away_team_id, 'preset_name', '') if m.away_team_id else '',
-                'home_formation': get_team_gameplan_attr(m, m.home_team_id, 'formation', '4-3-3') if m.home_team_id else '4-3-3',
-                'away_formation': get_team_gameplan_attr(m, m.away_team_id, 'formation', '4-3-3') if m.away_team_id else '4-3-3',
+                'home_preset_name': get_team_gameplan_attr(m, m.home_team_id, 'preset_name', '') if (m.home_team_id and can_view_home) else '',
+                'away_preset_name': get_team_gameplan_attr(m, m.away_team_id, 'preset_name', '') if (m.away_team_id and can_view_away) else '',
+                'home_formation': get_team_gameplan_attr(m, m.home_team_id, 'formation', '4-3-3') if (m.home_team_id and can_view_home) else '4-3-3',
+                'away_formation': get_team_gameplan_attr(m, m.away_team_id, 'formation', '4-3-3') if (m.away_team_id and can_view_away) else '4-3-3',
                 'home_score': m.home_score,
                 'away_score': m.away_score,
                 'status': m.status,
