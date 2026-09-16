@@ -225,11 +225,14 @@ class MatchEventSerializer(serializers.ModelSerializer):
 class PlayerMatchStatSerializer(serializers.ModelSerializer):
     player_name = serializers.CharField(source='player.name', read_only=True)
     player_position = serializers.CharField(source='player.position', read_only=True)
+    player_shirt_number = serializers.IntegerField(source='player.shirt_number', read_only=True)
+    team_id = serializers.IntegerField(source='player.team_id', read_only=True)
 
     class Meta:
         model = PlayerMatchStat
         fields = ['id', 'match', 'player', 'player_name', 'player_position',
-                  'was_starter', 'minutes_played', 'rating']
+                  'player_shirt_number', 'team_id',
+                  'was_starter', 'minutes_played', 'rating', 'detailed_stats']
         read_only_fields = ['id']
 
 

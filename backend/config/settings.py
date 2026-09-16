@@ -108,6 +108,7 @@ INSTALLED_APPS = [
     'realtime',
     'audit',
     'admin_api',
+    'news',
 ]
 
 AUTH_USER_MODEL = 'users.User'

@@ -7,6 +7,7 @@ import {
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import { getPlayerPhotoUrl } from '../../utils/playerPhotos';
 import { matchApi } from '../../services/api';
+import PlayerPerformanceDetailModal from './PlayerPerformanceDetailModal';
 
 export default function PostMatchRecapView({
   match,
@@ -18,6 +19,7 @@ export default function PostMatchRecapView({
   const [detailedStats, setDetailedStats] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [activeTab, setActiveTab] = useState('stats'); // 'stats' | 'ratings'
+  const [selectedStatForDetail, setSelectedStatForDetail] = useState(null);
 
   // Fetch full match detail including team stats & player ratings if not fully populated
   useEffect(() => {
@@ -110,15 +112,27 @@ export default function PostMatchRecapView({
   // Player Stats extraction & MOTM calculation
   const playerStatsList = currentMatch?.player_stats || [];
   const homePlayers = useMemo(() => {
-    return playerStatsList.filter((p) => p.team === currentMatch?.home_team || p.team_name === homeName);
-  }, [playerStatsList, currentMatch?.home_team, homeName]);
+    return (playerStatsList || []).filter(
+      (p) =>
+        p.team === currentMatch?.home_team ||
+        p.team_name === homeName ||
+        p.team_id === currentMatch?.home_team_id ||
+        p.team_id === currentMatch?.home_team
+    );
+  }, [playerStatsList, currentMatch?.home_team, currentMatch?.home_team_id, homeName]);
 
   const awayPlayers = useMemo(() => {
-    return playerStatsList.filter((p) => p.team === currentMatch?.away_team || p.team_name === awayName);
-  }, [playerStatsList, currentMatch?.away_team, awayName]);
+    return (playerStatsList || []).filter(
+      (p) =>
+        p.team === currentMatch?.away_team ||
+        p.team_name === awayName ||
+        p.team_id === currentMatch?.away_team_id ||
+        p.team_id === currentMatch?.away_team
+    );
+  }, [playerStatsList, currentMatch?.away_team, currentMatch?.away_team_id, awayName]);
 
   const motmPlayer = useMemo(() => {
-    if (playerStatsList.length === 0) return null;
+    if ((playerStatsList || []).length === 0) return null;
     return [...playerStatsList].sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))[0];
   }, [playerStatsList]);
 
@@ -423,18 +437,20 @@ export default function PostMatchRecapView({
                 </div>
 
                 <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-1">
-                  {homePlayers.map((p) => {
+                  {(homePlayers || []).map((p) => {
                     const isMotm = motmPlayer && motmPlayer.id === p.id;
                     const ratingNum = Number(p.rating) || 7.0;
 
                     return (
                       <div
                         key={p.id}
-                        className={`p-2.5 rounded-2xl border flex items-center justify-between text-xs transition-all ${
+                        onClick={() => setSelectedStatForDetail(p)}
+                        className={`p-2.5 rounded-2xl border flex items-center justify-between text-xs transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.98] ${
                           isMotm
                             ? 'bg-amber-950/40 border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
                             : 'bg-slate-900/60 border-slate-800/80 hover:border-cyan-500/40'
                         }`}
+                        title="مشاهده جزئیات آمار فردی مسابقه"
                       >
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-xl bg-slate-950 border border-slate-700 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden relative">
@@ -455,6 +471,9 @@ export default function PostMatchRecapView({
                             </div>
                             <span className="text-[10px] text-slate-400">
                               پست: {p.player_position || '-'} • دقایق: {p.minutes_played || 90}'
+                              {p.detailed_stats && Object.keys(p.detailed_stats).length > 0 && (
+                                <span className="text-cyan-400 mr-1.5 font-medium">📊 آمار فردی</span>
+                              )}
                             </span>
                           </div>
                         </div>
@@ -489,23 +508,25 @@ export default function PostMatchRecapView({
                     <span>نمرات {awayName}</span>
                   </h4>
                   <span className="text-[10px] text-slate-400 font-sport font-bold">
-                    {awayPlayers.length} PLAYERS
+                    {(awayPlayers || []).length} PLAYERS
                   </span>
                 </div>
 
                 <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-1">
-                  {awayPlayers.map((p) => {
+                  {(awayPlayers || []).map((p) => {
                     const isMotm = motmPlayer && motmPlayer.id === p.id;
                     const ratingNum = Number(p.rating) || 7.0;
 
                     return (
                       <div
                         key={p.id}
-                        className={`p-2.5 rounded-2xl border flex items-center justify-between text-xs transition-all ${
+                        onClick={() => setSelectedStatForDetail(p)}
+                        className={`p-2.5 rounded-2xl border flex items-center justify-between text-xs transition-all cursor-pointer hover:scale-[1.01] active:scale-[0.98] ${
                           isMotm
                             ? 'bg-amber-950/40 border-amber-500/60 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
                             : 'bg-slate-900/60 border-slate-800/80 hover:border-purple-500/40'
                         }`}
+                        title="مشاهده جزئیات آمار فردی مسابقه"
                       >
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-xl bg-slate-950 border border-slate-700 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden relative">
@@ -526,6 +547,9 @@ export default function PostMatchRecapView({
                             </div>
                             <span className="text-[10px] text-slate-400">
                               پست: {p.player_position || '-'} • دقایق: {p.minutes_played || 90}'
+                              {p.detailed_stats && Object.keys(p.detailed_stats).length > 0 && (
+                                <span className="text-purple-400 mr-1.5 font-medium">📊 آمار فردی</span>
+                              )}
                             </span>
                           </div>
                         </div>
@@ -556,6 +580,19 @@ export default function PostMatchRecapView({
           )}
         </motion.div>
       )}
+
+      {/* PES 2021 Detailed Player Performance Modal */}
+      <PlayerPerformanceDetailModal
+        isOpen={Boolean(selectedStatForDetail)}
+        onClose={() => setSelectedStatForDetail(null)}
+        stat={selectedStatForDetail}
+        matchContext={{
+          clean_sheet: selectedStatForDetail?.team_id === currentMatch?.home_team_id ? (awayScore === 0) : (homeScore === 0),
+          goals_conceded: selectedStatForDetail?.team_id === currentMatch?.home_team_id ? awayScore : homeScore,
+          team_won: (selectedStatForDetail?.team_id === currentMatch?.home_team_id && isHomeWinner) ||
+                    (selectedStatForDetail?.team_id === currentMatch?.away_team_id && !isDraw && !isHomeWinner),
+        }}
+      />
     </div>
   );
 }

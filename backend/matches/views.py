@@ -633,18 +633,61 @@ class SubmitPlayerRatingsView(APIView):
         if not players_data:
             return Response({'error': 'لیست بازیکنان الزامی است.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        from .rating_engine import calculate_player_rating
+        from teams.models import Player
+
+        home_won = match.home_score > match.away_score
+        away_won = match.away_score > match.home_score
+        home_clean_sheet = (match.away_score == 0)
+        away_clean_sheet = (match.home_score == 0)
+
         saved = []
         with transaction.atomic():
             for p in players_data:
                 player_id = p.get('player_id')
                 if not player_id:
                     continue
+
+                player = Player.objects.filter(id=player_id).first()
+                if not player:
+                    continue
+
+                detailed_stats = p.get('detailed_stats') or {}
+                rating = p.get('rating')
+
+                is_home = (player.team_id == match.home_team_id)
+                team_won = home_won if is_home else away_won
+                clean_sheet = home_clean_sheet if is_home else away_clean_sheet
+                goals_conceded = match.away_score if is_home else match.home_score
+
+                if detailed_stats and 'goals_conceded' not in detailed_stats:
+                    detailed_stats['goals_conceded'] = goals_conceded
+
+                match_context = {
+                    'team_won': team_won,
+                    'clean_sheet': clean_sheet,
+                    'goals_conceded': goals_conceded,
+                }
+
+                if (rating is None or float(rating or 0) <= 0) and detailed_stats:
+                    calc_res = calculate_player_rating(player.position, detailed_stats, match_context)
+                    rating = calc_res['rating']
+                    detailed_stats['breakdown'] = calc_res.get('breakdown', [])
+                elif rating is not None and detailed_stats and 'breakdown' not in detailed_stats:
+                    calc_res = calculate_player_rating(player.position, detailed_stats, match_context)
+                    detailed_stats['breakdown'] = calc_res.get('breakdown', [])
+
+                minutes_played = p.get('minutes_played')
+                if minutes_played is None:
+                    minutes_played = detailed_stats.get('minutes_played', 0)
+
                 stat, _ = PlayerMatchStat.objects.update_or_create(
-                    match=match, player_id=player_id,
+                    match=match, player=player,
                     defaults={
-                        'minutes_played': p.get('minutes_played', 0),
-                        'rating': p.get('rating', None),
+                        'minutes_played': minutes_played,
+                        'rating': rating,
                         'was_starter': p.get('was_starter', False),
+                        'detailed_stats': detailed_stats,
                     }
                 )
                 saved.append(stat)

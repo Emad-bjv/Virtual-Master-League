@@ -253,6 +253,10 @@ class PlayerMatchStat(models.Model):
     was_starter = models.BooleanField(
         default=False, verbose_name="بازیکن اصلی بود؟"
     )
+    detailed_stats = models.JSONField(
+        default=dict, blank=True, verbose_name="آمار تفصیلی PES",
+        help_text="شامل ۱۷ پارامتر عملکرد فردی بر اساس PES 2021 (گل، شوت، پاس، دوئل، مهار و ...)"
+    )
 
     class Meta:
         verbose_name = "آمار بازیکن در مسابقه"

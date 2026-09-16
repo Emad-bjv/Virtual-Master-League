@@ -334,6 +334,17 @@ export const disciplinaryApi = {
   getMyPenalties: () => api.get('/teams/my-penalties/'),
 };
 
+export const newsApi = {
+  getNews: (params) => api.get('/news/', { params }),
+  getNewsDetail: (id) => api.get(`/news/${id}/`),
+  reactToNews: (id, reaction_type) => api.post(`/news/${id}/react/`, { reaction_type }),
+  getAdminNews: (params) => api.get('/news/admin-feed/', { params }),
+  createAdminNews: (data) => api.post('/news/admin-feed/', data),
+  updateAdminNews: (id, data) => api.patch(`/news/admin-feed/${id}/`, data),
+  deleteAdminNews: (id) => api.delete(`/news/admin-feed/${id}/`),
+  backfillNews: (limit = 25) => api.post('/news/admin-feed/backfill/', { limit }),
+};
+
 export default api;
 
 

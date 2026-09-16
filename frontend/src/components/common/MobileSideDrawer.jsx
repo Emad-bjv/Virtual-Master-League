@@ -185,6 +185,19 @@ export default function MobileSideDrawer({
                 <ArrowIcon size={16} className="text-slate-500 group-hover:text-amber-400" />
               </button>
 
+              <button
+                onClick={() => handleNavigate('news_channel')}
+                className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-slate-900/80 text-slate-200 hover:text-amber-400 transition-all cursor-pointer group border border-transparent hover:border-slate-800"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <Newspaper size={18} />
+                  </div>
+                  <span className="font-bold text-sm">{t('newsChannel')}</span>
+                </div>
+                <ArrowIcon size={16} className="text-slate-500 group-hover:text-amber-400" />
+              </button>
+
               {isAdmin && (
                 <button
                   onClick={() => handleNavigate('admin')}

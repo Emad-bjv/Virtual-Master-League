@@ -17,11 +17,11 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { matchApi, notificationApi, seasonPassApi } from '../../services/api';
+import { matchApi, notificationApi, seasonPassApi, newsApi } from '../../services/api';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import { useLanguage } from '../../context/LanguageContext';
 import TransferCountdownBanner from '../common/TransferCountdownBanner';
-import NewsDetailModal from './NewsDetailModal';
+import NewsArticleModal from '../news/NewsArticleModal';
 
 function formatMatchDisplayDate(dateString, isFa = true) {
   if (!dateString) {
@@ -55,6 +55,41 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
 
   // Selected news modal
   const [selectedNews, setSelectedNews] = useState(null);
+  const [realNews, setRealNews] = useState([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    newsApi.getNews({ page_size: 4 })
+      .then((res) => {
+        if (!isMounted) return;
+        const list = Array.isArray(res?.data) ? res.data : (res?.data?.results || []);
+        if (list.length > 0) {
+          setRealNews(list);
+        }
+      })
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
+  const handleReact = async (newsId, reactionType) => {
+    try {
+      const res = await newsApi.reactNews(newsId, reactionType);
+      if (res?.data) {
+        setRealNews((prev) =>
+          prev.map((n) => (n.id === newsId ? { ...n, reactions_count: res.data.reactions_count, user_reaction: res.data.user_reaction } : n))
+        );
+        if (selectedNews?.id === newsId) {
+          setSelectedNews((prev) => ({
+            ...prev,
+            reactions_count: res.data.reactions_count,
+            user_reaction: res.data.user_reaction,
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to react in home:', err);
+    }
+  };
 
   const teamId = teamData?.id;
   const teamName = teamData?.name || (lang === 'fa' ? 'تیم شما' : 'Your Team');
@@ -164,6 +199,27 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
         : 'Following the latest simulation engine update, midfield spacing and rapid winger transitions in modern 4-3-3 fluid schemes yield the highest win rates across competitive fixtures.',
     },
   ], [lang, t]);
+
+  const displayNews = useMemo(() => {
+    if (realNews.length > 0) {
+      return realNews.slice(0, 3).map((item) => ({
+        id: item.id,
+        category: item.category,
+        categoryLabel: item.category_display || (item.category === 'TRANSFER' ? t('tagTransfer') : item.category === 'MATCH' ? t('tagLeague') : t('tagTactics')),
+        title: item.title,
+        subtitle: item.subtitle,
+        timeAgo: item.time_ago || (lang === 'fa' ? 'امروز' : 'Today'),
+        image: item.image_url || '/images/vml_news_trophy.webp',
+        summary: item.summary,
+        content: item.content,
+        is_breaking: item.is_breaking,
+        reactions_count: item.reactions_count,
+        user_reaction: item.user_reaction,
+        raw: item,
+      }));
+    }
+    return newsList;
+  }, [realNews, newsList, lang, t]);
 
   const ArrowIcon = isRtl ? ChevronLeft : ChevronRight;
 
@@ -295,7 +351,7 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
 
         {/* Card 5: Community (Pink) */}
         <button
-          onClick={() => setSelectedNews(newsList[1])}
+          onClick={() => onNavigateTab?.('news_channel')}
           className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-pink-950/30 to-slate-950/80 border border-pink-500/40 hover:border-pink-400 shadow-md hover:shadow-[0_0_20px_rgba(244,63,94,0.25)] transition-all active:scale-95 cursor-pointer group text-center"
         >
           <div className="w-11 h-11 sm:w-13 sm:h-13 rounded-2xl bg-pink-500/15 border border-pink-400/50 flex items-center justify-center text-pink-400 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(244,63,94,0.3)]">
@@ -417,7 +473,7 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
             </h3>
           </div>
           <button
-            onClick={() => setSelectedNews(newsList[0])}
+            onClick={() => onNavigateTab?.('news_channel')}
             className="text-xs text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 transition-colors cursor-pointer"
           >
             <span>{t('viewAll')}</span>
@@ -427,31 +483,32 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
 
         {/* Horizontal scrollable cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {(newsList || []).map((news) => (
+          {(displayNews || []).map((news) => (
             <div
               key={news.id}
-              onClick={() => setSelectedNews(news)}
+              onClick={() => setSelectedNews(news.raw || news)}
               className="group relative rounded-2xl overflow-hidden bg-slate-900/90 border border-slate-800 hover:border-amber-500/50 shadow-lg cursor-pointer transition-all active:scale-[0.98] flex flex-col"
             >
               {/* News Thumbnail */}
               <div className="relative w-full h-36 sm:h-32 bg-slate-950 overflow-hidden">
                 <img
-                  src={news.image}
+                  src={news.image || news.image_url || '/images/vml_news_trophy.webp'}
                   alt={news.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  onError={(e) => { e.currentTarget.src = '/images/vml_news_trophy.webp'; }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-black/30" />
                 
                 {/* Category Badge */}
-                <span className={`absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider shadow-md ${
-                  news.category === 'Transfer'
-                    ? 'bg-amber-500 text-slate-950'
-                    : news.category === 'League'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-purple-600 text-white'
-                }`}>
-                  {news.categoryLabel}
+                <span className="absolute bottom-2.5 left-2.5 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider shadow-md bg-amber-500 text-slate-950">
+                  {news.categoryLabel || news.category_display || news.category}
                 </span>
+
+                {news.is_breaking && (
+                  <span className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md text-[9px] font-black bg-rose-600 text-white animate-pulse">
+                    🔥 {lang === 'fa' ? 'فوری' : 'BREAKING'}
+                  </span>
+                )}
               </div>
 
               {/* News Content */}
@@ -462,7 +519,7 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
                 <div className="flex items-center justify-between text-[10.5px] text-slate-400 pt-1 border-t border-slate-800/80">
                   <span className="flex items-center gap-1">
                     <Clock size={11} className="text-amber-400" />
-                    {news.timeAgo}
+                    {news.timeAgo || news.time_ago}
                   </span>
                   <span className="text-cyan-400 group-hover:underline font-bold">
                     {t('readMore')}
@@ -474,11 +531,12 @@ export default function HomeTab({ onNavigateTab, isLineupSubmitted = false, team
         </div>
       </div>
 
-      {/* Interactive News Reading Modal */}
-      <NewsDetailModal
+      {/* Interactive News Reading Modal with Reactions & Real Data */}
+      <NewsArticleModal
         isOpen={Boolean(selectedNews)}
         onClose={() => setSelectedNews(null)}
-        newsItem={selectedNews}
+        article={selectedNews?.raw || selectedNews}
+        onReact={handleReact}
       />
     </div>
   );

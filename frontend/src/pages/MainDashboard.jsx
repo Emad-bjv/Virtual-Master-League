@@ -28,6 +28,7 @@ const ProfileView = lazy(() => import('../components/profile/ProfileView'));
 const AdminDashboard = lazy(() => import('../components/admin/AdminDashboard'));
 const LiveStreamTab = lazy(() => import('../components/live/LiveStreamTab'));
 const BattleRoyaleBracket = lazy(() => import('../components/BattleRoyaleBracket'));
+const NewsChannelView = lazy(() => import('../components/news/NewsChannelView'));
 
 const DisabledModuleNotice = ({ title, message, onBackHome }) => (
   <div className="glass-panel p-8 rounded-3xl border border-slate-700/80 bg-slate-950/60 shadow-2xl text-center max-w-lg mx-auto my-12 space-y-4 font-sans dir-rtl">
@@ -570,6 +571,10 @@ export default function MainDashboard() {
 
                   {activeTab === 'profile' && (
                     <ProfileView user={user} teamData={teamData} onBack={handleBackFromProfile} onLogout={handleLogout} />
+                  )}
+
+                  {activeTab === 'news_channel' && (
+                    <NewsChannelView onBack={() => handleTabChange('home')} />
                   )}
 
                   {activeTab === 'admin' && (

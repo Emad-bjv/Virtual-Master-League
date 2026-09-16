@@ -20,11 +20,13 @@ import AdminTournamentHub from './AdminTournamentHub';
 import AdminPacksSeasonPassHub from './AdminPacksSeasonPassHub';
 import MatchLineupDetailModal from './MatchLineupDetailModal';
 import PenaltyShootoutModal from './PenaltyShootoutModal';
+import PesMatchStatsModal from './PesMatchStatsModal';
 import { getTeamLogoUrl } from '../../utils/teamLogos';
 import { PACKAGE_TAGS, CUSTOM_TAG_PALETTES, resolveItemTag } from '../../utils/storePackageTags';
 import { useTranslation } from 'react-i18next';
 import notificationSoundService from '../../services/notificationSound';
 import AdminManagement from '../../admin/pages/AdminManagement';
+import AdminNewsManager from './AdminNewsManager';
 import { hasAdminPermission } from '../../utils/adminPermissions';
 
 const DEFAULT_ADMIN_SUBNAV = [
@@ -38,6 +40,7 @@ const DEFAULT_ADMIN_SUBNAV = [
   { id: 'match_team_stats', label: 'ثبت سریع آمار تیمی' },
   { id: 'match_player_ratings', label: 'ثبت سریع نمرات بازیکنان' },
   { id: 'register_coach', label: 'مدیریت و ثبت مربیان' },
+  { id: 'news_manager', label: '📰 تحریریه و مدیریت اخبار' },
   { id: 'audit_logs', label: 'گزارش تغییرات سیستم' },
 ];
 
@@ -202,6 +205,9 @@ export default function AdminDashboard({
 
   // Real-Time Penalty Shootout Modal State
   const [showPenaltyModal, setShowPenaltyModal] = useState(false);
+
+  // PES 2021 Detailed Match Stats Modal State
+  const [showPesStatsModal, setShowPesStatsModal] = useState(false);
 
   // Create Cup Tournament & Draw Studio State
   const [newCupForm, setNewCupForm] = useState({
@@ -1744,6 +1750,7 @@ export default function AdminDashboard({
         was_starter: Boolean(p.was_starter),
         goals: parseInt(p.goals, 10) || 0,
         assists: parseInt(p.assists, 10) || 0,
+        detailed_stats: p.detailed_stats || {},
       }));
 
       await matchApi.submitPlayerRatings(selectedLiveMatch.id, { players: payload });
@@ -2289,6 +2296,7 @@ export default function AdminDashboard({
       { id: 'match_team_stats', label: 'ثبت سریع آمار تیمی', perm: 'panel_dashboard_rapid_stats' },
       { id: 'match_player_ratings', label: 'ثبت سریع نمرات بازیکنان', perm: 'panel_dashboard_rapid_stats' },
       { id: 'register_coach', label: 'مدیریت و ثبت مربیان', perm: 'panel_dashboard_coach_registration' },
+      { id: 'news_manager', label: '📰 تحریریه و مدیریت اخبار', perm: 'panel_admin_newsroom' },
       { id: 'audit_logs', label: 'گزارش تغییرات سیستم', perm: 'panel_dashboard_audit_logs' },
     ];
 
@@ -2299,7 +2307,7 @@ export default function AdminDashboard({
     if (!adminCurrentUser) return rawItems;
 
     return rawItems.filter(item => {
-      if (item.id === 'overview') return true;
+      if (item.id === 'overview' || item.id === 'news_manager') return true;
       return hasAdminPermission(adminCurrentUser, item.perm);
     });
   }, [pendingPaymentsCount, adminCurrentUser]);
@@ -7475,12 +7483,22 @@ export default function AdminDashboard({
                   <div className="glass-panel p-5 rounded-3xl border border-cyan-500/40 space-y-4">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-800 pb-3">
                       <div>
-                        <h3 className="font-black text-white text-sm sm:text-base flex items-center gap-2">
-                          <Award size={18} className="text-cyan-400" />
-                          <span>ثبت نمرات و دقایق بازی بازیکنان (Player Match Ratings)</span>
-                        </h3>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          نمره عملکرد (۱ تا ۱۰) و دقایق بازی بازیکنان را ثبت و ستاره میدان (MOTM) را انتخاب کنید.
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <h3 className="font-black text-white text-sm sm:text-base flex items-center gap-2">
+                            <Award size={18} className="text-cyan-400" />
+                            <span>ثبت نمرات و دقایق بازی بازیکنان (Player Match Ratings)</span>
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => setShowPesStatsModal(true)}
+                            className="px-3 py-1 rounded-xl bg-gradient-to-r from-amber-500 via-cyan-500 to-emerald-500 hover:opacity-90 text-slate-950 font-black text-xs transition-all flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,243,255,0.3)] cursor-pointer active:scale-95"
+                          >
+                            <Sparkles size={13} />
+                            <span>ورود پیشرفته آمار فردی PES (هوشمند)</span>
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-1">
+                          نمره عملکرد و دقایق بازی را ثبت کنید یا با دکمه «ورود پیشرفته آمار فردی PES» نمرات را بر اساس ۱۷ فاکتور آماری هوشمند محاسبه نمایید.
                         </p>
                       </div>
 
@@ -7844,6 +7862,15 @@ export default function AdminDashboard({
       {activeSub === 'admin_management' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <AdminManagement isEmbedded={true} currentUser={adminCurrentUser} />
+        </motion.div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUBTAB: NEWS MANAGER (تحریریه و مدیریت چنل اخبار)                           */}
+      {/* ========================================================================= */}
+      {activeSub === 'news_manager' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <AdminNewsManager showToast={showNotification} />
         </motion.div>
       )}
 
@@ -8621,6 +8648,36 @@ export default function AdminDashboard({
               if (selectedCupTournamentId) fetchCupBracket(selectedCupTournamentId);
             } catch (err) {
               showNotification(err.response?.data?.error || 'خطا در ثبت پایان بازی با پنالتی', 'error');
+            }
+          }}
+        />
+      )}
+
+      {/* Smart Real-Time PES 2021 Match Stats & Player Ratings Modal */}
+      {showPesStatsModal && selectedLiveMatch && (
+        <PesMatchStatsModal
+          isOpen={showPesStatsModal}
+          onClose={() => setShowPesStatsModal(false)}
+          match={selectedLiveMatch}
+          homePlayers={deskRatingsHome}
+          awayPlayers={deskRatingsAway}
+          onSaved={(updatedPlayers) => {
+            const updatedMap = new Map((updatedPlayers || []).map((p) => [p.player_id, p]));
+            setDeskRatingsHome((prev) =>
+              (prev || []).map((p) => {
+                const u = updatedMap.get(p.player_id);
+                return u ? { ...p, rating: u.rating, minutes_played: u.minutes_played, detailed_stats: u.detailed_stats } : p;
+              })
+            );
+            setDeskRatingsAway((prev) =>
+              (prev || []).map((p) => {
+                const u = updatedMap.get(p.player_id);
+                return u ? { ...p, rating: u.rating, minutes_played: u.minutes_played, detailed_stats: u.detailed_stats } : p;
+              })
+            );
+            showNotification('آمار و نمرات بازیکنان با الگوریتم هوشمند PES بروزرسانی شد ⭐');
+            if (selectedLiveMatch?.id) {
+              fetchLiveMatchState(selectedLiveMatch.id);
             }
           }}
         />
