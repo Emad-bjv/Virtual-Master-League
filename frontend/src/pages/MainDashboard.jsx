@@ -15,8 +15,12 @@ import notificationSoundService from '../services/notificationSound';
 import { AlertTriangle, Radio, X, Lock, ArrowRight, Ban } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import MobileHeader from '../components/common/MobileHeader';
+import MobileSideDrawer from '../components/common/MobileSideDrawer';
+
 // Dynamic Code-Splitting
 const TeamTab = lazy(() => import('../components/team/TeamTab'));
+const LeagueTab = lazy(() => import('../components/league/LeagueTab'));
 const ClubTab = lazy(() => import('../components/club/ClubTab'));
 const MarketTab = lazy(() => import('../components/market/MarketTab'));
 const StoreTab = lazy(() => import('../components/store/StoreTab'));
@@ -58,6 +62,7 @@ export default function MainDashboard() {
   const [teamSub, setTeamSub] = useState('matches');
   const [storeSub, setStoreSub] = useState('gems');
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [featureFlags, setFeatureFlags] = useState({});
 
@@ -392,17 +397,23 @@ export default function MainDashboard() {
           {/* Mobile, Tablet & Desktop Responsive App Container Shell */}
           <div className="w-full max-w-md sm:max-w-xl md:max-w-4xl lg:max-w-6xl xl:max-w-7xl min-h-screen bg-[#0b0f19]/30 backdrop-blur-md border-x border-slate-800/80 shadow-[0_0_50px_rgba(0,0,0,0.8)] relative flex flex-col transition-all duration-300">
             
-            {/* Top Header Banner */}
-            <Header
+            {/* Top Header Banner matching reference image */}
+            <MobileHeader
               user={user}
-              coins={user?.virtual_dollars}
-              activeTab={activeTab}
-              onAvatarClick={handleAvatarClick}
-              onOpenAuth={() => setIsAuthOpen(true)}
-              onOpenAdmin={() => handleTabChange('admin')}
-              onLogout={handleLogout}
-              isAuthenticated={isAuthenticated}
+              teamData={teamData}
+              onOpenDrawer={() => setIsDrawerOpen(true)}
+              onOpenNotifications={() => handleTabChange('profile')}
+              onOpenProfile={() => handleTabChange('profile')}
+            />
+
+            {/* Mobile Side Drawer */}
+            <MobileSideDrawer
+              isOpen={isDrawerOpen}
+              onClose={() => setIsDrawerOpen(false)}
               onNavigateTab={handleNavigateWithSub}
+              user={user}
+              teamData={teamData}
+              onLogout={handleLogout}
             />
 
             {/* Global Unresolved Pack Warning Banner */}
@@ -487,6 +498,10 @@ export default function MainDashboard() {
                           isLineupSubmitted={isLineupSubmitted}
                           onSaveLineup={handleSaveLineup}
                         />
+                      )}
+
+                      {activeTab === 'league' && (
+                        <LeagueTab teamData={teamData} />
                       )}
 
                       {activeTab === 'battle_royale' && (

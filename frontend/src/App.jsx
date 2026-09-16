@@ -55,11 +55,14 @@ function NativeAppInitializer() {
   return <NetworkBanner />;
 }
 
+import { LanguageProvider } from './context/LanguageContext';
+
 function App() {
   return (
     <Router>
-      <NativeAppInitializer />
-      <Suspense fallback={<PageLoadingFallback />}>
+      <LanguageProvider>
+        <NativeAppInitializer />
+        <Suspense fallback={<PageLoadingFallback />}>
         <Routes>
           <Route path="/" element={<CoachLogin />} />
           <Route path="/dashboard" element={<MainDashboard />} />
@@ -85,6 +88,7 @@ function App() {
           </Route>
         </Routes>
       </Suspense>
+      </LanguageProvider>
     </Router>
   );
 }
