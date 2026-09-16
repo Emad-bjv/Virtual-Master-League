@@ -862,6 +862,7 @@ export default function AdminDashboard({
     const pId = String(player.id || player.player_id || '');
     let in_match_goals = 0;
     let in_match_assists = 0;
+    let own_goals = 0;
     let yellowCards = 0;
     let isRed = false;
     let isInjured = false;
@@ -876,6 +877,8 @@ export default function AdminDashboard({
       if (evPlayerId === pId) {
         if (evType === 'GOAL' || evType === 'PENALTY_SCORED') {
           in_match_goals += 1;
+        } else if (evType === 'OWN_GOAL') {
+          own_goals += 1;
         } else if (evType === 'YELLOW') {
           yellowCards += 1;
           if (yellowCards >= 2) isRed = true;
@@ -900,6 +903,8 @@ export default function AdminDashboard({
       goals: in_match_goals,
       in_match_assists,
       assists: in_match_assists,
+      own_goals,
+      in_match_own_goals: own_goals,
       yellowCards,
       isRed,
       isInjured,

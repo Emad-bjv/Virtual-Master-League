@@ -901,6 +901,7 @@ export default function EFootballGamePlan({
     let icon = '⚡';
     let newInMatchGoals = targetPlayer.in_match_goals || 0;
     let newInMatchAssists = targetPlayer.in_match_assists || 0;
+    let newOwnGoals = targetPlayer.own_goals || targetPlayer.in_match_own_goals || 0;
     let newYellowCards = targetPlayer.yellowCards || 0;
     let newIsRed = targetPlayer.isRed || false;
     let newIsInjured = targetPlayer.isInjured || false;
@@ -935,6 +936,7 @@ export default function EFootballGamePlan({
       text = `گل پنالتی توسط ${targetPlayer.name} (${teamName}) 🎯⚽`;
       icon = '🎯';
     } else if (actionType === 'OWN_GOAL') {
+      newOwnGoals += 1;
       text = `گل به خودی توسط ${targetPlayer.name} (${teamName}) 🤦‍♂️`;
       icon = '🤦‍♂️';
     } else if (actionType === 'INJURY') {
@@ -949,6 +951,9 @@ export default function EFootballGamePlan({
       } else if (newInMatchAssists > 0) {
         newInMatchAssists -= 1;
         text = `لغو ثبت پاس‌گل برای ${targetPlayer.name} ↩️`;
+      } else if (newOwnGoals > 0) {
+        newOwnGoals -= 1;
+        text = `لغو گل به خودی برای ${targetPlayer.name} ↩️`;
       } else if (newIsRed) {
         newIsRed = false;
         if (newYellowCards === 2) newYellowCards = 1;
@@ -974,6 +979,8 @@ export default function EFootballGamePlan({
         goals: newInMatchGoals,
         in_match_assists: newInMatchAssists,
         assists: newInMatchAssists,
+        own_goals: newOwnGoals,
+        in_match_own_goals: newOwnGoals,
         yellowCards: newYellowCards,
         isRed: newIsRed,
         isInjured: newIsInjured,
@@ -2280,6 +2287,11 @@ export default function EFootballGamePlan({
                         {Number(adminQuickDockPlayer.in_match_assists || 0) > 0 && (
                           <span className="text-blue-300 font-bold bg-blue-950/80 px-1.5 py-0.2 rounded border border-blue-500/30">
                             🅰️ {adminQuickDockPlayer.in_match_assists}
+                          </span>
+                        )}
+                        {Number(adminQuickDockPlayer.own_goals || adminQuickDockPlayer.in_match_own_goals || 0) > 0 && (
+                          <span className="text-purple-300 font-bold bg-purple-950/80 px-1.5 py-0.2 rounded border border-purple-500/30">
+                            🤦‍♂️ {adminQuickDockPlayer.own_goals || adminQuickDockPlayer.in_match_own_goals}
                           </span>
                         )}
                         {Number(adminQuickDockPlayer.yellowCards || 0) > 0 && (

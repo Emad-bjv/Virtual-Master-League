@@ -246,6 +246,7 @@ export default function FutPitchCard({
   // In-Match Live Badges data (FotMob / Sofascore style: Goals, Assists, Cards, Sub Minute, Rating)
   const goals = Number(player?.in_match_goals ?? player?.goals ?? 0);
   const assists = Number(player?.in_match_assists ?? player?.assists ?? 0);
+  const ownGoals = Number(player?.in_match_own_goals ?? player?.own_goals ?? 0);
   const yellowCards = Number(player?.yellowCards ?? 0);
   const isRed = Boolean(player?.isRed || yellowCards >= 2);
   const subMinute = player?.subMinute || player?.sub_minute || null;
@@ -432,6 +433,27 @@ export default function FutPitchCard({
               {goals > 1 && (
                 <span className={`absolute -top-1 -right-1 bg-emerald-600 text-white font-sport font-black ${badgeCountSizeClass} rounded-full border border-white flex items-center justify-center shadow`}>
                   {goals}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 1.5. OWN GOAL BADGE (Bottom-Right, offset if regular goals present) */}
+        {ownGoals > 0 && (
+          <div
+            className={`absolute z-30 flex items-center pointer-events-none drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)] select-none ${
+              goals > 0
+                ? '-bottom-1 right-5 sm:right-6'
+                : '-bottom-1 -right-1 xs:-bottom-1.5 xs:-right-1.5 sm:-bottom-2 sm:-right-2'
+            }`}
+            title={`${ownGoals} گل به خودی`}
+          >
+            <div className={`relative ${badgeSizeClass} rounded-full bg-slate-950 border-2 border-purple-400 shadow-md flex items-center justify-center text-white`}>
+              <span className="text-[10px] xs:text-[11px] sm:text-[13px] leading-none select-none">🤦‍♂️</span>
+              {ownGoals > 1 && (
+                <span className={`absolute -top-1 -right-1 bg-purple-600 text-white font-sport font-black ${badgeCountSizeClass} rounded-full border border-white flex items-center justify-center shadow`}>
+                  {ownGoals}
                 </span>
               )}
             </div>
