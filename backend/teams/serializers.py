@@ -232,7 +232,9 @@ class PlayerSerializer(serializers.ModelSerializer):
         from matches.models import PlayerMatchStat, MatchEvent
         from django.db.models import Avg, Q
         
-        stat_qs = PlayerMatchStat.objects.filter(player=obj, match__status='FINISHED')
+        stat_qs = PlayerMatchStat.objects.filter(player=obj, match__status='FINISHED').filter(
+            Q(minutes_played__gt=0) | Q(rating__isnull=False)
+        )
         event_qs = MatchEvent.objects.filter(is_undone=False, match__status='FINISHED')
         
         if match_q:
@@ -270,7 +272,12 @@ class PlayerSerializer(serializers.ModelSerializer):
 
     def get_matches_played(self, obj):
         from matches.models import PlayerMatchStat
-        return PlayerMatchStat.objects.filter(player=obj, match__status='FINISHED').count()
+        from django.db.models import Q
+        return PlayerMatchStat.objects.filter(
+            player=obj, match__status='FINISHED'
+        ).filter(
+            Q(minutes_played__gt=0) | Q(rating__isnull=False)
+        ).count()
 
     def get_goals(self, obj):
         from matches.models import MatchEvent

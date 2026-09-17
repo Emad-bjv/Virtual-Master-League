@@ -1,0 +1,506 @@
+[
+  {
+    "id": 264,
+    "name": "Mamadou Sarr",
+    "current_broken": "Liverpool",
+    "correct_team": "بازیکن آزاد (فسخ شده)",
+    "proof": "فسخ قرارداد در 2026-09-12",
+    "is_changed": true
+  },
+  {
+    "id": 265,
+    "name": "T. Sharman-Lowe",
+    "current_broken": "SSC Napoli",
+    "correct_team": "بازیکن آزاد (فسخ شده)",
+    "proof": "فسخ قرارداد در 2026-09-11",
+    "is_changed": true
+  },
+  {
+    "id": 266,
+    "name": "André Onana",
+    "current_broken": "Juventus",
+    "correct_team": "AS Roma",
+    "proof": "انتقال Juventus -> AS Roma (2026-08-29)",
+    "is_changed": true
+  },
+  {
+    "id": 772,
+    "name": "Antoine Griezmann",
+    "current_broken": "Manchester City",
+    "correct_team": "Manchester City",
+    "proof": "اسکواد پایه باشگاه Manchester City (بدون ترنسفر معتبر)",
+    "is_changed": false
+  },
+  {
+    "id": 776,
+    "name": "Alexander Sørloth",
+    "current_broken": "Atlético Madrid",
+    "correct_team": "AS Roma",
+    "proof": "انتقال Real Madrid -> AS Roma (2026-09-11)",
+    "is_changed": true
+  },
+  {
+    "id": 779,
+    "name": "Ademola Lookman",
+    "current_broken": "Atlético Madrid",
+    "correct_team": "Tottenham Hotspur",
+    "proof": "انتقال Manchester United -> Tottenham Hotspur (2026-09-12)",
+    "is_changed": true
+  },
+  {
+    "id": 797,
+    "name": "Gregor Kobel",
+    "current_broken": "BVB Borussia Dortmund",
+    "correct_team": "AS Roma",
+    "proof": "انتقال Chelsea -> AS Roma (2026-08-29)",
+    "is_changed": true
+  },
+  {
+    "id": 812,
+    "name": "Enzo Fernández",
+    "current_broken": "Chelsea",
+    "correct_team": "Inter",
+    "proof": "انتقال Chelsea -> Inter (2026-08-27)",
+    "is_changed": true
+  },
+  {
+    "id": 816,
+    "name": "Pedro Neto",
+    "current_broken": "SSC Napoli",
+    "correct_team": "AS Roma",
+    "proof": "انتقال SSC Napoli -> AS Roma (2026-09-11)",
+    "is_changed": true
+  },
+  {
+    "id": 819,
+    "name": "Trevoh Chalobah",
+    "current_broken": "AS Roma",
+    "correct_team": "Chelsea",
+    "proof": "انتقال بازیکن آزاد -> Chelsea (2026-08-29)",
+    "is_changed": true
+  },
+  {
+    "id": 821,
+    "name": "Levi Colwill",
+    "current_broken": "Manchester City",
+    "correct_team": "Inter",
+    "proof": "انتقال بازیکن آزاد -> Inter (2026-08-26)",
+    "is_changed": true
+  },
+  {
+    "id": 822,
+    "name": "Wesley Fofana",
+    "current_broken": "AS Roma",
+    "correct_team": "AS Roma",
+    "proof": "اسکواد پایه باشگاه AS Roma (بدون ترنسفر معتبر)",
+    "is_changed": false
+  },
+  {
+    "id": 823,
+    "name": "Estêvão",
+    "current_broken": "SSC Napoli",
+    "correct_team": "SSC Napoli",
+    "proof": "اسکواد پایه باشگاه SSC Napoli (بدون ترنسفر معتبر)",
+    "is_changed": false
+  },
+  {
+    "id": 824,
+    "name": "Malo Gusto",
+    "current_broken": "SSC Napoli",
+    "correct_team": "SSC Napoli",
+    "proof": "اسکواد پایه باشگاه SSC Napoli (بدون ترنسفر معتبر)",
+    "is_changed": false
+  },
+  {
+    "id": 829,
+    "name": "Roméo Lavia",
+    "current_broken": "Chelsea",
+    "correct_team": "بازیکن آزاد (فسخ شده)",
+    "proof": "فسخ قرارداد در 2026-08-25",
+    "is_changed": true
+  },
+  {
+    "id": 830,
+    "name": "Malang Sarr",
+    "current_broken": "SSC Napoli",
+    "correct_team": "بازیکن آزاد (فسخ شده)",
+    "proof": "فسخ قرارداد در 2026-08-27",
+    "is_changed": true
+  },
+  {
+    "id": 835,
+    "name": "Josh Acheampong",
+    "current_broken": "Juventus",
+    "correct_team": "بازیکن آزاد (فسخ شده)",
+    "proof": "فسخ قرارداد در 2026-08-29",
+    "is_changed": true
+  },
+  {
+    "id": 841,
+    "name": "Harry Kane",
+    "current_broken": "Paris Saint-Germain",
+    "correct_team": "SSC Napoli",
+    "proof": "انتقال Newcastle United -> SSC Napoli (2026-08-29)",
+    "is_changed": true
+  },
+  {
+    "id": 844,
+    "name": "Jamal Musiala",
+    "current_broken": "BVB Borussia Dortmund",
+    "correct_team": "Inter",
+    "proof": "انتقال BVB Borussia Dortmund -> Inter (2026-08-29)",
+    "is_changed": true
+  },
+  {
+    "id": 894,
+    "name": "Ronald Araújo",
+    "current_broken": "Manchester United",
+    "correct_team": "AS Roma",
+    "proof": "انتقال Manchester United -> AS Roma (2026-08-28)",
+    "is_changed": true
+  },
+  {
+    "id": 904,
+    "name": "Piotr Zieliński",
+    "current_broken": "BVB Borussia Dortmund",
+    "correct_team": "BVB Borussia Dortmund",
+    "proof": "اسکواد پایه باشگاه BVB Borussia Dortmund (بدون ترنسفر معتبر)",
+    "is_changed": false
+  },
+  {
+    "id": 907,
+    "name": "Federico Dimarco",
+    "current_broken": "Inter",
+    "correct_team": "Chelsea",
+    "proof": "انتقال Inter -> Chelsea (2026-08-27)",
+    "is_changed": true
+  },
+  {
+    "id": 911,
+    "name": "Alessandro Bastoni",
+    "current_broken": "Chelsea",
+    "correct_team": "Manchester United",
+    "proof": "انتقال Chelsea -> Manchester United (2026-09-11)",
+    "is_changed": true
+  },
+  {
+    "id": 913,
+    "name": "Yann Bisseck",
+    "current_broken": "AS Roma",
+    "correct_team": "AS Roma",
+    "proof": "اسکواد پایه باشگاه AS Roma (بدون ترنسفر معتبر)",
+    "is_changed": false
+  },
+  {
+    "id": 914,
+    "name": "Davide Frattesi",
+    "current_broken": "AS Roma",
+    "correct_team": "AS Roma",
+    "proof": "اسکواد پایه باشگاه AS Roma (بدون ترنسفر معتبر)",
+    "is_changed": false
+  },
+  {
+    "id": 928,
+    "name": "Yann Sommer",
+    "current_broken": "Inter",
+    "correct_team": "BVB Borussia Dortmund",
+    "proof": "انتقال Inter -> BVB Borussia Dortmund (2026-08-27)",
+    "is_changed": true
+  },
+  {
+    "id": 931,
+    "name": "Stefan de Vrij",
+    "current_broken": "AS Roma",
+    "correct_team": "AS Roma",
+    "proof": "اسکواد پایه باشگاه AS Roma (بدون ترنسفر معتبر)",
+    "is_changed": false
+  },
+  {
+    "id": 933,
+    "name": "Hakan Çalhanoğlu",
+    "current_broken": "SSC Napoli",
+    "correct_team": "Paris Saint-Germain",
+    "proof": "انتقال SSC Napoli -> Paris Saint-Germain (2026-09-14)",
+    "is_changed": true
+  },
+  {
+    "id": 951,
+    "name": "Dušan Vlahović",
+    "current_broken": "Juventus",
+    "correct_team": "Chelsea",
+    "proof": "انتقال Juventus -> Chelsea (2026-08-28)",
+    "is_changed": true
+  },
+  {
+    "id": 961,
+    "name": "Mohamed Salah",
+    "current_broken": "Liverpool",
+    "correct_team": "Real Madrid",
+    "proof": "انتقال Liverpool -> Real Madrid (2026-09-16)",
+    "is_changed": true
+  },
+  {
+    "id": 970,
+    "name": "Ibrahima Konaté",
+    "current_broken": "Atlético Madrid",
+    "correct_team": "FC Barcelona",
+    "proof": "انتقال Atlético Madrid -> FC Barcelona (2026-08-29)",
+    "is_changed": true
+  },
+  {
+    "id": 1006,
+    "name": "Jérémy Doku",
+    "current_broken": "Manchester City",
+    "correct_team": "Real Madrid",
+    "proof": "معاوضه در ازای وینیسیوس + ۴۰۰ میلیون (۱۴ سپتامبر / ۲۴ شهریور)",
+    "is_changed": true
+  },
+  {
+    "id": 1020,
+    "name": "Mason Mount",
+    "current_broken": "Chelsea",
+    "correct_team": "Manchester United",
+    "proof": "اسکواد پایه باشگاه Manchester United (بدون ترنسفر معتبر)",
+    "is_changed": true
+  },
+  {
+    "id": 1021,
+    "name": "Matthijs de Ligt",
+    "current_broken": "Chelsea",
+    "correct_team": "Manchester United",
+    "proof": "اسکواد پایه باشگاه Manchester United (بدون ترنسفر معتبر)",
+    "is_changed": true
+  },
+  {
+    "id": 1025,
+    "name": "Matheus Cunha",
+    "current_broken": "AS Roma",
+    "correct_team": "Manchester United",
+    "proof": "اسکواد پایه باشگاه Manchester United (بدون ترنسفر معتبر)",
+    "is_changed": true
+  },
+  {
+    "id": 1026,
+    "name": "Bryan Mbeumo",
+    "current_broken": "Manchester United",
+    "correct_team": "Atlético Madrid",
+    "proof": "انتقال Manchester United -> Atlético Madrid (2026-08-27)",
+    "is_changed": true
+  },
+  {
+    "id": 1029,
+    "name": "Manuel Ugarte",
+    "current_broken": "AS Roma",
+    "correct_team": "Manchester United",
+    "proof": "اسکواد پایه باشگاه Manchester United (بدون ترنسفر معتبر)",
+    "is_changed": true
+  },
+  {
+    "id": 1033,
+    "name": "Leny Yoro",
+    "current_broken": "Chelsea",
+    "correct_team": "بازیکن آزاد (فسخ شده)",
+    "proof": "فسخ قرارداد در 2026-08-26",
+    "is_changed": true
+  },
+  {
+    "id": 1045,
+    "name": "Casemiro",
+    "current_broken": "Paris Saint-Germain",
+    "correct_team": "Newcastle United",
+    "proof": "انتقال SSC Napoli -> Newcastle United (2026-09-11)",
+    "is_changed": true
+  },
+  {
+    "id": 1058,
+    "name": "Joelinton",
+    "current_broken": "Manchester United",
+    "correct_team": "AS Roma",
+    "proof": "انتقال بازیکن آزاد -> AS Roma (2026-08-27)",
+    "is_changed": true
+  },
+  {
+    "id": 1066,
+    "name": "Bruno Guimarães",
+    "current_broken": "AS Roma",
+    "correct_team": "Inter",
+    "proof": "انتقال SSC Napoli -> Inter (2026-08-26)",
+    "is_changed": true
+  },
+  {
+    "id": 1086,
+    "name": "Fabián Ruiz",
+    "current_broken": "Real Madrid",
+    "correct_team": "Real Madrid",
+    "proof": "اسکواد پایه باشگاه Real Madrid (بدون ترنسفر معتبر)",
+    "is_changed": false
+  },
+  {
+    "id": 1089,
+    "name": "Matvey Safonov",
+    "current_broken": "SSC Napoli",
+    "correct_team": "Paris Saint-Germain",
+    "proof": "انتقال SSC Napoli -> Paris Saint-Germain (2026-08-29)",
+    "is_changed": true
+  },
+  {
+    "id": 1096,
+    "name": "Gonçalo Ramos",
+    "current_broken": "Chelsea",
+    "correct_team": "Manchester City",
+    "proof": "انتقال AS Roma -> Manchester City (2026-08-28)",
+    "is_changed": true
+  },
+  {
+    "id": 1098,
+    "name": "Bradley Barcola",
+    "current_broken": "SSC Napoli",
+    "correct_team": "FC Barcelona",
+    "proof": "انتقال SSC Napoli -> FC Barcelona (2026-09-11)",
+    "is_changed": true
+  },
+  {
+    "id": 1101,
+    "name": "João Neves",
+    "current_broken": "SSC Napoli",
+    "correct_team": "SSC Napoli",
+    "proof": "اسکواد پایه باشگاه SSC Napoli (بدون ترنسفر معتبر)",
+    "is_changed": false
+  },
+  {
+    "id": 1105,
+    "name": "Ferland Mendy",
+    "current_broken": "SSC Napoli",
+    "correct_team": "Real Madrid",
+    "proof": "اسکواد پایه باشگاه Real Madrid (بدون ترنسفر معتبر)",
+    "is_changed": true
+  },
+  {
+    "id": 1112,
+    "name": "Aurélien Tchouaméni",
+    "current_broken": "SSC Napoli",
+    "correct_team": "Paris Saint-Germain",
+    "proof": "انتقال Real Madrid -> Paris Saint-Germain (2026-08-25)",
+    "is_changed": true
+  },
+  {
+    "id": 1113,
+    "name": "Rodrygo",
+    "current_broken": "Real Madrid",
+    "correct_team": "Liverpool",
+    "proof": "معاوضه در ازای محمد صلاح (۱۶ سپتامبر / ۲۶ شهریور)",
+    "is_changed": true
+  },
+  {
+    "id": 1116,
+    "name": "Eduardo Camavinga",
+    "current_broken": "AS Roma",
+    "correct_team": "SSC Napoli",
+    "proof": "انتقال Newcastle United -> SSC Napoli (2026-08-29)",
+    "is_changed": true
+  },
+  {
+    "id": 1118,
+    "name": "Arda Güler",
+    "current_broken": "Tottenham Hotspur",
+    "correct_team": "Real Madrid",
+    "proof": "اسکواد پایه باشگاه Real Madrid (بدون ترنسفر معتبر)",
+    "is_changed": true
+  },
+  {
+    "id": 1138,
+    "name": "David Alaba",
+    "current_broken": "AS Roma",
+    "correct_team": "AS Roma",
+    "proof": "معاوضه در ازای رونالد آرائوخو + ۱۰ میلیون (۲۸ آگوست)",
+    "is_changed": false
+  },
+  {
+    "id": 1144,
+    "name": "Kevin Danso",
+    "current_broken": "Real Madrid",
+    "correct_team": "Real Madrid",
+    "proof": "معاوضه در ازای آنگیسا + ۴۶ میلیون (۲۹ آگوست)",
+    "is_changed": false
+  },
+  {
+    "id": 1178,
+    "name": "Bryan Cristante",
+    "current_broken": "Manchester United",
+    "correct_team": "بازیکن آزاد (فسخ شده)",
+    "proof": "فسخ قرارداد در 2026-09-11",
+    "is_changed": true
+  },
+  {
+    "id": 1186,
+    "name": "Mile Svilar",
+    "current_broken": "Juventus",
+    "correct_team": "Juventus",
+    "proof": "اسکواد پایه باشگاه Juventus (بدون ترنسفر معتبر)",
+    "is_changed": false
+  },
+  {
+    "id": 1190,
+    "name": "Artem Dovbyk",
+    "current_broken": "Chelsea",
+    "correct_team": "Manchester United",
+    "proof": "انتقال Chelsea -> Manchester United (2026-09-13)",
+    "is_changed": true
+  },
+  {
+    "id": 1203,
+    "name": "Romelu Lukaku",
+    "current_broken": "AS Roma",
+    "correct_team": "Manchester United",
+    "proof": "انتقال AS Roma -> Manchester United (2026-09-12)",
+    "is_changed": true
+  },
+  {
+    "id": 1205,
+    "name": "Juan Jesus",
+    "current_broken": "Liverpool",
+    "correct_team": "بازیکن آزاد (فسخ شده)",
+    "proof": "فسخ قرارداد در 2026-09-12",
+    "is_changed": true
+  },
+  {
+    "id": 1208,
+    "name": "Stanislav Lobotka",
+    "current_broken": "SSC Napoli",
+    "correct_team": "Newcastle United",
+    "proof": "انتقال AS Roma -> Newcastle United (2026-09-11)",
+    "is_changed": true
+  },
+  {
+    "id": 1213,
+    "name": "Frank Anguissa",
+    "current_broken": "Liverpool",
+    "correct_team": "Tottenham Hotspur",
+    "proof": "انتقال Real Madrid -> Tottenham Hotspur (2026-08-29)",
+    "is_changed": true
+  },
+  {
+    "id": 1215,
+    "name": "Scott McTominay",
+    "current_broken": "Manchester United",
+    "correct_team": "Chelsea",
+    "proof": "انتقال SSC Napoli -> Chelsea (2026-08-26)",
+    "is_changed": true
+  },
+  {
+    "id": 1224,
+    "name": "Sam Beukema",
+    "current_broken": "Manchester City",
+    "correct_team": "AS Roma",
+    "proof": "انتقال Chelsea -> AS Roma (2026-09-11)",
+    "is_changed": true
+  },
+  {
+    "id": 1225,
+    "name": "Antonio Vergara",
+    "current_broken": "Manchester City",
+    "correct_team": "بازیکن آزاد (فسخ شده)",
+    "proof": "فسخ قرارداد در 2026-08-27",
+    "is_changed": true
+  }
+]

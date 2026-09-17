@@ -20,8 +20,8 @@ def connect_news_signals():
         @receiver(post_save, sender=Match)
         def on_match_saved(sender, instance, **kwargs):
             if instance.status == 'FINISHED':
-                # Skip suspended tournaments (e.g. League or Cup with is_active=False)
-                if instance.tournament and not instance.tournament.is_active:
+                # Skip suspended tournaments (except Battle Royale tournaments)
+                if instance.tournament and not instance.tournament.is_active and instance.tournament.tournament_type != 'BATTLE_ROYALE':
                     return
                 try:
                     generate_match_news(instance)

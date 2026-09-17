@@ -654,6 +654,19 @@ class SubmitPlayerRatingsView(APIView):
 
                 detailed_stats = p.get('detailed_stats') or {}
                 rating = p.get('rating')
+                is_played = p.get('is_played')
+                minutes_played = p.get('minutes_played')
+
+                has_recorded_stats = any(
+                    float(v or 0) > 0
+                    for k, v in detailed_stats.items()
+                    if k not in ['is_played', 'goals_conceded', 'breakdown', 'minutes_played']
+                )
+
+                # If player did not play, delete any existing stat for this match and skip
+                if is_played is False or (rating is None and (minutes_played == 0 or minutes_played is None) and not has_recorded_stats):
+                    PlayerMatchStat.objects.filter(match=match, player=player).delete()
+                    continue
 
                 is_home = (player.team_id == match.home_team_id)
                 team_won = home_won if is_home else away_won
@@ -662,6 +675,7 @@ class SubmitPlayerRatingsView(APIView):
 
                 if detailed_stats and 'goals_conceded' not in detailed_stats:
                     detailed_stats['goals_conceded'] = goals_conceded
+                detailed_stats['is_played'] = True
 
                 match_context = {
                     'team_won': team_won,
@@ -677,9 +691,10 @@ class SubmitPlayerRatingsView(APIView):
                     calc_res = calculate_player_rating(player.position, detailed_stats, match_context)
                     detailed_stats['breakdown'] = calc_res.get('breakdown', [])
 
-                minutes_played = p.get('minutes_played')
                 if minutes_played is None:
                     minutes_played = detailed_stats.get('minutes_played', 0)
+                else:
+                    minutes_played = int(minutes_played)
 
                 stat, _ = PlayerMatchStat.objects.update_or_create(
                     match=match, player=player,
@@ -698,7 +713,7 @@ class SubmitPlayerRatingsView(APIView):
             home_won = match.home_score > match.away_score
             away_won = match.away_score > match.home_score
             for stat in saved:
-                if stat.rating is not None and stat.player.team_id:
+                if stat.rating is not None and stat.player.team_id and stat.minutes_played > 0:
                     won = (stat.player.team_id == match.home_team_id and home_won) or \
                           (stat.player.team_id == match.away_team_id and away_won)
                     player_events = [e for e in events if e.player_id == stat.player_id]

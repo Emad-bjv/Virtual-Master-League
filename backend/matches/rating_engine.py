@@ -15,11 +15,37 @@ def calculate_player_rating(position, stats, match_context=None):
     :param match_context: optional dict (e.g. clean_sheet, team_won, yellow_cards, red_cards)
     :return: dict with 'rating' (float), 'rating_decimal' (Decimal), and 'breakdown' (list of factors)
     """
-    if not stats or not isinstance(stats, dict):
+    if not stats or not isinstance(stats, dict) or stats.get('is_played') is False:
         return {
-            'rating': 6.0,
-            'rating_decimal': Decimal('6.0'),
-            'breakdown': [{'label': 'نمره پایه استاندارد', 'impact': '+6.0'}]
+            'rating': None,
+            'rating_decimal': None,
+            'breakdown': [{'label': 'خارج از مسابقه (بازی نکرده)', 'impact': '-'}]
+        }
+
+    # Check if player actually played or has stats
+    minutes_played = int(stats.get('minutes_played') or 0)
+    has_stats = any([
+        int(stats.get('goals') or 0),
+        int(stats.get('penalty_goals') or 0),
+        int(stats.get('freekick_goals') or 0),
+        int(stats.get('assists') or 0),
+        int(stats.get('shots_total') or 0),
+        int(stats.get('passes_total') or 0),
+        int(stats.get('crosses') or 0),
+        int(stats.get('fouls') or 0),
+        int(stats.get('blocks') or 0),
+        int(stats.get('touches') or 0),
+        int(stats.get('duels_total') or 0),
+        int(stats.get('clearances') or 0),
+        int(stats.get('gk_saves') or 0),
+        int(stats.get('penalty_saves') or 0),
+    ])
+
+    if minutes_played == 0 and not has_stats and stats.get('is_played') is not True:
+        return {
+            'rating': None,
+            'rating_decimal': None,
+            'breakdown': [{'label': 'خارج از مسابقه (بازی نکرده)', 'impact': '-'}]
         }
 
     match_context = match_context or {}

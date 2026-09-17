@@ -117,7 +117,8 @@ def generate_match_news(match):
         return None
 
     # Guard against suspended tournaments (e.g. League or Cup with is_active=False)
-    if match.tournament and not match.tournament.is_active:
+    # Allow Battle Royale even if is_active is toggled off
+    if match.tournament and not match.tournament.is_active and match.tournament.tournament_type != 'BATTLE_ROYALE':
         return None
 
     home = match.home_team
@@ -136,6 +137,7 @@ def generate_match_news(match):
     winner = home if home_won else away
     loser = away if home_won else home
     diff = abs(h_score - a_score)
+    is_battle_royale = bool(match.tournament and match.tournament.tournament_type == 'BATTLE_ROYALE')
 
     # Find MOTM / top rated player from stats
     best_stat = match.player_stats.select_related('player', 'player__team').order_by('-rating').first()
@@ -145,36 +147,79 @@ def generate_match_news(match):
     # Count total goals
     total_goals = h_score + a_score
 
-    # Choose narrative angle
-    if is_draw:
+    motm_paragraph = ""
+    if motm_name and motm_rating:
+        motm_paragraph = f"\n\nدر پایان این مسابقه، هیئت داوران و سیستم هوشمند PES، {motm_name} را با نمره استثنایی {motm_rating:.1f} از ۱۰ به عنوان ستاره بلامنازع و بهترین بازیکن میدان (MOTM) برگزیدند."
+
+    # --- BATTLE ROYALE SPECIALIZED NARRATIVE ---
+    if is_battle_royale:
+        round_desc = match.round_name or "نبرد رویال"
+        is_grand_final = (match.bracket_side == 'GRAND_FINAL') or ('فینال' in round_desc)
+        is_losers = (match.bracket_side == 'LOSERS') or ('بازنده‌ها' in round_desc)
+
+        if is_grand_final:
+            title = f"👑 قهرمانی باشکوه در فینال بزرگ بتل رویال | فتح جام توسط {winner.name} با پیروزی {h_score}-{a_score} مقابل {loser.name}!"
+            summary = f"در فینال تمام‌عیار و دیدنی تورنمنت بتل رویال، تیم {winner.name} موفق شد با برتری قاطع {h_score} بر {a_score} بر {loser.name} غلبه کرده و جام زرین قهرمانی را مقتدرانه بالای سر ببرد."
+            content = f"""پرونده رقابت‌های جذاب بتل رویال با برگزاری فینال بزرگ میان دو غول مسابقات، {winner.name} و {loser.name} به باشکوه‌ترین شکل ممکن بسته شد.
+
+در این فینال نفس‌گیر، شاگردان {winner.name} با برنامه‌ریزی تاکتیکی بی‌نقص و بهره‌گیری از تمامی فرصت‌ها موفق شدند با حساب {h_score} به {a_score} به پیروزی برسند و عنوان پرافتخار قهرمان بتل رویال را از آن خود کنند.{motm_paragraph}
+
+هواداران و کارشناسان بازی‌های مستر لیگ این تقابل را یکی از ماندگارترین فینال‌های تاریخ رقابت‌ها خواندند."""
+
+        elif is_losers:
+            title = f"⚔️ نبرد مرگ و زندگی در براکت بازنده‌ها | صعود {winner.name} و وداع تلخ {loser.name} ({h_score}-{a_score})"
+            summary = f"در دیداری حذفی و بدون بازگشت، تیم {winner.name} با حساب {h_score} بر {a_score} از سد {loser.name} گذشت تا به رؤیای خود در براکت بازنده‌ها ادامه دهد و {loser.name} از دور رقابت‌ها کنار برود."
+            content = f"""هیجان و استرس در براکت بازنده‌های تورنمنت بتل رویال به اوج خود رسید؛ جایی که کوچک‌ترین اشتباه مساوی با وداع همیشگی از مسابقات بود.
+
+در این تقابل حیثیتی میان {home.name} و {away.name}، این تیم {winner.name} بود که با شایستگی و نتیجه {h_score} بر {a_score} کنترل مسابقه را به دست گرفت و بلیت مرحله بعدی را مهر و موم کرد.{motm_paragraph}
+
+با این شکست تلخ، ماجراجویی {loser.name} در این فصل از بتل رویال به خط پایان رسید و آن‌ها باید تمرکز خود را معطوف رقابت‌های بعدی کنند."""
+
+        else:  # WINNERS BRACKET / KNOCKOUT
+            if diff >= 3:
+                title = f"⚡ پیروزی مقتدرانه {winner.name} در براکت برنده‌های بتل رویال | عبور طوفانی از {loser.name} ({h_score}-{a_score})"
+                summary = f"تیم قدرتمند {winner.name} در یک نمایش برتر موفق شد با پیروزی چشمگیر {h_score} بر {a_score} بر {loser.name} غلبه کند و مسیر خود در براکت برنده‌ها را هموار سازد."
+            else:
+                title = f"🚀 گام بلند {winner.name} به سوی فینال بتل رویال | برتری {h_score}-{a_score} در نبرد با {loser.name}"
+                summary = f"در تقابلی تاکتیکی و پر از تنش در {round_desc}، {winner.name} توانست با حفظ تمرکز و برتری {h_score} بر {a_score}، حریف را به براکت بازنده‌ها بفرستد."
+
+            content = f"""نبرد حساس دو تیم مدعی {home.name} و {away.name} در چارچوب {round_desc} تورنمنت بتل رویال مستر لیگ به انجام رسید.
+
+{winner.name} با اتخاذ تدابیر موثر توانست با نتیجه {h_score} بر {a_score} پیروز این مسابقه بزرگ شود و مستقیماً به مراحل پایانی براکت برنده‌ها صعود کند.{motm_paragraph}
+
+در سوی مقابل، {loser.name} با این شکست فرصت رقابت در براکت برنده‌ها را از دست داد و برای بقا در جدول مسابقات به براکت بازنده‌ها منتقل خواهد شد."""
+
+    # --- REGULAR LEAGUE / CUP NARRATIVE ---
+    elif is_draw:
         if total_goals >= 4:
             title = f"⚔️ جنگ تمام‌عیار در {round_label} | جشنواره گل و تساوی پرهیجان {home.name} و {away.name} ({h_score}-{a_score})!"
         else:
             title = f"🤝 تقسیم امتیازات در دیداری نفس‌گیر | تقابل تاکتیکی {home.name} و {away.name} با تساوی {h_score}-{a_score} خاتمه یافت"
         summary = f"نبرد دو تیم {home.name} و {away.name} پس از ۹۰ دقیقه تلاش فشرده با تساوی {h_score} بر {a_score} به پایان رسید تا هر دو تیم با یک امتیاز میدان را ترک کنند."
+        content = f"""سوت پایان دیدار حساس میان {home.name} و {away.name} در چارچوب رقابت‌های {round_label} مستر لیگ به صدا درآمد و تماشاگران شاهد تقابلی جذاب با نتیجه نهایی {h_score} بر {a_score} بودند.
+
+در این نبرد تاکتیکی، خطوط مختلف بازی نمایش متفاوتی را ارائه دادند. عملکرد کادر فنی دو تیم در مدیریت تعویض‌ها نقشی محوری در کسب این نتیجه ایفا نمود.{motm_paragraph}
+
+با احتساب نتیجه این پیکار، جایگاه دو تیم در جدول رده‌بندی مسابقات دستخوش تغییرات مهمی گردید."""
+
     elif diff >= 3:
         title = f"🔥 آتش‌بازی و برتری قاطع | تحقیر حریف توسط {winner.name} با پیروزی مقتدرانه {h_score}-{a_score}!"
         summary = f"شاگردان {winner.name} در شبی فراموش‌نشدنی موفق شدند با نتیجه پرگل {h_score} بر {a_score} از سد {loser.name} بگذرند و قدرت هجومی خود را به رخ رقبا بکشند."
+        content = f"""دیدار حساس میان {home.name} و {away.name} با درخشش شاگردان {winner.name} به پایان رسید و نتیجه {h_score} بر {a_score} روی تابلوی نتایج نقش بست.{motm_paragraph}
+
+این پیروزی قاطع پیام روشنی به سایر رقبا در جدول مسابقات بود."""
+
     elif diff == 1 and total_goals >= 3:
         title = f"⚡ پیروزی میلی‌متری و هیجان در واپسین دقایق | برتری دیدنی {winner.name} مقابل {loser.name} ({h_score}-{a_score})"
         summary = f"در یکی از تماشایی‌ترین تقابل‌های {round_label}، تیم {winner.name} توانست با نتیجه نزدیک {h_score} بر {a_score} دست پر از زمین خارج شود."
+        content = f"""تقابل تماشایی و هیجان‌انگیز میان {home.name} و {away.name} در چارچوب رقابت‌های {round_label} با پیروزی شیرین {h_score} بر {a_score} به سود {winner.name} خاتمه یافت.{motm_paragraph}
+
+این پیروزی در واپسین لحظات روحیه‌ای مضاعف به اردوی تیم فاتح تزریق نمود."""
+
     else:
-        title = f"🏆 ۳ امتیاز ارزشمند برای {winner.name} | غلبه تاکتیکی بر {loser.name} با حساب {h_score} به {a_score}"
+        title = f"🏆 پیروزی ارزشمند برای {winner.name} | غلبه بر {loser.name} با حساب {h_score} به {a_score}"
         summary = f"دیدار تیم‌های {home.name} و {away.name} در چارچوب {round_label} با پیروزی {h_score}-{a_score} به سود {winner.name} به پایان رسید."
-
-    subtitle = f"نتیجه نهایی: {h_score} - {a_score} • {round_label}"
-    if motm_name and motm_rating:
-        subtitle += f" • ستاره میدان: {motm_name} (نمره {motm_rating:.1f})"
-
-    motm_paragraph = ""
-    if motm_name and motm_rating:
-        motm_paragraph = f"\n\nدر پایان این مسابقه، هیئت داوران و سیستم هوشمند PES، {motm_name} را با نمره استثنایی {motm_rating:.1f} از ۱۰ به عنوان ستاره بلامنازع و بهترین بازیکن میدان (MOTM) برگزیدند."
-
-    content = f"""سوت پایان دیدار حساس میان {home.name} و {away.name} در چارچوب رقابت‌های {round_label} مستر لیگ به صدا درآمد و تماشاگران شاهد تقابلی جذاب با نتیجه نهایی {h_score} بر {a_score} بودند.
-
-در این نبرد تاکتیکی، خطوط مختلف بازی نمایش متفاوتی را ارائه دادند. عملکرد کادر فنی {winner.name if not is_draw else home.name} در مدیریت تعویض‌ها و پیاده‌سازی پرس از بالا نقشی محوری در کسب این نتیجه ایفا نمود.{motm_paragraph}
-
-با احتساب نتیجه این پیکار، جایگاه دو تیم در جدول رده‌بندی مسابقات دستخوش تغییرات مهمی گردید و کارشناسان معتقدند این مسابقه می‌تواند نقطه عطفی در سرنوشت قهرمانی این فصل باشد."""
+        content = f"""سوت پایان دیدار حساس میان {home.name} و {away.name} در چارچوب رقابت‌های {round_label} به صدا درآمد و {winner.name} توانست با حساب {h_score} بر {a_score} پیروز میدان باشد.{motm_paragraph}"""
 
     image_url = ''
     if best_stat and best_stat.player and best_stat.player.custom_photo and hasattr(best_stat.player.custom_photo, 'url'):
@@ -523,4 +568,26 @@ def backfill_historical_news(limit=25):
     if star_news:
         created_count += 1
 
+    # 7. Battle Royale Matches Backfill
+    br_count = sync_battle_royale_news()
+    created_count += br_count
+
     return created_count
+
+
+def sync_battle_royale_news():
+    """
+    Scans all finished Battle Royale matches and generates tournament news for any that lack coverage.
+    """
+    from matches.models import Match
+    count = 0
+    br_matches = Match.objects.filter(
+        tournament__tournament_type='BATTLE_ROYALE',
+        status='FINISHED'
+    ).order_by('id')
+
+    for m in br_matches:
+        news = generate_match_news(m)
+        if news:
+            count += 1
+    return count

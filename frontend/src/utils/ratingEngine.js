@@ -5,10 +5,30 @@
  */
 
 export function calculatePlayerRating(position, stats = {}, matchContext = {}) {
-  if (!stats || typeof stats !== 'object') {
+  if (!stats || typeof stats !== 'object' || stats.is_played === false) {
     return {
-      rating: 6.0,
-      breakdown: [{ label: 'نمره پایه ورود به زمین', impact: '+6.0' }]
+      rating: null,
+      breakdown: [{ label: 'خارج از مسابقه (بازی نکرده)', impact: '-' }]
+    };
+  }
+
+  // Check if player actually played or has recorded stats
+  const rawMinutes = Number(stats.minutes_played) || 0;
+  const hasRecordedStats = Boolean(
+    Number(stats.goals) || Number(stats.penalty_goals) || Number(stats.freekick_goals) ||
+    Number(stats.assists) || Number(stats.shots_total) || Number(stats.shots_on_target) ||
+    Number(stats.passes_total) || Number(stats.passes_completed) || Number(stats.crosses) ||
+    Number(stats.fouls) || Number(stats.offsides) || Number(stats.freekicks_won) ||
+    Number(stats.corners) || Number(stats.blocks) || Number(stats.touches) ||
+    Number(stats.dribble_distance) || Number(stats.duels_total) || Number(stats.duels_won) ||
+    Number(stats.clearances) || Number(stats.gk_shots_on_target) || Number(stats.gk_saves) ||
+    Number(stats.penalty_saves)
+  );
+
+  if (rawMinutes === 0 && !hasRecordedStats && stats.is_played !== true) {
+    return {
+      rating: null,
+      breakdown: [{ label: 'خارج از مسابقه (بازی نکرده)', impact: '-' }]
     };
   }
 
@@ -35,7 +55,7 @@ export function calculatePlayerRating(position, stats = {}, matchContext = {}) {
   const offsides = Number(stats.offsides) || 0;
   const freekicksWon = Number(stats.freekicks_won) || 0;
   const blocks = Number(stats.blocks) || 0;
-  const minutesPlayed = Number(stats.minutes_played) || 90;
+  const minutesPlayed = rawMinutes > 0 ? rawMinutes : 90;
   const dribbleDistance = Number(stats.dribble_distance) || 0;
 
   const duelsTotal = Number(stats.duels_total) || 0;
