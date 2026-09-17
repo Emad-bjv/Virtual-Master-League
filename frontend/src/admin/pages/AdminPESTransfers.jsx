@@ -81,6 +81,27 @@ export default function AdminPESTransfers() {
   const [copiedId, setCopiedId] = useState(null);
   const [toggleLoadingId, setToggleLoadingId] = useState(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [syncingStatus, setSyncingStatus] = useState(false);
+
+  // Database status sync & repair handler
+  const handleSyncPESStatus = async () => {
+    try {
+      setSyncingStatus(true);
+      const res = await pesTransferApi.syncStatus();
+      if (res.data?.success) {
+        showToast('همگام‌سازی وضعیت نقل‌وانتقالات PES با موفقیت انجام شد.', 'success');
+        if (selectedClubId) await fetchClubDetail(selectedClubId);
+        await fetchOverview(true);
+      } else {
+        showToast(res.data?.error || 'خطا در همگام‌سازی وضعیت PES', 'error');
+      }
+    } catch (err) {
+      console.error('Failed to sync PES status:', err);
+      showToast('خطا در ارتباط با سرور جهت همگام‌سازی وضعیت', 'error');
+    } finally {
+      setSyncingStatus(false);
+    }
+  };
 
   // Load Overview Data
   const fetchOverview = useCallback(async (isSilent = false) => {
@@ -442,12 +463,23 @@ export default function AdminPESTransfers() {
 
           <button
             type="button"
+            onClick={handleSyncPESStatus}
+            disabled={syncingStatus || refreshing}
+            className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-bold text-xs flex items-center gap-2 shadow-lg shadow-amber-950/20 transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+            title="همگام‌سازی و بازیابی وضعیت معلق انتقالات در بازی PES"
+          >
+            <Sparkles className={`w-4 h-4 ${syncingStatus ? 'animate-spin text-amber-300' : 'text-amber-400'}`} />
+            <span>{syncingStatus ? 'در حال همگام‌سازی...' : 'همگام‌سازی وضعیت معلق PES'}</span>
+          </button>
+
+          <button
+            type="button"
             onClick={async () => {
               if (selectedClubId) await fetchClubDetail(selectedClubId);
               await fetchOverview(true);
               showToast('اطلاعات و آخرین نقل‌وانتقالات بروزرسانی شد', 'success');
             }}
-            disabled={refreshing}
+            disabled={refreshing || syncingStatus}
             className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-white font-black text-xs flex items-center gap-2 shadow-lg shadow-emerald-950/40 transition-all cursor-pointer disabled:opacity-50 active:scale-95"
             title="بروزرسانی داده‌ها"
           >

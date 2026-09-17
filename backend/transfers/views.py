@@ -693,7 +693,17 @@ class AdminRollbackTransferAPIView(views.APIView):
                 player.is_starting = False
                 player.x_coord = 0.0
                 player.y_coord = 0.0
+                player.pes_transfer_applied = False
                 player.save()
+
+                # Record reversal TransferHistory
+                TransferHistory.objects.create(
+                    player=player,
+                    seller_team=buyer,
+                    buyer_team=seller,
+                    price_usd=price,
+                    transfer_type='ADMIN_ROLLBACK'
+                )
 
                 # 2. Refund money
                 if price > 0:

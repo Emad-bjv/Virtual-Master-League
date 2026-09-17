@@ -59,7 +59,7 @@ def create_transfer_offer(sender_team_id, receiver_team_id, target_player_id, da
             }
 
         loan_duration = int(data.get('loan_duration_matches', 0) or 0)
-        swap_player_ids = data.get('swap_players', [])
+        swap_player_ids = data.get('swap_players') or data.get('swap_player_ids') or []
         
         if swap_player_ids:
             if Player.objects.filter(id__in=swap_player_ids, loan_owner_team__isnull=False).exists():
@@ -213,6 +213,7 @@ def accept_transfer_offer(offer_id, user_team_id):
                 target_p.is_starting = False
                 target_p.x_coord = 0.0
                 target_p.y_coord = 0.0
+                target_p.pes_transfer_applied = False
                 target_p.save()
                 
                 # Move swap players: all swap players belong to buyer and move to seller
@@ -224,6 +225,7 @@ def accept_transfer_offer(offer_id, user_team_id):
                         sp.is_starting = False
                         sp.x_coord = 0.0
                         sp.y_coord = 0.0
+                        sp.pes_transfer_applied = False
                         sp.save()
                         
             elif offer.offer_type == 'LOAN':
@@ -247,6 +249,7 @@ def accept_transfer_offer(offer_id, user_team_id):
                 target_p.is_starting = False
                 target_p.x_coord = 0.0
                 target_p.y_coord = 0.0
+                target_p.pes_transfer_applied = False
                 target_p.save()
                 
                 # Move swap players for mutual loan (Loan Swap)
@@ -261,6 +264,7 @@ def accept_transfer_offer(offer_id, user_team_id):
                     sp.is_starting = False
                     sp.x_coord = 0.0
                     sp.y_coord = 0.0
+                    sp.pes_transfer_applied = False
                     sp.save()
                 
             offer.status = 'ACCEPTED'
@@ -276,7 +280,7 @@ def accept_transfer_offer(offer_id, user_team_id):
             ensure_team_starting_eleven(seller)
             ensure_team_starting_eleven(buyer)
             
-            # Log Transfer History
+            # Log Transfer History for target player
             TransferHistory.objects.create(
                 player=offer.target_player,
                 seller_team=seller,
@@ -284,6 +288,28 @@ def accept_transfer_offer(offer_id, user_team_id):
                 price_usd=offer.cash_amount,
                 transfer_type=offer.offer_type
             )
+            
+            # Log Transfer History for each swap player to guarantee visibility in PES Transfers & Recent feeds
+            if offer.offer_type == 'SWAP':
+                for sp in offer.swap_players.all():
+                    TransferHistory.objects.create(
+                        player=sp,
+                        seller_team=buyer,
+                        buyer_team=seller,
+                        price_usd=Decimal('0.00'),
+                        transfer_type='SWAP'
+                    )
+            elif offer.offer_type == 'LOAN':
+                for sp in offer.swap_players.all():
+                    sp_seller = buyer if sp.loan_owner_team_id == buyer.id else seller
+                    sp_buyer = seller if sp_seller == buyer else buyer
+                    TransferHistory.objects.create(
+                        player=sp,
+                        seller_team=sp_seller,
+                        buyer_team=sp_buyer,
+                        price_usd=Decimal('0.00'),
+                        transfer_type='LOAN'
+                    )
             deal_desc = f"انتقال رسمی: {offer.target_player.name} با مبلغ {float(offer.cash_amount):,.0f} $ از {seller.name} به تیم {buyer.name} پیوست."
             TransferLog.objects.create(
                 event_type='TRANSFER_FINALIZED',
@@ -389,6 +415,7 @@ def release_player(player_id, user_team_id):
             player.team = None
             player.is_starting = False
             player.is_free_agent = True
+            player.pes_transfer_applied = False
             player.save()
             
             # Ensure team retains 11 starting players if available

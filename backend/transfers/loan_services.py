@@ -33,7 +33,18 @@ def process_post_match_loans(team):
                 player.is_starting = False
                 player.x_coord = 0.0
                 player.y_coord = 0.0
+                player.pes_transfer_applied = False
                 player.save()
+                
+                from decimal import Decimal
+                from transfers.models import TransferHistory
+                TransferHistory.objects.create(
+                    player=player,
+                    seller_team=team,
+                    buyer_team=original_owner,
+                    price_usd=Decimal('0.00'),
+                    transfer_type='LOAN_RETURN'
+                )
                 
                 desc = f"پایان قرارداد قرضی: {player.name} پس از اتمام بازی‌های قرضی خود از {team.name} به تیم اصلی‌اش ({original_owner.name}) بازگشت."
                 TransferLog.objects.create(

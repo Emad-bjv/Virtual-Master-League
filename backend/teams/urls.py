@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     TeamViewSet, PlayerViewSet, PositionChoicesView,
     AdminPESTransfersOverviewView, AdminPESTransferClubDetailView, AdminPESTransferToggleView,
+    AdminPESTransferSyncStatusView,
     AdminDisciplinaryOverviewView, AdminDisciplinaryRecordsView,
     AdminDisciplinaryIssueView, AdminDisciplinaryRevokeView, AdminDisciplinaryUpdateView, TeamPenaltiesView
 )
@@ -17,9 +18,11 @@ urlpatterns = [
     path('teams/admin/pes-transfers/overview/', AdminPESTransfersOverviewView.as_view(), name='admin-pes-transfers-overview'),
     path('teams/admin/pes-transfers/club/<int:team_id>/', AdminPESTransferClubDetailView.as_view(), name='admin-pes-transfers-club-detail'),
     path('teams/admin/pes-transfers/toggle-applied/', AdminPESTransferToggleView.as_view(), name='admin-pes-transfers-toggle-applied'),
+    path('teams/admin/pes-transfers/sync-status/', AdminPESTransferSyncStatusView.as_view(), name='admin-pes-transfers-sync-status'),
     path('admin/pes-transfers/overview/', AdminPESTransfersOverviewView.as_view()),
     path('admin/pes-transfers/club/<int:team_id>/', AdminPESTransferClubDetailView.as_view()),
     path('admin/pes-transfers/toggle-applied/', AdminPESTransferToggleView.as_view()),
+    path('admin/pes-transfers/sync-status/', AdminPESTransferSyncStatusView.as_view()),
 
     # Disciplinary Committee Endpoints
     path('teams/admin/disciplinary/overview/', AdminDisciplinaryOverviewView.as_view(), name='admin-disciplinary-overview'),

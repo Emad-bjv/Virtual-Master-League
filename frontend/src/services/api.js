@@ -322,6 +322,7 @@ export const pesTransferApi = {
   getOverview: () => api.get('/teams/admin/pes-transfers/overview/'),
   getClubDetail: (teamId) => api.get(`/teams/admin/pes-transfers/club/${teamId}/`),
   toggleApplied: (data) => api.post('/teams/admin/pes-transfers/toggle-applied/', data),
+  syncStatus: () => api.post('/teams/admin/pes-transfers/sync-status/'),
 };
 
 export const disciplinaryApi = {

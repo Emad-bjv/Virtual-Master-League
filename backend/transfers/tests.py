@@ -245,3 +245,50 @@ class TransferMarketTestCase(TestCase):
         }
         create_res = self.client.post('/api/transfers/offers/', post_data, format='json')
         self.assertEqual(create_res.status_code, status.HTTP_201_CREATED)
+
+    def test_swap_deal_records_transfer_history_and_pes_pending(self):
+        swap_p = Player.objects.create(
+            team=self.buyer,
+            name="Swap Player",
+            age=22,
+            position='CB',
+            overall=82,
+            wage=Decimal('5.00'),
+            market_value=Decimal('300.00'),
+            base_stamina=85,
+            pes_transfer_applied=True
+        )
+        self.player.pes_transfer_applied = True
+        self.player.save()
+
+        offer_res = create_transfer_offer(
+            sender_team_id=self.buyer.id,
+            receiver_team_id=self.seller.id,
+            target_player_id=self.player.id,
+            data={
+                'offer_type': 'SWAP',
+                'cash_amount': Decimal('50.00'),
+                'swap_player_ids': [swap_p.id]
+            }
+        )
+        self.assertTrue(offer_res['success'])
+        offer_id = offer_res['offer_id']
+
+        accept_res = accept_transfer_offer(self.seller.id, offer_id)
+        self.assertTrue(accept_res['success'])
+
+        self.player.refresh_from_db()
+        swap_p.refresh_from_db()
+
+        # Check teams swapped
+        self.assertEqual(self.player.team, self.buyer)
+        self.assertEqual(swap_p.team, self.seller)
+
+        # Check PES transfer applied is False for both!
+        self.assertFalse(self.player.pes_transfer_applied)
+        self.assertFalse(swap_p.pes_transfer_applied)
+
+        # Check TransferHistory created for both players
+        self.assertTrue(TransferHistory.objects.filter(player=self.player, buyer_team=self.buyer, seller_team=self.seller).exists())
+        self.assertTrue(TransferHistory.objects.filter(player=swap_p, buyer_team=self.seller, seller_team=self.buyer).exists())
+

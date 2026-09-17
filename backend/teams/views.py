@@ -1098,9 +1098,9 @@ class PlayerViewSet(viewsets.ModelViewSet):
 
         # Apply Transfer
         player.team = target_team
+        player.pes_transfer_applied = False
         if target_team:
             player.is_free_agent = False
-            player.pes_transfer_applied = False
             if transfer_type == 'LOAN' and old_team:
                 player.loan_owner_team = old_team
                 player.loan_matches_left = int(request.data.get('loan_matches', 10))
@@ -1904,6 +1904,25 @@ class AdminPESTransferToggleView(views.APIView):
             'pes_transfer_applied': player.pes_transfer_applied,
             'team_id': player.team_id,
             'team_pending_count': team_pending
+        })
+
+
+class AdminPESTransferSyncStatusView(views.APIView):
+    """
+    Synchronizes and repairs PES transfer status, missing TransferHistory records,
+    orphaned player pointers, and unapplied status for all pending transfers.
+    """
+    permission_classes = [IsAdminOrDebug]
+
+    def post(self, request):
+        from teams.management.commands.sync_pes_transfer_status import run_sync_pes_transfers
+        stats = run_sync_pes_transfers()
+        total_pending = Player.objects.filter(pes_transfer_applied=False, team__isnull=False).count()
+        return Response({
+            'success': True,
+            'message': 'وضعیت نقل‌وانتقالات PES با موفقیت همگام‌سازی و بروزرسانی شد.',
+            'stats': stats,
+            'total_pending_league': total_pending
         })
 
 
