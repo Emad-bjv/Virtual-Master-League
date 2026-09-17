@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import SubNav from '../common/SubNav';
+import { Link } from 'react-router-dom';
+import AdminSideDrawer from './AdminSideDrawer';
 import {
   ShieldAlert, Coins, RefreshCw, HeartPulse, Sliders, CheckCircle2, ArrowLeft,
   UserPlus, UserCheck, Building, Mail, Lock, Unlock, Info, DollarSign, Tv, PlusCircle,
@@ -8,7 +9,8 @@ import {
   ChevronDown, ChevronRight, Eye, Flag, Trash2, Zap, Clock, Shield, Sparkles, Send,
   Plus, Minus, ArrowLeftRight, Bell, CheckCircle, BarChart2, Award, User, X,
   CreditCard, Gem, FileImage, UploadCloud, XCircle, Filter, Image, CheckCheck,
-  Edit2, Package, ToggleLeft, ToggleRight, Layers, Tag, Gift, Users, Flame, Swords, Crown
+  Edit2, Package, ToggleLeft, ToggleRight, Layers, Tag, Gift, Users, Flame, Swords, Crown,
+  Menu, ArrowRight, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api, { adminApi, matchApi, teamApi, economyApi, battleRoyaleApi } from '../../services/api';
@@ -37,8 +39,6 @@ const DEFAULT_ADMIN_SUBNAV = [
   { id: 'live_admin', label: 'اتاق داوری و کنترل مسابقات' },
   { id: 'tournament_hub', label: 'مدیریت لیگ و جام حذفی' },
   { id: 'packs_season_pass', label: 'مدیریت پک‌ها و سیزن پس' },
-  { id: 'match_team_stats', label: 'ثبت سریع آمار تیمی' },
-  { id: 'match_player_ratings', label: 'ثبت سریع نمرات بازیکنان' },
   { id: 'register_coach', label: 'مدیریت و ثبت مربیان' },
   { id: 'news_manager', label: '📰 تحریریه و مدیریت اخبار' },
   { id: 'audit_logs', label: 'گزارش تغییرات سیستم' },
@@ -127,6 +127,7 @@ export default function AdminDashboard({
       return 'live_admin';
     }
   });
+  const [adminDrawerOpen, setAdminDrawerOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -2286,22 +2287,20 @@ export default function AdminDashboard({
 
   const adminSubnavItems = useMemo(() => {
     const rawItems = [
-      { id: 'overview', label: 'داشبورد ارشد', perm: 'panel_dashboard_overview' },
-      { id: 'transactions', label: 'مدیریت واریزی‌ها و تراکنش‌ها', badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : null, perm: 'panel_dashboard_transactions' },
-      { id: 'store_packages', label: 'مدیریت بسته‌های فروشگاه', perm: 'panel_dashboard_store_packages' },
-      { id: 'mass_reward', label: '🎁 پاداش و ایردراپ همگانی', perm: 'panel_dashboard_airdrop' },
-      { id: 'live_admin', label: 'اتاق داوری و کنترل مسابقات', perm: 'panel_dashboard_live_referee' },
-      { id: 'tournament_hub', label: 'مدیریت لیگ و جام حذفی', perm: 'panel_dashboard_tournaments' },
-      { id: 'packs_season_pass', label: 'مدیریت پک‌ها و سیزن پس', perm: 'panel_dashboard_packs' },
-      { id: 'match_team_stats', label: 'ثبت سریع آمار تیمی', perm: 'panel_dashboard_rapid_stats' },
-      { id: 'match_player_ratings', label: 'ثبت سریع نمرات بازیکنان', perm: 'panel_dashboard_rapid_stats' },
-      { id: 'register_coach', label: 'مدیریت و ثبت مربیان', perm: 'panel_dashboard_coach_registration' },
-      { id: 'news_manager', label: '📰 تحریریه و مدیریت اخبار', perm: 'panel_admin_newsroom' },
-      { id: 'audit_logs', label: 'گزارش تغییرات سیستم', perm: 'panel_dashboard_audit_logs' },
+      { id: 'overview', label: 'داشبورد جامع لیگ', desc: 'آمار کلی مسابقات، باشگاه‌ها و رده‌بندی', perm: 'panel_dashboard_overview' },
+      { id: 'transactions', label: 'مدیریت واریزی‌ها و تراکنش‌ها', desc: 'تایید فیش‌های واریزی و شارژ کیف پول', badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : null, perm: 'panel_dashboard_transactions' },
+      { id: 'store_packages', label: 'مدیریت بسته‌های فروشگاه', desc: 'تنظیم قیمت بسته‌های جم و سکه', perm: 'panel_dashboard_store_packages' },
+      { id: 'mass_reward', label: '🎁 پاداش و ایردراپ همگانی', desc: 'اهدای جم و پاداش گروهی به تیم‌ها', perm: 'panel_dashboard_airdrop' },
+      { id: 'live_admin', label: 'اتاق داوری و کنترل مسابقات', desc: 'مدیریت زنده بازی‌ها، کارت‌ها، تعویض‌ها و نمرات', perm: 'panel_dashboard_live_referee' },
+      { id: 'tournament_hub', label: 'مدیریت لیگ و جام حذفی', desc: 'جدول لیگ، براکت حذفی، نبرد رویال و تعلیق', perm: 'panel_dashboard_tournaments' },
+      { id: 'packs_season_pass', label: 'مدیریت پک‌ها و سیزن پس', desc: 'پک‌های شانس، آیتم‌ها و بلیت فصل', perm: 'panel_dashboard_packs' },
+      { id: 'register_coach', label: 'مدیریت و ثبت مربیان', desc: 'احراز هویت و صدور مجوز مربیان جدید', perm: 'panel_dashboard_coach_registration' },
+      { id: 'news_manager', label: '📰 تحریریه و مدیریت اخبار', desc: 'تولید خودکار و نگارش اخبار، احکام و نقل‌وانتقالات', perm: 'panel_admin_newsroom' },
+      { id: 'audit_logs', label: 'گزارش تغییرات سیستم', desc: 'تاریخچه لاگ‌ها و فعالیت‌های مدیریتی', perm: 'panel_dashboard_audit_logs' },
     ];
 
     if (adminCurrentUser?.is_superuser || hasAdminPermission(adminCurrentUser, 'sensitive_admin_rbac_manage') || hasAdminPermission(adminCurrentUser, 'panel_dashboard_admin_management')) {
-      rawItems.push({ id: 'admin_management', label: '👑 مدیریت ادمین‌ها و دسترسی‌ها', perm: 'panel_dashboard_admin_management' });
+      rawItems.push({ id: 'admin_management', label: '👑 مدیریت ادمین‌ها و دسترسی‌ها', desc: 'سطوح دسترسی RBAC و نقش‌های مدیران', perm: 'panel_dashboard_admin_management' });
     }
 
     if (!adminCurrentUser) return rawItems;
@@ -2311,6 +2310,9 @@ export default function AdminDashboard({
       return hasAdminPermission(adminCurrentUser, item.perm);
     });
   }, [pendingPaymentsCount, adminCurrentUser]);
+
+  const allowedItemsSet = useMemo(() => new Set(adminSubnavItems.map(i => i.id)), [adminSubnavItems]);
+  const currentActiveItem = useMemo(() => adminSubnavItems.find(i => i.id === activeSub) || adminSubnavItems[0], [adminSubnavItems, activeSub]);
 
   useEffect(() => {
     if (adminSubnavItems && adminSubnavItems.length > 0) {
@@ -2349,8 +2351,81 @@ export default function AdminDashboard({
 
   return (
     <div className="space-y-4 pb-20 font-sans dir-rtl text-slate-200">
-      {/* Sub Navigation Bar */}
-      <SubNav items={adminSubnavItems} activeId={activeSub} onChange={setActiveSub} />
+      {/* Sleek Glassmorphic Admin Header Bar with Dedicated Hamburger Button & Switcher */}
+      <header className="glass-panel p-3 sm:p-4 rounded-2xl sm:rounded-3xl border border-cyan-500/30 backdrop-blur-xl shadow-xl flex items-center justify-between gap-2.5 sm:gap-4 sticky top-2 z-20 bg-slate-950/90">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          {/* Dedicated Hamburger Menu Button */}
+          <button
+            type="button"
+            onClick={() => setAdminDrawerOpen(true)}
+            className="relative p-2.5 rounded-2xl bg-gradient-to-tr from-cyan-950/90 to-slate-900 border border-cyan-500/50 hover:border-cyan-400 text-cyan-300 hover:text-white transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-2 group shrink-0"
+            title="باز کردن منوی همبرگری ابزارهای ادمین"
+          >
+            <Menu size={18} className="group-hover:scale-110 transition-transform text-cyan-400" />
+            <span className="hidden sm:inline font-bold text-xs">منوی ابزارها</span>
+            {pendingPaymentsCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center animate-pulse shadow-md shadow-rose-500/60">
+                {pendingPaymentsCount}
+              </span>
+            )}
+          </button>
+
+          {/* Current Active Section Badge & Title */}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-bold text-cyan-400/90 font-sport uppercase tracking-wider hidden xs:inline">
+                داشبورد عملیاتی
+              </span>
+              <span className="text-slate-600 hidden xs:inline">•</span>
+              <span className="text-xs sm:text-sm font-black text-white truncate flex items-center gap-1.5">
+                <span>{currentActiveItem?.label || 'پنل مدیریت'}</span>
+              </span>
+            </div>
+            <p className="text-[10.5px] text-slate-400 truncate hidden sm:block">
+              {currentActiveItem?.desc || 'مدیریت و پایش زنده اجزای پلتفرم'}
+            </p>
+          </div>
+        </div>
+
+        {/* Right Actions: Senior Portal Switcher + Exit to Coach */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* TWO-WAY SWITCH: Switch to Senior Admin Portal (/admin) */}
+          <Link
+            to="/admin"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-950/80 hover:bg-purple-900 border border-purple-500/50 hover:border-cyan-400 text-purple-200 hover:text-white text-xs font-bold transition-all shadow-md active:scale-95 group cursor-pointer"
+            title="سوییچ به پورتال ارشد ادمین (/admin)"
+          >
+            <ExternalLink size={14} className="text-purple-400 group-hover:text-cyan-300 transition-colors" />
+            <span className="hidden md:inline">پورتال ارشد ادمین</span>
+            <span className="text-[10px] font-sport text-purple-300 md:hidden">/admin</span>
+          </Link>
+
+          {/* Exit to Coach Dashboard */}
+          {onExitAdmin && (
+            <button
+              type="button"
+              onClick={onExitAdmin}
+              className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+              title="خروج از پنل ادمین و بازگشت به محیط مربیان"
+            >
+              <ArrowRight size={14} className="text-slate-400" />
+              <span className="hidden sm:inline">محیط مربی</span>
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* Dedicated Admin Hamburger Drawer (Portal to document.body) */}
+      <AdminSideDrawer
+        isOpen={adminDrawerOpen}
+        onClose={() => setAdminDrawerOpen(false)}
+        activeSub={activeSub}
+        onSelectSub={setActiveSub}
+        pendingPaymentsCount={pendingPaymentsCount}
+        adminCurrentUser={adminCurrentUser}
+        onExitAdmin={onExitAdmin}
+        allowedItemsSet={allowedItemsSet}
+      />
 
       {/* Global Admin Toast Notification */}
       <AnimatePresence>

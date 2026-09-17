@@ -327,13 +327,25 @@ const AdminLayoutContent = () => {
           </div>
         </div>
 
-        <Link
-          to="/dashboard"
-          className="flex items-center gap-1.5 text-xs text-cyan-300 font-bold bg-cyan-950/90 hover:bg-cyan-900 px-3 py-1.5 rounded-xl border border-cyan-500/40 shadow-sm transition-all"
-        >
-          <ArrowRight size={13} />
-          <span>برنامه اصلی</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          {/* TWO-WAY SWITCH: Switch to Operational Admin Dashboard */}
+          <Link
+            to="/dashboard?tab=admin"
+            className="flex items-center gap-1.5 text-xs text-amber-300 font-bold bg-amber-950/80 hover:bg-amber-900 px-3 py-1.5 rounded-xl border border-amber-500/40 shadow-sm transition-all"
+            title="سوییچ به داشبورد عملیاتی مسابقات و داوری"
+          >
+            <Sparkles size={13} className="text-amber-400" />
+            <span>داشبورد عملیاتی</span>
+          </Link>
+
+          <Link
+            to="/dashboard"
+            className="flex items-center gap-1.5 text-xs text-cyan-300 font-bold bg-cyan-950/90 hover:bg-cyan-900 px-3 py-1.5 rounded-xl border border-cyan-500/40 shadow-sm transition-all"
+          >
+            <ArrowRight size={13} />
+            <span className="hidden sm:inline">برنامه اصلی</span>
+          </Link>
+        </div>
       </header>
 
       {/* Mobile Backdrop Overlay */}
@@ -487,6 +499,17 @@ const AdminLayoutContent = () => {
           <div style={{flex: 1, minHeight: '1.5rem'}}></div>
 
           <div className="pt-4 border-t border-slate-800/80 space-y-2 pb-6 lg:pb-0">
+            {/* TWO-WAY SWITCH: Switch to Operational Admin Dashboard */}
+            <Link 
+              to="/dashboard?tab=admin" 
+              className="admin-btn flex items-center justify-center gap-2" 
+              style={{width: '100%', background: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.3)'}}
+              title="سوییچ به داشبورد عملیاتی مسابقات و داوری"
+            >
+              <Sparkles size={14} className="text-amber-400" />
+              <span>⚡ سوییچ به داشبورد عملیاتی</span>
+            </Link>
+
             <Link 
               to="/dashboard" 
               className="admin-btn flex items-center justify-center gap-2" 

@@ -58,7 +58,16 @@ export default function MainDashboard() {
   const { user, isAuthenticated, loading: authLoading, logout } = useAuth();
   const { hydrateTeamData } = useTeam();
 
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get('tab');
+        if (tab) return tab;
+      }
+    } catch (_e) {}
+    return 'home';
+  });
   const [previousTab, setPreviousTab] = useState('home');
   const [teamSub, setTeamSub] = useState('matches');
   const [storeSub, setStoreSub] = useState('gems');
@@ -66,6 +75,19 @@ export default function MainDashboard() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [featureFlags, setFeatureFlags] = useState({});
+
+  // Sync tab with URL search parameter if changed dynamically
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const tab = params.get('tab');
+        if (tab && tab !== activeTab) {
+          setActiveTab(tab);
+        }
+      }
+    } catch (_e) {}
+  }, [window.location.search]);
 
   // Fetch Public Feature Flags
   useEffect(() => {
