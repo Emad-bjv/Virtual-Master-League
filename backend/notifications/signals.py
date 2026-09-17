@@ -26,7 +26,8 @@ def notify_match_finished(sender, instance, created, **kwargs):
 
 @receiver(post_save, sender=TransferHistory)
 def notify_big_transfer(sender, instance, created, **kwargs):
-    if created and instance.price_usd >= 500: # Threshold for big transfers
+    from decimal import Decimal
+    if created and Decimal(str(instance.price_usd or 0)) >= 500: # Threshold for big transfers
         seller = instance.seller_team.name if instance.seller_team else "Free Agent"
         buyer = instance.buyer_team.name if instance.buyer_team else "Released"
         player = instance.player.name if instance.player else "Unknown Player"
