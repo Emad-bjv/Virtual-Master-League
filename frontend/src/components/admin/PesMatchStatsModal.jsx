@@ -72,9 +72,19 @@ export default function PesMatchStatsModal({
     return { team_won: teamWon, clean_sheet: cleanSheet, goals_conceded: conceded };
   };
 
-  // Initialize or re-sync player data map
+  const initializedMatchId = useRef(null);
+
+  // Initialize player data map once when modal opens for a match
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      initializedMatchId.current = null;
+      return;
+    }
+
+    if (initializedMatchId.current === match?.id) {
+      return;
+    }
+    initializedMatchId.current = match?.id;
 
     const initialMap = {};
     const all = [
@@ -139,12 +149,12 @@ export default function PesMatchStatsModal({
 
     setPlayersData(initialMap);
 
-    // Default select first player of active side
-    const firstSidePlayer = all.find((p) => (activeSide === 'home' ? p.is_home : !p.is_home));
+    // Default select first player of active side only if not already selected
+    const firstSidePlayer = all.find((p) => (activeSide === 'home' ? p.is_home : !p.is_home)) || all[0];
     if (firstSidePlayer) {
       setSelectedPlayerId(firstSidePlayer.player_id || firstSidePlayer.id);
     }
-  }, [isOpen, match, homePlayers, awayPlayers, activeSide]);
+  }, [isOpen, match?.id]);
 
   // Active side roster
   const currentRoster = useMemo(() => {
