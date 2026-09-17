@@ -221,6 +221,10 @@ def generate_match_news(match):
         summary = f"دیدار تیم‌های {home.name} و {away.name} در چارچوب {round_label} با پیروزی {h_score}-{a_score} به سود {winner.name} به پایان رسید."
         content = f"""سوت پایان دیدار حساس میان {home.name} و {away.name} در چارچوب رقابت‌های {round_label} به صدا درآمد و {winner.name} توانست با حساب {h_score} بر {a_score} پیروز میدان باشد.{motm_paragraph}"""
 
+    subtitle = f"نتیجه نهایی: {h_score} - {a_score} • {round_label}"
+    if motm_name and motm_rating:
+        subtitle += f" • ستاره میدان: {motm_name} (نمره {motm_rating:.1f})"
+
     image_url = ''
     if best_stat and best_stat.player and best_stat.player.custom_photo and hasattr(best_stat.player.custom_photo, 'url'):
         try:
