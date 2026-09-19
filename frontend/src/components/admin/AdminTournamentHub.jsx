@@ -2112,7 +2112,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                               <div className="flex items-center gap-2 flex-wrap">
                                 {onOpenRefereeRoom && (
                                   <button
-                                    onClick={() => onOpenRefereeRoom(match)}
+                                    onClick={() => onOpenRefereeRoom(match, { hubTab: 'league', selectedGameweek })}
                                     className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-[11px] shadow-md shadow-cyan-600/30 transition-all cursor-pointer font-sport active:scale-95"
                                     title="ورود مستقیم به اتاق داوری و کنترل زنده این مسابقه"
                                   >
@@ -2799,7 +2799,7 @@ export default function AdminTournamentHub({ onNotification, onOpenRefereeRoom }
                                 <div className="flex items-center gap-2 flex-wrap">
                                   {onOpenRefereeRoom && (
                                     <button
-                                      onClick={() => onOpenRefereeRoom(match)}
+                                      onClick={() => onOpenRefereeRoom(match, { hubTab: 'cup', selectedCupId })}
                                       className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white font-bold text-[11px] shadow-md shadow-amber-600/30 transition-all cursor-pointer font-sport active:scale-95"
                                       title="ورود مستقیم به اتاق داوری و کنترل زنده این مسابقه حذفی"
                                     >

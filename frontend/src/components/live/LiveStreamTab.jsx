@@ -648,6 +648,10 @@ export default function LiveStreamTab({
     let isRed = false;
     let isInjured = false;
     let subMinute = null;
+    let subOutMinute = null;
+    let subInMinute = null;
+    let isSubOut = false;
+    let isSubIn = false;
 
     (eventList || []).forEach((ev) => {
       if (ev.is_undone) return;
@@ -667,7 +671,12 @@ export default function LiveStreamTab({
         } else if (evType === 'INJURY') {
           isInjured = true;
         } else if (evType === 'SUB' || evType === 'SUB_OUT') {
+          subOutMinute = ev.minute;
           subMinute = ev.minute;
+          isSubOut = true;
+        } else if (evType === 'SUB_IN') {
+          subInMinute = ev.minute;
+          isSubIn = true;
         }
       }
 
@@ -685,7 +694,11 @@ export default function LiveStreamTab({
       yellowCards,
       isRed,
       isInjured,
-      subMinute: subMinute || player.subMinute,
+      subMinute: subOutMinute || subMinute || player.subMinute || player.subOutMinute,
+      subOutMinute: subOutMinute || subMinute || player.subOutMinute || player.subMinute,
+      isSubOut: Boolean(isSubOut || subOutMinute || subMinute || player.isSubOut),
+      subInMinute: subInMinute || player.subInMinute,
+      isSubIn: Boolean(isSubIn || subInMinute || player.isSubIn),
     };
   };
 
@@ -786,13 +799,16 @@ export default function LiveStreamTab({
 
     // Detect positional / coordinate moves for players who stayed in starting XI
     const movedPlayers = [];
+    const isFormationChanged = Boolean(targetFormation && oldFormation && targetFormation !== oldFormation);
+
     targetStartingXi.forEach((p) => {
       const oldP = baselineStartersMap.get(String(p.id));
       if (oldP) {
         const posChanged = p.position && oldP.position && p.position !== oldP.position;
         const xDiff = Math.abs((p.x_coord || 50) - (oldP.x_coord || 50));
         const yDiff = Math.abs((p.y_coord || 50) - (oldP.y_coord || 50));
-        if (posChanged || xDiff > 6 || yDiff > 6) {
+        // Only track if position changed, or if it might be a swap without formation change
+        if (posChanged || (!isFormationChanged && (xDiff > 6 || yDiff > 6))) {
           movedPlayers.push({
             current: p,
             old: oldP,
@@ -848,19 +864,18 @@ export default function LiveStreamTab({
       }
     }
 
-    // Add remaining solo moved players (not part of a pair swap)
+    // Add remaining solo moved players (not part of a pair swap) ONLY if their tactical position actually changed!
+    // Exclude raw percentage coordinate movements (X, Y) which provide no actionable info for the referee
     movedPlayers.forEach((item) => {
-      if (!pairedPlayerIds.has(String(item.current.id))) {
+      if (!pairedPlayerIds.has(String(item.current.id)) && item.posChanged) {
         const p = item.current;
         const oldP = item.old;
         changesToSubmit.push({
           category: 'POSITION',
-          title: `جابجایی پستی «${p.name}»`,
-          detail: item.posChanged
-            ? `تغییر پست ${p.name} از ${oldP.position} به ${p.position}`
-            : `جابجایی مختصات ${p.name} در زمین به (X: ${Math.round(p.x_coord)}%, Y: ${Math.round(p.y_coord)}%)`,
+          title: `تغییر پست «${p.name}»`,
+          detail: `تغییر پست ${p.name} از ${oldP.position} به ${p.position}`,
           diff_data: {
-            player_id: parseInt(p.id),
+            player_id: parseInt(p.id, 10) || p.id,
             player_name: p.name,
             old_pos: oldP.position,
             new_pos: p.position,

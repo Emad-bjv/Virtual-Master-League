@@ -1237,7 +1237,14 @@ def apply_substitution_to_match_gameplan(match, team, p_out, p_in):
         from .models import MatchGamePlan
         mgp = MatchGamePlan.objects.filter(match=match, team=team).first()
         if not mgp:
-            return
+            from teams.models import TeamGamePlan
+            tgp = TeamGamePlan.objects.filter(team=team).first()
+            mgp = MatchGamePlan.objects.create(
+                match=match,
+                team=team,
+                formation=getattr(tgp, 'formation', team.default_formation or '4-3-3'),
+                players_data=list(getattr(tgp, 'players_data', []) or [])
+            )
         
         players_data = list(mgp.players_data or [])
         out_id_str = str(p_out.id)
@@ -1267,13 +1274,24 @@ def apply_substitution_to_match_gameplan(match, team, p_out, p_in):
                 players_data.append({
                     'player_id': p_in.id,
                     'id': p_in.id,
+                    'name': p_in.name,
                     'is_starting': True,
                     'x_coord': coord_x,
                     'y_coord': coord_y,
                     'position': pos,
                 })
             mgp.players_data = players_data
-            mgp.save(update_fields=['players_data'])
+            mgp.is_submitted = True
+            mgp.save(update_fields=['players_data', 'is_submitted'])
+
+            # Update Player is_starting flags
+            try:
+                p_out.is_starting = False
+                p_out.save(update_fields=['is_starting'])
+                p_in.is_starting = True
+                p_in.save(update_fields=['is_starting'])
+            except Exception:
+                pass
     except Exception as e:
         print("Error updating MatchGamePlan on substitution:", e)
 
@@ -2160,7 +2178,7 @@ class LiveInGameChangeApplyView(APIView):
         change.applied_at = timezone.now()
         change.save(update_fields=['status', 'applied_at'])
 
-        # If it's a substitution, check if we need to apply substitution on Match stats / events
+        # Apply change to MatchGamePlan and Match models based on category
         if change.change_category == 'SUBSTITUTION':
             player_out_id = change.diff_data.get('player_out_id')
             player_in_id = change.diff_data.get('player_in_id')
@@ -2183,6 +2201,69 @@ class LiveInGameChangeApplyView(APIView):
                         minute=minute, detail=f'تعویض (ورود): {p_in.name}'
                     )
                 apply_substitution_to_match_gameplan(match, change.team, p_out, p_in)
+
+        elif change.change_category == 'FORMATION':
+            new_formation = change.diff_data.get('newFormation') or change.diff_data.get('formation')
+            if new_formation:
+                from .models import MatchGamePlan
+                mgp, _ = MatchGamePlan.objects.get_or_create(match=match, team=change.team)
+                mgp.formation = new_formation
+                mgp.is_submitted = True
+                mgp.save(update_fields=['formation', 'is_submitted'])
+
+                if match.home_team_id == change.team_id:
+                    match.home_formation = new_formation
+                    match.save(update_fields=['home_formation'])
+                elif match.away_team_id == change.team_id:
+                    match.away_formation = new_formation
+                    match.save(update_fields=['away_formation'])
+
+        elif change.change_category == 'POSITION':
+            from .models import MatchGamePlan
+            mgp, _ = MatchGamePlan.objects.get_or_create(match=match, team=change.team)
+            players_data = list(mgp.players_data or [])
+            if change.diff_data.get('swap'):
+                pa_id = str(change.diff_data.get('player_a_id'))
+                pb_id = str(change.diff_data.get('player_b_id'))
+                pa_item = next((p for p in players_data if str(p.get('player_id') or p.get('id')) == pa_id), None)
+                pb_item = next((p for p in players_data if str(p.get('player_id') or p.get('id')) == pb_id), None)
+                if pa_item and pb_item:
+                    pa_pos = change.diff_data.get('player_a_new_pos') or pb_item.get('position')
+                    pb_pos = change.diff_data.get('player_b_new_pos') or pa_item.get('position')
+                    pa_x, pa_y = pa_item.get('x_coord'), pa_item.get('y_coord')
+                    pa_item['position'] = pa_pos
+                    pa_item['x_coord'] = pb_item.get('x_coord')
+                    pa_item['y_coord'] = pb_item.get('y_coord')
+                    pb_item['position'] = pb_pos
+                    pb_item['x_coord'] = pa_x
+                    pb_item['y_coord'] = pa_y
+                    mgp.players_data = players_data
+                    mgp.is_submitted = True
+                    mgp.save(update_fields=['players_data', 'is_submitted'])
+            elif change.diff_data.get('player_id'):
+                p_id = str(change.diff_data.get('player_id'))
+                target_item = next((p for p in players_data if str(p.get('player_id') or p.get('id')) == p_id), None)
+                if target_item:
+                    if change.diff_data.get('new_pos'):
+                        target_item['position'] = change.diff_data['new_pos']
+                    if change.diff_data.get('x_coord') is not None:
+                        target_item['x_coord'] = change.diff_data['x_coord']
+                    if change.diff_data.get('y_coord') is not None:
+                        target_item['y_coord'] = change.diff_data['y_coord']
+                    mgp.players_data = players_data
+                    mgp.is_submitted = True
+                    mgp.save(update_fields=['players_data', 'is_submitted'])
+
+        elif change.change_category == 'TACTIC':
+            key = change.diff_data.get('key')
+            new_val = change.diff_data.get('newVal')
+            if key and new_val:
+                from .models import MatchGamePlan
+                mgp, _ = MatchGamePlan.objects.get_or_create(match=match, team=change.team)
+                if key not in ('id', 'pk', 'match', 'match_id', 'team', 'team_id') and hasattr(mgp, key):
+                    setattr(mgp, key, new_val)
+                    mgp.is_submitted = True
+                    mgp.save(update_fields=[key, 'is_submitted'])
 
         serialized = LiveInGameChangeSerializer(change).data
         match_detail = MatchDetailSerializer(match).data

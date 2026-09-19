@@ -248,8 +248,12 @@ export default function FutPitchCard({
   const assists = Number(player?.in_match_assists ?? player?.assists ?? 0);
   const ownGoals = Number(player?.in_match_own_goals ?? player?.own_goals ?? 0);
   const yellowCards = Number(player?.yellowCards ?? 0);
-  const isRed = Boolean(player?.isRed || yellowCards >= 2);
-  const subMinute = player?.subMinute || player?.sub_minute || null;
+  const isRed = Boolean(player?.isRed || player?.is_red || yellowCards >= 2);
+  const isSubIn = Boolean(player?.isSubIn || player?.sub_in || player?.subInMinute);
+  const subInMinute = player?.subInMinute || (isSubIn ? (player?.subMinute || player?.sub_minute) : null);
+  const isSubOut = Boolean(player?.isSubOut || player?.sub_out || player?.subOutMinute || (!isSubIn && (player?.subMinute || player?.sub_minute)));
+  const subOutMinute = player?.subOutMinute || (!isSubIn ? (player?.subMinute || player?.sub_minute) : null);
+  const hasSubIndicator = Boolean(isSubIn || isSubOut || subInMinute || subOutMinute);
   const rawRating = player?.match_rating ?? player?.rating ?? player?.live_rating ?? null;
   const numRating = rawRating != null && !isNaN(Number(rawRating)) ? Number(rawRating) : null;
   const isMotm = Boolean(player?.isMotm || player?.motm || (numRating && numRating >= 8.5));
@@ -477,29 +481,50 @@ export default function FutPitchCard({
           </div>
         )}
 
-        {/* 3. SUBSTITUTED OUT BADGE (Top-Left: Match minute + red circle with white exit arrow) */}
-        {subMinute && (
+        {/* 3. SUBSTITUTION BADGES: Green arrow for SUB_IN (on pitch), Red arrow for SUB_OUT (on bench) */}
+        {isSubIn && (
           <div
             className="absolute -top-3.5 -left-1.5 sm:-top-4.5 sm:-left-2 z-30 flex flex-col items-center pointer-events-none drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] select-none"
-            title={`تعویض در دقیقه ${subMinute}`}
+            title={`ورود به زمین در دقیقه ${subInMinute || ''}`}
           >
-            <span className="text-[7.5px] xs:text-[8.5px] sm:text-[10px] font-sport font-black text-cyan-300 drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] leading-none mb-0.5">
-              {subMinute}'
-            </span>
-            <div className={`${badgeSizeClass} rounded-full bg-rose-600 border-2 border-white flex items-center justify-center text-white shadow-md`}>
+            {subInMinute && (
+              <span className="text-[7.5px] xs:text-[8.5px] sm:text-[10px] font-sport font-black text-emerald-400 drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] leading-none mb-0.5">
+                {subInMinute}'
+              </span>
+            )}
+            <div className={`${badgeSizeClass} rounded-full bg-emerald-600 border-2 border-white flex items-center justify-center text-white shadow-md`}>
               <svg viewBox="0 0 24 24" className={`${badgeIconSizeClass} text-white stroke-[3.5]`} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="19" y1="12" x2="5" y2="12" />
-                <polyline points="12 19 5 12 12 5" />
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <polyline points="19 12 12 19 5 12" />
               </svg>
             </div>
           </div>
         )}
 
-        {/* 4. YELLOW / RED CARD BADGE (Top-Left, offset if substituted out) */}
+        {!isSubIn && isSubOut && (
+          <div
+            className="absolute -top-3.5 -left-1.5 sm:-top-4.5 sm:-left-2 z-30 flex flex-col items-center pointer-events-none drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] select-none"
+            title={`خروج از زمین در دقیقه ${subOutMinute || ''}`}
+          >
+            {subOutMinute && (
+              <span className="text-[7.5px] xs:text-[8.5px] sm:text-[10px] font-sport font-black text-rose-400 drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] leading-none mb-0.5">
+                {subOutMinute}'
+              </span>
+            )}
+            <div className={`${badgeSizeClass} rounded-full bg-rose-600 border-2 border-white flex items-center justify-center text-white shadow-md`}>
+              <svg viewBox="0 0 24 24" className={`${badgeIconSizeClass} text-white stroke-[3.5]`} fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5" />
+                <polyline points="5 12 12 5 19 12" />
+              </svg>
+            </div>
+          </div>
+        )}
+
+        {/* 4. YELLOW / RED CARD BADGE (Top-Left, offset if substituted) */}
         {(yellowCards > 0 || isRed) && (
           <div
             className={`absolute z-30 flex items-center pointer-events-none drop-shadow-[0_2px_6px_rgba(0,0,0,0.85)] select-none ${
-              subMinute
+              hasSubIndicator
                 ? '-top-1 left-3.5 sm:left-4.5'
                 : '-top-1.5 -left-1.5 sm:-top-2 sm:-left-2'
             }`}

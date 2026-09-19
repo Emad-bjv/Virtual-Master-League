@@ -639,6 +639,14 @@ export default function AdminDashboard({
 
       try {
         localStorage.removeItem('vml_admin_target_match_id');
+        if (typeof window !== 'undefined' && window.location) {
+          const url = new URL(window.location.href);
+          if (url.searchParams.has('match_id') || url.searchParams.has('matchId')) {
+            url.searchParams.delete('match_id');
+            url.searchParams.delete('matchId');
+            window.history.replaceState(null, '', url.pathname + (url.search ? url.search : ''));
+          }
+        }
       } catch (_e) {}
     }
   }, [targetMatchId, initialMatchId, allMatches.length]);
@@ -841,6 +849,109 @@ export default function AdminDashboard({
     } catch (_e) {}
   }, [refereeDeskTab]);
 
+  const [refereeRoomOrigin, setRefereeRoomOrigin] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('vml_admin_referee_origin');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (refereeRoomOrigin) {
+        sessionStorage.setItem('vml_admin_referee_origin', JSON.stringify(refereeRoomOrigin));
+      } else {
+        sessionStorage.removeItem('vml_admin_referee_origin');
+      }
+    } catch (_e) {}
+  }, [refereeRoomOrigin]);
+
+  const activeMatchIdRef = useRef(selectedLiveMatch?.id || null);
+  useEffect(() => {
+    activeMatchIdRef.current = selectedLiveMatch?.id || null;
+  }, [selectedLiveMatch?.id]);
+
+  const handleExitRefereeRoom = useCallback(() => {
+    activeMatchIdRef.current = null;
+    setSelectedLiveMatch(null);
+    setShowPostMatchCardView(false);
+    try {
+      sessionStorage.removeItem('vml_admin_selected_live_match');
+      localStorage.removeItem('vml_admin_target_match_id');
+    } catch (_e) {}
+
+    // Clean match_id/matchId URL query parameters without reloading
+    try {
+      if (typeof window !== 'undefined' && window.location) {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('match_id') || url.searchParams.has('matchId')) {
+          url.searchParams.delete('match_id');
+          url.searchParams.delete('matchId');
+          window.history.replaceState(null, '', url.pathname + (url.search ? url.search : ''));
+        }
+      }
+    } catch (_e) {}
+
+    // Restore origin destination
+    if (refereeRoomOrigin) {
+      if (refereeRoomOrigin.sub) {
+        setActiveSub(refereeRoomOrigin.sub);
+      }
+      if (refereeRoomOrigin.tournamentMode) {
+        setTournamentMode(refereeRoomOrigin.tournamentMode);
+      }
+      if (refereeRoomOrigin.cupTournamentId) {
+        setSelectedCupTournamentId(refereeRoomOrigin.cupTournamentId);
+      }
+      if (refereeRoomOrigin.brTournamentId) {
+        setSelectedBrTournamentId(refereeRoomOrigin.brTournamentId);
+      }
+      setRefereeRoomOrigin(null);
+      try {
+        sessionStorage.removeItem('vml_admin_referee_origin');
+      } catch (_e) {}
+    } else {
+      // Intelligent fallback based on match properties if origin was not set
+      if (
+        selectedLiveMatch?.tournament_mode === 'battle_royale' ||
+        String(selectedLiveMatch?.round_name || '').includes('برنده‌ها') ||
+        String(selectedLiveMatch?.round_name || '').includes('بازنده‌ها') ||
+        String(selectedLiveMatch?.round_name || '').includes('نبرد رویال')
+      ) {
+        setTournamentMode('battle_royale');
+      } else if (
+        selectedLiveMatch?.is_knockout ||
+        String(selectedLiveMatch?.round_name || '').includes('حذفی')
+      ) {
+        setTournamentMode('cup');
+      }
+    }
+  }, [refereeRoomOrigin, selectedLiveMatch]);
+
+  // Sync Browser History with Referee Room so back button closes it smoothly
+  useEffect(() => {
+    if (selectedLiveMatch?.id) {
+      try {
+        if (!window.history.state || window.history.state.vml_referee_match !== selectedLiveMatch.id) {
+          window.history.pushState({ vml_referee_match: selectedLiveMatch.id }, '');
+        }
+      } catch (_e) {}
+
+      const handlePopState = () => {
+        if (activeMatchIdRef.current) {
+          handleExitRefereeRoom();
+        }
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [selectedLiveMatch?.id, handleExitRefereeRoom]);
+
 
   const [liveMatchDetails, setLiveMatchDetails] = useState(null);
   const [selectedLiveTeamSwitch, setSelectedLiveTeamSwitch] = useState('home'); // 'home' | 'away'
@@ -959,6 +1070,10 @@ export default function AdminDashboard({
     let isRed = false;
     let isInjured = false;
     let subMinute = null;
+    let subOutMinute = null;
+    let subInMinute = null;
+    let isSubOut = false;
+    let isSubIn = false;
 
     (events || []).forEach((ev) => {
       if (ev.is_undone) return;
@@ -980,7 +1095,12 @@ export default function AdminDashboard({
         } else if (evType === 'INJURY') {
           isInjured = true;
         } else if (evType === 'SUB' || evType === 'SUB_OUT') {
+          subOutMinute = ev.minute;
           subMinute = ev.minute;
+          isSubOut = true;
+        } else if (evType === 'SUB_IN') {
+          subInMinute = ev.minute;
+          isSubIn = true;
         }
       }
 
@@ -1000,7 +1120,11 @@ export default function AdminDashboard({
       yellowCards,
       isRed,
       isInjured,
-      subMinute: subMinute || player.subMinute,
+      subMinute: subOutMinute || subMinute || player.subMinute || player.subOutMinute,
+      subOutMinute: subOutMinute || subMinute || player.subOutMinute || player.subMinute,
+      isSubOut: Boolean(isSubOut || subOutMinute || subMinute || player.isSubOut),
+      subInMinute: subInMinute || player.subInMinute,
+      isSubIn: Boolean(isSubIn || subInMinute || player.isSubIn),
     };
   };
 
@@ -1022,6 +1146,7 @@ export default function AdminDashboard({
     if (!matchId) return;
     try {
       const res = await matchApi.getMatchLiveState(matchId);
+      if (activeMatchIdRef.current !== matchId) return;
       if (res.data) {
         setLiveMatchDetails(res.data);
         if (res.data.match) {
@@ -1067,14 +1192,17 @@ export default function AdminDashboard({
             away: newAwayLevel,
           };
 
-          setSelectedLiveMatch((prev) => ({
-            ...prev,
-            ...res.data.match,
-            home: res.data.match.home_team_name || prev?.home,
-            away: res.data.match.away_team_name || prev?.away,
-            homeId: res.data.match.home_team,
-            awayId: res.data.match.away_team,
-          }));
+          setSelectedLiveMatch((prev) => {
+            if (!prev || activeMatchIdRef.current !== matchId) return null;
+            return {
+              ...prev,
+              ...res.data.match,
+              home: res.data.match.home_team_name || prev?.home,
+              away: res.data.match.away_team_name || prev?.away,
+              homeId: res.data.match.home_team,
+              awayId: res.data.match.away_team,
+            };
+          });
           setEventMinute(res.data.match.current_minute || 1);
           setStoppageInput(res.data.match.stoppage_time || 0);
 
@@ -1110,11 +1238,7 @@ export default function AdminDashboard({
                 processedAt: c.applied_at ? new Date(c.applied_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : (c.created_at ? new Date(c.created_at).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }) : ''),
               };
             });
-            setPendingChangesQueue((prev) => {
-              const existingIds = new Set(pending.map((p) => p.id));
-              const freshUnsaved = (prev || []).filter((p) => !existingIds.has(p.id) && p.status === 'PENDING');
-              return [...freshUnsaved, ...pending];
-            });
+            setPendingChangesQueue(pending);
             setProcessedChangesHistory(processed);
           }
         }
@@ -1243,13 +1367,18 @@ export default function AdminDashboard({
         nonStarting = nonStarting.slice(needed);
       }
 
+      const currentEvents = liveMatchDetails?.events || [];
+      const badgedStarters = starters.map((p) => computePlayerMatchBadges(p, currentEvents));
+      const badgedSubs = nonStarting.slice(0, 11).map((p) => computePlayerMatchBadges(p, currentEvents));
+      const badgedReserves = nonStarting.slice(11).map((p) => computePlayerMatchBadges(p, currentEvents));
+
       return {
         gameplan: gp,
         tactics: gp,
         formation: gp.formation || teamObj.default_formation || '4-3-3',
-        starters: starters,
-        subs: nonStarting.slice(0, 11),
-        reserves: nonStarting.slice(11),
+        starters: badgedStarters,
+        subs: badgedSubs,
+        reserves: badgedReserves,
         players: formattedPlayers,
       };
     };
@@ -1403,19 +1532,6 @@ export default function AdminDashboard({
 
             if (data.type === 'coach_tactics_submitted') {
               const teamName = data.team_name || (isHomeTeam ? selectedLiveMatch.home_team_name : selectedLiveMatch.away_team_name);
-              const newRequest = {
-                id: Date.now() + Math.random(),
-                type: 'TACTICS',
-                teamSide: isHomeTeam ? 'home' : 'away',
-                team_id: data.team_id,
-                team_name: teamName,
-                formation: data.formation || 'ترکیب جدید',
-                tactics: data.tactics || {},
-                players: data.players || [],
-                minute: eventMinute,
-                timestamp: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-                status: 'PENDING',
-              };
 
               setSelectedLiveMatch((prev) => prev ? ({
                 ...prev,
@@ -1423,7 +1539,6 @@ export default function AdminDashboard({
                 away_lineup_ready: !isHomeTeam ? true : prev.away_lineup_ready,
               }) : prev);
 
-              setPendingChangesQueue((prev) => [newRequest, ...prev]);
               notificationSoundService.playMatchAlertChime();
               showNotification(`🔔 ترکیب و تاکتیک‌های جدید از سوی سرمربی «${teamName}» به صورت زنده دریافت شد.`, 'info');
               await reloadTeamGameplans();
@@ -1581,13 +1696,126 @@ export default function AdminDashboard({
     if (!request || !selectedLiveMatch?.id) return;
     setSubmittingChangeId(request.id);
 
+    // 1. Optimistically remove from pending queue and add to processed history
+    setPendingChangesQueue((prev) => prev.filter((p) => String(p.id) !== String(request.id)));
+    setProcessedChangesHistory((prev) => [
+      {
+        ...request,
+        status: 'APPLIED',
+        processedAt: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+      },
+      ...prev.filter((p) => String(p.id) !== String(request.id)),
+    ]);
+
+    // 2. Directly apply changes to teamGameplanData on the pitch
+    const side = request.teamSide || (Number(request.team_id) === Number(selectedLiveMatch.home_team) ? 'home' : 'away');
+    const category = request.change_category || (request.type === 'SUBSTITUTION' ? 'SUBSTITUTION' : 'TACTIC');
+    const minute = request.minute || eventMinute || 45;
+
+    setTeamGameplanData((prev) => {
+      const currentSideData = prev[side];
+      if (!currentSideData) return prev;
+
+      let newStarters = [...(currentSideData.starters || [])];
+      let newSubs = [...(currentSideData.subs || [])];
+      let newReserves = [...(currentSideData.reserves || [])];
+      let newFormation = currentSideData.formation;
+
+      if (category === 'SUBSTITUTION') {
+        const outId = String(request.diff_data?.player_out_id || request.player_out_id || '');
+        const inId = String(request.diff_data?.player_in_id || request.player_in_id || '');
+
+        const outIdx = newStarters.findIndex((p) => String(p.id) === outId);
+        let inPlayer = newSubs.find((p) => String(p.id) === inId) ||
+                       newReserves.find((p) => String(p.id) === inId) ||
+                       (currentSideData.players || []).find((p) => String(p.id) === inId);
+
+        if (outIdx !== -1 && inPlayer) {
+          const outPlayer = newStarters[outIdx];
+
+          // Substitute goes to starters at outPlayer's position & coords with GREEN arrow
+          const promotedIn = {
+            ...inPlayer,
+            position: outPlayer.position,
+            x_coord: outPlayer.x_coord,
+            y_coord: outPlayer.y_coord,
+            is_starting: true,
+            isSubIn: true,
+            subInMinute: minute,
+          };
+
+          // Outgoing player goes to bench, retaining all their stats & RED sub-out arrow
+          const demotedOut = {
+            ...outPlayer,
+            is_starting: false,
+            isSubOut: true,
+            subOutMinute: minute,
+            subMinute: minute,
+          };
+
+          newStarters[outIdx] = promotedIn;
+          newSubs = [demotedOut, ...newSubs.filter((p) => String(p.id) !== inId && String(p.id) !== outId)];
+          newReserves = newReserves.filter((p) => String(p.id) !== inId);
+        }
+      } else if (category === 'FORMATION') {
+        newFormation = request.diff_data?.newFormation || request.formation || newFormation;
+      } else if (category === 'POSITION') {
+        if (request.diff_data?.swap) {
+          const aId = String(request.diff_data.player_a_id);
+          const bId = String(request.diff_data.player_b_id);
+          const idxA = newStarters.findIndex((p) => String(p.id) === aId);
+          const idxB = newStarters.findIndex((p) => String(p.id) === bId);
+          if (idxA !== -1 && idxB !== -1) {
+            const pA = newStarters[idxA];
+            const pB = newStarters[idxB];
+            newStarters[idxA] = {
+              ...pA,
+              position: request.diff_data.player_a_new_pos || pB.position,
+              x_coord: pB.x_coord,
+              y_coord: pB.y_coord,
+            };
+            newStarters[idxB] = {
+              ...pB,
+              position: request.diff_data.player_b_new_pos || pA.position,
+              x_coord: pA.x_coord,
+              y_coord: pA.y_coord,
+            };
+          }
+        } else if (request.diff_data?.player_id) {
+          const pId = String(request.diff_data.player_id);
+          newStarters = newStarters.map((p) => {
+            if (String(p.id) === pId) {
+              return {
+                ...p,
+                position: request.diff_data.new_pos || p.position,
+                x_coord: request.diff_data.x_coord != null ? request.diff_data.x_coord : p.x_coord,
+                y_coord: request.diff_data.y_coord != null ? request.diff_data.y_coord : p.y_coord,
+              };
+            }
+            return p;
+          });
+        }
+      }
+
+      return {
+        ...prev,
+        [side]: {
+          ...currentSideData,
+          formation: newFormation,
+          starters: newStarters,
+          subs: newSubs,
+          reserves: newReserves,
+        },
+      };
+    });
+
     try {
       if (request.id) {
         await matchApi.applyInGameChange(selectedLiveMatch.id, request.id);
       }
 
+      showNotification(`درخواست تغییرات «${request.title || request.team_name}» تایید و در زمین مسابقه اعمال شد ✅`);
       await reloadTeamGameplans();
-      showNotification(`درخواست تغییرات «${request.title || request.team_name}» تایید و اعمال شد ✅`);
       fetchLiveMatchState(selectedLiveMatch.id);
     } catch (err) {
       showNotification(`خطا در تایید تغییرات: ${err.response?.data?.error || 'مشکل ارتباط با سرور'}`, 'error');
@@ -1599,6 +1827,17 @@ export default function AdminDashboard({
   const handleRejectInGameChange = async (request) => {
     if (!request || !selectedLiveMatch?.id) return;
     setSubmittingChangeId(request.id);
+
+    // Optimistically remove from pending queue and add to processed history
+    setPendingChangesQueue((prev) => prev.filter((p) => String(p.id) !== String(request.id)));
+    setProcessedChangesHistory((prev) => [
+      {
+        ...request,
+        status: 'REJECTED',
+        processedAt: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+      },
+      ...prev.filter((p) => String(p.id) !== String(request.id)),
+    ]);
 
     try {
       if (request.id) {
@@ -3990,6 +4229,7 @@ export default function AdminDashboard({
                           <div
                             key={m.id}
                             onClick={() => {
+                              setRefereeRoomOrigin({ sub: 'live_admin', tournamentMode: 'league' });
                               setSelectedLiveMatch(m);
                               setRefereeDeskTab('live_desk');
                             }}
@@ -4671,6 +4911,7 @@ export default function AdminDashboard({
                                     {isBothTeamsReady ? (
                                       <div
                                         onClick={() => {
+                                          setRefereeRoomOrigin({ sub: 'live_admin', tournamentMode: 'cup', cupTournamentId: selectedCupTournamentId });
                                           setSelectedLiveMatch(m);
                                           setRefereeDeskTab('live_desk');
                                         }}
@@ -5028,6 +5269,7 @@ export default function AdminDashboard({
                                             <button
                                               type="button"
                                               onClick={() => {
+                                                setRefereeRoomOrigin({ sub: 'live_admin', tournamentMode: 'battle_royale', brTournamentId: selectedBrTournamentId });
                                                 setSelectedLiveMatch(m);
                                                 setRefereeDeskTab('live_desk');
                                               }}
@@ -5841,6 +6083,7 @@ export default function AdminDashboard({
                               {isBothTeamsReady ? (
                                 <div
                                   onClick={() => {
+                                    setRefereeRoomOrigin({ sub: 'live_admin', tournamentMode: 'battle_royale', brTournamentId: selectedBrTournamentId });
                                     setSelectedLiveMatch(m);
                                     setRefereeDeskTab('live_desk');
                                   }}
@@ -6154,10 +6397,7 @@ export default function AdminDashboard({
               <div className="glass-panel p-4 rounded-3xl border border-cyan-500/50 bg-gradient-to-r from-slate-950 via-slate-900 to-purple-950/40 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => {
-                      setSelectedLiveMatch(null);
-                      setShowPostMatchCardView(false);
-                    }}
+                    onClick={handleExitRefereeRoom}
                     className="p-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-2xl border border-slate-700 transition-colors cursor-pointer"
                     title="بازگشت به لیست مسابقات"
                   >
@@ -6693,7 +6933,7 @@ export default function AdminDashboard({
                     <div className="bg-slate-950 p-2 rounded-3xl border-2 border-slate-800 shadow-2xl relative">
                       <ErrorBoundary>
                         <EFootballGamePlan
-                          key={`admin-pitch-${selectedLiveMatch.id}-${selectedLiveTeamSwitch}-${activeSideData.starters.length}-${activeSideData.formation}`}
+                          key={`admin-pitch-${selectedLiveMatch?.id || 'live'}-${selectedLiveTeamSwitch}-${(activeSideData?.starters || []).map((p) => p?.id || '').join('-')}-${activeSideData?.formation || '4-3-3'}`}
                           teamName={activeTeamName}
                           readOnly={false}
                           isAdminMode={true}
@@ -7723,12 +7963,16 @@ export default function AdminDashboard({
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <AdminTournamentHub 
             onNotification={showNotification}
-            onOpenRefereeRoom={(match) => {
+            onOpenRefereeRoom={(match, originInfo) => {
               if (match) {
                 setSelectedLiveMatch(match);
                 const gw = extractRoundNumber(match.round_name);
                 if (gw) setSelectedGameweek(`هفته ${gw}`);
               }
+              setRefereeRoomOrigin({
+                sub: 'tournament_hub',
+                ...(originInfo || {}),
+              });
               setActiveSub('live_admin');
             }}
           />
@@ -7762,6 +8006,7 @@ export default function AdminDashboard({
                 onChange={(val) => {
                   const m = allMatches.find((item) => String(item.id) === String(val));
                   if (m) {
+                    setRefereeRoomOrigin({ sub: 'match_team_stats' });
                     setSelectedLiveMatch(m);
                     setActiveSub('live_admin');
                     setRefereeDeskTab('team_stats');
@@ -7799,6 +8044,7 @@ export default function AdminDashboard({
                 onChange={(val) => {
                   const m = allMatches.find((item) => String(item.id) === String(val));
                   if (m) {
+                    setRefereeRoomOrigin({ sub: 'match_player_ratings' });
                     setSelectedLiveMatch(m);
                     setActiveSub('live_admin');
                     setRefereeDeskTab('player_ratings');
