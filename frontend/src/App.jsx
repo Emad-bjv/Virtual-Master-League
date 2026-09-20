@@ -4,10 +4,12 @@ import './index.css';
 import { initNativeApp } from './services/nativeApp';
 import { useNativeBackButton } from './hooks/useNativeBackButton';
 import NetworkBanner from './components/common/NetworkBanner';
+import { LanguageProvider } from './context/LanguageContext';
 
 // Core routes - lazy loaded for instant initial bundle delivery
 const MainDashboard = lazy(() => import('./pages/MainDashboard'));
 const CoachLogin = lazy(() => import('./pages/CoachLogin'));
+const SaaSProjectDashboard = lazy(() => import('./pages/SaaSProjectDashboard'));
 
 // Admin layout & sub-pages - code-split independently
 const AdminLayout = lazy(() => import('./admin/AdminLayout'));
@@ -55,8 +57,6 @@ function NativeAppInitializer() {
   return <NetworkBanner />;
 }
 
-import { LanguageProvider } from './context/LanguageContext';
-
 function App() {
   return (
     <Router>
@@ -67,6 +67,8 @@ function App() {
           <Route path="/" element={<CoachLogin />} />
           <Route path="/dashboard" element={<MainDashboard />} />
           <Route path="/coach-login" element={<CoachLogin />} />
+          <Route path="/saas-dashboard" element={<SaaSProjectDashboard />} />
+          <Route path="/saas" element={<SaaSProjectDashboard />} />
           
           {/* Admin Routes */}
           <Route path="/admin" element={<AdminLayout />}>

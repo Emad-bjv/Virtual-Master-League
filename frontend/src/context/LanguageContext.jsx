@@ -55,6 +55,7 @@ export const translations = {
     navHome: 'خانه',
     navTeam: 'تیم من',
     navLeague: 'جدول لیگ',
+    navBattleRoyale: 'نبرد رویال',
     navMarket: 'بازار',
     navProfile: 'پروفایل',
 
@@ -122,6 +123,7 @@ export const translations = {
     navHome: 'Home',
     navTeam: 'My Team',
     navLeague: 'League',
+    navBattleRoyale: 'Battle Royale',
     navMarket: 'Market',
     navProfile: 'Profile',
 

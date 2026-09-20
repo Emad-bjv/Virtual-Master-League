@@ -1,15 +1,15 @@
 import React from 'react';
-import { Home, ShieldCheck, Trophy, ArrowLeftRight, User as UserIcon } from 'lucide-react';
+import { Home, ShieldCheck, Swords, ArrowLeftRight, User as UserIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../context/LanguageContext';
 
 export default function BottomNav({ activeTab, onTabChange }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   const NAV_ITEMS = [
     { id: 'home', label: t('navHome'), icon: Home },
     { id: 'team', label: t('navTeam'), icon: ShieldCheck },
-    { id: 'league', label: t('navLeague'), icon: Trophy },
+    { id: 'battle_royale', label: t('navBattleRoyale') || (lang === 'fa' ? 'نبرد رویال' : 'Battle Royale'), icon: Swords },
     { id: 'market', label: t('navMarket'), icon: ArrowLeftRight },
     { id: 'profile', label: t('navProfile'), icon: UserIcon },
   ];
